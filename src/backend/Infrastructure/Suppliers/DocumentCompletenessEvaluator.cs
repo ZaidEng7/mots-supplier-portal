@@ -1,38 +1,62 @@
+// The one answer to "has this supplier sent the documents we require of them?"
+//
+// Three gates ask it: the supplier's submit gate, their resubmit gate, and the reviewer's approval gate.
+// All three now ask the same question rather than the approval gate using a second, looser test of its
+// own. The written rule's text is authoritative and unchanged; the code moved to meet it.
+//
+// A recorded product decision still holds exactly: approval does not require every document to be
+// individually approved, because a document waiting on a reviewer still satisfies the submit requirement.
+// What that decision never covered, a MISSING document and an UNSCANNED one, is now blocked.
+//
+// The looser version of the approval gate let both through. The decision said approval must not require
+// every document to already be approved. It did not say approval should not require them to be present.
+// Those are different claims and only the first was decided, so this implements the first and nothing
+// wider.
+//
+//
+// THE FOUR NUMBERS IN THE SUMMARY DO NOT SUM
+//
+// They are counted over the LATEST version of each required type, because that is the version that decides
+// anything. A rejected version superseded by an approved one is history, and counting it would tell a
+// supplier they still have a problem they fixed.
+//
+// A required type with nothing uploaded appears in none of the three counts, so the shortfall is the
+// required total less the other three. An expiring or expired document is in none of them either: it was
+// approved once and is not now, which is exactly the case that re-opens an approved supplier's profile.
+//
+// Uploaded and under-review are one number to a supplier, because they have sent it and are waiting. A
+// document waiting on the virus scanner belongs there too: the file is in, and the wait happens to be on
+// the scanner rather than on a reviewer. A file the scanner refused does not, because nothing is waiting on
+// anybody and the supplier has to send another one.
+//
+//
+// THE RULE THAT HAD NO BEHAVIOUR AT ALL
+//
+// The two gates above are consulted only before approval, so a document expiring on an already-approved
+// supplier changed nothing anywhere. The expiry job moved it to expired and the supplier's profile went on
+// looking complete indefinitely.
+//
+// The last evaluator is that missing rule: the required types whose latest version is rejected or expired,
+// which mark the profile incomplete until they are replaced.
+//
+// Rejected or expired only, deliberately. Not expiring-soon: the written rule names those two states, and
+// a document still valid for three weeks has not stopped satisfying anything. Flagging it would make
+// "incomplete" the normal condition of every supplier with a renewal approaching, which is how a warning
+// stops being read.
+//
+// It is computed rather than stored. A stored flag would need updating from the expiry job, the review
+// handlers and the upload path, and would be wrong the moment one of them forgot, which is the shape of
+// defect this codebase keeps finding. Computed from the documents themselves, it cannot drift from them.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// Shared document-requirement evaluation used by the submit gate (STORY-03.1.1), the resubmit
-/// gate (MSP-91), and the reviewer approval gate (STORY-03.2.1).
-///
-/// <para>Since MSP-91 all three ask the same question - does every required type have a latest
-/// version satisfying the submit requirement - rather than the approval gate using a second,
-/// looser predicate of its own. BRULE-017's text is authoritative and unchanged; the code moved to
-/// meet it.</para>
-///
-/// <para>The 2026-08-26 product-owner decision still holds exactly: approval does not require every
-/// document to be individually Approved, because SatisfiesSubmitRequirement admits Uploaded and
-/// UnderReview. What it never covered - missing and unscanned documents - is now blocked.</para>
-/// </summary>
 public static class DocumentCompletenessEvaluator
 {
-    /// <summary>
-    /// T-002/§12.2's <c>documentsSummary</c>: the required set, and how many of it are approved,
-    /// pending a decision, or refused.
-    ///
-    /// <para>Counted over the LATEST version of each required type, because that is the one that
-    /// decides anything - a rejected version superseded by an approved one is history, and counting it
-    /// would tell a supplier they still have a problem they fixed.</para>
-    ///
-    /// <para>The four numbers deliberately do not sum: a required type with nothing uploaded appears in
-    /// none of the three, so the shortfall is <c>Required - (Approved + Pending + Rejected)</c>. An
-    /// expiring or expired document is in none of them either - it was approved once and is not now,
-    /// which is exactly the case BRULE-018 re-opens a profile for.</para>
-    /// </summary>
     public static async Task<DocumentsSummaryDto> GetDocumentsSummaryAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
     {
         var requiredTypes = await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct);
@@ -56,10 +80,6 @@ public static class DocumentCompletenessEvaluator
                 case DocumentState.Approved:
                     approved++;
                     break;
-                // Uploaded and UnderReview are one number to a supplier: they have sent it and are
-                // waiting. PendingScan belongs here too - the file is in, and the wait happens to be on
-                // the scanner rather than on a reviewer. ScanRejected does NOT: nothing is waiting on
-                // anybody, and the supplier has to send another file.
                 case DocumentState.PendingScan:
                 case DocumentState.Uploaded:
                 case DocumentState.UnderReview:
@@ -70,8 +90,6 @@ public static class DocumentCompletenessEvaluator
                     rejected++;
                     break;
                 default:
-                    // Expired and ExpiringSoon, counted in none of the three on purpose - see the
-                    // summary above.
                     break;
             }
         }
@@ -81,10 +99,6 @@ public static class DocumentCompletenessEvaluator
 
     public static async Task<IReadOnlyList<string>> GetMissingRequiredDocumentTypeCodesAsync(AppDbContext db, Guid supplierId, CancellationToken ct)
     {
-        // BRULE-016, live since D-59: the required set is conditioned on the supplier's categories.
-        // The condition itself lives in RequiredDocumentTypeResolver, which is also what the dashboard,
-        // the profile completeness fraction and the document checklist ask - so what a supplier is told
-        // they need and what this gate refuses them for cannot disagree.
         var requiredTypes = await RequiredDocumentTypeResolver.ForSupplierAsync(db, supplierId, ct);
         if (requiredTypes.Count == 0) return [];
 
@@ -118,17 +132,6 @@ public static class DocumentCompletenessEvaluator
         {
             var latest = latestBySupplier.FirstOrDefault(d => d.DocumentTypeId == type.Id);
 
-            // MSP-91: the same predicate the submit gate uses, rather than a second one.
-            //
-            // It was `latest is not null && latest.BlocksApplicationApproval`, which let a MISSING
-            // required document through, and let a PendingScan one through - a file uploaded but
-            // never scanned. The recorded product-owner decision (2026-08-26) said approval must not
-            // require every document to already be *Approved*; it did not say approval should not
-            // require them to be *present*. Those are different claims and only the first was
-            // decided. This implements the first and nothing wider.
-            //
-            // SatisfiesSubmitRequirement admits Uploaded and UnderReview, so the decision is
-            // preserved exactly: a document waiting on a reviewer still does not block approval.
             if (latest is null || !latest.SatisfiesSubmitRequirement)
             {
                 blocking.Add(type.Code);
@@ -137,25 +140,6 @@ public static class DocumentCompletenessEvaluator
         return blocking;
     }
 
-    /// <summary>
-    /// BRULE-018 (MSP-68): the required document types whose latest version is Rejected or Expired,
-    /// which flag the supplier's profile incomplete until replaced with an approved version.
-    ///
-    /// <para>This is the rule that had NO behaviour at all. The two evaluators above are consulted
-    /// only at the submit gate and the approval gate - both pre-approval - so a document expiring on
-    /// an already-approved supplier changed nothing anywhere. The expiry job moved the document to
-    /// Expired and the supplier's profile went on looking complete indefinitely.</para>
-    ///
-    /// <para><b>Rejected or Expired only, deliberately.</b> Not ExpiringSoon: BRULE-018 names those
-    /// two states, and a document still valid for three weeks has not stopped satisfying anything.
-    /// Flagging it would make "incomplete" the normal condition of every supplier with a document
-    /// approaching renewal, which is how a warning stops being read.</para>
-    ///
-    /// <para>Computed rather than stored. A persisted flag would need updating from the expiry job,
-    /// the review handlers and the upload path, and would be wrong the moment one of them forgot -
-    /// which is the shape of defect this codebase keeps finding. Computed from the documents
-    /// themselves, it cannot drift from them.</para>
-    /// </summary>
     public static async Task<IReadOnlyList<string>> GetProfileIncompleteDocumentTypeCodesAsync(
         AppDbContext db, Guid supplierId, CancellationToken ct)
     {

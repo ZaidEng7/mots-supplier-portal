@@ -1,24 +1,26 @@
+// Writes one audit row.
+//
+// Two things changed together here, with one theme: the row's provenance is no longer supplied by the
+// caller, and the caller's transaction is no longer owned by this.
+//
+//
+// WHY IT NO LONGER SAVES
+//
+// It used to commit for itself, and that is why a guarded update once answered a server error instead of a
+// clean refusal: the audit write committed inside the caller's transaction, so the concurrency failure
+// surfaced from the audit call rather than from the update the caller was prepared to catch.
+//
+// Persisting is the caller's job now, which is where the transaction boundary already was.
+//
+// Three callers had no save of their own and gained one. Without those, their audit rows would have been
+// written to memory and dropped.
+
+namespace MotsSupplierPortal.Infrastructure.Audit;
+
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Audit;
-
-/// <summary>
-/// MSP-64. Two changes with one theme: the audit row's provenance is no longer supplied by the
-/// caller, and the caller's transaction is no longer owned by the audit write.
-///
-/// This used to call SaveChangesAsync itself. That is why MSP-65's guarded UPDATE returned 500
-/// instead of 409: the audit write committed inside the caller's transaction, so the concurrency
-/// exception surfaced from the audit call rather than from the guarded update the caller was
-/// prepared to catch. Persisting is now the caller's job, which is where the transaction boundary
-/// already lived.
-///
-/// Three callers had no SaveChangesAsync of their own and now do
-/// (GetDocumentDownloadUrlHandler, InviteSupplierUserHandler, MfaHandlers); without them their
-/// audit rows would simply never be written - an audit trail silently losing entries, which is
-/// worse than one that never existed because people rely on it.
-/// </summary>
 public sealed class AuditLogger(AppDbContext db, IAuditContext auditContext) : IAuditLogger
 {
     public async Task LogAsync(
@@ -53,9 +55,6 @@ public sealed class AuditLogger(AppDbContext db, IAuditContext auditContext) : I
             IpAddress = auditContext.IpAddress,
         });
 
-        // Deliberately no SaveChangesAsync - see the class comment. `ct` is kept on the signature
-        // because implementations of IAuditLogger may need it and removing it would churn all 57
-        // call sites for nothing.
         await Task.CompletedTask;
     }
 }

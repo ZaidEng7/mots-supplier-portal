@@ -1,3 +1,16 @@
+// The retention job: it removes abandoned draft registrations and expired tokens.
+//
+// An abandoned draft is one that never got past email verification.
+//
+// It hard-deletes rather than soft-deletes. An abandoned draft has no downstream data, no documents and no
+// submitted profile, for anything else to reference, so there is no lifecycle reason to keep a tombstone. The
+// written privacy rule says soft-delete only where the lifecycle demands it and otherwise delete and audit.
+//
+// The window is an assumption. The requirements ask for a retention policy and do not specify a period, so it
+// matches this codebase's other retention-adjacent defaults.
+
+namespace MotsSupplierPortal.Infrastructure.Registrations;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -5,21 +18,8 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Registrations;
-
-/// <summary>
-/// FR-REG-007/FR-ADM-011/NFR-PRIV-006: recurring retention/cleanup job for abandoned Draft
-/// registrations (never got past email verification) and expired verification/reset tokens.
-/// Hard-deletes rather than soft-deletes - an abandoned Draft has no downstream data (no
-/// documents, no submitted profile) for anything else to reference, so there's no lifecycle
-/// reason to keep a tombstone (NFR-PRIV-006: "soft-delete only where lifecycle demands, otherwise
-/// hard delete + audit").
-/// </summary>
 public sealed class DraftCleanupJob(AppDbContext db, UserManager<AppUser> userManager, IAuditLogger auditLogger)
 {
-    // [ASSUMPTION] FR-REG-007/NFR-PRIV-006 require a retention policy but don't specify a window;
-    // 30 days matches this codebase's other retention-adjacent defaults (refresh-token absolute
-    // cap, document-expiry lead time).
     private static readonly TimeSpan AbandonedDraftRetention = TimeSpan.FromDays(30);
 
     public async Task RunAsync(CancellationToken ct)

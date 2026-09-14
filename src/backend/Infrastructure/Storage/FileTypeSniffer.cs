@@ -1,11 +1,15 @@
+// Allow-list file-type validation: the leading bytes must match the declared type.
+//
+// The client's declared content type and its extension are not trusted; the bytes decide.
+//
+// Documents and common images only, which are the written architecture's own examples. Office formats are
+// deliberately absent: admitting them without a macro-stripping and archive-bomb defence would buy a false sense
+// of coverage, and it is flagged as a follow-up rather than quietly included.
+//
+// The size cap is the written example's own figure.
+
 namespace MotsSupplierPortal.Infrastructure.Storage;
 
-/// <summary>
-/// Allow-list-only file type validation (docs/security/SECURITY-ARCHITECTURE.md §4.1): verifies
-/// magic bytes against the declared type rather than trusting the client's Content-Type/extension.
-/// PDF and common images only - the docs' own examples; no Office formats yet (kept out to avoid
-/// a false sense of coverage without a macro-stripping/OOXML-bomb defense, flagged as a follow-up).
-/// </summary>
 public static class FileTypeSniffer
 {
     public static readonly IReadOnlyDictionary<string, string> AllowedExtensionToContentType = new Dictionary<string, string>

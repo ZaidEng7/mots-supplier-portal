@@ -1,13 +1,15 @@
-using System.Text.Json;
+// The paging cursor for a supplier's own team list, ordered by email address.
+//
+// It is its own type rather than the shared time-ordered one, and it encodes differently: as JSON rather than
+// two values joined by a colon.
+//
+// An email address is arbitrary text and cannot safely share a fixed separator the way a timestamp can. A
+// colon in an address would split the cursor in the wrong place.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
-/// <summary>
-/// MSP-84: keyset cursor for the team-members list, ordered ascending by (Email, Id) - matching
-/// the list's existing display order (Email). JSON+Base64 rather than the AuditCursor/
-/// ReviewQueueCursor colon-delimited format because Email is arbitrary text and cannot safely
-/// share a fixed delimiter the way a numeric timestamp can.
-/// </summary>
+using System.Text.Json;
+
 public readonly record struct SupplierUserCursor(string Email, Guid Id)
 {
     public string Encode() =>

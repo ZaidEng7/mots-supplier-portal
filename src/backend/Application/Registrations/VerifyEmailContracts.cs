@@ -1,3 +1,11 @@
+// The vocabulary for confirming an email address, and for asking for that confirmation again.
+//
+// Verifying reports whether the token was usable. Resending does not report anything, and that is the
+// point: it always succeeds from the caller's side, so a non-existent or already-verified address is a
+// silent no-op. Otherwise the form would answer the question of whether an address is registered.
+//
+// That is the same shape the forgotten-password path uses, for the same reason.
+
 namespace MotsSupplierPortal.Application.Registrations;
 
 public sealed record VerifyEmailCommand(string Token);
@@ -17,8 +25,5 @@ public sealed record ResendVerificationCommand(string Email);
 
 public interface IResendVerificationHandler
 {
-    /// <summary>Always succeeds from the caller's perspective (STORY-02.2.1/§1.6: resend "does not
-    /// reveal whether an address exists") - a non-existent or already-verified account is a silent
-    /// no-op, same anti-enumeration shape as ForgotPasswordHandler.</summary>
     Task HandleAsync(ResendVerificationCommand command, CancellationToken ct);
 }

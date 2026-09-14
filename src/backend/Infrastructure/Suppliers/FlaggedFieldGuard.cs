@@ -1,24 +1,30 @@
+// While a reviewer has asked for more information, only the fields they flagged may be edited.
+//
+// This used to be enforced only by disabled inputs in the browser. Ten of the eleven profile mutation
+// handlers had no check on the server, so a direct call edited any unflagged field, including the
+// compliance-critical ones that send the application back for review.
+//
+// That is precisely what the written rules forbid: the interface may hide an affordance, it may never be the
+// boundary that enforces it.
+//
+// The guard does nothing in every state except the one where information has been requested, so ordinary
+// editing is unaffected.
+//
+// An open request that cannot be read is treated as a refusal rather than as an absence of restriction. No
+// open request while in that state should not happen, and if it does, falling open is the wrong direction to
+// fail.
+//
+// The multi-field form exists for the profile patch, which can carry several fields in one request: every
+// field the caller actually set has to be flagged.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// MSP-77 / STORY-03.3.1 AC1: while a supplier is in <c>InfoRequested</c>, only the fields the
-/// reviewer flagged are editable.
-///
-/// This was previously enforced ONLY by `disabled` attributes in the browser
-/// (OnboardingPage.tsx `fieldEditable`). Ten of eleven profile mutation handlers had no
-/// server-side check, so a direct API call edited any non-flagged field - including
-/// compliance-critical ones that re-trigger review. That is precisely what BRULE-094 and
-/// NFR-SEC-012 forbid: the UI may hide affordances, it may never be the security boundary.
-///
-/// The guard is a no-op in every state except InfoRequested, so ordinary editing is unaffected.
-/// </summary>
 internal static class FlaggedFieldGuard
 {
-    /// <summary>Null when the mutation is permitted; otherwise the refusal reason.</summary>
     public static async Task<string?> RefusalReasonAsync(
         AppDbContext db, Supplier supplier, string fieldCode, CancellationToken ct)
     {
@@ -33,8 +39,6 @@ internal static class FlaggedFieldGuard
             .Select(a => a.FlaggedProfileFields)
             .FirstOrDefaultAsync(ct);
 
-        // No open annotation while InfoRequested shouldn't happen, but if it does, refuse rather
-        // than fall open - an unreadable restriction is not the same as no restriction.
         if (flagged is null)
         {
             return "No open information request found; this application is not currently editable.";
@@ -49,8 +53,6 @@ internal static class FlaggedFieldGuard
                $"Editable fields: {string.Join(", ", flagged)}.";
     }
 
-    /// <summary>Multi-field variant for the core-profile PATCH, which can carry several fields in
-    /// one request: every field the caller actually set must be flagged.</summary>
     public static async Task<string?> RefusalReasonAsync(
         AppDbContext db, Supplier supplier, IReadOnlyList<string> fieldCodes, CancellationToken ct)
     {

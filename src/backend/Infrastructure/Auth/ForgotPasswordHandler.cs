@@ -1,3 +1,21 @@
+// Requesting a password reset link.
+//
+// The response is identical whether or not the account exists, so this is no oracle for which addresses are
+// registered. An unknown address is a silent no-op.
+//
+// The link carries only the opaque single-use token, never a user identifier.
+//
+//
+// THE TOKEN IS MINTED INSIDE THE JOB, NOT HERE
+//
+// Baking it into a job argument stored it in plain text in the job tables for the whole retention window: a
+// working password-reset credential at rest, which together with an anonymous reset endpoint was an
+// account-takeover chain a security review found.
+//
+// The resistance to enumeration above is unchanged, because the caller still sees the same response either way.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -6,13 +24,6 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Email;
 
-namespace MotsSupplierPortal.Infrastructure.Auth;
-
-/// <summary>
-/// FR-IAM-005: identical response whether or not the account exists (no enumeration).
-/// If it exists, a single-use, time-limited reset token is queued via a durable email job.
-/// SECURITY-ARCHITECTURE.md §1.7: the link carries only the opaque token, never the user id.
-/// </summary>
 public sealed class ForgotPasswordHandler(
     UserManager<AppUser> userManager,
     IBackgroundJobClient backgroundJobs) : IForgotPasswordHandler
@@ -25,11 +36,6 @@ public sealed class ForgotPasswordHandler(
             return; // silent no-op: caller sees the same "check your email" response either way
         }
 
-        // The token is minted inside the job (MSP-89), not here. Baking it into a job argument
-        // stored it in plaintext in the Hangfire tables for the whole retention window - a working
-        // password-reset credential at rest, which combined with anonymous forgot-password was the
-        // account-takeover chain MSP-87 found. The enumeration-resistance above is unchanged: the
-        // caller still sees the same response whether or not the user exists.
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendPasswordResetEmailAsync(user.Id, CancellationToken.None));
     }
 }

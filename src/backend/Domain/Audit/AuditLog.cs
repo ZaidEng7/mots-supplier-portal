@@ -1,3 +1,19 @@
+// One line in the compliance record: who did what to which record, and when.
+//
+// Rows are written in the same transaction as the change they describe, and application
+// code never updates or deletes one. The table only grows.
+//
+// AuditActorKind says what kind of actor it was. User is a person, System is a background
+// job, Integration is another system acting through the portal.
+//
+// FromState and ToState carry a state change where there was one. Changes carries a
+// field-level before-and-after as JSON for the actions where a state change is not the
+// whole story; it is null otherwise. That JSON is redacted before it is saved, because a
+// request body can hold a price or a rejection reason and this table is read widely.
+//
+// CorrelationId ties every row produced by one request together, and it is the identifier
+// the product shows the user when something fails.
+
 namespace MotsSupplierPortal.Domain.Audit;
 
 public enum AuditActorKind
@@ -7,10 +23,6 @@ public enum AuditActorKind
     Integration,
 }
 
-/// <summary>
-/// Append-only compliance record (docs/architecture/DATABASE-MODEL.md §5). Written in the same
-/// unit of work as the state change it records; never updated or deleted by application code.
-/// </summary>
 public sealed class AuditLog
 {
     public Guid Id { get; init; }
@@ -25,9 +37,6 @@ public sealed class AuditLog
     public string? FromState { get; init; }
     public string? ToState { get; init; }
     public string? Reason { get; init; }
-    /// <summary>DATABASE-MODEL.md §5: field-level before/after diff as JSON, redacted for PII/
-    /// secrets before persistence (see AuditChangeBuilder) - null when the action has no
-    /// meaningful field diff (e.g. a state-only transition already captured by FromState/ToState).</summary>
     public string? Changes { get; init; }
     public Guid CorrelationId { get; init; }
     public string? IpAddress { get; init; }

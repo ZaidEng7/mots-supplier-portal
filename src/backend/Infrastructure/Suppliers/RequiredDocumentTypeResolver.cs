@@ -1,40 +1,59 @@
+// Which documents THIS supplier is required to hold, given what it sells.
+//
+//
+// THE ONE PLACE THE CONDITION LIVES
+//
+// Six places derived the required set independently and identically: the submit gate, the resubmit gate and
+// the reviewer's approval gate through the completeness evaluator, plus the profile's completeness
+// fraction, the dashboard's denominator and the document checklist. Each carried the same paragraph
+// explaining why it was flat.
+//
+// Narrowing them one at a time is how a supplier gets told on the dashboard that they need a document the
+// submit gate does not ask for. So the derivation is one function and the call sites ask it rather than
+// repeating it.
+//
+//
+// THE RULE
+//
+// A required type with no category links is required of everyone. A required type WITH links is required
+// only of suppliers holding one of those categories.
+//
+// That asymmetry is the answer to the question that kept this switched off. An empty link table must not
+// mean "required of nobody", because that would silently empty every gate in the product, and a portal
+// that lets an incomplete application through is worse than one that asks for too much. Unlinked therefore
+// means unconditioned, which is the behaviour the flat rule had, and recording a link is what narrows a
+// type to an audience.
+//
+// A supplier with no categories is asked for the unlinked types only. Same reading: nothing about what
+// they sell is known, so nothing category-conditioned can be demanded of them. It is also self-correcting,
+// because the categories are captured during registration and the submit gate runs after them.
+//
+//
+// IT APPLIES RETROACTIVELY, AND THAT IS A ONE-WAY DOOR
+//
+// This applies to every supplier rather than only to new registrations, including suppliers already
+// approved under the flat set. The recorded decision says why, and says that it is one-way: an approval
+// made under one required set is not re-made by changing the set. It is safe now because every supplier in
+// the system is demonstration data.
+//
+//
+// TWO QUESTIONS, NOT ONE
+//
+// One caller wants the required types. The checklist wants to list every active type and say which of them
+// are required of this supplier. A second query answering the second question would disagree with the
+// first the moment the two drifted, so both narrow through the same private step.
+//
+// When no required type carries a link, nobody has narrowed anything, the answer is the flat set, and the
+// supplier's own categories need not be read at all.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// BRULE-016: which documents THIS supplier is required to hold, given what it sells.
-///
-/// <para><b>The one place the condition lives.</b> Four sites derived the required set independently and
-/// identically - the submit gate, the resubmit gate and the reviewer's approval gate through
-/// <see cref="DocumentCompletenessEvaluator"/>, plus <c>GetSupplierHandler</c>'s completeness fraction,
-/// <c>SupplierDashboardHandler</c>'s denominator and <c>ListSupplierDocumentsHandler</c>'s checklist. Each
-/// carried the same paragraph explaining why it was flat. Conditioning them one at a time is how a
-/// supplier is told on the dashboard that they need a document the submit gate does not ask for, so the
-/// derivation is now a single function and the call sites ask it rather than repeating it.</para>
-///
-/// <para><b>The rule.</b> A required type with no category links is required of everyone; a required type
-/// WITH links is required only of suppliers holding one of those categories. That asymmetry is the answer
-/// to the question that kept this switched off: an empty link table must not mean "required for nothing",
-/// because that would silently empty every gate in the product, and a portal that lets an incomplete
-/// application through is worse than one that asks for too much. Unlinked therefore means unconditioned -
-/// the same behaviour the flat rule had - and recording a link is what narrows a type to an audience.</para>
-///
-/// <para><b>A supplier with no categories</b> is asked for the unlinked types only. That is the same
-/// reading: nothing about what they sell is known, so nothing category-conditioned can be demanded of
-/// them. It is also self-correcting, because the categories are captured during registration and the
-/// submit gate runs after them.</para>
-///
-/// <para><b>Retroactive, per D-59.</b> This applies to every supplier rather than only to new
-/// registrations - including suppliers already approved under the flat set. D-59 records why, and records
-/// that it is a one-way door: an approval made under one required set is not re-made by changing the set.
-/// It is safe now because every supplier in the system is demonstration data.</para>
-/// </summary>
 public static class RequiredDocumentTypeResolver
 {
-    /// <summary>The active, required document types this supplier must hold.</summary>
     public static async Task<IReadOnlyList<DocumentType>> ForSupplierAsync(
         AppDbContext db, Guid supplierId, CancellationToken ct)
     {
@@ -44,13 +63,6 @@ public static class RequiredDocumentTypeResolver
         return await NarrowAsync(db, supplierId, requiredTypes, ct);
     }
 
-    /// <summary>
-    /// The ids of the required types for this supplier, out of a set the caller has already loaded.
-    ///
-    /// <para>For the document checklist, which lists every ACTIVE type and needs to say which of them are
-    /// required of this supplier - a different question from "give me the required ones", and one a second
-    /// query would answer inconsistently the moment the two drifted.</para>
-    /// </summary>
     public static async Task<IReadOnlySet<Guid>> RequiredIdsAmongAsync(
         AppDbContext db, Guid supplierId, IReadOnlyCollection<DocumentType> activeTypes, CancellationToken ct)
     {
@@ -71,8 +83,6 @@ public static class RequiredDocumentTypeResolver
             .Select(l => new { l.DocumentTypeId, l.CategoryCode })
             .ToListAsync(ct);
 
-        // No link on any required type: nobody has narrowed anything, so the answer is the flat set and
-        // the supplier's own categories need not be read at all.
         if (links.Count == 0) return requiredTypes;
 
         var supplierCategories = await db.CategoryLinks.AsNoTracking()

@@ -1,13 +1,16 @@
-using Microsoft.Extensions.Logging;
-using MotsSupplierPortal.Application.Common;
+// The stand-in for the real purchase-order integration, for development.
+//
+// The same shape the logging transport and the logging email sender have for their own not-yet-built providers.
+// It always succeeds and returns an obviously synthetic reference.
+//
+// It never logs the tender's reference code or any award content. Only the award's internal identifier, which is
+// meaningless outside this system.
 
 namespace MotsSupplierPortal.Infrastructure.Awards;
 
-/// <summary>Dev-only stand-in for the real EPIC-23 ERPNext Purchase Order integration - same shape
-/// as LoggingOutboxTransport/LoggingEmailSender for their own not-yet-built providers. Always
-/// succeeds, returning a fake, obviously-synthetic PO reference. Never logs the RFQ reference code
-/// or any award content (MSP-61/BRULE-091) - only the award id, which is meaningless outside this
-/// system.</summary>
+using Microsoft.Extensions.Logging;
+using MotsSupplierPortal.Application.Common;
+
 public sealed class StubErpPurchaseOrderAdapter(ILogger<StubErpPurchaseOrderAdapter> logger) : IErpPurchaseOrderAdapter
 {
     public Task<string> CreatePurchaseOrderAsync(Guid awardId, string rfqReferenceCode, CancellationToken ct = default)

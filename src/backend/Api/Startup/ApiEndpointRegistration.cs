@@ -127,7 +127,7 @@ using System.Reflection;
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Api.Endpoints;
-using MotsSupplierPortal.Application.Reference;
+using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;

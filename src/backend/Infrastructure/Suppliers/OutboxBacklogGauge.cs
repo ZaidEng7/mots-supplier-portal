@@ -1,26 +1,26 @@
+// The instrument that makes a stuck outbox dispatcher visible.
+//
+// A dispatcher running correctly and one silently stuck, with a transport throwing every time and nobody
+// watching the job list, look identical from outside: pending rows simply stop decreasing.
+//
+// It is a gauge rather than a counter, because a backlog is a level, how many right now, rather than
+// something that only goes up.
+//
+// It is constructed eagerly at startup so the callback is wired up whether or not anything else happens to
+// resolve this type. A gauge nobody ever constructed is exactly the pathology of an instrument reporting
+// over an absent set, at the level of object lifetime rather than of a query.
+//
+// Each observation opens its own short-lived scope rather than capturing a database context. The callback
+// fires on the metrics library's own collection cycle, which long outlives any one request's context.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Infrastructure.Observability;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// Task #16/NFR-OBS-006: "include a way to observe backlog size" - the one thing a dispatcher
-/// running correctly and a dispatcher silently stuck (transport throwing every time, Hangfire's own
-/// job list not being watched) look identical from the outside without this: Pending rows simply
-/// stop decreasing. An ObservableGauge, not a Counter - the backlog is a level (how many right now),
-/// not something that only increases.
-///
-/// <para>Registered as a singleton constructed eagerly at startup (Program.cs) so the gauge
-/// callback is wired up whether or not anything else in the app happens to resolve this type - an
-/// ObservableGauge nobody ever constructed is exactly the "instrument reporting over an absent set"
-/// pathology (MSP-83) this session keeps finding, just at object-lifetime level instead of a query.
-/// Uses IServiceScopeFactory rather than a captured AppDbContext: the gauge callback can fire at
-/// any time on the OTel SDK's own collection cycle, long outliving any one request's scoped
-/// DbContext, so each observation opens its own short-lived scope.</para>
-/// </summary>
 public sealed class OutboxBacklogGauge
 {
     public OutboxBacklogGauge(AppMetrics metrics, IServiceScopeFactory scopeFactory)

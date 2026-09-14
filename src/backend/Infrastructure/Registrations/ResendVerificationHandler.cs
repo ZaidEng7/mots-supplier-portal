@@ -1,3 +1,12 @@
+// Sending the verification email again.
+//
+// Rate-limited at the endpoint, per address and per caller, and like the forgot-password path it never reveals
+// whether the address exists or is already verified.
+//
+// The token is minted inside the job, for the reason the forgot-password handler explains.
+
+namespace MotsSupplierPortal.Infrastructure.Registrations;
+
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -6,10 +15,6 @@ using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Email;
 
-namespace MotsSupplierPortal.Infrastructure.Registrations;
-
-/// <summary>STORY-02.2.1 AC3: resend is rate-limited at the endpoint (per-IP + per-target) and,
-/// like ForgotPasswordHandler, never reveals whether the address exists or is already verified.</summary>
 public sealed class ResendVerificationHandler(
     UserManager<AppUser> userManager,
     IBackgroundJobClient backgroundJobs) : IResendVerificationHandler
@@ -22,7 +27,6 @@ public sealed class ResendVerificationHandler(
             return;
         }
 
-        // Token minted inside the job (MSP-89) - see ForgotPasswordHandler for why.
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Id, CancellationToken.None));
     }
 }

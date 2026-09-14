@@ -1,15 +1,67 @@
+// The shape every list response has: the rows, how to get the next page, and what the caller asked for.
+//
+// One envelope for every collection, so the interface's table components and query code are uniform
+// instead of each read having its own shape.
+//
+//
+// PAGING
+//
+// The mode is either a cursor or a page number. Every read here uses a cursor. Page numbers exist in the
+// contract for administrative grids that render a total-count pager, and nothing uses that yet.
+//
+// The next cursor is absent when there are no more rows.
+//
+// The previous cursor is always absent, because no read supports paging backwards. It is present in the
+// shape because the contract lists it, and emitting a fabricated value would be worse than emitting the
+// documented absence.
+//
+// The total count is absent unless the caller asks for it. It is still reported as absent rather than left
+// out entirely, so the shape stays stable for clients.
+//
+// The page number is absent under cursor paging, where there is no page number to report.
+//
+//
+// HASMORE IS ALWAYS THERE AND THE TOTAL USUALLY IS NOT
+//
+// Knowing whether more rows exist costs nothing: fetch one more row than the page size, return the page,
+// and report whether the extra row was there.
+//
+// A total needs counting the whole filtered set, which is expensive on a table that only grows and close to
+// meaningless under cursor paging, where there is no page twelve of four hundred to render.
+//
+//
+// THE META BLOCK IS ALWAYS EMITTED
+//
+// Even when nothing was sorted or filtered, in which case its fields are absent. The contract shows it
+// populated on a request that carried both and does not say whether it is required when neither applies.
+//
+// Always emitting it is what the contract's own reasoning asks for, since a key that appears and
+// disappears is exactly what forces every reader to be defensive. Recorded as a documented silence.
+//
+//
+// THE SIZE LIMITS
+//
+// The default page is twenty rows and the ceiling is a hundred.
+//
+// A missing or nonsensical size falls back to the default rather than failing. The contract documents
+// clamping rather than refusing, and failing a list read over a bad query string helps nobody.
+//
+// WasClamped is separate from the clamp because the clamp alone cannot tell the route whether anything was
+// clamped, and the route has to attach a warning header when it was.
+//
+// Under page numbers there is also a hard cap on how far a caller may skip, which protects the database. It
+// is evaluated against the clamped size, because that is what the query will actually use: refusing a
+// caller's unclamped request while the server would have run a hundred rows would reject requests the cap
+// was never meant to catch.
+//
+//
+// AN EMPTY LIST IS A SUCCESS
+//
+// No rows is an empty list with a successful status, never a not-found. A caller asking a question with no
+// answers has not asked about something that does not exist.
+
 namespace MotsSupplierPortal.Application.Common;
 
-/// <summary>The `pagination` block of the list envelope (API-ARCHITECTURE.md §5.2).</summary>
-/// <param name="Mode">"cursor" | "page". Every endpoint here is cursor mode; offset paging exists in
-/// the contract for admin grids that render a total-count pager, and no endpoint uses it yet.</param>
-/// <param name="NextCursor">Null when no more rows (cursor mode).</param>
-/// <param name="PrevCursor">Always null today: no endpoint supports backward paging, and emitting a
-/// fabricated value would be worse than emitting the documented null. Present because §5.2 lists it.</param>
-/// <param name="TotalCount">Omitted (null) unless the caller asks - §6.1: "totalCount omitted unless
-/// ?withCount=true". Serialised as null rather than dropped, so the shape is stable for clients.</param>
-/// <param name="Page">Page mode only (§12.3's worked response carries <c>"page": 1</c>); null under
-/// cursor mode, where there is no page number to report.</param>
 public sealed record PaginationEnvelope(
     string Mode,
     string? NextCursor,
@@ -19,59 +71,22 @@ public sealed record PaginationEnvelope(
     bool HasMore,
     int? Page = null);
 
-/// <summary>
-/// The `meta` block of the list envelope (§5.2).
-///
-/// <para>§5.2 shows `meta` populated on a request that carried both a sort and filters; it does not
-/// state whether the block is required when neither is applied. Emitted always, with nulls, rather
-/// than omitted - a stable response shape is what §5.2's own rationale asks for ("so table
-/// components and query hooks are uniform"), and a key that appears and disappears is the thing that
-/// forces defensive readers. Flagged in the batch report as a documented silence.</para>
-/// </summary>
 public sealed record ListMetaEnvelope(string? Sort, IReadOnlyList<string>? FiltersApplied);
 
-/// <summary>
-/// The standard list envelope every collection endpoint returns (API-ARCHITECTURE.md §5.2):
-/// <c>{ data, pagination: { mode, nextCursor, prevCursor, pageSize, totalCount, hasMore }, meta:
-/// { sort, filtersApplied } }</c>.
-///
-/// <para><b>Replaces <c>Page&lt;T&gt;</c></b> (`items`/`hasMore`/`nextCursor`), which was a
-/// reasonable shape but not the documented one - Block 1.9 of the Epics 7-14 audit. Renamed now,
-/// while six handlers use it, rather than after the Epics 15-19 dashboards add more callers.</para>
-///
-/// <para><b>HasMore is always populated; TotalCount usually is not</b> - carried over from
-/// <c>Page&lt;T&gt;</c>, and it matches §6.1. HasMore costs nothing (fetch pageSize + 1, return
-/// pageSize, report whether the extra row existed); a total needs a COUNT over the whole filtered
-/// set, which is expensive on an append-only table and close to meaningless under keyset paging
-/// where there is no "page 12 of 400" to render.</para>
-/// </summary>
 public sealed record ListEnvelope<T>(
     IReadOnlyList<T> Data,
     PaginationEnvelope Pagination,
     ListMetaEnvelope Meta)
 {
-    /// <summary>§6.1: "pageSize default <b>20</b>". Compatible with NFR-PERF-006's "default page
-    /// ≤ 50 rows" - the stricter of the two governs.</summary>
     public const int DefaultPageSize = 20;
 
-    /// <summary>§6.1: "max <b>100</b> (&gt; 100 → clamped + Warning header)". Was 200 under
-    /// <c>Page&lt;T&gt;</c>; lowered to the documented ceiling.</summary>
     public const int MaxPageSize = 100;
 
-    /// <summary>
-    /// Clamps a caller-supplied page size into the documented range. A missing or nonsensical value
-    /// falls back to the default rather than erroring - §6.1 documents clamping, not rejection, and
-    /// failing a list read over a bad query string helps nobody.
-    /// </summary>
     public static int ClampPageSize(int? requested) =>
         requested is null or < 1 ? DefaultPageSize : Math.Min(requested.Value, MaxPageSize);
 
-    /// <summary>True when the caller asked for more than the ceiling, so the endpoint can attach the
-    /// `Warning` header §6.1 requires. Separate from ClampPageSize because the clamp alone cannot
-    /// tell the endpoint whether anything was clamped.</summary>
     public static bool WasClamped(int? requested) => requested is > MaxPageSize;
 
-    /// <summary>A cursor-mode page.</summary>
     public static ListEnvelope<T> Cursor(
         IReadOnlyList<T> data,
         bool hasMore,
@@ -84,26 +99,11 @@ public sealed record ListEnvelope<T>(
             new PaginationEnvelope("cursor", hasMore ? nextCursor : null, PrevCursor: null, pageSize, totalCount, hasMore),
             new ListMetaEnvelope(sort, filtersApplied));
 
-    /// <summary>§6.1, page mode: *"Hard cap `page*pageSize <= 10 000` to protect the DB"*.</summary>
     public const int MaxPageOffset = 10_000;
 
-    /// <summary>
-    /// True when <paramref name="page"/> and <paramref name="pageSize"/> would read past §6.1's
-    /// hard cap. The endpoint answers 422 *"advising cursor mode"*, which §6.1 states verbatim.
-    ///
-    /// <para>Evaluated on the CLAMPED page size, because the clamp is what the query will actually
-    /// use - refusing on the caller's unclamped 5000 while the server would have run 100 would
-    /// reject requests the cap was never meant to catch.</para>
-    /// </summary>
     public static bool ExceedsPageCap(int page, int? requestedPageSize) =>
         (long)Math.Max(page, 1) * ClampPageSize(requestedPageSize) > MaxPageOffset;
 
-    /// <summary>
-    /// A page-mode page (§6.1: *"Offset paging for finite admin grids. Always returns
-    /// `totalCount`"*), shaped as §12.3's worked response shows it: <c>mode</c>, <c>page</c>,
-    /// <c>pageSize</c>, <c>totalCount</c>, <c>hasMore</c> - and no cursors, which have no meaning
-    /// here and are emitted as null rather than fabricated.
-    /// </summary>
     public static ListEnvelope<T> PageOf(
         IReadOnlyList<T> data,
         int page,
@@ -116,8 +116,6 @@ public sealed record ListEnvelope<T>(
                 HasMore: (long)page * pageSize < totalCount, Page: page),
             new ListMetaEnvelope(sort, filtersApplied));
 
-    /// <summary>An empty cursor-mode page. §5.2: "Empty results return `data: []` with `200`, never
-    /// `404`."</summary>
     public static ListEnvelope<T> Empty(int pageSize, string? sort = null, IReadOnlyList<string>? filtersApplied = null) =>
         new([],
             new PaginationEnvelope("cursor", NextCursor: null, PrevCursor: null, pageSize, TotalCount: null, HasMore: false),

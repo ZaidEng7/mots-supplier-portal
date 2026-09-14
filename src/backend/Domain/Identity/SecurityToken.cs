@@ -1,3 +1,18 @@
+// A single-use token sent by email: verify your address, reset your password, accept an invitation.
+//
+// Only the hash is stored, and a token is spent the first time it is used.
+//
+// The framework has its own token providers, and they are deliberately not used for this. Those
+// tokens carry enough inside themselves to be checked without a stored record, but the links sent
+// to people must contain only the opaque token and never the user's id, which means the token itself
+// has to be the only way to find the user. The framework's providers are still used afterwards, to
+// perform the actual change once this token has identified who is asking.
+//
+// Purpose is stored as text, so adding a new purpose needs no database migration. Only changing the
+// column's type would.
+//
+// A token is valid while it has not been used and has not expired.
+
 namespace MotsSupplierPortal.Domain.Identity;
 
 public enum SecurityTokenPurpose
@@ -5,20 +20,9 @@ public enum SecurityTokenPurpose
     EmailVerification,
     PasswordReset,
     SupplierUserInvite,
-    // Task #28. Stored as a string column (see migrations), so adding this value needs no
-    // migration - only a schema change to the column TYPE would.
     StaffInvite,
 }
 
-/// <summary>
-/// Opaque, single-use, hashed tokens for email verification and password reset
-/// (SECURITY-ARCHITECTURE.md §1.6/§1.7). Deliberately NOT ASP.NET Identity's built-in
-/// DataProtector token providers - those encode enough into the token's validation to be
-/// checked without a server-side record, but the URLs the client receives must contain only the
-/// opaque token (never the user id), so the token itself has to be the sole lookup key. Identity's
-/// own token providers are still used internally (see SecurityTokenService) to perform the actual
-/// state change once this token has resolved a user.
-/// </summary>
 public sealed class SecurityToken
 {
     public Guid Id { get; init; }

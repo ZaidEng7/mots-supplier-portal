@@ -1,7 +1,54 @@
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// A scoring template: the criteria, their weights and their thresholds that a tender is evaluated
+// against.
+//
+// It lives only in this portal and is never synced to the ministry's finance system.
+//
+// Three enums sit alongside it. Status is where a template is in its life: a draft being written, an
+// active one that tenders may bind to, or an archived one that is out of use. Dimension is which part
+// of a bid a criterion judges, and the commercial dimension is what marks a criterion as the financial
+// envelope. ScoringType is how a score is given: a number, a scale, a yes-or-no, or a formula.
+//
+//
+// VERSIONING, which is the point of this design
+//
+// A template referenced by a live tender can never change. Editing produces a new version instead.
+//
+// Each version is its own row with its own identifier, not one row whose version number is bumped in
+// place. FamilyId groups every version of the same template together, and Version starts at 1 and
+// increases when the template is forked.
+//
+// Once IsReferenced is set, meaning some tender has bound to this exact version, every editing method
+// refuses. The caller has to fork a new version and edit that instead.
+//
+// The refusal is deliberately hard rather than an automatic fork behind the caller's back. Whoever is
+// authoring decides whether forking is what they want; this record only guarantees that the referenced
+// row itself can never change underneath a live tender.
+//
+// Fork produces a new, independent, editable version in the same family. It starts from this version's
+// criteria, copied with new identifiers, and begins its own life as an unreferenced draft, so it has to
+// be edited and activated on its own. Existing tenders keep pointing at the exact version they
+// originally bound to, and each of them also holds its own frozen copy of it besides the link.
+//
+// MarkReferenced is called by the tender-binding handler, in the same save as the tender's own. It
+// deliberately does not check editability, because marking a template as referenced is not an edit; it
+// is what makes future edits illegal. Only an active template can be bound.
+//
+//
+// ACTIVATION
+//
+// A template needs at least one criterion, and the weights must sum to exactly 100 before it can
+// become active.
+//
+// Exactly 100, not a tolerance band. Weights are stored as decimals with two places, so the arithmetic
+// here is exact as long as the inputs are, and a template that does not sum to 100 is a real authoring
+// mistake for the author to fix rather than something to round past.
+//
+// Archiving is only possible from active.
 
 namespace MotsSupplierPortal.Domain.Evaluation;
+
+using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Suppliers;
 
 public enum EvaluationTemplateStatus
 {
@@ -26,21 +73,6 @@ public enum ScoringType
     Formula,
 }
 
-/// <summary>FEAT-11.1/FR-ADM-005, pulled forward ahead of EPIC-11's own phase because EPIC-07
-/// needs a real template to bind an RFQ to (docs/architecture/DOMAIN-MODEL.md §5.6). Portal-only -
-/// no ERP sync markers (DOMAIN-MODEL.md §3's aggregate catalogue lists EvaluationTemplate's
-/// "ERP-synced" column as No).
-///
-/// <para><b>Versioning/immutability (DOMAIN-MODEL.md §5.6: "A template referenced by any live RFQ
-/// is immutable; edits produce a new version").</b> Each version is its own row with its own Id -
-/// not a single row whose Version column increments in place. <see cref="FamilyId"/> groups every
-/// version of "the same" template together; <see cref="Version"/> is 1 at first creation and
-/// increments on <see cref="Fork"/>. Once <see cref="IsReferenced"/> is set (an RFQ has bound to
-/// this exact Id+Version), every edit method throws - the caller must <see cref="Fork"/> a new
-/// version and edit that instead. This is deliberately a hard reject, not a silent auto-fork:
-/// the caller (RFQ authoring) decides whether forking is what it wants, the template aggregate only
-/// enforces that the referenced row itself can never change under a live RFQ.</para>
-/// </summary>
 public sealed class EvaluationTemplate : IVersionedAggregate
 {
     private readonly List<Criterion> _criteria = [];
@@ -76,9 +108,6 @@ public sealed class EvaluationTemplate : IVersionedAggregate
         };
     }
 
-    /// <summary>Refuses any edit once this exact version has been bound to a live RFQ - the caller
-    /// must <see cref="Fork"/> a new version instead of mutating a row an RFQ already snapshotted
-    /// from.</summary>
     private void EnsureEditable()
     {
         if (IsReferenced)
@@ -169,11 +198,6 @@ public sealed class EvaluationTemplate : IVersionedAggregate
         _criteria.Remove(criterion);
     }
 
-    /// <summary>BRULE-065/DOMAIN-MODEL.md §5.6: sum of Criterion.weight across the template must
-    /// equal exactly 100 before it can become Active. Exact equality, not a tolerance band - weight
-    /// is `numeric(5,2)` (DATABASE-MODEL.md §2.5), so decimal arithmetic here is exact as long as
-    /// inputs are, and a template that doesn't sum to 100 is a real authoring error the caller
-    /// should fix, not round past.</summary>
     public void Activate()
     {
         EnsureEditable();
@@ -202,10 +226,6 @@ public sealed class EvaluationTemplate : IVersionedAggregate
         Status = EvaluationTemplateStatus.Archived;
     }
 
-    /// <summary>Called by the RFQ-binding handler, in the same unit of work as the RFQ's own save,
-    /// when an RFQ binds to this exact template version. Deliberately does not check
-    /// <see cref="EnsureEditable"/> - marking a template referenced is not itself an edit, it is
-    /// what makes future edits illegal.</summary>
     public void MarkReferenced()
     {
         if (Status != EvaluationTemplateStatus.Active)
@@ -216,12 +236,6 @@ public sealed class EvaluationTemplate : IVersionedAggregate
         IsReferenced = true;
     }
 
-    /// <summary>Creates a new, independent, editable version in the same family - the only way to
-    /// change a template once <see cref="IsReferenced"/> is true. The new version starts from this
-    /// version's criteria (deep-copied, new Ids) and its own Draft/unreferenced lifecycle; it must
-    /// be edited and re-activated independently, and existing RFQs keep referencing the exact old
-    /// Id+Version they originally bound to (RFQ holds its own frozen JSON snapshot besides the
-    /// FK - see DATABASE-MODEL.md §2.3 `evaluation_template_snapshot`).</summary>
     public EvaluationTemplate Fork()
     {
         var forked = new EvaluationTemplate

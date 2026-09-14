@@ -1,15 +1,44 @@
+// The administrator's rewording of notification copy, and the read the sender uses.
+//
+// A type with no stored row renders the shipped words, which is what makes this table safe to add to a running
+// system: nothing changes until somebody changes it.
+//
+// An override replaces the four strings and nothing else. The record of which requirement asked for the
+// notification stays with the shipped entry, because rewording it does not change that.
+//
+//
+// THE TOKENS AN OVERRIDE MAY USE ARE THE SHIPPED COPY'S OWN
+//
+// A rewording is checked against the token set that type actually supplies, and an unknown token is refused with
+// the list of offenders. So an override gains no capability the shipped copy lacks.
+//
+//
+// THE LIST IS THE CATALOGUE, NOT THE ROWS
+//
+// The screen lists every type the system can send, including the ones nobody has reworded. A list built from the
+// stored rows would be empty on every deployment that has not edited anything, which reads as "there is nothing
+// to configure".
+//
+// Reverting a type that was never overridden is a success: the shipped copy is what the caller asked for and it
+// is already in force.
+//
+//
+// EVERY WRITE IS AUDITED, AND THE WORDS ARE NOT IN THE ROW
+//
+// These words are what a supplier is told about a rejection, a deadline or an award, so "who reworded the award
+// notice" is a governance question.
+//
+// The structured change field is for a redacted field difference and these are four long bilingual strings. The
+// action, the type and the actor are what the question needs, and the current words are readable from the table.
+
+namespace MotsSupplierPortal.Infrastructure.Notifications;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Notifications;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Notifications;
-
-/// <summary>
-/// T-061. Reads the override for the write path: a type with no row renders the shipped words, which
-/// is what makes this table safe to add to a running system.
-/// </summary>
 public sealed class NotificationCopySource(AppDbContext db) : INotificationCopySource
 {
     public async Task<NotificationCatalogue.Entry> ForAsync(string type, CancellationToken ct)
@@ -23,18 +52,10 @@ public sealed class NotificationCopySource(AppDbContext db) : INotificationCopyS
 
         return over is null
             ? shipped
-            // Source stays the shipped entry's - it records where the copy came from originally, and
-            // an override does not change which requirement asked for the notification.
             : shipped with { TitleAr = over.TitleAr, TitleEn = over.TitleEn, BodyAr = over.BodyAr, BodyEn = over.BodyEn };
     }
 }
 
-/// <summary>
-/// FR-ADM-007/T-061. The admin surface.
-///
-/// <para><b>Every write is audited.</b> These words are what a supplier is told about a rejection, a
-/// deadline, or an award, so "who reworded the award notice" is a governance question.</para>
-/// </summary>
 public sealed class NotificationTemplateAdminHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger)
     : INotificationTemplateAdminHandler
 {
@@ -43,9 +64,6 @@ public sealed class NotificationTemplateAdminHandler(AppDbContext db, IScopeCont
         var overrides = await db.Set<NotificationTemplate>().AsNoTracking().ToListAsync(ct);
         var byType = overrides.ToDictionary(t => t.Type, StringComparer.Ordinal);
 
-        // Catalogue order: the screen lists every type the system can send, including the ones nobody
-        // has reworded. A list built from the rows would be empty on every deployment that has not
-        // edited anything, which reads as "there is nothing to configure".
         return
         [
             .. NotificationCatalogue.Types
@@ -93,9 +111,6 @@ public sealed class NotificationTemplateAdminHandler(AppDbContext db, IScopeCont
             existing.UpdatedByUserId = scope.UserId;
         }
 
-        // The words themselves are not in the audit row: `changes` is for a redacted field diff and
-        // these are four long bilingual strings. The action, the type and the actor are what the
-        // question needs, and the current words are readable from the table.
         await auditLogger.LogAsync("NotificationTemplate", existing.Id, "notification.template.updated",
             scope.UserId, referenceCode: command.Type, ct: ct);
         await db.SaveChangesAsync(ct);
@@ -116,8 +131,6 @@ public sealed class NotificationTemplateAdminHandler(AppDbContext db, IScopeCont
             await db.SaveChangesAsync(ct);
         }
 
-        // Reverting a type that was never overridden is a success: the shipped copy is what the caller
-        // asked for and it is already in force.
         return new NotificationTemplateResult.Success(ToDto(type, null));
     }
 

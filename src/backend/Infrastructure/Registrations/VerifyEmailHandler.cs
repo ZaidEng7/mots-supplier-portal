@@ -1,3 +1,16 @@
+// Confirming an email address from the link.
+//
+// The opaque link token is the only lookup key: single-use, short-lived, stored hashed, and it resolves the user
+// without an identifier ever appearing in the URL.
+//
+// Once resolved, a framework confirmation token is generated and consumed internally, on the server only, to
+// perform the actual change.
+//
+// An address already verified is idempotent rather than an error. The opaque token itself can never be replayed,
+// because consuming it is single-use, so that only happens if the account somehow had two live tokens.
+
+namespace MotsSupplierPortal.Infrastructure.Registrations;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,14 +19,6 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Registrations;
-
-/// <summary>
-/// STORY-02.2.1: the opaque link token (SecurityTokenService) is the sole lookup key - single-use,
-/// 24h TTL, hashed, resolves the user without a userId ever appearing in the URL
-/// (SECURITY-ARCHITECTURE.md §1.6). Once resolved, an Identity email-confirmation token is
-/// generated and consumed internally, server-side only, to perform the actual state change.
-/// </summary>
 public sealed class VerifyEmailHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
@@ -56,9 +61,6 @@ public sealed class VerifyEmailHandler(
         }
         catch (DomainException)
         {
-            // Already verified via a different (still-valid) token issued earlier - idempotent,
-            // not an error. The opaque token itself can never be replayed (ConsumeAsync is
-            // single-use), so this only fires if the account somehow had two live tokens.
             return new VerifyEmailResult.Success();
         }
 

@@ -1,19 +1,38 @@
+// The shipped wording of every email, in Arabic and English.
+//
+// The bodies were hardcoded English. This mirrors the interface's own two-locale resource shape, one file with
+// two locale keys, rather than inventing a second localisation scheme.
+//
+// The recipient's own language setting is the only source of locale, and it is threaded in at compose time. The
+// sending interface itself stays locale-unaware: a real transport needs the already-rendered subject and body to
+// send, not to make its own localisation choice, so that interface is untouched.
+//
+// An unrecognised or missing language renders Arabic rather than English, matching the setting's own default,
+// the interface's fallback, and the product's Arabic-first positioning.
+//
+//
+// WHAT INDIVIDUAL TEMPLATES DELIBERATELY WITHHOLD
+//
+// The invitation's deep link opens the supplier-facing tender page, which re-enforces the invitation check on the
+// server. The link is a convenience rather than a bypass.
+//
+// A published clarification does not name the asker. Anonymity holds in the notification and not only on the
+// screen.
+//
+// A cancellation never states the reason. A cancellation reached before an award has an internal buyer-side
+// reason, which is not automatically supplier-facing content; the email says only that submissions are no longer
+// being accepted.
+//
+// A submission receipt never includes pricing. It confirms that the submission happened; it does not restate the
+// sealed financial envelope.
+//
+// A regret notice never names the winner and states no commercial figure.
+//
+// An answered clarification goes to the asker whether it was answered privately or published, because either way
+// their own answer is now visible to them.
+
 namespace MotsSupplierPortal.Infrastructure.Email;
 
-/// <summary>
-/// MSP-69: the 11 previously-hardcoded-English email bodies (EmailJobs.cs), in ar/en pairs.
-/// Mirrors the frontend's own ar/en resource shape (src/frontend/src/i18n/config.ts) - one file,
-/// two locale keys - rather than inventing a second localization scheme (.resx, per-locale JSON
-/// files, a resource-key indirection layer). AppUser.Language is the only locale source (already
-/// existed on the entity, default "ar", matching i18n/config.ts's fallbackLng); it is threaded in
-/// from EmailJobs at compose time. IEmailSender itself stays locale-unaware - a real transport
-/// (EPIC-15) needs the already-rendered subject/body to send, not to make its own localization
-/// choice, so the interface is untouched.
-///
-/// <para>Unrecognized or missing locale values render Arabic, not English - matching both
-/// AppUser.Language's own default and the frontend's fallbackLng, and the product's Arabic-first
-/// positioning (docs/ux/RESPONSIVE-AND-RTL.md).</para>
-/// </summary>
 public static class EmailTemplates
 {
     private static bool IsEnglish(string? locale) => locale == "en";
@@ -79,9 +98,6 @@ public static class EmailTemplates
                $"<p>تم رفض طلب انضمامك كمورد للسبب التالي:</p><p>{reason}</p>" +
                "<p>يمكنك تصحيح المشكلة والتسجيل مرة أخرى.</p>");
 
-    /// <summary>FEAT-08.3/FR-INV-003: the deep link opens the supplier-facing RFQ detail page,
-    /// which itself re-enforces the Invitation check server-side (FEAT-08.6) - the link is a
-    /// convenience, not a bypass.</summary>
     public static (string Subject, string Body) RfqInvitation(string? locale, string referenceCode, string rfqTitle, string deepLink) =>
         IsEnglish(locale)
             ? ($"You've been invited to RFQ {referenceCode}",
@@ -91,9 +107,6 @@ public static class EmailTemplates
                $"<p>تمت دعوتك لتقديم عرض على <strong>{rfqTitle}</strong> ({referenceCode}).</p>" +
                $"<p><a href=\"{deepLink}\">عرض الطلب</a></p>");
 
-    /// <summary>FEAT-10.6/FR-CLR-006: sent to the asker once their question has an answer,
-    /// regardless of whether it was answered privately or published - either way, the asker's own
-    /// answer is now visible to them.</summary>
     public static (string Subject, string Body) ClarificationAnswered(string? locale, string referenceCode) =>
         IsEnglish(locale)
             ? ($"Your question on {referenceCode} has been answered",
@@ -101,9 +114,6 @@ public static class EmailTemplates
             : ($"تمت الإجابة على سؤالك بخصوص {referenceCode}",
                $"<p>أجاب المشتري على سؤال الاستيضاح الخاص بك بخصوص {referenceCode}.</p>");
 
-    /// <summary>Sent to every OTHER invited supplier when a clarification is published -
-    /// deliberately does not name the asker (anonymization holds in the notification, not just the
-    /// UI).</summary>
     public static (string Subject, string Body) ClarificationPublished(string? locale, string referenceCode) =>
         IsEnglish(locale)
             ? ($"New published clarification on {referenceCode}",
@@ -125,8 +135,6 @@ public static class EmailTemplates
             : ($"تم إصدار ملحق بخصوص {referenceCode}",
                $"<p>تم إصدار ملحق بخصوص {referenceCode}: <strong>{addendumTitle}</strong>.</p>");
 
-    /// <summary>FEAT-13.3 audit gap fix, BUSINESS-PROCESSES.md §3.1: every invited supplier is
-    /// notified when submission opens, not just left to discover it on their own next visit.</summary>
     public static (string Subject, string Body) RfqPublished(string? locale, string referenceCode) =>
         IsEnglish(locale)
             ? ($"{referenceCode} is now open for submissions",
@@ -134,10 +142,6 @@ public static class EmailTemplates
             : ($"طلب عرض السعر {referenceCode} أصبح مفتوحاً لتقديم العروض",
                $"<p>تم نشر طلب عرض السعر {referenceCode} وأصبح مفتوحاً لتقديم العروض.</p>");
 
-    /// <summary>FEAT-13.3 audit gap fix, BUSINESS-PROCESSES.md §3.1: every invited supplier is
-    /// notified of a cancellation - never states the reason for a cancellation reached before
-    /// Awarded (an internal buyer-side reason is not automatically supplier-facing content), only
-    /// that submissions on this RFQ are no longer being accepted.</summary>
     public static (string Subject, string Body) RfqCancelled(string? locale, string referenceCode) =>
         IsEnglish(locale)
             ? ($"{referenceCode} has been cancelled",
@@ -145,9 +149,6 @@ public static class EmailTemplates
             : ($"تم إلغاء طلب عرض السعر {referenceCode}",
                $"<p>تم إلغاء طلب عرض السعر {referenceCode}. لا حاجة لأي إجراء إضافي من جانبكم.</p>");
 
-    /// <summary>FEAT-13.3 audit gap fix, FEAT-11.2/FR-EVL-002: a newly-assigned evaluator is
-    /// notified they have work waiting, rather than only finding out by checking their own
-    /// dashboard.</summary>
     public static (string Subject, string Body) EvaluatorAssigned(string? locale, string referenceCode) =>
         IsEnglish(locale)
             ? ($"You have been assigned to evaluate {referenceCode}",
@@ -155,9 +156,6 @@ public static class EmailTemplates
             : ($"تم تعيينك لتقييم طلب عرض السعر {referenceCode}",
                $"<p>تم تعيينك كمقيّم لطلب عرض السعر {referenceCode}. يرجى تسجيل الدخول لبدء عملية التقييم.</p>");
 
-    /// <summary>FEAT-09.5/FR-PRP-006: the supplier's own submission receipt - "Email + in-app
-    /// receipt to supplier" (BUSINESS-PROCESSES.md §4.1). Never includes pricing - a receipt
-    /// confirms submission happened, it does not restate the sealed financial envelope.</summary>
     public static (string Subject, string Body) ProposalSubmitted(string? locale, string proposalReferenceCode, string rfqReferenceCode) =>
         IsEnglish(locale)
             ? ($"Proposal {proposalReferenceCode} submitted",
@@ -165,7 +163,6 @@ public static class EmailTemplates
             : ($"تم إرسال العرض {proposalReferenceCode}",
                $"<p>تم إرسال عرضك ({proposalReferenceCode}) الخاص بـ {rfqReferenceCode} بنجاح.</p>");
 
-    /// <summary>FEAT-14.4/FR-AWD-004: the winning supplier's award notice.</summary>
     public static (string Subject, string Body) AwardIssued(string? locale, string rfqReferenceCode) =>
         IsEnglish(locale)
             ? ($"You have been awarded {rfqReferenceCode}",
@@ -173,8 +170,6 @@ public static class EmailTemplates
             : ($"تمت ترسية {rfqReferenceCode} عليكم",
                $"<p>تهانينا - تمت ترسية طلب عرض السعر {rfqReferenceCode} على عرضكم. يرجى تسجيل الدخول للاطلاع على التفاصيل.</p>");
 
-    /// <summary>BRULE-082: the losing supplier's regret notice - never names the winner or states
-    /// any commercial figure.</summary>
     public static (string Subject, string Body) AwardRegret(string? locale, string rfqReferenceCode) =>
         IsEnglish(locale)
             ? ($"Outcome for {rfqReferenceCode}",

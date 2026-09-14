@@ -60,7 +60,7 @@ namespace MotsSupplierPortal.Api.Endpoints;
 using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Audit;
-using MotsSupplierPortal.Application.Reporting;
+using MotsSupplierPortal.Application.Exports;
 using MotsSupplierPortal.Domain.Identity;
 
 public static class AuditEndpoints

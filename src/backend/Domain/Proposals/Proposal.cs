@@ -1,54 +1,156 @@
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// A supplier's bid against a published tender. It is its own record, not a part of the tender, and
+// there is one per supplier per tender.
+//
+//
+// THE TWO ENVELOPES, which is the central design decision here
+//
+// Evaluation is two-envelope: the technical content is opened and qualified first, and the pricing is
+// opened only for suppliers who pass. An earlier default mixed technical and commercial scoring in one
+// template; that default is stale and this build follows the newer instruction.
+//
+// Two envelopes cannot be bolted onto a shared row afterwards, so the split is structural rather than
+// a display convention.
+//
+// The financial envelope is ProposalItem: unit price, quantity, discount, lead time. It is its own
+// table and its own collection, which a query can leave out entirely rather than a flag on a row that
+// somebody has to remember to filter. That is the actual price data, and the only thing "financial"
+// means here.
+//
+// The technical envelope is everything else: the requirement answers, the documents, the narrative,
+// and the commercial terms on this row.
+//
+// Classifying the commercial terms as technical is deliberate. None of payment terms, delivery terms,
+// delivery term code or warranty is a price figure; they describe the conditions of the deal, the same
+// category as compliance documents and requirement answers. That mirrors the real-world convention,
+// where the technical and administrative envelope carries every non-price condition and the financial
+// envelope carries only the price schedule. The written data model predates the two-envelope decision
+// and does not draw this line, so the reasoning is stated here rather than assumed.
+//
+// CurrencyCode is metadata, which currency the prices are in, not a price itself. It is needed on the
+// shared row so a currency label can render before the financial envelope is opened, so it is not
+// withheld.
+//
+//
+// THE LIFECYCLE
+//
+// Create starts a draft. The supplier must be active and hold an invitation to this tender, and there
+// must be no existing bid; those are facts about other records, so the handler checks them, and a
+// unique constraint on tender-and-supplier is the real guarantee. A second start returns the existing
+// bid rather than failing.
+//
+// Everything is freely editable while the bid is a draft and refused afterwards, which is also why a
+// draft is never visible to the buyer: nothing outside the owning supplier's own query path reads it
+// before it is submitted.
+//
+// SetItemPricing and AnswerRequirement both replace rather than duplicate: pricing a line twice
+// overwrites it, and answering a requirement twice overwrites the answer.
+//
+// Unit price must be greater than zero. The interface already refused zero and this guard permitted
+// it, which made the rule's own home the laxer of the two. Nothing reaches this record except through
+// that one endpoint today, but a second write path would have inherited the looser rule without
+// anybody noticing.
+//
+// Submit is the real enforcement of the submission rules, not a formality: the window must be open,
+// the current server time must be before the close, every required line must be priced, every
+// mandatory requirement must be answered, and a validity end date must be set and not in the past.
+// The window and the required-item and mandatory-requirement lists are facts about the tender, which
+// the handler resolves and passes in. Using the server's own clock is what makes late submission
+// impossible from a client whose clock is wrong or lying.
+//
+// Two written requirements are deliberately not enforced, and are flagged rather than quietly
+// satisfied. "Mandatory documents attached" is not gated on at all, because nothing defines which
+// documents are mandatory, unlike requirements, which carry their own flag. "Validity at least the
+// tender's minimum" is not gated on either, because no tender field for a minimum validity exists
+// anywhere; inventing a number would decide an undecided business rule in passing.
+//
+// Withdraw is the supplier's own retirement of a bid, from draft or submitted, and only while the
+// tender's window is still open. A reason is required.
+//
+// OpenForReview moves a submitted bid into review, and it is the gateway the whole middle of the
+// lifecycle hung on. Nothing used to assign that state, so nothing could reach clarification or the
+// shortlist either: six of eleven states were unreachable and a bid went from draft to submitted
+// straight to an outcome, skipping evaluation intake entirely. It is driven by the system rather than
+// a person, so there is no permission check: the actor is the tender's own move into evaluation, and
+// the caller is the handler performing it.
+//
+// RequestClarification asks the supplier a question, with a mandatory reason. RecordRevision is the
+// supplier's answer, and ReturnToReview puts it back in front of the committee. That loop may repeat.
+//
+// RecordRevision increments the revision number and does not take a snapshot. The written rule asks
+// for both, and for prior revisions to be immutable. Numbering is unambiguous and is implemented;
+// snapshotting a bid's full prior content is a storage design nothing in this codebase has, and
+// inventing one inside a state transition would decide the larger half of the requirement in passing.
+// It also does not enforce which fields a revision may change: the written rule makes that a
+// configurable policy whose default is undecided, so a guard here would have to invent the policy.
+// Both are recorded rather than half-built.
+//
+// Shortlist marks a bid as still in contention. Two documents name different moments for this: the
+// tender's own table puts it at recommendation time, and the bid's table puts it at consolidation.
+// This follows the bid's table, because a bid's own transition table is the more specific authority
+// and consolidation is where the threshold comparison actually happens. The conflict is reported here
+// rather than resolved silently.
+//
+// OfferAward offers the contract to the winner, and it happens when the approver approves, not when
+// an officer recommends. A recommendation is not yet a decision, and telling a bidder they have won
+// before the approver has signed discloses an outcome that may still be reversed and cannot be
+// un-told. Approval is the first point at which the offer is true.
+//
+// No acceptance window is enforced. An expiring offer would produce an outcome on its own, freeing
+// the award for an alternate because a clock ran out, and that is the class of decision the system
+// does not make for the ministry. The offer stays open until the supplier declines or the award is
+// executed, and AwardOfferedAt is what makes a long-outstanding offer visible to an officer rather
+// than invisible.
+//
+// DeclineAward requires a reason. The written table does not demand one, but every other
+// supplier-initiated ending in this codebase does, and a declined award nobody can explain is the one
+// an audit asks about first.
+//
+// Award accepts submitted, under review, shortlisted or offered. The canonical route is shortlist,
+// then offer, then award, and it exists. The three earlier states stay valid because this codebase can
+// also award directly out of the evaluation set for a tender that never went through shortlisting.
+// Under review in particular is not optional: from the moment evaluation intake began working, the
+// winner is in that state when the award is executed, and omitting it produced a server error on
+// award.
+//
+// MarkNotSelected moves every other live bid on the tender, in the same save as the winner's award, so
+// there is never a moment where some bids have been updated and others have not.
+//
+// Lapse is the submission window closing on a draft. Only a draft can lapse: a submitted bid missed
+// nothing, and a finished one is already resolved. Both are refused rather than silently
+// re-terminated, because a job that runs every few minutes must not be able to rewrite a decided
+// outcome.
+//
+// CancelWithRfq is the tender being cancelled underneath a live bid. It works from any state that is
+// not already final, because cancellation can arrive at any point before award. A finished bid is left
+// alone: a withdrawn bid was withdrawn, and an awarded one belongs to a tender that could not have
+// been cancelled.
+//
+// AllowedNextFrom is a promise to a caller about what it may attempt next, so it describes what the
+// code actually accepts rather than only what the written table draws. Submitted and under review
+// still list awarded and not-selected, because of the direct award path above.
+//
+//
+// OTHER NOTES
+//
+// StateChangedAt is when the bid entered its current state. It is stamped by the persistence layer
+// whenever the state actually changes, rather than by a line inside each transition above. It is null
+// on rows that predate the column, because the moment those bids entered their current state was never
+// recorded, and inventing one from a creation date would be the wrong answer rather than a missing one.
+//
+// The finance-system fields that other records carry are absent here on purpose: they arrive with the
+// real integration and not before.
+//
+// Soft deletion is an open gap rather than a decision that it does not apply. The written data model
+// lists bids as soft-delete-eligible, as evidence for audit and dispute, but no delete path of any
+// kind exists in this build, and withdrawal is how a bid is actually retired. No soft-delete
+// machinery exists anywhere in this codebase yet, not even for suppliers or tenders, which the same
+// list also names. Building the columns here with nothing to ever set them would be dead scaffolding.
 
 namespace MotsSupplierPortal.Domain.Proposals;
 
-/// <summary>A supplier's bid against a published RFQ (docs/architecture/DOMAIN-MODEL.md §5.5) - its
-/// own aggregate root, not a child of Rfq (DOMAIN-MODEL.md: "Aggregate: Proposal.ProposalState"),
-/// one per (SupplierId, RfqId).
-///
-/// <para><b>Two-envelope separation (OQ-009 resolution), the central design decision of this
-/// build:</b> the project has resolved OQ-009 in favour of two-envelope evaluation (technical
-/// opened and qualified first; financial opened only for suppliers who pass technical
-/// qualification) - the opposite of ASM-052/OPEN-QUESTIONS.md's still-recorded default ("single
-/// weighted template mixing technical + commercial"). That default is now stale; this build follows
-/// the newer instruction. Two-envelope cannot be retrofitted onto a shared-row schema (OQ-009's own
-/// rationale), so the split is structural, not a display convention:</para>
-///
-/// <para><b>Financial envelope</b> - <see cref="ProposalItem"/> (unit price, quantity, discount,
-/// lead time): its own table (proposal.proposal_item), a genuinely separate EF collection that a
-/// query can omit entirely (never `.Include(p => p.Items)`), not a flag on a shared row. This is
-/// the actual price data - the only thing "financial" means here.</para>
-///
-/// <para><b>Technical envelope</b> - everything else: <see cref="RequirementAnswer"/>[],
-/// <see cref="ProposalDocument"/>[], and CommercialTerms' own fields (CurrencyCode, PaymentTerms,
-/// IncotermCode, DeliveryTerms, Warranty, Validity). CommercialTerms' non-price fields are
-/// deliberately classified technical, not financial: none of payment terms, delivery/lead-time
-/// terms, incoterm, or warranty is a price figure - they describe the deal's conditions, the same
-/// category as compliance documents and requirement answers. This mirrors the real-world two-envelope
-/// convention (e.g. World Bank/MDB procurement: the technical/administrative envelope carries every
-/// non-price condition, the financial envelope carries only the price schedule) - DOMAIN-MODEL.md
-/// predates the two-envelope decision and does not call this split out, so this reasoning is stated
-/// here rather than silently assumed.</para>
-///
-/// <para>CurrencyCode is metadata (which currency the prices are in), not a price value itself, and
-/// is needed on the shared row so a display-currency label can render before financial is opened
-/// (FR-PRP-006) - it is not withheld.</para>
-///
-/// <para><b>FEAT-09.7/FEAT-09.9 explicit stubs:</b> no domain method here transitions past Submitted
-/// into UnderReview/Shortlisted/etc (see ProposalState.cs's own doc comment), and ExternalId/
-/// SyncStatus/LastSyncedAt (FEAT-09.9, FR-PRP-013) are not present - same "add with the real
-/// integration, not before" reasoning as Rfq.cs's own FEAT-07.11 stub.</para>
-///
-/// <para><b>Soft-delete gap, flagged not silently skipped:</b> DATABASE-MODEL.md §9 lists
-/// `proposal.proposal` as soft-delete-eligible ("bid evidence for audit/dispute"). No delete
-/// endpoint of any kind exists in this build - Withdraw is Proposal's actual retirement mechanism,
-/// same reasoning EPIC-07 already applied to Rfq. No soft-delete infrastructure (IsDeleted, a query
-/// filter, anything) exists anywhere in this codebase yet, not even for Supplier or Rfq, which the
-/// same table also lists. Building bespoke soft-delete columns here with no delete path to ever set
-/// them would be dead scaffolding; this is an open gap for whichever future work adds a real delete
-/// affordance (or a codebase-wide soft-delete pass), not a decision that soft-delete doesn't
-/// apply.</para></summary>
+using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed class Proposal : IVersionedAggregate, IStateTimestamped
 {
     private readonly List<ProposalItem> _items = [];
@@ -61,21 +163,10 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
     public Guid SupplierId { get; private init; }
     public ProposalState State { get; private set; }
 
-    /// <summary>
-    /// T-031: when this proposal entered <see cref="State"/>.
-    ///
-    /// <para>Stamped by the persistence layer whenever the state property actually changes - see
-    /// <see cref="IStateTimestamped"/> for why it is not a line in each of the transition methods
-    /// below. Null on rows that predate the column: the instant they entered their current state was
-    /// never recorded, and inventing one from a creation date is the specific wrong answer the
-    /// approval queue's own comment warned about.</para>
-    /// </summary>
     public DateTimeOffset? StateChangedAt { get; private set; }
 
-    /// <summary>The property whose change is a state change, for <see cref="IStateTimestamped"/>.</summary>
     public static string StatePropertyName => nameof(State);
 
-    // CommercialTerms VO fields (DOMAIN-MODEL.md §5.5) - all technical envelope, see class doc comment.
     public string? CurrencyCode { get; private set; }
     public string? PaymentTerms { get; private set; }
     public string? IncotermCode { get; private set; }
@@ -85,7 +176,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
     public DateOnly? ValidityStart { get; private set; }
     public DateOnly? ValidityEnd { get; private set; }
 
-    // TechnicalResponse's free narrative half (the other half is RequirementAnswer[]).
     public string? NarrativeAr { get; private set; }
     public string? NarrativeEn { get; private set; }
 
@@ -93,22 +183,16 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
     public DateTimeOffset? WithdrawnAt { get; private set; }
     public string? WithdrawReason { get; private set; }
 
-    /// <summary>T-064: when the award was offered. There is no enforced acceptance window (D-21), so
-    /// this is what makes a long-outstanding offer visible to an officer rather than invisible.</summary>
     public DateTimeOffset? AwardOfferedAt { get; private set; }
 
     public DateTimeOffset? DeclinedAt { get; private set; }
 
-    /// <summary>Required by DeclineAward - a declined award that nobody can explain is the one an
-    /// audit asks about first.</summary>
     public string? DeclineReason { get; private set; }
 
-    /// <summary>§4.1's "Reason; specific questions" on ClarificationRequested.</summary>
     public string? ClarificationReason { get; private set; }
 
     public DateTimeOffset? ClarificationRequestedAt { get; private set; }
 
-    /// <summary>§4.1's "New revision n+1". Starts at 1 for the original submission.</summary>
     public int RevisionNumber { get; private set; } = 1;
     public DateTimeOffset CreatedAt { get; private init; }
     public uint RowVersion { get; private set; }
@@ -119,12 +203,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
 
     private Proposal() { }
 
-    /// <summary>FEAT-09.1/FR-PRP-001: BUSINESS-PROCESSES.md §4.1 "start proposal" guard - "Supplier
-    /// is Active and holds a valid Invitation to this RFQ; no existing proposal for this RFQ
-    /// (uniqueness)". Active/Invitation are cross-aggregate (handler's job, same split as
-    /// Rfq.InviteSupplier's own Active check); uniqueness is enforced by the handler checking for an
-    /// existing row first (idempotent start, per FEAT-09.1's own AC: "a second start returns the
-    /// existing one") plus a DB unique(rfq_id, supplier_id) constraint as the real guarantee.</summary>
     public static Proposal Create(string referenceCode, Guid rfqId, Guid supplierId) => new()
     {
         Id = Guid.CreateVersion7(),
@@ -135,10 +213,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         CreatedAt = DateTimeOffset.UtcNow,
     };
 
-    /// <summary>FEAT-09.4/FR-PRP-005: free editing only while Draft (DOMAIN-MODEL.md §5.5's own
-    /// invariant) - same "EnsureDraftEditable" shape as Rfq.cs, and the reason a Draft is never
-    /// visible to the buyer: nothing outside this aggregate's own owning-supplier query path ever
-    /// reads it before Submitted.</summary>
     private void EnsureDraftEditable()
     {
         if (State != ProposalState.Draft)
@@ -147,16 +221,10 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         }
     }
 
-    /// <summary>Upserts by RfqItemId - re-pricing an already-priced line replaces it rather than
-    /// creating a duplicate.</summary>
     public void SetItemPricing(Guid rfqItemId, decimal quantity, decimal unitPrice, decimal? discount, int? leadTimeDays, string? notesAr, string? notesEn)
     {
         EnsureDraftEditable();
         if (quantity <= 0) throw new DomainException("Quantity must be positive.");
-        // §7.2 documents this rule as PRICE_NON_POSITIVE ("must be greater than zero") and the API
-        // validator enforces it. The guard here permitted zero, so the invariant's own home was the
-        // laxer of the two: nothing can reach this aggregate except through that endpoint today, but
-        // a second write path would have inherited the looser rule silently.
         if (unitPrice <= 0) throw new DomainException("Unit price must be greater than zero.");
 
         var existing = _items.FirstOrDefault(i => i.RfqItemId == rfqItemId);
@@ -222,7 +290,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         NarrativeEn = narrativeEn;
     }
 
-    /// <summary>Upserts by RequirementId.</summary>
     public void AnswerRequirement(Guid requirementId, string answerAr, string answerEn)
     {
         EnsureDraftEditable();
@@ -275,22 +342,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         _documents.Remove(document);
     }
 
-    /// <summary>FEAT-09.5/FR-PRP-006/007, BUSINESS-PROCESSES.md §4.1: "RFQ SubmissionOpen; now &lt;
-    /// submissionCloseAt; all required items priced; mandatory ProposalDocuments attached; Validity
-    /// &gt;= RFQ minimum; T&amp;C accepted". <paramref name="rfqSubmissionOpen"/>, <paramref name="submissionCloseAt"/>, and the required/
-    /// mandatory id sets are cross-aggregate facts the caller (handler) resolves from the loaded Rfq
-    /// - this method is the actual enforcement, not a formality: it is what makes late submission
-    /// impossible even with a stale client clock (server-side now, not a client-supplied timestamp).
-    ///
-    /// <para><b>Two ambiguities, flagged rather than resolved:</b> (1) "mandatory ProposalDocuments
-    /// attached" - BUSINESS-PROCESSES.md never defines which documents are mandatory (unlike
-    /// Requirements, which carry their own IsMandatory flag); this method does not gate on document
-    /// count at all, only on mandatory Requirement answers and required item pricing. (2) "Validity
-    /// >= RFQ minimum" - no RFQ field for a minimum validity period exists anywhere in this codebase
-    /// (Rfq.cs has no such property); inventing a number would silently resolve an undecided
-    /// business rule, so this only enforces that Validity is set and ValidityEnd is not in the past,
-    /// not a specific minimum duration - same treatment BRULE-033's undecided minimum submission
-    /// window already received in EPIC-07.</para></summary>
     public void Submit(bool rfqSubmissionOpen, DateTimeOffset submissionCloseAt, IReadOnlySet<Guid> requiredRfqItemIds, IReadOnlySet<Guid> mandatoryRequirementIds)
     {
         if (State != ProposalState.Draft)
@@ -308,21 +359,17 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         var pricedItemIds = _items.Select(i => i.RfqItemId).ToHashSet();
         if (!requiredRfqItemIds.IsSubsetOf(pricedItemIds))
         {
-            // §12.5 names this one: "Missing line items -> 422 (PROPOSAL_ITEMS_REQUIRED)".
             throw new ProposalIncompleteException(
                 "proposal_items_required", "Cannot submit: all required RFQ items must be priced.");
         }
         var answeredRequirementIds = _requirementAnswers.Select(a => a.RequirementId).ToHashSet();
         if (!mandatoryRequirementIds.IsSubsetOf(answeredRequirementIds))
         {
-            // INVENTED code - §12.5 names no slug for an unanswered mandatory requirement, but it is
-            // the same class of refusal and a supplier needs to know which one they hit.
             throw new ProposalIncompleteException(
                 "proposal_requirements_required", "Cannot submit: all mandatory requirements must be answered.");
         }
         if (ValidityEnd is null)
         {
-            // INVENTED code, same reasoning.
             throw new ProposalIncompleteException(
                 "proposal_validity_required", "Cannot submit: a validity end date is required.");
         }
@@ -336,10 +383,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         SubmittedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>FEAT-09.6/FR-PRP-008, BUSINESS-PROCESSES.md §4.1: "Draft / Submitted -&gt; Withdrawn
-    /// ... RFQ still SubmissionOpen (window open)". <paramref name="rfqSubmissionOpen"/> is
-    /// cross-aggregate (handler resolves it from the loaded Rfq's own State), same split as
-    /// Submit's submissionCloseAt.</summary>
     public void Withdraw(string reason, bool rfqSubmissionOpen)
     {
         if (State is not (ProposalState.Draft or ProposalState.Submitted))
@@ -357,34 +400,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         WithdrawReason = reason;
     }
 
-    /// <summary>EPIC-14/FEAT-14.4/FR-AWD-004: the winning proposal at award time. Guards on
-    /// 'Submitted' rather than 'Shortlisted' - DOMAIN-MODEL.md's own canonical machine routes
-    /// through Shortlisted first, but EPIC-13 (the epic that would ever move a proposal into it)
-    /// isn't built, so 'Shortlisted' is unreachable by any method on this aggregate today; treating
-    /// 'Submitted' as the award-eligible pre-state is this build's real, working substitute for a
-    /// stage that doesn't exist yet, not a silent skip of the real guard - eligibility itself is
-    /// still fully enforced (Finalized evaluation + passed thresholds), just by the Award aggregate
-    /// before it ever calls this method, the same cross-aggregate-guard split used everywhere else
-    /// in this codebase.
-    ///
-    /// <para><b>AwardOffered is skipped</b> - straight to Awarded, no supplier-facing accept/decline
-    /// step (BRULE-057/081's active-acceptance flow). Flagged as a real, interim scope decision:
-    /// nothing in this build lets a supplier decline an award, so "the winner accepted" is assumed
-    /// the instant the award is issued, not observed.</para></summary>
-
-    /// <summary>
-    /// T-051, BUSINESS-PROCESSES.md §4.1: <c>Submitted -&gt; UnderReview</c>, <i>"Evaluation opened |
-    /// `system` (on RFQ `UnderEvaluation`) | RFQ moved to evaluation | Make visible to assigned
-    /// `evaluator`s (scoped)"</i>.
-    ///
-    /// <para>This is the gateway the whole middle of the lifecycle hung on. Nothing assigned
-    /// UnderReview, so nothing could reach ClarificationRequested or Shortlisted either - six of
-    /// eleven states were unreachable and a proposal went Draft -&gt; Submitted -&gt; outcome,
-    /// skipping evaluation intake entirely.</para>
-    ///
-    /// <para>System-driven, so there is no permission here: the actor is the RFQ's own transition to
-    /// UnderEvaluation, and the caller is the handler that performs it.</para>
-    /// </summary>
     public void OpenForReview()
     {
         if (State != ProposalState.Submitted)
@@ -395,11 +410,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         State = ProposalState.UnderReview;
     }
 
-    /// <summary>
-    /// §4.1: <c>UnderReview -&gt; ClarificationRequested</c>, <i>"Request clarification |
-    /// `procurement_officer`,`evaluator` / `rfq.clarify` | Reason; specific questions"</i>.
-    /// </summary>
-    /// <param name="reason">Mandatory per the table's own guard - "Reason; specific questions".</param>
     public void RequestClarification(string reason)
     {
         if (State != ProposalState.UnderReview)
@@ -416,22 +426,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         ClarificationRequestedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>
-    /// §4.1: <c>ClarificationRequested -&gt; Revised</c>, <i>"Supplier responds | `supplier_admin` /
-    /// `proposal.revise` | Within clarification window; only permitted fields changed | New revision
-    /// n+1"</i>.
-    ///
-    /// <para><b>The revision counter is incremented; the snapshot is not taken.</b> §4.1 asks for
-    /// "New revision n+1; snapshot" and BRULE-051 for immutable prior revisions. Revision numbering
-    /// is implemented here because it is unambiguous; snapshotting a proposal's full prior content
-    /// is a storage design nothing in this codebase has, and inventing one inside a transition would
-    /// be the larger half of the requirement decided in passing. Recorded rather than half-built.</para>
-    ///
-    /// <para><b>Scope is NOT enforced here.</b> The table says "only permitted fields changed", and
-    /// which fields are permitted is BRULE-050 - a configurable policy whose default is undecided.
-    /// A guard would have to invent that policy, so the transition is what exists and the field-level
-    /// restriction is not claimed.</para>
-    /// </summary>
     public void RecordRevision()
     {
         if (State != ProposalState.ClarificationRequested)
@@ -443,10 +437,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         RevisionNumber += 1;
     }
 
-    /// <summary>
-    /// §4.1: <c>Revised -&gt; UnderReview</c>, <i>"Re-review | `system`/`procurement_officer` | -- |
-    /// Return to scoring"</i>. The loop the table marks as repeatable.
-    /// </summary>
     public void ReturnToReview()
     {
         if (State != ProposalState.Revised)
@@ -457,19 +447,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         State = ProposalState.UnderReview;
     }
 
-    /// <summary>
-    /// §4.1: <c>UnderReview -&gt; Shortlisted</c>, <i>"Passes thresholds |
-    /// `procurement_officer`,`procurement_manager` / `evaluation.consolidate` | Consolidated score
-    /// &gt;= thresholds (§5)"</i>.
-    ///
-    /// <para><b>Two documents name different triggers and this follows §4.1.</b> §3.1's RFQ table
-    /// says <c>Shortlisting -&gt; Recommendation</c> has the side effect "set proposal(s)
-    /// `Shortlisted`" - i.e. at recommendation time, under `award.recommend`. §4.1's proposal table
-    /// says at consolidation, under `evaluation.consolidate`. The proposal's own transition table is
-    /// the more specific authority for a proposal transition, and consolidation is where the
-    /// threshold comparison actually happens. Reported as a documentation conflict rather than
-    /// resolved silently.</para>
-    /// </summary>
     public void Shortlist()
     {
         if (State != ProposalState.UnderReview)
@@ -480,21 +457,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         State = ProposalState.Shortlisted;
     }
 
-    /// <summary>
-    /// T-064/§4.1: <c>Shortlisted -&gt; AwardOffered</c>, "Selected for award ... Mark as award
-    /// candidate", on the approver's decision.
-    ///
-    /// <para><b>Set on APPROVE, not on recommend.</b> §4.1 names the effect as an offer that reaches
-    /// the supplier by email, and a recommendation is not yet a decision - telling a bidder they have
-    /// won before the approver has signed discloses an outcome that may still be reversed, and it
-    /// cannot be un-told. Approve is the first point at which the offer is true.</para>
-    ///
-    /// <para><b>No acceptance window is enforced.</b> §4.1 tags one as <c>[ASSUMPTION]</c> with no
-    /// duration, and an expiring offer produces an OUTCOME - the award frees for an alternate,
-    /// because a clock ran out. That is the tie-break class of decision, so the system does not make
-    /// it: the offer stays open until the supplier declines or the award is executed, and how long it
-    /// has been outstanding is visible to the officer. See DECISIONS-TAKEN.md D-21.</para>
-    /// </summary>
     public void OfferAward()
     {
         if (State != ProposalState.Shortlisted)
@@ -506,14 +468,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         AwardOfferedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>
-    /// T-064/§4.1: <c>AwardOffered -&gt; Declined</c>, "Supplier declines ... Free the award for
-    /// alternate; RFQ returns to Recommendation".
-    ///
-    /// <para>A reason is required. §4.1 does not demand one, but every other supplier-initiated
-    /// terminal act in this codebase does (withdraw, decline an invitation) and a declined award
-    /// that nobody can explain is the one an audit asks about first.</para>
-    /// </summary>
     public void DeclineAward(string reason)
     {
         if (State != ProposalState.AwardOffered)
@@ -531,21 +485,10 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         DeclineReason = reason;
     }
 
-    /// <summary>
-    /// §3's "allowed next states" for a proposal, from BUSINESS-PROCESSES.md §4.1's own table.
-    ///
-    /// <para>This is a PROMISE TO A CALLER about what it may attempt next, so it describes what the
-    /// code actually accepts rather than only what §4.1 draws. Submitted and UnderReview still list
-    /// Awarded and NotSelected because this codebase can award directly out of the evaluation set
-    /// for an RFQ that never went through shortlisting; §4.1's canonical route
-    /// (Shortlisted -&gt; AwardOffered -&gt; Awarded) is now built as well (T-064), so both are true
-    /// and both are listed.</para>
-    /// </summary>
     public static IReadOnlyList<ProposalState> AllowedNextFrom(ProposalState state) => state switch
     {
         ProposalState.Draft => [ProposalState.Submitted, ProposalState.Withdrawn, ProposalState.Lapsed, ProposalState.Cancelled],
 
-        // Withdrawn is reachable from Submitted while the RFQ window is open (§4.1, BRULE-047).
         ProposalState.Submitted =>
             [ProposalState.UnderReview, ProposalState.Withdrawn, ProposalState.Awarded, ProposalState.NotSelected, ProposalState.Cancelled],
 
@@ -555,15 +498,11 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         ProposalState.ClarificationRequested => [ProposalState.Revised, ProposalState.Cancelled],
         ProposalState.Revised => [ProposalState.UnderReview, ProposalState.Cancelled],
 
-        // AwardOffered is the canonical route and is now reachable (T-064). Awarded stays listed
-        // because the direct path is still available to an RFQ that never shortlisted.
         ProposalState.Shortlisted =>
             [ProposalState.AwardOffered, ProposalState.NotSelected, ProposalState.Awarded, ProposalState.Cancelled],
 
         ProposalState.AwardOffered => [ProposalState.Awarded, ProposalState.Declined],
 
-        // Terminal. Lapsed and Cancelled join the set (A-9): a proposal the window closed on, and one
-        // whose RFQ was cancelled beneath it, are both over.
         ProposalState.Awarded or ProposalState.NotSelected
             or ProposalState.Declined or ProposalState.Withdrawn
             or ProposalState.Lapsed or ProposalState.Cancelled => [],
@@ -571,13 +510,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         _ => [],
     };
 
-    /// <summary>
-    /// A-9/BRULE-052: the submission window closed on this Draft, so it is over.
-    ///
-    /// <para>Only from Draft. A Submitted proposal that missed nothing is not lapsed, and a terminal
-    /// one is already resolved - both are refused rather than silently re-terminated, because a job
-    /// that runs every five minutes must not be able to rewrite a decided outcome.</para>
-    /// </summary>
     public void Lapse()
     {
         if (State != ProposalState.Draft)
@@ -588,13 +520,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         State = ProposalState.Lapsed;
     }
 
-    /// <summary>
-    /// A-9/BRULE-056: the RFQ was cancelled beneath this proposal.
-    ///
-    /// <para>From any non-terminal state, because cancellation can arrive at any point before award -
-    /// BRULE-037 permits it "from any pre-Awarded state". A terminal proposal is left alone: a
-    /// withdrawn bid was withdrawn, and an awarded one belongs to an RFQ that could not be cancelled.</para>
-    /// </summary>
     public void CancelWithRfq()
     {
         if (AllowedNextFrom(State).Count == 0)
@@ -607,18 +532,6 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
 
     public void Award()
     {
-        // Submitted stays valid, and Shortlisted joins it (§4.1: Shortlisted -> AwardOffered ->
-        // Awarded). Widened rather than replaced: making the middle of the lifecycle reachable must
-        // not break the award path for an RFQ that never went through evaluation intake, and both
-        // routes exist in the documents.
-        // UnderReview is here because this codebase awards directly out of the evaluation set:
-        // §4.1's canonical path is Shortlisted -> AwardOffered -> Awarded, but AwardOffered is not
-        // built (see the class note), so the winner is whatever state intake left it in. Omitting it
-        // produced an uncaught DomainException and a 500 on award/execute, because the winner is
-        // UnderReview from the moment T-051 made intake work.
-        // T-064: AwardOffered joins the set, and is now the canonical source state - §3.1's
-        // AwardApproval -> Awanded row says the RFQ's own award "Set[s] winning proposal
-        // AwardOffered -> Awarded". The three older states stay for the direct path.
         if (State is not (ProposalState.Submitted or ProposalState.UnderReview
             or ProposalState.Shortlisted or ProposalState.AwardOffered))
         {
@@ -628,14 +541,8 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
         State = ProposalState.Awarded;
     }
 
-    /// <summary>EPIC-14/FEAT-14.4/FR-AWD-004: every other Submitted proposal on the RFQ, moved in
-    /// the same handler call/SaveChanges as the winner's Award() - see AwardHandlers' own doc
-    /// comment on why this must never leave a window where some proposals are updated and others
-    /// aren't.</summary>
     public void MarkNotSelected()
     {
-        // §4.1: "UnderReview / Shortlisted -> NotSelected". Submitted is kept for the pre-evaluation
-        // award path that already existed.
         if (State is not (ProposalState.Submitted or ProposalState.UnderReview or ProposalState.Shortlisted))
         {
             throw new DomainException(

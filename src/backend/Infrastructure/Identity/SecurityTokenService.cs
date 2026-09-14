@@ -1,10 +1,18 @@
+// Issuing and consuming the opaque single-use tokens behind verification, password reset and invitations.
+//
+// Only the hash is stored, never the token, so a stolen database yields nothing that can be presented.
+//
+// Consuming is a single conditional update against the not-yet-consumed row, which is atomic at the database.
+// So two concurrent requests presenting the same token, a link opened twice, can never both win, and the second
+// attempt is refused.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Persistence;
-
-namespace MotsSupplierPortal.Infrastructure.Identity;
 
 public sealed class SecurityTokenService(AppDbContext db) : ISecurityTokenService
 {
@@ -34,9 +42,6 @@ public sealed class SecurityTokenService(AppDbContext db) : ISecurityTokenServic
             return new ConsumeSecurityTokenResult.InvalidOrExpired();
         }
 
-        // Single UPDATE ... WHERE ConsumedAt IS NULL - atomic at the DB level, so two concurrent
-        // requests presenting the same raw token (a replayed link opened twice) can never both
-        // win (STORY-02.2.1 AC2: a used token must reject the second attempt).
         var rowsAffected = await db.SecurityTokens
             .Where(t => t.Id == token.Id && t.ConsumedAt == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.ConsumedAt, DateTimeOffset.UtcNow), ct);

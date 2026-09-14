@@ -1,9 +1,50 @@
-using MotsSupplierPortal.Application.Common;
+// The vocabulary for reading the audit trail, in five shapes for five different questions.
+//
+// The row's own identifier is on the wire because it is half the paging cursor. Without it a caller
+// cannot ask for the next page.
+//
+//
+// EVERY READ IS BOTH GATED AND SCOPED
+//
+// The permission answers whether a caller may read the audit trail at all. It does not answer whose.
+// A supplier-scoped caller asking about a record outside their own company gets an empty result and
+// never another supplier's trail.
+//
+//
+// THE FIVE READS
+//
+// HandleAsync is one record's trail, for a caller who already knows which record.
+//
+// HandleOwnTrailAsync is a supplier's whole trail across everything it owns, with no record named. That
+// is the half of the requirement that says suppliers see their own activity.
+//
+// HandleFilteredAsync is the staff-facing search across records, behind the same permission as the
+// single-record read, because it is that same authority applied broadly rather than to one row. It is
+// paged by cursor for the same reason the supplier's trail is: this table is kept indefinitely and grows
+// without bound.
+//
+// StreamForExportAsync is the export of that search. Same filter, same scoping, and no page limit,
+// because an export is everything the filter matches rather than the current page. It is streamed rather
+// than assembled, so an export bounded only by its filter does not have to fit in memory.
+//
+// StreamOwnTrailForExportAsync is the supplier's own export, scoped exactly as their list is.
+//
+//
+// WHY THE TWO EXPORTS ARE SEPARATE
+//
+// This is the important one. The staff export's scoping falls open for a caller with no company, because
+// for a staff caller unrestricted is the correct answer.
+//
+// Reached through the supplier's own route it would be the wrong answer: an export handing a staff
+// caller the entire audit table from a route gated only on being signed in. So the supplier's export is
+// its own method, yielding nothing when there is no company scope, which matches its own list rather
+// than inventing a second behaviour.
 
 namespace MotsSupplierPortal.Application.Audit;
 
+using MotsSupplierPortal.Application.Common;
+
 public sealed record AuditLogEntryDto(
-    // Id is exposed because it is half the keyset cursor; without it a caller cannot page.
     Guid Id,
     DateTimeOffset OccurredAt,
     string AggregateType,
@@ -15,40 +56,13 @@ public sealed record AuditLogEntryDto(
 
 public interface IGetAuditLogHandler
 {
-    /// <summary>Gated by audit.read (STORY-01.7.1) AND row-scoped (BRULE-084/094, FR-AUD-003):
-    /// a supplier-scoped caller reading an aggregate outside their own SupplierId gets an empty
-    /// result, never another supplier's trail. Permission alone is not sufficient - it answers
-    /// "may you read audit at all", not "whose".</summary>
     Task<IReadOnlyList<AuditLogEntryDto>> HandleAsync(Guid aggregateId, CancellationToken ct);
 
-    /// <summary>FR-AUD-003 second half: "suppliers see their own activity trail". The caller's own
-    /// supplier's full trail across every aggregate it owns, with no aggregate id needed.</summary>
     Task<ListEnvelope<AuditLogEntryDto>> HandleOwnTrailAsync(string? cursor, int? limit, bool withCount, CancellationToken ct);
 
-    /// <summary>FR-AUD-004/MSP-75: staff-facing global search, gated by audit.read (same permission
-    /// as <see cref="HandleAsync"/> - this is that same authority applied across aggregates instead
-    /// of to one). Filterable by entity, actor, action, and date range (<see cref="AuditLogFilter"/>),
-    /// combinable, and keyset-paged for the same reason HandleOwnTrailAsync is (ASM-085: this table
-    /// is retained indefinitely and grows without bound).</summary>
     Task<ListEnvelope<AuditLogEntryDto>> HandleFilteredAsync(AuditLogFilter filter, string? cursor, int? limit, bool withCount, CancellationToken ct);
 
-    /// <summary>The export path for the same search: same filter, same row-scoping, no page limit -
-    /// an export is defined as "everything the filter matches", not "the current page". Streamed
-    /// rather than materialized, matching the streaming discipline from MSP-74/NFR-PERF-008: an
-    /// export bounded only by its filter must not buffer the whole result set in memory to produce
-    /// it.</summary>
     IAsyncEnumerable<AuditLogEntryDto> StreamForExportAsync(AuditLogFilter filter, CancellationToken ct);
 
-    /// <summary>
-    /// FR-AUD-003's export: the supplier's OWN trail, scoped exactly as
-    /// <see cref="HandleOwnTrailAsync"/> scopes the list it exports.
-    ///
-    /// <para>Separate from <see cref="StreamForExportAsync"/> and not a filter over it, for the same
-    /// reason the list is separate: that method's scoping falls open for a caller with no
-    /// SupplierId, because for a staff caller "unrestricted" is the correct answer. Reached through
-    /// the supplier route it would be the wrong one - an export that hands a staff caller the entire
-    /// audit table from an endpoint gated only on being signed in. Yields nothing when there is no
-    /// supplier scope, matching the list's own behaviour rather than inventing a second one.</para>
-    /// </summary>
     IAsyncEnumerable<AuditLogEntryDto> StreamOwnTrailForExportAsync(CancellationToken ct);
 }

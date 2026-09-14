@@ -1,27 +1,25 @@
+// The vocabulary for the system administrator's overview.
+//
+// Read-only, and every figure is something already in the database. The point of the screen is to surface
+// state that exists and is otherwise visible only by querying the database by hand.
+//
+// The reference-data figures are health rather than a listing: per table, how many codes are active and how
+// many are switched off. A table with no active codes is a configuration fault that blocks registration, and
+// it was invisible.
+//
+// The audit figure is a count of rows written in the last day rather than a listing. The ministry's raw
+// audit access was deliberately removed, and an overview that listed rows would put it back.
+
 namespace MotsSupplierPortal.Application.Admin;
 
 public sealed record AdminCountDto(string Key, int Count);
 
-/// <summary>
-/// T-062/FR-DSH-006/SCR-700: <i>"Admin dashboard: users/roles, reference-data health,
-/// integration/outbox status, job health, audit access."</i>
-///
-/// <para><b>Read-only, and every figure is something already in the database.</b> Nothing here is a
-/// new metric or a new store - the point of an admin dashboard is to surface state that exists and is
-/// currently only visible by querying Postgres by hand.</para>
-/// </summary>
 public sealed record AdminOverviewDto(
     IReadOnlyList<AdminCountDto> UsersByRole,
     int TotalRoles,
-    /// <summary>Per reference table, how many codes are active and how many are deactivated. Health
-    /// rather than a listing: a table with zero active codes is a configuration fault that blocks
-    /// registration, and it is invisible today.</summary>
     IReadOnlyList<ReferenceTableHealthDto> ReferenceData,
     OutboxHealthDto Outbox,
     JobHealthDto Jobs,
-    /// <summary>Audit rows written in the last 24 hours. A count, not a listing - MSP-62 removed
-    /// audit.read from ministry_viewer precisely because raw rows expose named actors and reviewer
-    /// free text, and a dashboard tile has no business carrying either.</summary>
     int AuditRowsLast24Hours);
 
 public sealed record ReferenceTableHealthDto(string Table, int Active, int Inactive);
@@ -29,30 +27,13 @@ public sealed record ReferenceTableHealthDto(string Table, int Active, int Inact
 public sealed record OutboxHealthDto(
     int Pending,
     int Failed,
-    /// <summary>The age of the OLDEST pending message, in minutes. A backlog count alone does not say
-    /// whether the dispatcher is running - ten messages queued a minute ago is normal, ten queued
-    /// yesterday means it has stopped.</summary>
     int? OldestPendingAgeMinutes,
-    /// <summary>
-    /// B-1/BRULE-011: whether a REAL ERP transport is configured, or the logging stand-in is.
-    ///
-    /// <para>Without this the tile above is an artifact asserting something untrue. A draining outbox
-    /// reads as "the integration is working"; with `LoggingOutboxTransport` registered, every message is
-    /// marked Sent after being written to a log line and nothing reaches an ERP - so
-    /// <c>Supplier.MarkSynced</c> is never called, no `ExternalId` is ever assigned, and BRULE-011 passes
-    /// because nothing exercises it. A rule that cannot be violated is not the same as one that is
-    /// satisfied, and an operator reading this screen is entitled to know which they have.</para>
-    /// </summary>
     bool ErpTransportConfigured);
 
 public sealed record JobHealthDto(
-    /// <summary>False when <c>Jobs:EnableRecurring</c> is off. That setting silently disables every
-    /// scheduled transition - submission windows never open, expiry is never flagged, the outbox is
-    /// never drained - and today it is visible only as one warning line in the startup log.</summary>
     bool RecurringJobsEnabled,
     IReadOnlyList<string> ExpectedJobs,
     IReadOnlyList<string> RegisteredJobs,
-    /// <summary>Expected but not registered. Non-empty is an operational fault, not a curiosity.</summary>
     IReadOnlyList<string> MissingJobs);
 
 public interface IGetAdminOverviewHandler

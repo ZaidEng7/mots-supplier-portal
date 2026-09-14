@@ -1,22 +1,27 @@
+// The virus scanner: talks to the scanning daemon over its own streaming protocol.
+//
+// This scanner was chosen because it is the written architecture's own named example, is open source, and is
+// self-hostable alongside the rest of the local stack, so neither local development nor this environment needs a
+// cloud account or an API key.
+//
+//
+// FAIL-CLOSED
+//
+// Any error at all, a refused connection, a timeout, a malformed reply, is treated as infected rather than clean.
+//
+// The written scan states name only pending, clean and rejected, and silently letting an unscanned file through on
+// a transport error would defeat the quarantine-first rule.
+//
+// The content is streamed in small chunks rather than buffered, and a zero-length chunk is what terminates the
+// stream in this protocol.
+
+namespace MotsSupplierPortal.Infrastructure.Storage;
+
 using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Common;
 
-namespace MotsSupplierPortal.Infrastructure.Storage;
-
-/// <summary>
-/// Talks to a clamd daemon over its raw INSTREAM protocol (docs/security/SECURITY-ARCHITECTURE.md
-/// §4.1: "background scan job... integrates a scanner (e.g., ClamAV / cloud AV)
-/// [ASSUMPTION on scanner]"). ClamAV was chosen as the scanner because it's the docs' own named
-/// example, open-source, and self-hostable via docker-compose - no cloud AV account/API-key
-/// dependency needed for local dev or this environment.
-///
-/// Fail-closed: any scanner error (connection refused, timeout, malformed reply) is treated as
-/// Infected rather than Clean - the spec's ScanState only names {Pending, Clean, Rejected}, and
-/// silently letting an unscanned file through on a transport error would defeat the
-/// quarantine-first invariant.
-/// </summary>
 public sealed class ClamAvScanner(IOptions<ClamAvOptions> options) : IVirusScanner
 {
     private const int ChunkSize = 8192;
@@ -42,7 +47,6 @@ public sealed class ClamAvScanner(IOptions<ClamAvOptions> options) : IVirusScann
                 await stream.WriteAsync(buffer.AsMemory(0, read), ct);
             }
 
-            // Zero-length chunk terminates the stream.
             await stream.WriteAsync(BitConverter.GetBytes(0), ct);
 
             using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
@@ -56,7 +60,6 @@ public sealed class ClamAvScanner(IOptions<ClamAvOptions> options) : IVirusScann
             {
                 return ScanOutcome.Clean;
             }
-            // ERROR or unrecognized reply - fail closed.
             return ScanOutcome.Infected;
         }
         catch

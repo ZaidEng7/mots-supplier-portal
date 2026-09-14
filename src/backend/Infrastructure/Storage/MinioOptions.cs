@@ -1,3 +1,8 @@
+// The object store's address, credentials and bucket.
+//
+// Every field except the transport flag is required, so binding fails the moment the section is missing or
+// incomplete rather than at the first upload.
+
 namespace MotsSupplierPortal.Infrastructure.Storage;
 
 public sealed class MinioOptions

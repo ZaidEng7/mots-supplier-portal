@@ -58,11 +58,11 @@ public sealed class VersionedRootCountTests
         // The other direction. A comment can also be wrong by naming something that no longer exists,
         // which reads as authoritative and sends a reader looking for a class that is not there.
         var source = File.ReadAllText(SolutionFile("Domain", "Common", "IVersionedAggregate.cs"));
-        var listed = Regex.Match(source, @"roots implement it - (?<names>[^<]+?) - and a mutable", RegexOptions.Singleline);
+        var listed = Regex.Match(source, @"records implement this:(?<names>[^.]+?)\.", RegexOptions.Singleline);
         listed.Success.Should().BeTrue("the comment must still carry the list this check reads");
 
         var names = listed.Groups["names"].Value
-            .Replace("///", " ", StringComparison.Ordinal)
+            .Replace("//", " ", StringComparison.Ordinal)
             .Split([',', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .SelectMany(part => part.Split(" and ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Where(name => name.Length > 0)

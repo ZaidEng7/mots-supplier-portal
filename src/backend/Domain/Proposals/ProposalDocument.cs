@@ -1,14 +1,22 @@
-using MotsSupplierPortal.Domain.Common;
+// A supporting file attached to a bid.
+//
+// Stored through the same file storage that tender attachments and supplier documents use, so no new
+// storage mechanism was invented for this.
+//
+// Envelope says which of the two envelopes the file belongs to, and it defaults to commercial.
+//
+// An earlier version of this file claimed these documents were always technical content and never
+// pricing. That was an assumption about how suppliers behave dressed up as a property of the system:
+// nothing read the bytes, nothing constrained them, and the claim was about to be relied on by a
+// buyer-side read. It is now a stored answer per file instead.
+//
+// ScanState starts as pending, so a row is never servable until the virus scanner has actually
+// looked at the file.
+
 namespace MotsSupplierPortal.Domain.Proposals;
 
-/// <summary>FEAT-09.3/FR-PRP-004: supporting files for a proposal. Stored via the existing
-/// IFileStorage, same pattern as RfqAttachment/SupplierDocument - no new storage mechanism invented.
-///
-/// <para><b>Corrected in batch 8.</b> This comment previously asserted these files were
-/// "two-envelope TECHNICAL content (never pricing)". That was an assumption about supplier
-/// behaviour dressed as a property of the system: nothing read the bytes, nothing constrained them,
-/// and the claim was load-bearing for a buyer-side read that did not exist yet. It is now an
-/// explicit per-file <see cref="ProposalDocumentEnvelope"/> that defaults to Commercial.</para></summary>
+using MotsSupplierPortal.Domain.Common;
+
 public sealed class ProposalDocument
 {
     public Guid Id { get; init; }
@@ -19,21 +27,11 @@ public sealed class ProposalDocument
     public string? Caption { get; init; }
     public DateTimeOffset UploadedAt { get; init; }
 
-    /// <summary>
-    /// T-028 / D-7: which envelope this file belongs to. Commercial unless the uploader said
-    /// otherwise - see ProposalDocumentEnvelope for why the default leans that way.
-    /// </summary>
     public ProposalDocumentEnvelope Envelope { get; init; } = ProposalDocumentEnvelope.Commercial;
 
-    /// <summary>
-    /// D-10: the AV scan gate. Defaults to PendingScan, so a row is never servable until something
-    /// has actually looked at it - see AttachmentScanState for why this is a default rather than an
-    /// answer, and why it is not DocumentState.
-    /// </summary>
     public AttachmentScanState ScanState { get; private set; } = AttachmentScanState.PendingScan;
 
     public void MarkScanClean() => ScanState = AttachmentScanState.Clean;
 
     public void MarkScanRejected() => ScanState = AttachmentScanState.ScanRejected;
-
 }

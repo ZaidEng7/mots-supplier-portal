@@ -1,13 +1,17 @@
+// The mail transport's configuration.
+//
+// The host and the sending address are required, so binding fails the moment the section is missing or
+// malformed, which is the same shape the other infrastructure options have.
+//
+// The credentials are deliberately optional rather than required. A local development catcher and some internal
+// relays accept unauthenticated mail, so forcing credentials here would make anonymous sending impossible to
+// configure.
+//
+// The startup configuration check covers the host and the address for non-development boots; authentication is
+// opt-in per environment by whether the credentials are present.
+
 namespace MotsSupplierPortal.Infrastructure.Email;
 
-/// <summary>
-/// Task #35. Host and FromAddress are `required` so binding fails the moment the section is
-/// missing or malformed - same shape as MinioOptions/ClamAvOptions. User/Password are left
-/// nullable rather than required: a local dev catcher (MailHog) and some internal relays accept
-/// unauthenticated mail, so forcing credentials here would make anonymous SMTP impossible to
-/// configure. RequiredConfiguration.RequiredKeys covers Host/FromAddress for non-Development
-/// boots; auth is opt-in per environment via whether User/Password are present.
-/// </summary>
 public sealed class SmtpOptions
 {
     public const string SectionName = "Smtp";

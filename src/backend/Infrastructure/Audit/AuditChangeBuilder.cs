@@ -1,22 +1,23 @@
-using System.Text.Json;
-using MotsSupplierPortal.Infrastructure.Observability;
+// Builds the before-and-after difference an audit row records, as JSON.
+//
+// Its list of sensitive field names is shared with the log-redaction stage by calling into it rather than
+// keeping a parallel copy, so the two cannot drift apart.
+//
+// Matching is on the field name containing one of those words, and it is a backstop only. A caller that
+// already knows a value is sensitive, such as a bank account number, must pass it already masked rather
+// than relying on this: the list recognises a name containing the word for an international account number
+// and would not recognise a differently spelled one.
+//
+// Only fields whose before and after actually differ are included, and nothing is written at all when
+// nothing differs, so a save that changed nothing does not leave an audit row implying it did.
 
 namespace MotsSupplierPortal.Infrastructure.Audit;
 
-/// <summary>Builds the `changes` JSON diff for AuditLog (DATABASE-MODEL.md §5: "field-level
-/// before/after (redacted for PII)"). Shares its deny-list with <see cref="RedactingEnricher"/>,
-/// the log-pipeline redaction stage, by calling into it directly rather than keeping a parallel
-/// copy - the two cannot drift apart (SECURITY-ARCHITECTURE.md: password, token, authorization,
-/// secret, iban, otp).
-///
-/// Applied here by field-name substring match, as a backstop only. Fields the caller already
-/// knows are sensitive (e.g. a bank account number) must be passed pre-masked rather than relying
-/// on this deny-list, since it recognizes IBAN-shaped names but not e.g. "accountNumber".</summary>
+using System.Text.Json;
+using MotsSupplierPortal.Infrastructure.Observability;
+
 internal static class AuditChangeBuilder
 {
-    /// <summary>Only fields whose before/after actually differ are included. Returns null (no
-    /// `changes` column write) when nothing differs, so a no-op edit doesn't create a misleading
-    /// empty-but-present diff.</summary>
     public static string? Build(params (string Field, object? Before, object? After)[] fields)
     {
         var diff = new Dictionary<string, object?>();

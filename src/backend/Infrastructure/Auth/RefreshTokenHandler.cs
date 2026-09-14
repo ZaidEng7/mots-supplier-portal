@@ -1,3 +1,16 @@
+// Exchanging a refresh token for a new pair, and detecting theft.
+//
+// The token rotates on use: the presented one is revoked and a new one issued in the same family.
+//
+// Presenting a token that was already rotated out, or revoked, or has expired, revokes the ENTIRE family and
+// forces a fresh sign-in. That is the classic detection: the legitimate holder and the thief cannot both use
+// one token, so a second use means one of them is not the owner and neither keeps the session.
+//
+// An account that has since been deactivated cannot refresh either, which is half of what makes deactivation
+// immediate.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
@@ -5,12 +18,6 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Auth;
-
-/// <summary>
-/// STORY-01.1.1 AC3/AC4: refresh rotates on use. A reused (already-rotated-out or revoked) token
-/// invalidates the entire family and forces re-login - classic refresh-token theft detection.
-/// </summary>
 public sealed class RefreshTokenHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
@@ -29,7 +36,6 @@ public sealed class RefreshTokenHandler(
 
         if (presented.RevokedAt is not null || presented.ExpiresAt <= DateTimeOffset.UtcNow)
         {
-            // Reuse of a rotated-out or expired token: revoke the whole family.
             var family = await db.RefreshTokens
                 .Where(t => t.FamilyId == presented.FamilyId && t.RevokedAt == null)
                 .ToListAsync(ct);

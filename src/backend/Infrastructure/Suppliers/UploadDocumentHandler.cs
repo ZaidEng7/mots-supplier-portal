@@ -1,3 +1,62 @@
+// A supplier uploads a document, and it waits for the virus scanner before it counts for anything.
+//
+// The file's type, size and leading bytes are checked, it is written to the quarantine area, and the scan
+// is queued. Until the scan comes back clean the document is neither downloadable nor able to satisfy a
+// requirement.
+//
+//
+// AN APPROVED SUPPLIER MAY UPLOAD, AND THAT IS A RENEWAL RATHER THAN A LOOPHOLE
+//
+// Documents expire. The system tracks the date, warns that one is expiring soon, moves it to expired on a
+// daily job, and suspends the supplier when an award-critical one goes.
+//
+// Until this was permitted, the supplier's own documents screen offered them an expiry field and a file
+// picker and then refused the upload. A reviewer could not help either, because requesting information
+// needs the application to be under review. A supplier suspended for an expired certificate had no way,
+// through any screen, to replace it. The only remedy was editing the database.
+//
+// The renewal rides the DOCUMENT lifecycle, which already exists for exactly this: the new version is
+// uploaded, scanned, and waits for a reviewer beside the version it replaces. The supplier's own onboarding
+// state is untouched, because a company whose tax certificate is a year newer is not a company that needs
+// onboarding again.
+//
+// While an information request is open the upload is narrowed to the document types the reviewer actually
+// flagged, and the request is left open until the supplier explicitly resubmits. One re-upload does not
+// imply every flagged item is addressed.
+//
+//
+// THE FILE IS NEVER HELD WHOLE IN MEMORY
+//
+// The stream handed in is the framework's own buffering stream: small requests stay in memory, anything
+// past the configured threshold spools to a bounded temporary file, and either way it can be rewound.
+//
+// So the type sniff reads sixteen header bytes from that stream and rewinds it, rather than copying the
+// whole upload into a second fully-materialised buffer first. The copy was the actual defect; reading a few
+// header bytes never required it. A stream that cannot rewind is a programming error here rather than a
+// bad request, which is why it throws.
+//
+// The declared extension and the sniffed bytes must agree. A mismatch is audited, because a file claiming
+// to be a certificate and carrying something else is worth a record.
+//
+//
+// THE PUBLIC CODE IS ALLOCATED BEFORE THE DOCUMENT IS CONSTRUCTED
+//
+// By the same atomic counter every other public code uses. A gap when the transaction rolls back is the
+// documented trade: the database's own sequences do not roll back either, and gaps are harmless where reuse
+// is not.
+//
+// If construction then refuses the dates, the file has already been written to quarantine. It is left
+// there rather than deleted, because the scanning pipeline and the retention job own that area, and a
+// half-deleted upload is harder to reason about than an orphaned one.
+//
+//
+// THE SCAN STATUS ON THE READ MODEL IS DERIVED
+//
+// Read off the state machine that already knows: pending while the row is still in quarantine, rejected
+// once the scanner has objected, and clean for every state a document can only reach by passing the scan.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -7,13 +66,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// FR-DOC-002/STORY-05.2.1: validates type/size/magic-bytes, stores to the quarantine prefix, and
-/// enqueues the AV scan job - the document is NOT yet downloadable or completeness-satisfying
-/// until the scan comes back clean (docs/security/SECURITY-ARCHITECTURE.md §4.1).
-/// </summary>
 public sealed class UploadDocumentHandler(
     AppDbContext db,
     IScopeContext scope,
@@ -34,19 +86,6 @@ public sealed class UploadDocumentHandler(
             return new UploadDocumentResult.NotFoundOrOutOfScope();
         }
 
-        // Approved is permitted, and this is a renewal rather than a loophole.
-        //
-        // Documents EXPIRE. The system tracks the date, warns "expiring soon", moves the document to
-        // Expired on a daily job, and BRULE-023 suspends the supplier when an award-critical one goes.
-        // Until this line changed, the supplier's own Documents screen offered them an expiry field and
-        // a file picker and then refused the upload - and a reviewer could not help either, because
-        // RequestInfo needs UnderReview. A supplier suspended for an expired certificate had no way,
-        // through any screen, to replace it. The only remedy was a database edit.
-        //
-        // The renewal rides the DOCUMENT lifecycle, which already exists for exactly this: the new
-        // version is uploaded, scanned, and sits UnderReview for a reviewer to approve or reject,
-        // beside the version it replaces. The SUPPLIER's onboarding state is not touched, because a
-        // company whose tax certificate is a year newer is not a company that needs onboarding again.
         if (supplier.OnboardingState is SupplierOnboardingState.Draft or SupplierOnboardingState.Submitted
             or SupplierOnboardingState.UnderReview or SupplierOnboardingState.Rejected)
         {
@@ -85,12 +124,6 @@ public sealed class UploadDocumentHandler(
             return new UploadDocumentResult.UnsupportedType();
         }
 
-        // MSP-84/NFR-PERF-008: no full-file buffer. command.Content is IFormFile.OpenReadStream(),
-        // which ASP.NET Core already backs with a FileBufferingReadStream - small requests stay in
-        // memory, anything past FormOptions' memory threshold spools to a bounded temp file, and
-        // either way the stream is seekable. Sniffing rewinds THIS stream directly rather than
-        // copying it into a second, fully-materialized MemoryStream first - the copy was the actual
-        // defect, not a technical requirement of reading 16 header bytes.
         if (!command.Content.CanSeek)
         {
             throw new InvalidOperationException(
@@ -123,9 +156,6 @@ public sealed class UploadDocumentHandler(
         SupplierDocument document;
         try
         {
-            // T-010: allocated before construction, by the same atomic counter every other public
-            // code uses. A gap on rollback is the documented, correct trade (MSP-81) - nextval() does
-            // not roll back either, and gaps are harmless where reuse is not.
             var referenceCode = await ReferenceCodeGenerator.NextCodeAsync(db, "DOC", ct);
 
             document = SupplierDocument.CreatePendingScan(
@@ -137,9 +167,6 @@ public sealed class UploadDocumentHandler(
         }
         catch (DomainException ex)
         {
-            // BRULE-020. Note the file has already been written to quarantine by this point; it is
-            // left there rather than deleted, because the AV pipeline and the retention job own that
-            // prefix and a half-deleted upload is harder to reason about than an orphaned one.
             return new UploadDocumentResult.InvalidExpiry(ex.Message);
         }
 
@@ -151,8 +178,6 @@ public sealed class UploadDocumentHandler(
                 .Where(a => a.SupplierId == supplier.Id && a.ResolvedAt == null)
                 .OrderByDescending(a => a.RequestedAt)
                 .FirstAsync(ct);
-            // Left unresolved until the supplier explicitly resubmits (STORY-03.3.1 AC2) - a
-            // single re-upload doesn't automatically imply every flagged item is addressed.
             _ = activeAnnotation;
         }
 
@@ -168,9 +193,6 @@ public sealed class UploadDocumentHandler(
         d.ReferenceCode, d.Version, d.State.ToString(), d.OriginalFileName, d.ContentType, d.SizeBytes,
         d.IssueDate, d.ExpiryDate, d.RejectReason, d.UploadedAt, d.ReviewedAt, ScanStatusOf(d.State));
 
-    /// <summary>T-015: §12.3's <c>scanStatus</c>, read off the state machine that already knows.
-    /// Pending while the row is still in quarantine, Rejected once the scanner has objected, Clean
-    /// for every state a document can only reach by passing the scan.</summary>
     private static string ScanStatusOf(DocumentState state) => state switch
     {
         DocumentState.PendingScan => "Pending",

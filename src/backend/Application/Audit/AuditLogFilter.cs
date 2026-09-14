@@ -1,15 +1,22 @@
+// The dimensions a caller may narrow an audit search by: the kind of record, one record, one actor, one
+// action, and a date range.
+//
+// Every field is optional and they combine. An absent value means unfiltered on that dimension rather
+// than matching an absent value.
+//
+// The date range includes both ends. These are exact instants rather than calendar dates, so there is no
+// whole-day boundary to resolve: a row landing exactly on either bound is included. A caller wanting an
+// exclusive bound moves it by one tick, and the API does not need to invent that for them.
+//
+// Describe reports which filters were actually applied, for the response envelope. It is absent when
+// nothing was filtered, so a caller staring at an empty list can tell no filter from a filter that
+// matched nothing, which are two different situations.
+//
+// The values echoed there are the caller's own query values, never row content, so this cannot leak
+// audit data into a response the caller could not already see.
+
 namespace MotsSupplierPortal.Application.Audit;
 
-/// <summary>
-/// MSP-75/FR-AUD-004: the four dimensions a caller may narrow the global audit search by. Every
-/// field is optional and combinable - null means "unfiltered on this dimension", not "match null".
-///
-/// <para><b>Date range is inclusive on both ends.</b> <c>From</c> and <c>To</c> are exact instants
-/// (<see cref="DateTimeOffset"/>, not calendar dates), so there is no ambiguity to resolve the way
-/// there would be for a whole-day boundary: a row with <c>OccurredAt == From</c> or
-/// <c>OccurredAt == To</c> is included in both cases. A caller wanting an exclusive bound passes a
-/// tick later/earlier - the API does not need to invent that for them.</para>
-/// </summary>
 public sealed record AuditLogFilter(
     string? AggregateType,
     Guid? AggregateId,
@@ -20,15 +27,6 @@ public sealed record AuditLogFilter(
 {
     public static readonly AuditLogFilter None = new(null, null, null, null, null, null);
 
-    /// <summary>
-    /// The filters actually applied, for the envelope's <c>meta.filtersApplied</c>
-    /// (API-ARCHITECTURE.md §5.2, whose example renders them as <c>["state=UnderReview,Rejected"]</c>).
-    /// Null when nothing was filtered, so <c>meta</c> distinguishes "no filter" from "a filter that
-    /// matched nothing" - two states a caller staring at an empty list needs to tell apart.
-    ///
-    /// <para>Values are the caller's own query values echoed back, never row content, so this cannot
-    /// leak audit data into a response the caller could not already see.</para>
-    /// </summary>
     public IReadOnlyList<string>? Describe()
     {
         List<string> applied = [];

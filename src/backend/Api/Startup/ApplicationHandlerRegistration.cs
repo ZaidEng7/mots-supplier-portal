@@ -69,14 +69,12 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Identity;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
-using MotsSupplierPortal.Application.Reference;
 using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.ReferenceData;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Proposals;
-using MotsSupplierPortal.Application.Evaluations;
 using MotsSupplierPortal.Application.Comparison;
 using MotsSupplierPortal.Application.Reports;
 using MotsSupplierPortal.Application.Awards;
@@ -88,11 +86,9 @@ using MotsSupplierPortal.Infrastructure.Evaluation;
 using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
-using MotsSupplierPortal.Infrastructure.Reference;
 using MotsSupplierPortal.Infrastructure.Registrations;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 using MotsSupplierPortal.Infrastructure.Proposals;
-using MotsSupplierPortal.Infrastructure.Evaluations;
 using MotsSupplierPortal.Infrastructure.Comparison;
 using MotsSupplierPortal.Infrastructure.Reports;
 using MotsSupplierPortal.Infrastructure.Awards;
@@ -302,7 +298,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IGetMyEvaluationHandler, GetMyEvaluationHandler>();
         builder.Services.AddScoped<IScoreCriterionHandler, ScoreCriterionHandler>();
         builder.Services.AddScoped<ISubmitEvaluatorHandler, SubmitEvaluatorHandler>();
-        builder.Services.AddScoped<MotsSupplierPortal.Application.Evaluations.IListEvaluatorCandidatesHandler, MotsSupplierPortal.Infrastructure.Evaluations.ListEvaluatorCandidatesHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Evaluation.IListEvaluatorCandidatesHandler, MotsSupplierPortal.Infrastructure.Evaluation.ListEvaluatorCandidatesHandler>();
     }
 
     private static void AddComparisonHandlers(this WebApplicationBuilder builder)
@@ -331,7 +327,7 @@ internal static class ApplicationHandlerRegistration
 
     private static void AddReportsHandlers(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Reporting.ReportFonts>();
+        builder.Services.AddSingleton<MotsSupplierPortal.Infrastructure.Exports.ReportFonts>();
         builder.Services.AddScoped<IProcurementReportHandler, ProcurementReportHandler>();
         builder.Services.AddScoped<IComplianceReportHandler, ComplianceReportHandler>();
     }

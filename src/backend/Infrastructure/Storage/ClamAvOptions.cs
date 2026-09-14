@@ -1,3 +1,8 @@
+// The scanner's address.
+//
+// The host is required, so binding fails the moment the section is missing. The port defaults to the daemon's
+// standard one.
+
 namespace MotsSupplierPortal.Infrastructure.Storage;
 
 public sealed class ClamAvOptions

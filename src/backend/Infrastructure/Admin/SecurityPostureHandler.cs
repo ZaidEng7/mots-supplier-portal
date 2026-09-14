@@ -1,3 +1,23 @@
+// The security posture screen: the policy this deployment is actually running.
+//
+// Every value is read from the thing that ENFORCES it, or from the one key that configures it.
+//
+// The password and lockout rules come out of the configured identity options. The second-factor list comes out of
+// the same expression the sign-in handler uses. The registration mode comes from the settings reader the
+// registration endpoint consults. The clock skew comes from the configuration key the token validation is built
+// from.
+//
+// A screen restating any of these as its own literals would keep reporting the old policy after somebody changed
+// the real one, which is worse than having no screen because it would be believed.
+//
+// The clock skew is why a fifteen-minute token is not one, and it is the kind of thing nobody remembers is
+// configured, which is why it is on the screen at all.
+//
+// The rate limits are named exactly as their policies are named at registration, so an operator reading a
+// refused request can find the row it came from.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -6,20 +26,6 @@ using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Configuration;
 
-namespace MotsSupplierPortal.Infrastructure.Admin;
-
-/// <summary>
-/// SCR-726's read: the security policy this deployment is actually running.
-///
-/// <para><b>Every value is read from the thing that ENFORCES it, or from the one key that configures it.</b>
-/// The password and lockout rules come out of the configured IdentityOptions, the MFA list out of the
-/// expression LoginHandler itself uses, the registration mode out of the settings reader the registration
-/// endpoint consults, and the clock skew out of the configuration key Program.cs now builds the token
-/// validation parameters from. A
-/// screen that restated any of these as its own literals would be a screen that keeps reporting the old
-/// policy after someone changes the real one - which is worse than having no screen, because it would be
-/// believed.</para>
-/// </summary>
 public sealed class SecurityPostureHandler(
     IOptions<IdentityOptions> identityOptions,
     IConfiguration configuration,
@@ -42,14 +48,9 @@ public sealed class SecurityPostureHandler(
             new SessionPolicyDto(
                 configuration.GetValue("Jwt:AccessTokenMinutes", 15),
                 configuration.GetValue("Jwt:RefreshTokenDays", 30),
-                // The skew is why a "15 minute" token is not one, and it is the kind of thing nobody
-                // remembers is configured. Program.cs now reads the SAME key when it builds the token
-                // validation parameters, so this cannot report a number the handler is not using.
                 configuration.GetValue("Jwt:ClockSkewSeconds", 30)),
             MfaPolicy.RequiredRoles(configuration),
             [
-                // The two limiters that exist, named as their policies are named in Program.cs so an
-                // operator reading a 429 can find the row it came from.
                 new RateLimitPolicyDto("auth-strict", configuration.GetValue("RateLimiting:AuthPermitLimit", 10), 60),
                 new RateLimitPolicyDto("register-strict", configuration.GetValue("RateLimiting:RegisterPermitLimit", 5), 60),
             ],

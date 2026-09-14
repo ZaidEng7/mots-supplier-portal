@@ -1,10 +1,15 @@
+// One approval step on an award: who decided, what they decided, and when.
+//
+// Today every award has exactly one step, because the ministry confirmed a single approver
+// whose decision is final. The list shape is kept anyway, so that a real multi-step
+// approval chain later is a configuration change rather than a database migration. A
+// tender's own approvals are shaped the same way, for the same reason.
+//
+// The setters are internal: only the Award itself records a decision, through Approve or
+// Reject, which is where the rules live.
+
 namespace MotsSupplierPortal.Domain.Awards;
 
-/// <summary>FEAT-14.2/14.3/FR-AWD-002/003, DATABASE-MODEL-shaped exactly like Rfq.RfqApproval
-/// (Api's own established "an ordered, growing array of review passes" pattern, StepNo always 1
-/// today) - OQ-004 resolved single-approver/final, so this build never sets StepNo above 1, but the
-/// array shape means a real multi-step chain later is a config/data extension, not a schema
-/// migration, exactly like RfqApproval's own reasoning.</summary>
 public sealed class Approval
 {
     public Guid Id { get; init; }

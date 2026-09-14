@@ -1,13 +1,15 @@
+// A member of staff accepts their invitation and sets a password.
+//
+// The work is shared with the supplier-side invitation. This class only maps that shared outcome onto this
+// flow's own result type.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>Task #28: the actual work is InviteAcceptance.AcceptAsync, shared with
-/// AcceptSupplierUserInviteHandler - this class only maps that shared outcome onto this flow's
-/// own result type.</summary>
 public sealed class AcceptStaffInviteHandler(UserManager<AppUser> userManager, ISecurityTokenService securityTokenService) : IAcceptStaffInviteHandler
 {
     public async Task<AcceptStaffInviteResult> HandleAsync(AcceptStaffInviteCommand command, CancellationToken ct)

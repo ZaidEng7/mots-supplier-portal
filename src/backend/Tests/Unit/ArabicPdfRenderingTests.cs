@@ -1,6 +1,6 @@
 using FluentAssertions;
-using MotsSupplierPortal.Application.Reporting;
-using MotsSupplierPortal.Infrastructure.Reporting;
+using MotsSupplierPortal.Application.Exports;
+using MotsSupplierPortal.Infrastructure.Exports;
 
 namespace MotsSupplierPortal.Tests.Unit;
 

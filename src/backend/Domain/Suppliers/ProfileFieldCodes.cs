@@ -1,34 +1,33 @@
+// The list of things a reviewer may flag when asking a supplier for more information, and the same list
+// the supplier's editing restriction is checked against.
+//
+// It exists because there was not one. The flagged-field list used to be free text: the request
+// validator accepted any string at all, and the two screens had independently invented different sets.
+// The reviewer's screen offered registration number, tax identifier, address line, city, country,
+// currency and primary contact phone. The supplier's screen tested description, legal information,
+// primary contact phone, supplier group and website. They overlapped on exactly one code, so flagging
+// the registration number left the supplier's legal-information section disabled and the supplier
+// unable to fix the very thing they had been asked to fix.
+//
+// Each code names one place a supplier can actually save something, so a flag maps unambiguously onto
+// what they are allowed to change. Fine-grained reviewer concepts collapse into the save that owns
+// them: registration number and tax identifier become legal information, and address line, city and
+// country become the address. Permission has to be enforced at a boundary that exists.
+//
+// The first five are individually flaggable because the profile save applies only the fields it is
+// actually sent. LegalInfo covers the whole legal identity: both names, the registration number, the
+// tax identifier, the entity type and the establishment date.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>
-/// The canonical vocabulary a reviewer may flag when requesting information (STORY-03.3.1), and
-/// the same vocabulary the supplier's edit restriction is enforced against.
-///
-/// This exists because there wasn't one. Before 2026-08-28 the flagged-field list was free text:
-/// <c>RequestInfoRequestValidator</c> accepted any string, and the two UIs had independently
-/// invented different sets - the reviewer offered
-/// <c>registrationNumber, taxId, addressLine, city, country, currencyCode, primaryContactPhone</c>
-/// while the supplier screen tested
-/// <c>description, legalInfo, primaryContactPhone, supplierGroup, website</c>. They overlapped on
-/// exactly one code, so flagging "registrationNumber" left the supplier's legal-info section
-/// disabled and the supplier unable to fix the very thing they were asked to fix.
-///
-/// Each code names one mutation surface, so a flag maps unambiguously onto what the supplier is
-/// allowed to change. Granular reviewer concepts collapse into the handler that owns them
-/// (registrationNumber/taxId -> <see cref="LegalInfo"/>; addressLine/city/country ->
-/// <see cref="Address"/>), because authorization has to be enforced at the boundary that actually
-/// exists.
-/// </summary>
 public static class ProfileFieldCodes
 {
-    // Core profile - individually flaggable now that PATCH applies only the fields it is sent.
     public const string Description = "description";
     public const string Website = "website";
     public const string SupplierGroup = "supplierGroup";
     public const string CurrencyCode = "currencyCode";
     public const string PrimaryContactPhone = "primaryContactPhone";
 
-    /// <summary>Whole LegalInfo value object: names, registration number, tax id, type, date.</summary>
     public const string LegalInfo = "legalInfo";
 
     public const string Address = "address";

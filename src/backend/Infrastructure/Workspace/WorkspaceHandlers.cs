@@ -1,3 +1,17 @@
+// Builds the guided workspace: a view gathering a tender, its bids, its evaluation and its award, storing
+// nothing of its own.
+//
+// The list of stages is deliberately shorter than the full set of tender states. Three of those states
+// cannot be reached by any method in this build, and a guided workspace that showed a stage nothing can
+// ever enter would be actively misleading.
+//
+// The next actions are genuinely permission-aware, resolved on the server from the caller's own token and
+// never from a client hint. The same action can be offered to a manager and withheld from an officer
+// looking at the same tender, and the blocked reason explains whichever of the permission or the domain
+// precondition is failing.
+
+namespace MotsSupplierPortal.Infrastructure.Workspace;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Workspace;
@@ -9,31 +23,12 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Workspace;
-
-/// <summary>FEAT-13.1/FR-PWF-001: a read-side aggregation over Rfq + Proposal + Evaluation + Award -
-/// no new persisted state (BACKLOG.md's own "Domain: orchestration ... no new aggregate" note).
-///
-/// <para>The reachable stage list is deliberately shorter than RfqState's full enum:
-/// Clarification/Shortlisting/Recommendation are enum-only stubs no domain method can ever reach in
-/// this build (EPIC-11/13/14 territory each say so in their own doc comments) - a "guided" workspace
-/// that showed the caller a stage nothing could ever enter would be actively misleading.</para>
-///
-/// <para><b>NextActions is genuinely permission-aware</b> (IScopeContext.HasPermission, resolved
-/// server-side from the caller's JWT "perms" claims - never a client-supplied hint) - the same
-/// action can appear Permitted for a procurement_manager and not for a procurement_officer viewing
-/// the same RFQ, and the blocker text explains whichever of (permission, domain precondition) is
-/// actually failing.</para></summary>
 public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : IGetWorkspaceHandler
 {
     private static readonly RfqState[] ReachableStages =
     [
         RfqState.Draft, RfqState.InternalReview, RfqState.Approved, RfqState.Published,
         RfqState.SubmissionOpen, RfqState.SubmissionClosed, RfqState.UnderEvaluation,
-        // T3-36: reachable now. They were excluded because no code path could produce them, and
-        // leaving them out AFTER they became reachable would be worse than the empty columns that
-        // prompted the ticket - an RFQ sitting in Clarification would have no current stage at all,
-        // and the tracker would mark every stage up to it complete.
         RfqState.Clarification, RfqState.Shortlisting, RfqState.Recommendation,
         RfqState.AwardApproval, RfqState.Awarded, RfqState.Completed,
     ];
@@ -41,8 +36,6 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
     public async Task<WorkspaceDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct)
     {
         if (scope.OrganizationId is null) return null;
-        // Sonar S8733: two sibling collection Includes (Items, Invitations) in one query multiply
-        // rows (a Cartesian product) - AsSplitQuery issues them as separate SQL queries instead.
         var rfq = await db.Rfqs.AsSplitQuery().Include(r => r.Items).Include(r => r.Invitations)
             .FirstOrDefaultAsync(r => r.ReferenceCode == rfqReferenceCode && r.OrganizationId == scope.OrganizationId, ct);
         if (rfq is null) return null;
@@ -120,20 +113,6 @@ public sealed class GetWorkspaceHandler(AppDbContext db, IScopeContext scope) : 
         return actions;
     }
 
-    /// <summary>
-    /// Every precondition <see cref="Rfq.SubmitForReview"/> checks that this draft does not yet meet,
-    /// in the order it checks them, joined into the one reason string the DTO carries.
-    /// </summary>
-    /// <remarks>
-    /// <para>This used to be a ternary chain returning the FIRST unmet precondition, and it was missing
-    /// one: the rule that a submission window may not have started already. So a draft whose window had
-    /// opened five minutes ago was told by the rail that no supplier was invited, fixed that, pressed
-    /// the button, and was refused for a reason the rail had never mentioned. Found by walking it.</para>
-    /// <para>Naming one blocker at a time is the deeper fault. There are five, a person meets them one
-    /// round trip at a time, and the rail exists precisely so they do not have to. The domain stays the
-    /// authority on whether the transition is allowed - this only reports, and reporting a subset is how
-    /// it came to disagree with the domain in the first place.</para>
-    /// </remarks>
     private static (string Ar, string En)? DraftBlockers(Rfq rfq)
     {
         var reasons = new List<(string Ar, string En)>();

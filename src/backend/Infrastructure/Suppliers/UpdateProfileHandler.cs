@@ -1,13 +1,35 @@
+// Editing the core fields of a supplier's own profile.
+//
+// Edits are scoped to the caller's own row and are only legal in the three states before submission. The
+// domain itself refuses them once the application is submitted, because a submitted application is
+// read-only.
+//
+// An omitted field resolves to the value the record already holds rather than to nothing, which is what
+// makes this a partial edit rather than a replacement.
+//
+//
+// THE FLAGGED-FIELD CHECK KEYS OFF WHAT CHANGED, NOT WHAT WAS SENT
+//
+// Re-sending a value identical to the stored one is not an edit, and forms routinely round-trip every field
+// they rendered; this one posts all five.
+//
+// Comparing values rather than presence keeps the guard correct regardless of how chatty the caller is,
+// instead of depending on callers to send minimal payloads.
+//
+//
+// THE CONCURRENCY GUARD WRAPS THE AUDIT WRITE TOO
+//
+// The audit row and the supplier update commit together, because the logger owns the save, so both have to
+// sit inside the guard for a collision to be seen as one.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>STORY-03.1.1/STORY-04.1.1: edits are row-scoped and only legal while EmailVerified/
-/// ProfileInProgress/InfoRequested - the domain itself refuses edits once Submitted (read-only).</summary>
 public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IConcurrencyContext concurrency) : IUpdateProfileHandler
 {
     public async Task<UpdateProfileResult> HandleAsync(UpdateProfileCommand command, CancellationToken ct)
@@ -26,12 +48,6 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
             return new UpdateProfileResult.NotFoundOrOutOfScope();
         }
 
-        // MSP-77: the flagged-field check keys off fields whose value actually CHANGES, not merely
-        // fields that appear in the payload. Re-sending a value identical to the stored one is not
-        // an edit, and forms routinely round-trip every field they rendered - the SPA's profile
-        // form posts all five. Comparing values rather than presence keeps the guard correct
-        // regardless of how chatty the client is, instead of depending on clients to send minimal
-        // payloads.
         var currentPhone = supplier.Representatives.FirstOrDefault(r => r.IsPrimary)?.Phone;
         var touched = new List<string>();
         if (Changed(command.Description, supplier.Description)) touched.Add(ProfileFieldCodes.Description);
@@ -50,8 +66,6 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
 
         try
         {
-            // Or(current) is what makes this a PATCH: an omitted field resolves to the value the
-            // entity already holds instead of null.
             supplier.UpdateCoreProfile(
                 command.Description.Or(supplier.Description),
                 command.Website.Or(supplier.Website),
@@ -69,8 +83,6 @@ public sealed class UpdateProfileHandler(AppDbContext db, IScopeContext scope, I
             primary.Phone = command.PrimaryContactPhone.Value;
         }
 
-        // The audit write and the supplier UPDATE commit together (AuditLogger owns the
-        // SaveChanges), so both live inside the guard.
         var persisted = await SupplierConcurrency.TryPersistAsync(async () =>
         {
             await auditLogger.LogAsync("Supplier", supplier.Id, "profile_updated", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);

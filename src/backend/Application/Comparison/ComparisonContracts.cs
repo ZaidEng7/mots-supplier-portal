@@ -1,30 +1,58 @@
+// The vocabulary for the bid comparison: one matrix with the tender's lines down one axis and the bids
+// across the other.
+//
+//
+// WHAT IS ABSENT, AND WHY ABSENCE IS THE ANSWER
+//
+// Prices, totals, scores and the evaluation outcome are all optional on a bid's row, and every one of them
+// is absent for the same reason: absence rather than a hidden or masked value is how this codebase already
+// represents that no read path exists yet.
+//
+// Never a zero, never an empty list standing in for not visible, and never a placeholder word. A zero
+// total is a claim about a bid; an absent one is the truth.
+//
+//
+// THE TWO-ENVELOPE GATE
+//
+// Prices are only ever present for a bid that has passed technical qualification in an evaluation whose
+// scores have been gathered. The gate itself lives in the handler that builds this.
+//
+// Scores are only ever present once those scores have been gathered too, because peer scores are
+// unreadable before then. Deriving them here instead would be exactly the same breach as reading the rows
+// directly.
+//
+// Consolidated scores are re-derived when read rather than stored separately, so there is one source for
+// what a score is.
+//
+// The tender's own line items and the requirement answers are present from the start, because the shape of
+// the matrix does not depend on the gate having opened.
+//
+//
+// THE EVALUATION STATE IS ALWAYS THE REAL ONE
+//
+// Including the case where no evaluation exists at all, which is spelled out rather than omitted. The
+// interface needs it to choose between three different placeholders: no bids yet, waiting for scores to be
+// gathered, and the real scored matrix. It carries no evaluation content itself, so naming the state
+// reveals nothing the gate is holding back.
+//
+//
+// TIES
+//
+// A rank that came from a tie no rule could break is marked as such. The comparison is where an officer
+// sees the ranking, so it is where the tie has to be visible and resolvable.
+
 namespace MotsSupplierPortal.Application.Comparison;
 
-/// <summary>FEAT-12.1/FR-CMP-001: one RFQ line item, surfaced as a column/row definition even before
-/// any pricing is visible (Group 1's header shape does not depend on the two-envelope gate having
-/// opened yet).</summary>
 public sealed record ComparisonRfqItemDto(Guid Id, int LineNo, string TitleAr, string TitleEn, decimal Quantity, string UnitOfMeasureCode);
 
 public sealed record ComparisonRequirementAnswerDto(Guid RequirementId, string TextAr, string TextEn, bool IsMandatory, bool Answered);
 
-/// <summary>The two-envelope FINANCIAL content (OQ-009) - only ever populated on
-/// ComparisonProposalDto for a proposal that has passed technical qualification in a Consolidated+
-/// evaluation; see GetComparisonHandler's own doc comment for the actual gate.</summary>
 public sealed record ComparisonItemPriceDto(Guid RfqItemId, decimal Quantity, decimal UnitPrice, decimal? Discount, decimal LineTotal);
 
-/// <summary>FEAT-12.2/FR-CMP-002: one criterion's consolidated (averaged-across-evaluators) score for
-/// one proposal - re-derived on read from EvaluatorScore, never persisted separately. Only ever
-/// populated once the evaluation is Consolidated+ (BRULE-058: peer scores unreadable before then -
-/// re-derivation here would be exactly the same blindness violation as reading the rows directly).</summary>
 public sealed record ComparisonCriterionScoreDto(
     Guid CriterionId, string NameAr, string NameEn, bool IsFinancial, decimal Weight, decimal MaxScore,
     decimal? Threshold, decimal AverageScore, bool? MetThreshold);
 
-/// <summary>One Submitted proposal's row in the matrix. Items/GrandTotal/CriterionScores/the
-/// evaluation-outcome fields are all nullable for exactly the same reason: absence, not a hidden or
-/// masked value, is how this codebase already represents "no read path exists yet" (EPIC-09's own
-/// ProposalItem separation, EPIC-11's own EvaluatorScore row-scoping) - never a zero, an empty array
-/// standing in for "not visible", or a placeholder string.</summary>
 public sealed record ComparisonProposalDto(
     string ProposalReferenceCode, Guid SupplierId, string SupplierDisplayNameAr, string SupplierDisplayNameEn,
     string? CurrencyCode, string? PaymentTerms, string? IncotermCode, string? DeliveryTermsAr, string? DeliveryTermsEn,
@@ -37,17 +65,10 @@ public sealed record ComparisonProposalDto(
     decimal? FinancialWeightedScore,
     decimal? WeightedTotal,
     int? Rank,
-    /// <summary>A-1/BRULE-069: this rank came from a tie no rule broke. The comparison is where the
-    /// officer sees the ranking, so it is where the tie has to be visible and resolvable.</summary>
     bool TieUnresolved,
     string? TieResolutionReason,
     IReadOnlyList<ComparisonCriterionScoreDto>? CriterionScores);
 
-/// <summary>FEAT-12.4/FR-CMP-004: EvaluationState is always the real underlying state (including
-/// "NotStarted" spelled out as a literal string when no Evaluation aggregate exists yet at all, not
-/// omitted) - the frontend needs it to render the right placeholder ("no proposals yet" vs "awaiting
-/// consolidation" vs the real scored matrix), and it carries no evaluation-derived content by
-/// itself, so exposing it is not a blindness violation.</summary>
 public sealed record ComparisonDto(
     string RfqReferenceCode, string RfqTitleAr, string RfqTitleEn, string EvaluationState,
     IReadOnlyList<ComparisonRfqItemDto> RfqItems,

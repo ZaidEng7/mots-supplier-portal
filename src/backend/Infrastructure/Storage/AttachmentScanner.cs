@@ -1,32 +1,38 @@
-using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Domain.Common;
+// Scanning an attachment on first access, when nothing has scanned it yet.
+//
+//
+// WHY ON ACCESS RATHER THAN ONLY AT UPLOAD
+//
+// Attachments uploaded before this existed carry the unscanned state, and the recorded decision is explicit that
+// they are not assumed clean.
+//
+// Scanning them lazily means an existing tender's documents become readable as soon as somebody asks for one,
+// without a backfill job that would have to walk every object in storage before anything worked.
+//
+// New uploads are scanned here too, on their first download, so there is one code path rather than two.
+//
+//
+// THE COST, STATED
+//
+// This makes the first download of an unscanned attachment wait on the scanner.
+//
+// Supplier documents are scanned out of band because their upload pipeline already had a job. Adding one here
+// would mean an attachment being unreadable for an indeterminate period after upload, which for a tender
+// specification a supplier is trying to read is worse than a slow first request.
+//
+// If scan latency ever becomes the problem, the fix is to move this onto the outbox. The state field and the gate
+// do not change.
+//
+// Fail-closed throughout: the scanner already treats any error as infected, and a rejected object is deleted while
+// the row is kept as the record that it happened, which is the same shape the document scan job uses.
 
 namespace MotsSupplierPortal.Infrastructure.Storage;
 
-/// <summary>
-/// D-10: scans an attachment on first access when nothing has scanned it yet.
-///
-/// <para><b>Why on access rather than only at upload.</b> Attachments uploaded before this existed
-/// carry <c>PendingScan</c>, and D-10 is explicit that they are not assumed clean. Scanning them
-/// lazily means an existing tender's documents become readable as soon as someone asks for one,
-/// without a backfill job that would have to walk every object in storage before anything worked.
-/// New uploads are scanned here too, on their first download, for the same code path rather than a
-/// second one.</para>
-///
-/// <para><b>The cost, stated.</b> This makes the first download of an unscanned attachment
-/// synchronous on the scanner. SupplierDocument does it out-of-band through Hangfire because its
-/// upload pipeline already had a job; adding one here would mean an attachment being unreadable for
-/// an indeterminate period after upload, which for a tender specification a supplier is trying to
-/// read is worse than a slow first request. If scan latency becomes the problem, the fix is to move
-/// this to the outbox - the state field and the gate do not change.</para>
-///
-/// <para>Fail-closed throughout: <c>ClamAvScanner</c> already treats any scanner error as Infected,
-/// and a rejected object is deleted while the row is kept as the audit trail - the same shape
-/// <c>DocumentScanJob</c> uses.</para>
-/// </summary>
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Common;
+
 public sealed class AttachmentScanner(IFileStorage fileStorage, IVirusScanner scanner)
 {
-    /// <returns><c>true</c> when the attachment is safe to serve.</returns>
     public async Task<bool> EnsureScannedAsync(
         AttachmentScanState state, string storageKey, Action markClean, Action markRejected, CancellationToken ct)
     {

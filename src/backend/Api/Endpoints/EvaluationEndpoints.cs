@@ -76,7 +76,7 @@ using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
-using MotsSupplierPortal.Application.Evaluations;
+using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Domain.Identity;
 

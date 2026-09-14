@@ -1,9 +1,10 @@
+// Storing and serving files.
+//
+// Never a public bucket. Uploads land in quarantine first, and downloads are served through short-lived
+// signed links rather than by handing out a path.
+
 namespace MotsSupplierPortal.Application.Common;
 
-/// <summary>
-/// File storage abstraction (docs/security/SECURITY-ARCHITECTURE.md §4.1) - never a public bucket,
-/// quarantine-first uploads, short-lived signed download URLs.
-/// </summary>
 public interface IFileStorage
 {
     Task SaveAsync(string key, Stream content, string contentType, CancellationToken ct);

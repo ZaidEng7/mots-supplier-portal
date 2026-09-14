@@ -22,9 +22,9 @@ namespace MotsSupplierPortal.Api.Endpoints;
 using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Comparison;
-using MotsSupplierPortal.Application.Reporting;
+using MotsSupplierPortal.Application.Exports;
 using MotsSupplierPortal.Domain.Identity;
-using MotsSupplierPortal.Infrastructure.Reporting;
+using MotsSupplierPortal.Infrastructure.Exports;
 
 public static class ComparisonEndpoints
 {
