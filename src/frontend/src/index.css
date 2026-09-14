@@ -1,8 +1,69 @@
-/* MSP-72: self-hosted via @fontsource, served from our own origin instead of fetching
-   fonts.googleapis.com on every page load - removes a render-blocking third-party request and
-   a supplier's browser reaching Google on every visit to a government portal. Same four weights
-   (400/500/600/700) previously requested from Google, one @import per weight per family since
-   that's how @fontsource ships them. */
+/* The global stylesheet: the font imports, Tailwind and the tokens, the reset, the density variable, the two
+   pointer states that cannot be inline styles, the motion layer, and the skeleton shimmer. In that order.
+
+   THE FONTS are self-hosted via @fontsource and served from our own origin instead of fetching
+   fonts.googleapis.com on every page load (MSP-72). That removes a render-blocking third-party request and a
+   supplier's browser reaching Google on every visit to a government portal. The same four weights - 400, 500,
+   600, 700 - as were previously requested from Google, one @import per weight per family, because that is how
+   @fontsource ships them.
+
+   THE TWO DENSITIES, as one variable. RECONCILIATION.md decided them and nothing applied them: the back office
+   is a workspace read all day and its body floor is 14px; the supplier is an outside company reading a legal
+   form a few times a year under deadline, and its body is 16px. The audit found 13px as the most common size on
+   all twelve screens it measured, for both audiences at once.
+
+   A variable rather than a sweep, because the size is a property of the AUDIENCE rather than of each of the 191
+   places text is sized. A shell declares which one it is, and the shared content components read this. 13px
+   keeps its job - secondary text beside a value, never the value itself. The default is the back-office size,
+   so a screen outside either shell - sign in, register, accept an invitation - still resolves rather than
+   inheriting nothing.
+
+   TWO POINTER STATES live here because a pointer state cannot be an inline style, and an inline style is what
+   the components that own these elements write. The input's hover is DESIGN-SYSTEM.md §6.2's "hover (border
+   --n-400)", gated behind a real pointer because a touch device would otherwise hold the hover after a tap. A
+   table row should answer a pointer for the same reason. And a button should answer the press: 120ms on the
+   product's own motion token, with the scale kept subtle.
+
+   MOTION, AND MOSTLY THE REFUSAL OF IT. The motion tokens have existed since the token layer was written and
+   almost nothing consumed them. That was not an oversight to correct wholesale: this product is a tool a
+   procurement officer is inside all day, and the things they touch most - the tender list, the six-tab strip on
+   a tender, the review queue, the sidebar - are exactly the things that must not move. An animation seen forty
+   times a day stops being delight and becomes latency.
+
+   So motion is added in THREE PLACES ONLY, all of them seen once per task rather than once per minute: the
+   dialog, the toast, and the select. Everything else stays still on purpose, and this paragraph is the record of
+   that decision, so the next person does not read the stillness as an omission.
+
+   Keyframes rather than transitions, against the usual preference for interruptible transitions: Radix's
+   presence layer waits on animationend before unmounting, so a transition would play on the way in and be
+   skipped entirely on the way out. Exit is always faster than enter - by the time something is closing the user
+   has already decided, and the system's job is to get out of the way.
+
+   The dialog scales from 0.96, never 0: nothing in the real world appears from nothing, and a dialog that grows
+   from a point reads as a special effect. Its origin is CENTRED, deliberately - a popover scales from the
+   control that opened it, and a modal is not anchored to one.
+
+   The select's popover is the shortest animation in the product and the one a person sees most, because an
+   officer opens a filter dozens of times a day. The highlight on an option is here rather than in the
+   component's inline pointer handlers, because data-highlighted is the state Radix sets for BOTH a pointer
+   moving over a row and the arrow keys - so the inline version painted only the pointer case and moving through
+   a filter with the keyboard highlighted nothing.
+
+   The toast enters and leaves along the edge it can be swiped to, so the gesture is discoverable without being
+   taught. Its direction is defaulted on BARE :root rather than on [dir='ltr'], because index.html ships no dir
+   attribute and useDirection writes one only after React mounts. While a finger or pointer is dragging, the
+   toast follows it exactly - no easing, no animation - and letting go without going far enough returns it
+   quickly, because the user has changed their mind.
+
+   REDUCED MOTION is honoured by the global block near the top, which flattens every duration here to 0.01ms.
+   These elements still appear and disappear; they simply stop travelling. That block is global rather than
+   per-component on purpose (MSP-72, NFR-A11Y): every animated thing at the time it was written was a Tailwind
+   transition- or animate- utility - on Button, Input, OnboardingStepNav, LanguageSwitch and the Button spinner,
+   verified by grep across src/ before writing it - and a global override covers those and any future one too.
+
+   THE SKELETON SHIMMER is T2-32's, per §6.17's "skeleton shaped like final content (cards/rows/detail),
+   shimmering with reduced motion respected". The global block already stops it. */
+
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
@@ -14,21 +75,6 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
-/*
-  The two densities, as one variable.
-
-  RECONCILIATION.md decided them and nothing applied them: the back office is a workspace read all day
-  and its body floor is 14px; the supplier is an outside company reading a legal form a few times a year
-  under deadline, and its body is 16px. The audit found 13px as the most common size on all twelve
-  screens it measured, for both audiences at once.
-
-  A variable rather than a sweep, because the size is a property of the AUDIENCE, not of each of the 191
-  places text is sized. A shell declares which one it is; shared content components read this. 13px keeps
-  its job - secondary text beside a value, never the value itself.
-
-  The default is the back-office size, so a screen outside either shell (sign in, register, accept an
-  invitation) still resolves rather than inheriting nothing.
-*/
 :root {
   --density-body: var(--text-body);
 }
@@ -49,23 +95,12 @@ body {
   margin: 0;
 }
 
-/* MSP-72 (NFR-A11Y): every animated thing today is a Tailwind transition- / animate- utility */
-/* class (Button, Input, OnboardingStepNav, LanguageSwitch, Button spinner) - verified via grep */
-/* across src/ before writing this. A global override covers those and any future one too. */
-/* DESIGN-SYSTEM.md §6.2: "hover (border --n-400)". Gated behind a real pointer, because a touch device
-   fires hover on tap and would leave the field looking hovered after the finger lifts. Never on a field
-   that is refusing input. */
-/* A table row should answer a pointer. It cannot be an inline style, because a pointer state is not a
-   style - and it is deliberately weaker than one: a cell that sets its own background (a flagged row, a
-   pinned first column) keeps it, because that background is why the row is worth looking at. */
 @media (hover: hover) and (pointer: fine) {
   .msp-row:hover > td {
     background-color: var(--color-bg-hover);
   }
 }
 
-/* A button should answer the press. 120ms on the product's own motion token, scale kept subtle, and
-   never on a button that is refusing the click. The global reduced-motion rule below flattens it. */
 .msp-pressable:not(:disabled):active {
   transform: scale(0.97);
   transition: transform var(--motion-fast) var(--ease-out);
@@ -86,30 +121,10 @@ body {
   }
 }
 
-/* ═══ Motion, and mostly the refusal of it ═══════════════════════════════════════════════════════
-   The motion tokens have existed since the token layer was written and almost nothing consumed them.
-   That was not an oversight to correct wholesale: this product is a tool a procurement officer is
-   inside all day, and the things they touch most - the tender list, the six-tab strip on a tender,
-   the review queue, the sidebar - are exactly the things that must not move. An animation seen forty
-   times a day stops being delight and becomes latency.
-
-   So motion is added in three places only, all of them seen once per task rather than once per
-   minute: the dialog, the toast, and the select. Everything else stays still on purpose, and this
-   comment is the record of that decision so the next person does not read the stillness as an
-   omission.
-
-   Keyframes rather than transitions, against the usual preference for interruptible transitions:
-   Radix's presence layer waits on `animationend` before unmounting. A transition would play on the
-   way in and be skipped entirely on the way out.
-
-   Exit is always faster than enter. By the time something is closing the user has already decided;
-   the system's job is to get out of the way. */
 
 @keyframes msp-overlay-in  { from { opacity: 0 } to { opacity: 1 } }
 @keyframes msp-overlay-out { from { opacity: 1 } to { opacity: 0 } }
 
-/* 0.96, never 0. Nothing in the real world appears from nothing, and a dialog that grows from a point
-   reads as a special effect rather than as a panel arriving. */
 @keyframes msp-dialog-in {
   from { opacity: 0; transform: translate(-50%, -50%) scale(0.96) }
   to   { opacity: 1; transform: translate(-50%, -50%) scale(1) }
@@ -122,42 +137,20 @@ body {
 .msp-overlay[data-state='open']   { animation: msp-overlay-in var(--motion-slow) var(--ease-out) }
 .msp-overlay[data-state='closed'] { animation: msp-overlay-out var(--motion-fast) var(--ease-out) }
 
-/* Centred origin, deliberately. A popover scales from the control that opened it; a modal is not
-   anchored to anything - it belongs to the viewport, and growing it from a corner would point at a
-   trigger the reader is no longer looking at. */
 .msp-dialog[data-state='open']   { animation: msp-dialog-in var(--motion-slow) var(--ease-out) }
 .msp-dialog[data-state='closed'] { animation: msp-dialog-out var(--motion-fast) var(--ease-out) }
 
-/* The shortest animation in the product, and the one a person sees most: an officer opens a filter
-   dozens of times a day. 120ms is enough to register as "this opened" and short enough that nobody
-   waits for it. */
 @keyframes msp-pop-in  { from { opacity: 0; transform: scale(0.96) } to { opacity: 1; transform: scale(1) } }
 @keyframes msp-pop-out { from { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(0.98) } }
 
 .msp-pop {
-  /* A popover should grow from the control that opened it. Radix only publishes
-     `--radix-select-content-transform-origin` in its popper positioning mode, and this Select uses
-     the default item-aligned mode, which lays the list OVER the trigger with the selected row on top
-     of it - so the fallback is what actually applies today, and a centred origin is the right
-     answer for content that already sits on its trigger. The var is read first so that switching
-     Select to `position="popper"` later becomes origin-aware with no change here. */
   transform-origin: var(--radix-select-content-transform-origin, center);
 }
 .msp-pop[data-state='open']   { animation: msp-pop-in var(--motion-fast) var(--ease-out) }
 .msp-pop[data-state='closed'] { animation: msp-pop-out 100ms var(--ease-out) }
 
-/* The highlight on a select option, moved out of the component's inline pointer handlers.
-   `data-highlighted` is the state Radix sets for BOTH a pointer moving over a row and the arrow keys
-   moving through it, so the two paths now look the same; the inline `onPointerEnter` this replaces
-   painted only the pointer one, and a keyboard user navigating a filter saw no highlight at all. */
 .msp-option[data-highlighted] { background-color: var(--color-bg-hover) }
 
-/* The toast enters and leaves along the edge it can be swiped to, so the gesture is discoverable
-   without being taught. `--msp-toast-exit` flips with the document direction: the viewport is pinned
-   with a logical `end-4`, so in Arabic the toast sits on the LEFT, and a toast that flew in from the
-   right while swiping left would be two different mental models at once. */
-/* Default on bare `:root`, not on `[dir='ltr']`: index.html ships no dir attribute and useDirection
-   sets it in an effect, so for the first paint there is no selector to match. */
 :root { --msp-toast-from: 100%; }
 :root[dir='rtl'] { --msp-toast-from: -100%; }
 
@@ -173,14 +166,10 @@ body {
 .msp-toast[data-state='open']   { animation: msp-toast-in var(--motion-slow) var(--ease-out) }
 .msp-toast[data-state='closed'] { animation: msp-toast-out var(--motion-base) var(--ease-out) }
 
-/* While a finger or pointer is dragging, the toast follows it exactly - no easing, no animation, or
-   the toast lags behind the thing moving it. Radix hands us the distance; we only apply it. */
 .msp-toast[data-swipe='move'] {
   transform: translateX(var(--radix-toast-swipe-move-x));
   animation: none;
 }
-/* Let go without going far enough and it returns, quickly, because the user has changed their mind
-   and is waiting to see that understood. */
 .msp-toast[data-swipe='cancel'] {
   transform: translateX(0);
   transition: transform var(--motion-fast) var(--ease-out);
@@ -188,15 +177,7 @@ body {
 }
 .msp-toast[data-swipe='end'] { animation: msp-toast-out var(--motion-base) var(--ease-out) }
 
-/* Reduced motion is honoured by the global block above, which flattens every duration here to
-   0.01ms. These elements still appear and disappear; they simply stop travelling. */
 
-/* T2-32 skeleton shimmer. DESIGN-SYSTEM.md §6.17: "skeleton shaped like final content
-   (cards/rows/detail), shimmering with reduced motion respected". The global block above already
-   neutralises this animation's duration; the scoped rule below removes the animation and the
-   gradient outright, so the reduced-motion guarantee is greppable from the skeleton's own rule
-   rather than only inferable from a wildcard. Both are kept: the global is the safety net, this is
-   the statement of intent. */
 @keyframes msp-skeleton-shimmer {
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }

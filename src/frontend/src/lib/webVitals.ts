@@ -1,14 +1,14 @@
+// Real-user web-vitals collection, per OBSERVABILITY-ARCHITECTURE.md's "Client: web-vitals + FE error boundary".
+//
+// The budgets are the canonical NFR-PERF-003 and 004 targets from NON-FUNCTIONAL-REQUIREMENTS.md: LCP under 2.5s, INP under
+// 200ms, CLS under 0.1.
+//
+// There is no RUM ingestion endpoint yet, so this reports to the CONSOLE for now - loud enough to catch regressions during
+// development and in CI's Playwright runs - rather than silently dropping the data. Swap the report body for a real beacon
+// once EPIC-26's RUM sink exists.
+
 import { onCLS, onINP, onLCP } from 'web-vitals'
 
-/**
- * Real-user web-vitals collection (docs/architecture/OBSERVABILITY-ARCHITECTURE.md: "Client:
- * web-vitals + FE error boundary"). Budgets are the canonical NFR-PERF-003/004 targets from
- * docs/product/NON-FUNCTIONAL-REQUIREMENTS.md: LCP < 2.5s, INP < 200ms, CLS < 0.1.
- *
- * There is no RUM ingestion endpoint yet, so this reports to the console for now (loud enough
- * to catch regressions during development and in CI's Playwright runs) rather than silently
- * dropping the data. Swap the report() body for a real beacon once EPIC-26's RUM sink exists.
- */
 const BUDGETS = {
   LCP: 2500,
   INP: 200,

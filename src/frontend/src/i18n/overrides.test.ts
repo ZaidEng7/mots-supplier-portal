@@ -1,18 +1,30 @@
+// SCR-716's client half. Three properties matter and none of them is about happy-path merging: failure is SILENT, because a
+// cosmetic facility must not be able to break sign-in; the merge is a LAYER rather than a replacement; and one malformed key
+// must not cost the rest.
+//
+// Each test takes a fresh module, because the function memoises which languages it has fetched - which is what stops it from
+// looping against its own languageChanged listener - and that memo is also what the fetch-once test asserts.
+//
+// The layer test asserts a NEIGHBOUR survives rather than only that the target changed: replacing the bundle would mean an
+// administrator who reworded one label blanked the rest of the product.
+//
+// The shipped strings stand when the request fails and when it answers non-2xx: a working product in the language it was built
+// in, because blocking startup on this or surfacing an error would let a cosmetic facility break sign-in.
+//
+// The other overrides are applied when ONE key cannot be nested. "a.b" and "a.b.c" cannot both exist, because the first makes
+// `b` a string and the second needs it to be an object - and one malformed key must cost only itself, since an administrator
+// who saved a bad key should not silently lose every rewording that came after it in the response.
+//
+// And nothing happens when the server returns no overrides.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from './config'
 
-/**
- * SCR-716's client half. Three properties matter and none of them is about happy-path merging:
- * failure is SILENT (a cosmetic facility must not be able to break sign-in), the merge is a LAYER
- * rather than a replacement, and one malformed key must not cost the rest.
- */
 describe('applyStringOverrides', () => {
   let applyStringOverrides: (language: string) => Promise<void>
   const original = globalThis.fetch
 
   beforeEach(async () => {
-    // Fresh module per test: the function memoises which languages it has fetched, which is what
-    // stops it from looping against its own languageChanged listener.
     vi.resetModules()
     applyStringOverrides = (await import('./overrides')).applyStringOverrides
   })
@@ -27,8 +39,6 @@ describe('applyStringOverrides', () => {
   }
 
   it('layers an override over the shipped bundle without disturbing its siblings', async () => {
-    // Replacing the bundle would mean an administrator who reworded one label blanked the rest of
-    // the product, so this asserts a NEIGHBOUR survives, not just that the target changed.
     const neighbour = i18n.getFixedT('en', 'translation')('common.cancel')
     respond({ language: 'en', strings: { 'common.loading': 'One moment' } })
 
@@ -48,8 +58,6 @@ describe('applyStringOverrides', () => {
   })
 
   it('leaves the shipped strings standing when the request fails', async () => {
-    // A working product in the language it was built in. Blocking startup on this, or surfacing an
-    // error, would let a cosmetic facility break sign-in.
     const shipped = i18n.getFixedT('en', 'translation')('common.loading')
     globalThis.fetch = vi.fn(async () => { throw new Error('offline') }) as unknown as typeof fetch
 
@@ -67,9 +75,6 @@ describe('applyStringOverrides', () => {
   })
 
   it('applies the other overrides when one key cannot be nested', async () => {
-    // "a.b" and "a.b.c" cannot both exist: the first makes `b` a string, and the second needs it to
-    // be an object. One malformed key must cost only itself - an administrator who saved a bad key
-    // should not silently lose every rewording that came after it in the response.
     respond({
       language: 'en',
       strings: {

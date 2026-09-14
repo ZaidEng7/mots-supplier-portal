@@ -1,3 +1,102 @@
+// Every string this product renders, in Arabic and English, and the i18next initialisation under them. The Arabic catalogue
+// comes first, because Arabic is the product's default.
+//
+// This header carries what the annotations inside the catalogues used to say. They were provenance notes - which strings are
+// the documents' and which are this file's - and provenance is the thing a reader of a translation catalogue most needs and
+// can least infer.
+//
+// THREE KINDS OF STRING, and the difference matters more here than anywhere else in the codebase.
+//
+// TRANSCRIBED: copied verbatim from UX-WRITING.md, which §7 calls "the single source for chip text and for the accessible name
+// announced to screen readers". Every status label under `status.*` is of this kind, and those keys are the only place a domain
+// state becomes words.
+//
+// AUTHORED AND ACCEPTED (D-62): written here in §7's own register - professional MSA, authored rather than translated - for a
+// screen §7 has no table for, and accepted under D-62 for the demonstration build. Recorded as authored rather than as
+// reviewed line by line. The tagged blocks these replace marked each string as authored or as reused from an approved one
+// elsewhere in this file, kept identical for consistency.
+//
+// DRAFTED AND NOT YET APPROVED: the same thing without the acceptance, logged in ARABIC-REVIEW.md's pile and flagged rather
+// than presented as settled. The audit explorer (SCR-720), the supplier profile screens (SCR-121 to 126) and the reports
+// screen are of this kind. The reports screen is the furthest from a document of anything here: no specification describes it
+// at all, so every string is an invention, none of it is a §7 label set, and the Arabic needs a native review before it ships.
+//
+// The screens whose copy was authored in §7's register and accepted under D-62 are, in the order they appear: the sidebar
+// headings and chrome labels of Phase B (also D-65), the notification templates, the settings catalogue, the admin dashboard,
+// the reference-data admin screens (SCR-710 to 712, with BRULE-016's and BRULE-023's own blocks inside them), the Ministry
+// screens, SCR-045's chrome banner, SCR-901's notification preferences, SCR-604's coverage, SCR-501's evaluator brief,
+// SCR-402 and SCR-307's two directories, T-018's deadline change, A-7's ownership, T-067's evaluator workspace, T-082's
+// received proposals (SCR-430 and 431), SCR-155's clarification, T-064's award offer, T-077's staff administration
+// (SCR-701 and 702), batch 12's additions, SCR-130 to 133's documents centre, SCR-150's proposals list, SCR-902's account,
+// SCR-040's expiry overlay, SCR-908 and SCR-907, SCR-010's first-run choice, SCR-721 and 722's operations, SCR-716's UI
+// strings, SCR-906's search, T-076's email templates, and SCR-903's change password.
+//
+// SIX ARABIC WORD CHOICES were made deliberately and are worth keeping. «كراسة» for the evaluator's brief, because that is
+// the word a procurement file uses for the instruction document itself, which is what the screen is - «ملخص» would read as a
+// summary somebody wrote about the tender. «دليل الموردين» for the buyer's directory and «سجل الموردين» for the reviewer's
+// registry: a دليل is something you look a supplier up in and a سجل is the register itself, which is the distinction between
+// those two screens. «رصد» for the tender monitor - watching rather than managing. «الإنفاق» for the spend analytics, because
+// it is the word a budget document uses, which is what a spend screen is read as. «اعتذار» rather than «رفض» for declining an
+// award offer, matching the invitation register and the proposal.declined notification. And «الدعوة» is feminine, which is why
+// a declined invitation is not «مرفوض».
+//
+// THE §7 STATUS LABELS, and every documented gap in them.
+//
+// §7.1 "Supplier onboarding" groups onboarding and lifecycle states in ONE table while the code splits them across
+// SupplierOnboardingState and SupplierLifecycleState. They are transcribed to the DOCUMENT's grouping, so both code enums
+// render through one machine. SupplierLifecycleState.None has no §7.1 row - reported rather than authored.
+//
+// §7.2 "Supplier document" has a "Required" row with no DocumentState member, and PendingScan and ScanRejected are members
+// with no §7.2 row. Both directions are reported as documentation gaps. `Required` is §7.2's first row and is not an enum
+// member: it is the resting label for a required type with nothing uploaded yet, which SCREEN-SPECIFICATIONS §2's SCR-106 also
+// lists first in its StatusBadge set - "(Required / Uploaded / UnderReview / Approved / Rejected)". `Missing` is
+// code-authored with no §7 row: it is what Required BECOMES once the supplier has attempted to submit and the document is
+// still absent, a validation display state rather than a document state, carried over from the onboarding.missing key it
+// replaces - which is gone, so the document chip now has exactly one source like every other machine. PendingScan and
+// ScanRejected are carried over verbatim from the pre-existing onboarding.docState namespace and are NOT authored here:
+// removing them would regress the chip to raw English, so they are migrated and reported as a gap.
+//
+// §7.6 "Award / Approval & ERP sync" has three rows, transcribed. The enum's fourth member, NotRequested, has NO entry on
+// purpose: §7.6 has no row for it because nothing has been asked of the ERP yet, so it is not a sync state - and rendering it
+// as "pending" would tell a procurement officer a request is in flight when none was made. Absence is the label, and AwardPage
+// renders no chip at all for it.
+//
+// InvitationStatus has NO §7 table. Its five members ship on the wire, as §12.4's invitationStatus, and render as chips with
+// nothing to say - so EPIC-16 drafts the five labels in §7's own register and accepts them under D-62. The English catalogue's
+// counterparts are transcription rather than authorship for the same reasons; see the Arabic side.
+//
+// TEN INDIVIDUAL STRINGS carry a decision of their own.
+//
+// §1's not-yet-approved dashboard state is deliberately not an empty dashboard. Its message is three states rather than one:
+// a single "under review" was shown to every supplier who was not yet approved - including one who had not submitted anything,
+// so nobody was reviewing and nothing was waiting on the Ministry. Seen on a brand-new account whose own chip two lines below
+// read "Email verified".
+//
+// The suppliers-by-state group caption is NOT a status label. StatusChip's coverage guard refuses an authored label for a
+// state §7.1 has no row for, and it is right to - a state label is the document's to write. This is the SCREEN's caption for
+// the group, which is this file's to write, and it says what the count means without claiming to name a status.
+//
+// The approval queues say "your organization" rather than "assigned to you", because nothing resolves a single named
+// approver. The review dashboard's ageing is a duration and never a breach, because no document defines a review SLA. The
+// audit explorer distinguishes a filter that matched nothing from an empty log - two different facts, two different sentences.
+// The received-proposals sealed tier is a state with a reason rather than an empty list. And the review queue's default option
+// is named as the default rather than as "All", which said something untrue: it is the three states awaiting a decision, and
+// Approved and Rejected are filterable now and were never in "all".
+//
+// D-28 is stated on the reference-data screen, because an administrator who cannot find a delete button deserves to know it is
+// absent on purpose. A-4's publish wording is kept for the legacy-row button only, since the answer form no longer offers a
+// choice. SCR-151's concurrency dialog offers reload ONLY - there is no merge UI and inventing one was not specified. The
+// password change states its consequence before the action rather than after it. And B-1 and FR-AUD-003's supplier audit trail
+// is reachable for the first time, as are A-1 and BRULE-069's surfaced tie and B-1 and SCR-433's clarification request.
+//
+// D-18: three report strings diverged from their counterparts in ReportViews.cs, which produces the PDF and CSV. The rule
+// chosen is IDENTICAL rather than "screen terse, export self-describing" - both surfaces render the same table with the same
+// column headers, so there is no context the export lacks, and all three divergences turned out to be errors rather than
+// adaptations. See DECISIONS-TAKEN.md.
+//
+// RTL_LANGUAGES is re-exported from rtl.ts, which exists so that knowing the page direction does not require importing the
+// i18next bootstrap at the end of this file. See that file for what broke.
+
 import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
@@ -11,9 +110,6 @@ const resources = {
         groupBidding: 'المناقصات',
         groupCompany: 'شركتي',
         groupAccount: 'الحساب',
-        // Phase B's sidebar headings and chrome labels. Authored in §7's register rather than
-        // translated, and accepted under D-62/D-65 for the demonstration build - recorded as authored,
-        // not as reviewed line by line.
         groupOverview: 'نظرة عامة',
         groupTenders: 'المناقصات',
         groupSuppliers: 'الموردون',
@@ -23,25 +119,6 @@ const resources = {
         primaryLabel: 'قائمة التنقل',
         supplierArea: 'وزارة النقل',
  home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
-      // SCR-900. UX-WRITING.md §4's empty-state formula: title (what this is) + one line (why it
-      // is empty). §4's table has NO row for a notification centre, so this copy is DRAFTED, not
-      // transcribed - reported as a documentation gap rather than presented as approved.
-      // SCR-500. The empty state is transcribed from UX-WRITING.md §4's own row for this persona:
-      // "Evaluator — nothing assigned | 'Nothing to evaluate' | 'Proposals assigned to you for
-      // scoring will appear here.' | —" (no action, per the table's own dash).
-      // SCR-400 §10, SCR-401, SCR-300 (FR-DSH-002). KPI labels are drafted: the specs name the
-      // tiles in English prose and no Arabic copy exists for them in UX-WRITING.
-      // ═══════════════════════════════════════════════════════════════════════════════════════
-      // EPIC-16 · ARABIC, REVIEWED (D-62) (part 2 of 2; part 1 is `status.invitation` above).
-      //
-  // authored here in the style of §7's tables, and accepted under D-62
-      //   [reused]            already approved elsewhere in this file, repeated for consistency
-      //
-      // InvitationStatus has no §7 table - five members that ship on the wire (§12.4's
-      // invitationStatus) and render as chips with nothing to say. Drafted below in §7's register:
-      // professional MSA, authored rather than translated, gender agreeing with the subject (الدعوة
-      // is feminine, which is why Declined is not «مرفوض»).
-      // ═══════════════════════════════════════════════════════════════════════════════════════
       supplierDashboard: {
         title: 'لوحة المورد',
         greeting: 'أهلاً بك، {{name}}',
@@ -72,7 +149,6 @@ const resources = {
         allDocuments: 'اكتملت جميع الوثائق المطلوبة.',
         notifications: 'آخر الإشعارات',
         openNotifications: 'عرض الإشعارات',        // [reused] wording of procurementDashboard.openNotifications
-        // §1's not-yet-approved state. Deliberately not an empty dashboard - see the report.
         pendingTitle: 'طلب التسجيل قيد المراجعة',
         pendingBody: 'سنُعلمك فور اعتماد ملفكم. يمكنك متابعة استكمال بياناتكم في هذه الأثناء.',
         notSubmittedTitle: 'لم يكتمل ملفكم بعد',
@@ -86,18 +162,6 @@ const resources = {
         emptyTitle: 'لا توجد دعوات بعد',            // [reused] §4's «لا توجد عروض بعد» pattern
         emptyBody: 'ستظهر هنا دعوات المناقصات عند دعوتكم للمشاركة.',
       },
-      // FEAT-19.1/19.2 report screen. AUTHORED, not transcribed: no document specifies this
-      // screen at all, so every string here is an invention and none of it is a §7 label set. The
-      // Arabic is written to match the register of the screens around it and needs a native review
-      // before it ships - flagged rather than presented as settled.
-      //
-      // D-18: three strings here diverged from their counterparts in ReportViews.cs, which produces
-      // the PDF/CSV. The rule chosen is IDENTICAL, not "screen terse / export self-describing" -
-      // both surfaces render the same table with the same column headers, so there is no context the
-      // export lacks, and all three divergences turned out to be errors rather than adaptations.
-      // See DECISIONS-TAKEN.md.
-      // ── EPIC-18/SCR-600 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
-      // §7 has no notification-template table. Authored in §7's register and accepted under D-62.
       notificationTemplates: {
         title: 'قوالب الإشعارات',
         subtitle: 'صياغة الإشعارات لكل نوع بالعربية والإنجليزية. النوع غير المعدّل يستخدم الصياغة الأصلية.',
@@ -125,7 +189,6 @@ const resources = {
           revertFailed: 'تعذّرت الاستعادة',
         },
       },
-      // §7 has no settings table. Authored in §7's register, accepted under D-62; logged in ARABIC-REVIEW.md.
       systemSettings: {
         title: 'إعدادات النظام',
         subtitle: 'قيم تسري على النظام بأكمله. الإعداد غير المعدّل يعمل بالقيمة الافتراضية.',
@@ -168,8 +231,6 @@ const resources = {
           unknown: 'تعذّر حفظ الإعداد',
         },
       },
-      // §7 has no admin-dashboard table either. Authored in §7's register and accepted under D-62; logged in
-      // ARABIC-REVIEW.md's pile.
       adminOverview: {
         title: 'لوحة إدارة النظام',
         kpis: {
@@ -205,8 +266,6 @@ const resources = {
         loadFailed: 'تعذّر تحميل لوحة إدارة النظام',
         retry: 'إعادة المحاولة',                           // [reused]
       },
-      // SCR-720 (T-079). §7 has no audit-explorer strings. Drafted in §7's register - NOT YET
-      // APPROVED, in ARABIC-REVIEW.md's pile.
       auditExplorer: {
         title: 'سجل التغييرات',                              // [reused] §7's own term for the audit trail
         subtitle: 'البحث في سجل التغييرات على مستوى المنصة وتصديره.',
@@ -218,7 +277,6 @@ const resources = {
         loadMore: 'عرض المزيد',                              // [reused]
         retry: 'إعادة المحاولة',                             // [reused]
         empty: 'لا توجد سجلات',
-        // Two different facts, two different sentences: a filter that matched nothing is not an empty log.
         emptyFiltered: 'لا توجد سجلات تطابق عوامل التصفية',
         filtersApplied: 'عوامل التصفية المطبَّقة: {{filters}}',
         systemActor: 'إجراء تلقائي من النظام',
@@ -239,13 +297,9 @@ const resources = {
           exportFailed: 'تعذّر تصدير سجل التغييرات',
         },
       },
-      // SCR-710/711/712 (T-080). §7 has no reference-data admin screen, so this block was authored in
-      // §7's register and accepted under D-62; it is logged in ARABIC-REVIEW.md.
       referenceAdmin: {
-        // ── BRULE-016 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────
         linksSaved: 'تم تحديث ارتباط التصنيفات',  // BRULE-016
         categoryLinksExplained: 'ارتباط التصنيف يقصر نوع المستند على الموردين ضمن تلك التصنيفات. والنوع بلا ارتباطات يبقى مطلوباً من كل مورد. يسري التغيير فوراً، بما في ذلك على الموردين المعتمدين سابقاً.',  // BRULE-016 · D-59
-        // ── BRULE-023 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────
         awardCritical: 'حرج للترسية',  // BRULE-023
         setAwardCritical: 'تحديده كحرج للترسية',
         clearAwardCritical: 'إلغاء الوسم كحرج',
@@ -272,8 +326,6 @@ const resources = {
         renamed: 'تم حفظ الاسم',
         empty: 'لا توجد رموز في هذا الجدول',
         retry: 'إعادة المحاولة',                              // [reused]
-        // D-28 stated on the screen: an administrator who cannot find a delete button deserves to
-        // know it is absent on purpose.
         noDeleteNotice: 'لا يمكن حذف الرموز. الرمز مستخدم في سجلات قائمة، والتعطيل يمنع اختياره في الطلبات الجديدة دون التأثير على السجلات السابقة.',  // D-28
         inactiveNotice: 'تظهر الرموز المعطّلة في هذه القائمة حتى تبقى مرئية لمن عطّلها.',  // D-28
         errors: {
@@ -283,11 +335,6 @@ const resources = {
           loadFailed: 'تعذّر تحميل البيانات المرجعية',
         },
       },
-      // §7 has no ministry table. Authored in §7's register and accepted under D-62; logged in
-      // ARABIC-REVIEW.md's pile.
-      // ── SCR-045 · ARABIC, REVIEWED (D-62) ────────────────────────────────────────────
-      // §7 has no chrome-banner strings. Authored in §7's register, accepted under D-62,
-      // in ARABIC-REVIEW.md's pile.
       erpBanner: {
         degraded: 'مزامنة نظام ERP متوقفة مؤقتاً. تستمر جميع العمليات في البوابة كالمعتاد.',  // SCR-045
         notConfigured: 'لا يوجد ربط فعلي بنظام ERP في هذه البيئة.',  // T-089
@@ -304,10 +351,6 @@ const resources = {
         commercialWithheld: 'القيم المالية غير معروضة',
         commercialWithheldBody: 'وفق سياسة الاطلاع الحالية، تُعرض المؤشرات المجمّعة دون القيم المالية.',
         suppliersByState: 'الموردون حسب حالة دورة الحياة', // [reused] matches the compliance report (D-18)
-        // Step 3. NOT a status label: StatusChip's coverage guard refuses an authored label for a state
-        // UX-WRITING §7.1 has no row for, and it is right to - a state label is the document's to write.
-        // This is the SCREEN's caption for the group, which is this file's to write, and it says what the
-        // count means without claiming to name a status.
         unlabelledLifecycle: 'موردون قبل الاعتماد',  // Step 3
         rfqsByState: 'المناقصات حسب الحالة',     // [reused] matches the procurement report
         empty: 'لا توجد بيانات بعد',                     // [reused] §4's empty-state pattern
@@ -386,8 +429,6 @@ const resources = {
       },
       approvals: {
         title: 'الاعتمادات',
-        // Not a personal queue: nothing resolves a single named approver, so the copy says "your
-        // organization" rather than "assigned to you".
         subtitle: 'الأعمال التي تنتظر اعتماداً في جهتك.',
         rfqQueue: 'طلبات بانتظار الاعتماد للنشر',
         awardQueue: 'ترسيات بانتظار الاعتماد',
@@ -407,7 +448,6 @@ const resources = {
           assignedToMe: 'مُسندة إليّ',
         },
         aging: 'مدة الانتظار',
-        // A duration, never a breach - no document defines a review SLA.
         oldestCase: 'أقدم طلب مفتوح ينتظر منذ {{days}} يوماً.',
         noOpenCases: 'لا توجد طلبات مفتوحة.',
         watchlist: 'وثائق تقترب من الانتهاء',
@@ -442,56 +482,21 @@ const resources = {
         actionableEmpty: 'لا شيء بانتظار إجراء منك.',
       },
       common: { loading: 'جاري التحميل...', cancel: 'إلغاء', retry: 'إعادة المحاولة', loadFailed: 'تعذّر تحميل هذه البيانات. حاول مرة أخرى.', concurrencyConflict: 'لم يتم الحفظ — تم تعديل هذا العنصر من قبل مستخدم آخر. يرجى إعادة التحميل والمحاولة مجدداً.' },
-      // UX-WRITING.md §7 "Status labels (aligned to canonical state machines)" - transcribed
-      // verbatim, not authored here. §7 is "the single source for chip text and for the accessible
-      // name announced to screen readers", so these keys are the only place a domain state becomes
-      // words. InvitationStatus has NO §7 table; EPIC-16 drafts its five labels in §7's style - see
-      // the tagged review block above - because this screen renders them as chips.
       status: {
-        // §7.1 "Supplier onboarding". The doc groups onboarding and lifecycle states in ONE
-        // table; the code splits them across SupplierOnboardingState and SupplierLifecycleState.
-        // Transcribed to the doc's grouping, so both code enums render through this one machine.
-        // SupplierLifecycleState.None has no §7.1 row - reported, not authored.
         onboarding: {
           Draft: 'مسودة', EmailVerified: 'تم التحقق من البريد', ProfileInProgress: 'قيد الإكمال',
           Submitted: 'مُقدَّم', UnderReview: 'قيد المراجعة', InfoRequested: 'مطلوب معلومات',
           Resubmitted: 'أُعيد التقديم', Approved: 'معتمد', Rejected: 'مرفوض',
           Active: 'نشط', Suspended: 'موقوف', Deactivated: 'مُلغى التفعيل',
         },
-        // §7.2 "Supplier document". Its "Required" row has no DocumentState member and is therefore
-        // not transcribed; PendingScan and ScanRejected are members with no §7.2 row. Both
-        // directions reported as documentation gaps.
         document: {
-          // §7.2's first row. Not a DocumentState member - it is the resting label for a required
-          // type with nothing uploaded yet, which SCREEN-SPECIFICATIONS §2 (SCR-106) also lists
-          // first in its StatusBadge set: "(Required / Uploaded / UnderReview / Approved / Rejected)".
           Required: 'مطلوب',
-          // Code-authored, no §7 row. What `Required` BECOMES once the supplier has attempted to
-          // submit and this document is still absent - a validation display state, not a document
-          // state. Carried over from the `onboarding.missing` key it replaces.
           Missing: 'ناقص',
           Uploaded: 'تم الرفع', UnderReview: 'قيد المراجعة', Approved: 'معتمد',
           Rejected: 'مرفوض', ExpiringSoon: 'ينتهي قريباً', Expired: 'منتهٍ',
-          // Carried over verbatim from the pre-existing `onboarding.docState` namespace this
-          // replaces - NOT authored here. §7.2 has no row for either; removing them would regress
-          // the chip to raw English, so they are migrated and reported as a documentation gap.
           PendingScan: 'جاري الفحص', ScanRejected: 'مرفوض (فحص الفيروسات)',
         },
-        // UX-WRITING.md §7.6 "Award / Approval & ERP sync". Three rows, transcribed. The enum's
-        // fourth member, NotRequested, has NO entry on purpose: §7.6 has no row for it because
-        // nothing has been asked of the ERP yet, so it is not a sync state - rendering it as
-        // "pending" would tell a procurement officer a request is in flight when none was made.
-        // Absence is the label. AwardPage renders no chip at all for it.
         erpSync: { Requested: 'بانتظار المزامنة', Synced: 'تمت المزامنة', Failed: 'فشل المزامنة' },
-        // EPIC-16 · ARABIC, REVIEWED (D-62) (part 1 of 2; part 2 is the `supplierDashboard` block below).
-        //
-        // §7 has NO invitation table. These five ship on the wire (§12.4's invitationStatus) and
-        // render as chips, so they are drafted here in §7's own register: professional MSA, authored
-        // rather than translated, gender agreeing with the subject - الدعوة is feminine, which is why
-        // Declined is not «مرفوض».
-        //
-  // authored here, and accepted under D-62
-        //   [reused]            already approved elsewhere in this file, kept identical
         invitation: {
           Invited: 'مدعو',  // masculine; the subject is المورد
           Viewed: 'تمت المشاهدة',  // §9's «تم الحفظ» construction
@@ -590,8 +595,6 @@ const resources = {
         gateHelp: 'يمكنك الإرسال بمجرد اكتمال هذه العناصر. وكل ما أدخلته غير ذلك محفوظ.',
         gateBlocked: 'يصبح الإرسال متاحاً بعد اكتمال العناصر أعلاه.',
         checklist: 'قائمة المتطلبات',
-        // `onboarding.missing` is gone: the label now lives in status.document.Missing, so the
-        // document chip has exactly one source like every other machine.
         submitBlockedTitle: 'لا يمكن إرسال الطلب بعد',
         submitBlockedIntro: 'الوثائق المطلوبة التالية ناقصة:',
         missing: 'ناقص',
@@ -838,7 +841,6 @@ const resources = {
           deactivateFailed: 'تعذر إلغاء تفعيل الخدمة',
         },
       },
-      // ── SCR-901 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
       notificationPreferences: {
         title: 'تفضيلات التنبيهات',  // SCR-901
         subtitle: 'اختر التنبيهات الاختيارية التي تريد إيقافها.',
@@ -852,10 +854,6 @@ const resources = {
         loadFailed: 'تعذّر تحميل التفضيلات',
         unsaved: 'تغييرات غير محفوظة',
       },
-      // ── SCR-601 / 602 / 603 / 606 · D-66 ────────────────────────────────────
-      // The four Ministry screens. «رصد» for the monitor (watching, not managing), «سجل» for the registry
-      // (the register itself), and «الترسيات والإنفاق» for analytics - «الإنفاق» is the word a budget
-      // document uses, which is what a spend screen is read as.
       ministryRfqs: {
         title: 'رصد المناقصات',
         subtitle: 'كل الطلبات على مستوى الجهات، مع الجهة المشترية وقيمة الترسية حيثما وُجدت.',
@@ -928,7 +926,6 @@ const resources = {
         loadFailed: 'تعذّر تحميل التحليلات',
         fields: { awards: 'الترسيات', value: 'القيمة', month: 'الشهر', category: 'الفئة', organization: 'الجهة' },
       },
-      // ── SCR-604 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
       categoryCoverage: {
         title: 'تغطية الفئات',  // SCR-604
         subtitle: 'أعداد الموردين والطلبات لكل فئة، والفئات التي لا يخدمها أحد.',
@@ -944,10 +941,6 @@ const resources = {
           offerings: 'العروض', tenders: 'الطلبات', awarded: 'الطلبات المُرساة',
         },
       },
-      // ── SCR-501 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
-      // The evaluator's brief. «كراسة» is the word a procurement file uses for the instruction
-      // document itself, which is what this screen is - not «ملخص», which would read as a summary
-      // somebody wrote about the tender.
       evaluationBrief: {
         title: 'كراسة التقييم',  // SCR-501
         toScoring: 'الانتقال إلى التقييم',
@@ -966,10 +959,6 @@ const resources = {
           max: 'الدرجة العليا', threshold: 'الحد الأدنى', guidance: 'تعليمات التقييم',
         },
       },
-      // ── SCR-402 / SCR-307 · ARABIC, REVIEWED (D-62) ───────────────────────────────
-      // Two directories over one registry. «دليل الموردين» for the buyer's browse and «سجل الموردين»
-      // for the reviewer's audit view: a دليل is something you look a supplier up in, a سجل is the
-      // register itself, which is the distinction between the two screens.
       supplierDirectory: {
         title: 'دليل الموردين',  // SCR-402
         subtitle: 'استعرض الموردين المعتمدين وفئاتهم قبل إرسال الدعوات.',
@@ -1076,9 +1065,6 @@ const resources = {
         submitForReview: 'إرسال للمراجعة',
         approve: 'موافقة',
         publish: 'نشر',
-        // ── T-018 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────
-        // §7 has no deadline-change strings. Authored in §7's register, accepted under D-62,
-        // in ARABIC-REVIEW.md's pile.
         deadline: {
           title: 'موعد إغلاق التقديم',                  // [reused] §12.4's own field name in Arabic
           help: 'التمديد من صلاحية موظف المشتريات، وتقديم الموعد من صلاحية المدير. يُبلَّغ جميع المدعوين بأي تغيير.',
@@ -1140,9 +1126,6 @@ const resources = {
           comments: 'ملاحظات', reason: 'السبب',
           owner: 'المسؤول',  // A-7
         },
-        // ── A-7 · ARABIC, REVIEWED (D-62) ────────────────────────────────────────────────
-        // §7 has no ownership strings - nothing in the documents gives an RFQ an owner. Drafted in
-        // §7's register, accepted under D-62 and logged in ARABIC-REVIEW.md.
         unassigned: 'غير مُسند',  // A-7
         ownerFilter: {
           label: 'تصفية حسب المسؤول',
@@ -1187,7 +1170,6 @@ const resources = {
           publish: 'نشر للجميع',
           published: 'منشور للجميع',
           private: 'خاص بالسائل',
-          // A-4: kept for the legacy-row publish button; the answer form no longer offers a choice.
           publishNow: 'نشر مباشرة',
           broadcastNotice: 'يُرسل الجواب إلى جميع المدعوين دون ذكر السائل.',
           errors: { answerFailed: 'تعذر حفظ الإجابة' },
@@ -1273,12 +1255,6 @@ const resources = {
             reasonPlaceholder: 'سبب التنحّي',
             failed: 'تعذّر تسجيل الإقرار',
           },
-          // ── T-067 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────────
-          // §7 has no table for an evaluator's workspace. Drafted here in §7's register:
-          // professional MSA, authored rather than translated, and accepted under D-62 - logged in
-          // ARABIC-REVIEW.md's pile alongside the four sets already waiting.
-  // authored here
-          //   [reused]            already approved elsewhere in this file
           specification: 'المواصفات المطلوبة',
           items: 'البنود',                          // [reused] §7's own column word for RfqItem
           requirements: 'المتطلبات',                // [reused] the RFQ authoring screen's own label
@@ -1293,9 +1269,6 @@ const resources = {
           },
         },
       },
-      // ── T-082 / SCR-430, SCR-431 · ARABIC, REVIEWED (D-62) ──────────────────────────
-      // §7 has no received-proposals strings. Authored in §7's register, accepted under D-62,
-      // in ARABIC-REVIEW.md's pile.
       receivedProposals: {
         title: 'العروض المستلمة',  // SCR-430
         subtitle: 'العروض المقدَّمة على الطلب {{code}}.',
@@ -1305,7 +1278,6 @@ const resources = {
         close: 'إغلاق',                                      // [reused]
         empty: 'لم يُقدَّم أي عرض',
         retry: 'إعادة المحاولة',                              // [reused]
-        // The sealed tier is a state with a reason, not an empty list.
         sealedTitle: 'العروض مغلقة حتى انتهاء فترة التقديم',
         sealedBody: 'لا تُعرض هوية مقدّمي العروض قبل إغلاق باب التقديم. يظهر العدد فقط.',
         sealedCount: 'عدد العروض المقدَّمة حتى الآن: {{count}}',
@@ -1326,8 +1298,6 @@ const resources = {
         },
       },
       comparison: {
-        // A-1/BRULE-069's surfaced tie. Drafted, marked, in ARABIC-REVIEW.md's pile.
-        // B-1/SCR-433: the clarification request, reachable for the first time.
         clarifyTitle: 'طلب استيضاح من مورد',
         clarifyBody: 'اطلب من المورد توضيحاً حول عرضه. يُبلَّغ المورد ويعود العرض إلى حالة «مطلوب استيضاح».',
         clarifyReason: 'سبب الاستيضاح لـ {{code}}',
@@ -1453,8 +1423,6 @@ const resources = {
       },
       proposal: {
         title: 'العرض',
-        // SCR-151: "*Concurrency conflict:* Dialog 'This proposal changed in another tab/user' →
-        // reload/merge". Reload only - there is no merge UI, and inventing one was not specified.
         conflictTitle: 'تم تعديل هذا العرض في مكان آخر',
         conflictBody: 'قام مستخدم آخر - أو تبويب آخر - بتعديل هذا العرض بعد فتحك له. أعد التحميل للاطلاع على النسخة الحالية قبل حفظ تغييراتك.',
         conflictReload: 'إعادة التحميل',
@@ -1490,7 +1458,6 @@ const resources = {
         },
         uploadDocument: 'رفع مستند',
         documentAdded: 'تمت إضافة المستند',
-        // ── SCR-155 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────
         clarificationTitle: 'طلب إيضاح',  // §4.1's «إيضاح»
         clarificationNoReason: 'لم يُسجَّل نص الطلب.',
         clarificationHint: 'يُرسَل ردّك إلى موظف المشتريات، وهو من يقرّر إعادة العرض إلى المراجعة. لا يمكن تعديل بنود العرض في هذه المرحلة.',
@@ -1502,10 +1469,6 @@ const resources = {
         withdrawWarning: 'السحب نهائي. لا يمكنك العودة إلى هذه المناقصة، ولا يمكن استرجاع العرض بعد سحبه.',
         withdraw: 'سحب العرض',
         withdrawn: 'تم سحب العرض',
-        // ── T-064 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────────────
-        // §7 has no award-offer strings. Authored in §7's register and accepted under D-62; logged in
-        // ARABIC-REVIEW.md's pile. «اعتذار» not «رفض» for declining, matching the invitation
-        // register and the proposal.declined notification.
         awardOfferedTitle: 'عرض ترسية',
         awardOfferedBody: 'اختير عرضكم للترسية. يمكنكم الاعتذار عن الترسية مع بيان السبب، أو انتظار تأكيد الجهة.',
         decline: 'الاعتذار عن الترسية',
@@ -1564,8 +1527,6 @@ const resources = {
         actions: 'إجراءات',
         filterState: 'الحالة',
         filterAssignee: 'المسؤول',
-        // "All" said something untrue: this option is the queue's default, which is the three states
-        // awaiting a decision. Approved and Rejected are now filterable and were never in "all".
         filterAll: 'بانتظار قرار',
         claim: 'تولي المراجعة',
         claimed: 'تم تولي المراجعة',
@@ -1634,7 +1595,6 @@ const resources = {
           wouldLockOutAdministration: 'لا يمكن تعطيل آخر مسؤول نظام مفعّل.',
           passwordTooShort: 'كلمة المرور قصيرة جداً',
         },
-        // T-077/SCR-701/702. Drafted in §7's register, marked, in ARABIC-REVIEW.md.
         accountsTitle: 'حسابات الموظفين',
         noAccounts: 'لا توجد حسابات',                          // [reused] §4's empty-state pattern
         status: 'الحالة',                                      // [reused] §7's own term
@@ -1709,7 +1669,6 @@ const resources = {
         displayNameEn: 'اسم الشركة (إنجليزي)',
         registrationNumber: 'رقم السجل التجاري',
         registrationNumberHint: 'اختياري عند التسجيل، مطلوب لاحقاً لإكمال الملف',
-        // ── BATCH 12 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
         errors: {
           required: 'هذا الحقل مطلوب',
           email: 'أدخل بريداً إلكترونياً صحيحاً',
@@ -1730,9 +1689,6 @@ const resources = {
         weakPassword: 'كلمة المرور لا تفي بمتطلبات القوة',
         failed: 'تعذر إنشاء الحساب',
       },
-      // ── SCR-121..126 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
-      // §7 has no supplier-profile screen strings. Drafted in §7's register - NOT YET
-      // APPROVED, in ARABIC-REVIEW.md's pile.
       profile: {
         title: 'ملف المورد',                                 // [reused] §7's own term
         edit: 'تعديل',                                       // [reused]
@@ -1761,9 +1717,6 @@ const resources = {
           termsAccepted: 'الموافقة على الشروط',
         },
       },
-      // ── SCR-130..133 · ARABIC, REVIEWED (D-62) ──────────────────────────────────────
-      // §7 has no documents-centre strings. Authored in §7's register, accepted under D-62,
-      // in ARABIC-REVIEW.md's pile.
       documents: {
         title: 'المستندات',                                   // [reused] §7's own term
         subtitle: 'مستندات الشركة وحالاتها وتواريخ انتهائها.',
@@ -1796,9 +1749,6 @@ const resources = {
           historyFailed: 'تعذّر تحميل سجل الإصدارات',
         },
       },
-      // ── SCR-150 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
-      // §7 has no proposals-list strings. Authored in §7's register, accepted under D-62,
-      // in ARABIC-REVIEW.md's pile.
       myProposals: {
         title: 'عروضي',  // SCR-150
         subtitle: 'العروض التي قدّمتها أو بدأت إعدادها.',
@@ -1814,7 +1764,6 @@ const resources = {
         },
         errors: { loadFailed: 'تعذّر تحميل العروض' },
       },
-      // ── SCR-902 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       account: {
         title: 'الحساب',  // SCR-902
         save: 'حفظ',                                          // [reused]
@@ -1825,7 +1774,6 @@ const resources = {
         languages: { ar: 'العربية', en: 'الإنجليزية' },
         errors: { saveFailed: 'تعذّر حفظ التغييرات' },
       },
-      // ── SCR-040 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       sessionExpired: {
         title: 'انتهت الجلسة',  // SCR-040
         body: 'انتهت صلاحية جلستك. سجّل الدخول من جديد للمتابعة من حيث توقّفت.',
@@ -1835,7 +1783,6 @@ const resources = {
         signOut: 'تسجيل الخروج',                               // [reused]
         failed: 'تعذّر تسجيل الدخول. تحقّق من البيانات المُدخلة.',
       },
-      // ── SCR-908 / SCR-907 · ARABIC, REVIEWED (D-62) ─────────────────────────────────
       about: {
         title: 'حول النظام',  // SCR-908
         buildTitle: 'إصدار النظام',
@@ -1885,12 +1832,10 @@ const resources = {
           },
         },
       },
-      // ── SCR-010 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       firstRunLocale: {
         derived: 'تتبع الأرقام لغة الواجهة. لا يوفّر النظام حالياً تحويل العملات، فتُعرض كل قيمة بعملتها الأصلية.',
         failed: 'تعذّر حفظ اختيارك. حاول مرة أخرى.',
       },
-      // ── SCR-721 / SCR-722 · ARABIC, REVIEWED (D-62) ─────────────────────────────────
       operations: {
         title: 'التشغيل والمهام',  // SCR-721/722
         subtitle: 'المهام المجدولة وطابور الأحداث الصادرة.',
@@ -1963,7 +1908,6 @@ const resources = {
           storageLoadFailed: 'تعذّر تحميل إعدادات التخزين',
         },
       },
-      // ── SCR-716 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       uiStrings: {
         title: 'نصوص الواجهة',  // SCR-716
         subtitle: 'تعديل صياغة أي نص في الواجهة دون إصدار جديد.',
@@ -1983,7 +1927,6 @@ const resources = {
           deleteFailed: 'تعذّرت استعادة النص الأصلي',
         },
       },
-      // ── SCR-906 · ARABIC, REVIEWED (D-62) ───────────────────────────────────────────
       search: {
         title: 'البحث',                                        // [reused]
         subtitle: 'بحث واحد في الطلبات والموردين والعروض المُدرجة.',
@@ -2001,7 +1944,6 @@ const resources = {
         fields: { query: 'كلمة البحث' },
         errors: { failed: 'تعذّر تنفيذ البحث' },
       },
-      // ── T-076 · ARABIC, REVIEWED (D-62) ─────────────────────────────────────────────
       emailTemplates: {
         title: 'نصوص رسائل البريد',  // T-076
         subtitle: 'صياغة الرسائل التي يرسلها النظام. الرموز بين قوسين معقوفين تُستبدل بقيم فعلية.',
@@ -2026,9 +1968,6 @@ const resources = {
       },
       settings: {
         title: 'إعدادات الحساب',
-        // ── SCR-903 · ARABIC, REVIEWED (D-62) ────────────────────────────────────────────
-        // §7 has no change-password strings. Authored in §7's register, accepted under D-62,
-        // in ARABIC-REVIEW.md's pile.
         passwordTitle: 'تغيير كلمة المرور',  // SCR-903
         passwordHint: 'اختر كلمة مرور جديدة لحسابك.',
         currentPassword: 'كلمة المرور الحالية',
@@ -2042,7 +1981,6 @@ const resources = {
         passwordWeak: 'كلمة المرور الجديدة ضعيفة.',
         passwordMismatch: 'الكلمتان غير متطابقتين.',
         passwordChangeFailed: 'تعذّر تغيير كلمة المرور',
-        // Stated before the action, not discovered after it.
         passwordRevokesOthers: 'سيؤدي التغيير إلى إنهاء جلساتك على الأجهزة الأخرى، وتبقى هذه الجلسة مفتوحة.',
         mfaTitle: 'المصادقة الثنائية',
         mfaEnroll: 'تفعيل المصادقة الثنائية',
@@ -2054,7 +1992,6 @@ const resources = {
         mfaInvalidCode: 'رمز غير صحيح',
         recoveryCodesNotice: 'احفظ رموز الاسترداد هذه في مكان آمن — لن تظهر مرة أخرى.',
         sessionsTitle: 'الجلسات النشطة',
-        // B-1/FR-AUD-003: the supplier's own trail, reachable for the first time.
         auditTitle: 'سجل نشاط حسابي',
         auditHint: 'أحدث الأحداث المسجّلة على حسابك، من الأحدث إلى الأقدم.',
         auditEmpty: 'لا توجد أحداث مسجّلة بعد',                   // [reused] §4's empty-state pattern
@@ -2122,10 +2059,6 @@ const resources = {
         openNotifications: 'View notifications',
         pendingTitle: 'Your application is under review',
         pendingBody: "We'll let you know as soon as your profile is approved. You can keep completing it in the meantime.",
-        // Three states, three true sentences. One message said "under review" to every supplier who
-        // was not yet approved - including one who had not submitted anything, so nobody was
-        // reviewing and nothing was waiting on the Ministry. Seen on a brand-new account whose own
-        // chip two lines below read "Email verified".
         notSubmittedTitle: 'Your profile is not finished',
         notSubmittedBody: 'Nothing has been sent to the Ministry yet. Complete the items on your profile and submit it, and a reviewer will pick it up from there.',
         infoRequestedTitle: 'A reviewer has asked for changes',
@@ -2457,7 +2390,6 @@ const resources = {
         actionableEmpty: 'Nothing is waiting on you.',
       },
       common: { loading: 'Loading...', cancel: 'Cancel', retry: 'Try again', loadFailed: 'We could not load this. Try again.', concurrencyConflict: 'Not saved — someone else changed this first. Please reload and try again.' },
-      // See the Arabic block above for why these are transcription, not authorship.
       status: {
         onboarding: {
           Draft: 'Draft', EmailVerified: 'Email verified', ProfileInProgress: 'In progress',
@@ -2472,7 +2404,6 @@ const resources = {
           Rejected: 'Rejected', ExpiringSoon: 'Expiring soon', Expired: 'Expired',
           PendingScan: 'Scanning', ScanRejected: 'Rejected (virus scan)',
         },
-        // §7.6. NotRequested has no entry - see the Arabic block above.
         erpSync: { Requested: 'Sync pending', Synced: 'Synced', Failed: 'Sync failed' },
         invitation: {
           Invited: 'Invited', Viewed: 'Viewed', Responding: 'Responding',
@@ -3983,8 +3914,6 @@ const resources = {
   },
 }
 
-// Re-exported from rtl.ts, which exists so that knowing the page direction does not require importing
-// the i18next bootstrap below. See that file for what broke.
 export { RTL_LANGUAGES } from './rtl'
 
 void i18n

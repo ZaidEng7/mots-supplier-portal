@@ -1,30 +1,69 @@
+// Sweep: every design decision in the product comes from the token layer, and every token a component asks for actually
+// exists.
+//
+// The defect this closes. docs/ux/DESIGN-SYSTEM.md §4 declares spacing, radius, elevation, motion and z-index scales.
+// tokens.css shipped colours and type and none of the rest - and 41 references across 14 names asked for tokens that were
+// never defined, 37 of them with no fallback. An undefined custom property makes the whole declaration invalid, so
+// var(--radius-md) rendered square corners, var(--text-heading-lg) rendered at the inherited size, and var(--color-danger)
+// dropped the colour entirely. Nothing caught it: TypeScript does not read CSS, the axe suite computes the colours that
+// actually rendered - an inherited colour passes contrast - and a screenshot looks plausible.
+//
+// Why this is a test and not a lint rule. The question is not "is this class allowed" but "does this name resolve against the
+// file that defines the names", which needs both halves read together. The exemption lists are typed out by hand for the reason
+// every other sweep in this repository does it that way: a pattern-matched exemption lets the next instance join it silently.
+// vitest runs from src/frontend, the same anchor preconditionCoverage.test.ts uses. Source is read with COMMENTS REMOVED,
+// because prose that mentions shadow-xl is discussion rather than a declaration.
+//
+// THE PRIMITIVE RULE. tokens.css states it at the top of the file - components consume semantics only - and nothing enforced it.
+// BackOfficeShell painted the wordmark with var(--accent-gold-500), so when the redesign re-stepped that primitive to fix its
+// ratio against a light page it silently changed a colour that only ever appears on the dark chrome bar: 5.93:1 became 4.25:1,
+// and the only instrument that noticed was the axe sweep, which failed 86 times and named a hex value rather than a token. A
+// semantic name would have made the pair visible to the contrast guard and the re-step impossible to get wrong.
+//
+// That exemption list is EMPTY, and that is the point. It held fifteen files and thirty-six reads when it was written, each a
+// status pair inlined before the semantic status tokens existed. They were never contrast failures - in the light theme a
+// primitive holds the same value the semantic token points at - they were THEME failures, because a primitive does not change
+// between themes: every badge, every inline form error and every banner in those files rendered light-theme status colours on a
+// dark page. The assertion is exact equality in both directions, so a new instance fails and so would a stale entry, and an
+// empty map is the strongest form of the rule: any component that reads a primitive now fails by name.
+//
+// One read had no semantic name to move to - the danger button's hover fill - and GOT one, --color-danger-solid-hover, rather
+// than being waived. --color-danger-fg is the same value in the light theme, but it is a foreground, and in dark mode it is a
+// pale salmon that would have lightened the button under the cursor while its label stayed white.
+//
+// THE OTHER EXEMPTION is files whose z-index is deliberately container-local rather than a layer of the app, and each is checked
+// to still name a file that exists and still need it.
+//
+// TAILWIND'S OWN SCALES are close to this product's but not the same - its text-sm is 14px where --text-body-sm is 13, its
+// shadow-sm a different curve from §4.3's layered pair. Mixing the two is how one screen ends up a step off from the screen
+// beside it.
+//
+// The denominator is asserted before the rules: an empty file list passes every expectation while checking nothing, which is
+// the failure mode this repository has now found in six instruments.
+//
+// Then the five rules. Every token a component asks for is DEFINED - and a fallback makes the declaration valid, so it is a
+// smell rather than a defect, though every one of them was removed in this pass and both classes are reported together so
+// neither can creep back. Colours come from the token layer and never from a literal. Type, weight and elevation come from the
+// scale rather than from Tailwind utilities. And z-index comes from the ONE scale, so two layers cannot both claim the top -
+// which is what the literals were hiding: the toast viewport and the dialog content were both z-50, so whether a "saved"
+// confirmation appeared above or behind the dialog that produced it came down to DOM order, where §4.5 answers it by name, with
+// toast 700 over modal 500.
+//
+// TWO CONTROLS close the file. The primitive sweep's is the shape of the defect - the wordmark as it was written and as it is
+// now - and it also asserts the fix holds, because the file that caused it reads no primitive now. The general one runs all five
+// matchers against a line that deliberately breaks each rule, because five matchers that never matched anything would make this
+// file green forever - the failure this batch found four times over in other sweeps - and it checks the other direction too:
+// the forms this product actually uses must NOT match, or the sweep would fail on conforming code and get exempted into
+// uselessness.
+
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-/**
- * Sweep: every design decision in the product comes from the token layer, and every token a component
- * asks for actually exists.
- *
- * <p><b>The defect this closes.</b> `docs/ux/DESIGN-SYSTEM.md` §4 declares spacing, radius, elevation,
- * motion and z-index scales. `tokens.css` shipped colours and type and none of the rest — and 41
- * references across 14 names asked for tokens that were never defined, 37 of them with no fallback. An
- * undefined custom property makes the whole declaration invalid, so `var(--radius-md)` rendered square
- * corners, `var(--text-heading-lg)` rendered at the inherited size, and `var(--color-danger)` dropped the
- * colour entirely. Nothing caught it: TypeScript does not read CSS, the axe suite computes the colours
- * that actually rendered (an inherited colour passes contrast), and a screenshot looks plausible.</p>
- *
- * <p><b>Why this is a test and not a lint rule.</b> The question is not "is this class allowed" but "does
- * this name resolve against the file that defines the names", which needs both halves read together. The
- * exemption lists below are typed out by hand for the reason every other sweep in this repository does it
- * that way: a pattern-matched exemption lets the next instance join it silently.</p>
- */
 
-/** vitest runs from src/frontend, the same anchor `preconditionCoverage.test.ts` uses. */
 const SRC = resolve(process.cwd(), 'src')
 const TOKEN_FILES = ['styles/tokens.css', 'index.css']
 
-/** Files whose z-index is deliberately container-local rather than a layer of the app. */
 const LOCAL_STACKING_CONTEXT: Record<string, string> = {
   'components/ui/Table.tsx':
     'A sticky table header and sticky first column order themselves INSIDE one scroll container. They '
@@ -50,41 +89,13 @@ function sourceFiles(): string[] {
   return out.sort()
 }
 
-/** Source with comments removed: prose that mentions `shadow-xl` is discussion, not a declaration. */
 function code(relative: string): string {
   const text = readFileSync(join(SRC, relative), 'utf8')
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 }
 
-/**
- * Components that reach past the semantic layer and read a primitive directly.
- *
- * <p><b>The defect this closes.</b> tokens.css states the rule at the top of the file - components
- * consume semantics only - and nothing enforced it. BackOfficeShell painted the wordmark with
- * `var(--accent-gold-500)`, so when the redesign re-stepped that primitive to fix its ratio against a
- * light page, it silently changed a colour that only ever appears on the dark chrome bar: 5.93:1 became
- * 4.25:1, and the only instrument that noticed was the axe sweep, which failed 86 times and named a hex
- * value rather than a token. A semantic name would have made the pair visible to the contrast guard and
- * the re-step impossible to get wrong.</p>
- *
- * <p><b>The list is empty, and that is the point.</b> It held fifteen files and thirty-six reads when it
- * was written, each a status pair inlined before the semantic status tokens existed. They were never
- * contrast failures - in the light theme a primitive holds the same value the semantic token points at -
- * they were THEME failures, because a primitive does not change between themes. Every badge, every
- * inline form error and every banner in those files rendered light-theme status colours on a dark page.</p>
- *
- * <p>The assertion is exact equality in both directions, so a new instance fails and so would a stale
- * entry. An empty map is the strongest form of this rule: any component that reads a primitive now
- * fails this test by name.</p>
- *
- * <p>One read had no semantic name to move to - the danger button's hover fill - and got one
- * (`--color-danger-solid-hover`) rather than being waived. `--color-danger-fg` is the same value in the
- * light theme, but it is a foreground, and in dark mode it is a pale salmon that would have lightened
- * the button under the cursor while its label stayed white.</p>
- */
 const PRIMITIVE_DEBT: Record<string, readonly string[]> = {}
 
-/** The primitive ramps. A semantic token is every other `--color-*` name; these are the raw steps. */
 const PRIMITIVE = /var\(--((?:n|brand|success|warning|danger|info|accent-gold)-\d+)\)/g
 
 function primitivesRead(file: string): string[] {
@@ -100,11 +111,6 @@ function definedTokens(): Set<string> {
   return names
 }
 
-/**
- * Tailwind's own scales are close to this product's but not the same - its `text-sm` is 14px where
- * `--text-body-sm` is 13, its `shadow-sm` a different curve from §4.3's layered pair. Mixing the two is
- * how one screen ends up a step off from the screen beside it.
- */
 const BANNED_UTILITIES: [RegExp, string][] = [
   [/(?<![\w-])text-(xs|sm|base|lg|xl|[2-9]xl)(?![\w-])/g, 'use text-[length:var(--text-*)]'],
   [/(?<![\w-])font-(thin|light|normal|medium|semibold|bold|extrabold|black)(?![\w-])/g, 'use font-[var(--fw-*)]'],
@@ -112,7 +118,6 @@ const BANNED_UTILITIES: [RegExp, string][] = [
   [/rounded-\[(?!var\()/g, 'use rounded-[var(--radius-*)]'],
 ]
 
-/** Literal colours, and z-index outside the one scale. */
 const RAW_COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(/g
 const RAW_Z_INDEX = /(?<![\w-])z-\[?\d+\]?(?![\w-])|zIndex:\s*\d/g
 
@@ -120,8 +125,6 @@ const FILES = sourceFiles()
 
 describe('design tokens', () => {
   it('the sweep reads the product, not a handful of files', () => {
-    // The denominator, asserted before the rules. An empty file list passes every expectation below
-    // while checking nothing - the failure mode this repository has now found in six instruments.
     expect(FILES.length).toBeGreaterThan(100)
     expect(definedTokens().size).toBeGreaterThan(80)
     const references = FILES.reduce((n, f) => n + (code(f).match(/var\(--/g)?.length ?? 0), 0)
@@ -136,8 +139,6 @@ describe('design tokens', () => {
       const text = code(file)
       for (const match of text.matchAll(/var\((--[a-zA-Z0-9-]+)\s*(,[^)]*)?\)/g)) {
         if (defined.has(match[1])) continue
-        // A fallback makes the declaration valid, so it is a smell rather than a defect - and every
-        // one of them was removed in this pass. Reported together so neither class can creep back.
         const line = text.slice(0, match.index).split('\n').length
         missing.push(`${file}:${line}  ${match[1]}${match[2] ? ' (has a fallback)' : ''}`)
       }
@@ -175,9 +176,6 @@ describe('design tokens', () => {
   })
 
   it('z-index comes from the one scale, so two layers cannot both claim the top', () => {
-    // This is what the literals were hiding: the toast viewport and the dialog content were both z-50,
-    // so whether a "saved" confirmation appeared above or behind the dialog that produced it came down
-    // to DOM order. §4.5 answers it by name - toast 700 over modal 500.
     const offenders: string[] = []
     for (const file of FILES) {
       if (file in LOCAL_STACKING_CONTEXT) continue
@@ -206,25 +204,19 @@ describe('design tokens', () => {
       if (primitives.length > 0) found[file] = primitives
     }
 
-    // Exact, both directions. A new instance is a regression; a fixed one means this list is stale.
     expect(found, 'a primitive read from a component cannot be re-stepped without changing that component')
       .toEqual(PRIMITIVE_DEBT)
   })
 
   it('the primitive sweep can fail', () => {
-    // The control, in the shape of the defect: the wordmark as it was written, and as it is now.
     const offending = `<span style={{ color: 'var(--accent-gold-500)' }} />`
     const conforming = `<span style={{ color: 'var(--color-chrome-accent)' }} />`
     expect(new RegExp(PRIMITIVE.source, 'g').test(offending)).toBe(true)
     expect(new RegExp(PRIMITIVE.source, 'g').test(conforming)).toBe(false)
-    // And the fix itself holds: the file that caused it reads no primitive now.
     expect(primitivesRead('shells/BackOfficeShell.tsx')).toEqual([])
   })
 
   it('the check can fail', () => {
-    // The control. Five matchers that never matched anything would make this file green forever, which
-    // is the failure this batch found four times over in other sweeps. Run them against a line that
-    // deliberately breaks each rule.
     const offending = `
       <div className="text-sm font-semibold shadow-lg rounded-[0.5rem] z-50"
            style={{ color: '#ff0000', background: 'rgba(0,0,0,0.5)', zIndex: 40 }} />
@@ -233,8 +225,6 @@ describe('design tokens', () => {
     expect(new RegExp(RAW_COLOUR.source, 'g').test(offending)).toBe(true)
     expect(new RegExp(RAW_Z_INDEX.source, 'g').test(offending)).toBe(true)
 
-    // And the other direction: the forms this product actually uses must NOT match, or the sweep would
-    // fail on conforming code and get exempted into uselessness.
     const conforming = `
       <div className="text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] rounded-[var(--radius-md)] max-w-sm"
            style={{ boxShadow: 'var(--shadow-sm)', zIndex: 'var(--z-modal)' }} />
