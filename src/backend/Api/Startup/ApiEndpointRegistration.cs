@@ -328,6 +328,6 @@ internal static class ApiEndpointRegistration
             }),
             totalDurationMs = report.TotalDuration.TotalMilliseconds,
         };
-        await context.Response.WriteAsJsonAsync(payload);
+        await context.Response.WriteAsJsonAsync(payload, CancellationToken.None);
     }
 }
