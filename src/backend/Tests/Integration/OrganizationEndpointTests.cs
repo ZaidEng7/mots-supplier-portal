@@ -64,6 +64,93 @@ public sealed class OrganizationEndpointTests(PostgresApiFixture fixture)
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    // The three validators on this surface were declared, registered by the assembly scan, and never
+    // run: the routes went straight to the handler. So nothing enforced a non-empty name, the
+    // two-hundred-character column width, or an email that is an email.
+    //
+    // These assert the refusal, which is the observable half. A validator nothing calls is invisible
+    // from the outside, which is exactly why this went unnoticed - and why the assertion is on the
+    // status a caller sees rather than on the validator being wired up.
+    [Fact]
+    public async Task Create_organization_refuses_a_blank_legal_name()
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/organizations", new
+        {
+            legalNameAr = "",
+            legalNameEn = "",
+            organizationType = "Hotel",
+            contactEmail = (string?)null,
+            contactPhone = (string?)null,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
+            "a blank legal name is a validation failure, and the column is NOT NULL besides");
+    }
+
+    // The one that reached the database. The column is 200 characters, so a longer name was refused by
+    // Postgres and surfaced to the caller as an unexpected failure naming neither the field nor the
+    // limit - the same shape as the twelve-character incoterm that was found by typing it into a bid.
+    [Fact]
+    public async Task Create_organization_refuses_a_legal_name_longer_than_its_column()
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/organizations", new
+        {
+            legalNameAr = new string('\u0623', 201),
+            legalNameEn = new string('a', 201),
+            organizationType = "Hotel",
+            contactEmail = (string?)null,
+            contactPhone = (string?)null,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
+            "201 characters into a 200-character column is a validation failure, not a server error");
+    }
+
+    [Fact]
+    public async Task Create_organization_refuses_a_contact_email_that_is_not_an_email()
+    {
+        var admin = await AdminClientAsync();
+
+        var response = await admin.PostAsJsonAsync("/api/v1/organizations", new
+        {
+            legalNameAr = "فندق الاختبار",
+            legalNameEn = "Test Hotel",
+            organizationType = "Hotel",
+            contactEmail = "not-an-email",
+            contactPhone = (string?)null,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Fact]
+    public async Task Add_an_OrgUnit_refuses_a_blank_name()
+    {
+        var admin = await AdminClientAsync();
+
+        var created = await admin.PostAsJsonAsync("/api/v1/organizations", new
+        {
+            legalNameAr = "فندق",
+            legalNameEn = "Hotel",
+            organizationType = "Hotel",
+            contactEmail = (string?)null,
+            contactPhone = (string?)null,
+        });
+        var orgId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString();
+
+        var response = await admin.PostAsJsonAsync($"/api/v1/organizations/{orgId}/org-units", new
+        {
+            name = "",
+            parentOrgUnitId = (Guid?)null,
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+    }
+
     [Fact]
     public async Task Add_and_remove_an_OrgUnit_under_an_organization()
     {

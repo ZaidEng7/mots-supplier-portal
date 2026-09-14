@@ -198,27 +198,23 @@ public static class EvaluationEndpoints
         .WithName("ListEvaluatorCandidates");
 
         group.MapPost("/assignments", async (
-            string referenceCode, AssignEvaluatorsRequest request, IValidator<AssignEvaluatorsRequest> validator,
+            string referenceCode, AssignEvaluatorsRequest request, 
             IAssignEvaluatorsHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(new AssignEvaluatorsCommand(referenceCode, request.EvaluatorUserIds), ct));
         })
         .RequirePermission(Permissions.EvaluationAssign)
+        .Validate<AssignEvaluatorsRequest>()
         .WithName("AssignEvaluators");
 
         group.MapPost("/recuse", async (
-            string referenceCode, RecuseEvaluatorRequest request, IValidator<RecuseEvaluatorRequest> validator,
+            string referenceCode, RecuseEvaluatorRequest request, 
             IRecuseEvaluatorHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(new RecuseEvaluatorCommand(referenceCode, request.EvaluatorUserId, request.Reason), ct));
         })
         .RequirePermission(Permissions.EvaluationAssign)
+        .Validate<RecuseEvaluatorRequest>()
         .WithName("RecuseEvaluator");
 
         group.MapPost("/consolidate", async (string referenceCode, IConsolidateEvaluationHandler handler, CancellationToken ct) =>
@@ -231,17 +227,14 @@ public static class EvaluationEndpoints
         group.MapPost("/resolve-tie", async (
             string referenceCode,
             ResolveTieRequest request,
-            IValidator<ResolveTieRequest> validator,
             IResolveEvaluationTieHandler handler,
             CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(
                 new ResolveEvaluationTieCommand(referenceCode, request.ProposalCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.EvaluationConsolidate)
+        .Validate<ResolveTieRequest>()
         .WithName("ResolveEvaluationTie");
 
         group.MapPost("/finalize", async (string referenceCode, IFinalizeEvaluationHandler handler, CancellationToken ct) =>
@@ -252,16 +245,14 @@ public static class EvaluationEndpoints
 .WithName("FinalizeEvaluation");
 
         group.MapPost("/reopen", async (
-            string referenceCode, ReopenEvaluationRequest request, IValidator<ReopenEvaluationRequest> validator,
+            string referenceCode, ReopenEvaluationRequest request, 
             IReopenEvaluationHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(new ReopenEvaluationCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.EvaluationReopen)
         .RequireIfMatch()
+        .Validate<ReopenEvaluationRequest>()
         .WithFreshETag()
 .WithName("ReopenEvaluation");
 
@@ -297,29 +288,25 @@ public static class EvaluationEndpoints
         .WithName("GetConflictDeclaration");
 
         myGroup.MapPost("/declare", async (
-            string referenceCode, DeclareConflictRequest request, IValidator<DeclareConflictRequest> validator,
+            string referenceCode, DeclareConflictRequest request, 
             IDeclareConflictHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(
                 new DeclareConflictCommand(referenceCode, request.HasConflict, request.Reason), ct));
         })
         .RequirePermission(Permissions.EvaluationScore)
+        .Validate<DeclareConflictRequest>()
         .WithName("DeclareConflict");
 
         myGroup.MapPost("/scores", async (
-            string referenceCode, ScoreCriterionRequest request, IValidator<ScoreCriterionRequest> validator,
+            string referenceCode, ScoreCriterionRequest request, 
             IScoreCriterionHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMy(await handler.HandleAsync(new ScoreCriterionCommand(
                 referenceCode, request.ProposalCode, request.CriterionId, request.RawScore, request.CommentAr, request.CommentEn), ct));
         })
         .RequirePermission(Permissions.EvaluationScore)
+        .Validate<ScoreCriterionRequest>()
         .WithName("ScoreCriterion");
 
         myGroup.MapGet("/proposals/{proposalCode}/documents/{documentId:guid}/download-url", async (

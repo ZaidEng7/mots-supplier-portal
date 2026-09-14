@@ -69,15 +69,13 @@ public static class AwardEndpoints
         .WithName("GetAward");
 
         group.MapPost("/recommend", async (
-            string referenceCode, RecommendAwardRequest request, IValidator<RecommendAwardRequest> validator,
+            string referenceCode, RecommendAwardRequest request, 
             IRecommendAwardHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(new RecommendAwardCommand(referenceCode, request.WinningProposalCode, request.WinningProposalId, request.JustificationAr, request.JustificationEn), ct));
         })
         .RequirePermission(Permissions.AwardRecommend)
+        .Validate<RecommendAwardRequest>()
         .WithName("RecommendAward");
 
         group.MapPost("/route-for-approval", async (string referenceCode, IRouteAwardForApprovalHandler handler, CancellationToken ct) =>
@@ -96,16 +94,14 @@ public static class AwardEndpoints
 .WithName("ApproveAward");
 
         group.MapPost("/reject", async (
-            string referenceCode, RejectAwardRequest request, IValidator<RejectAwardRequest> validator,
+            string referenceCode, RejectAwardRequest request, 
             IRejectAwardHandler handler, CancellationToken ct) =>
         {
-            var validation = await validator.ValidateAsync(request, ct);
-            if (!validation.IsValid) return ValidationProblems.From(validation);
-
             return MapMutation(await handler.HandleAsync(new RejectAwardCommand(referenceCode, request.Reason), ct));
         })
         .RequirePermission(Permissions.AwardReject)
         .RequireIfMatch()
+        .Validate<RejectAwardRequest>()
         .WithFreshETag()
 .WithName("RejectAward");
 

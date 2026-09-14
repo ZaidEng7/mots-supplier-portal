@@ -1,6 +1,20 @@
 // Creating buying organizations, managing their department trees, and the manual act of linking a
 // supplier to one. Administrators only.
 //
+// All three writes here run their request's validator. They did not: the validators were declared in
+// this file, registered by the assembly scan that picks up every validator in the project, and never
+// called, because the routes went straight to the handler.
+//
+// Nothing therefore enforced a non-empty legal name, the column widths behind those names, or a contact
+// address that is an address. The over-long name was the one that reached the database, where a
+// two-hundred-character column refused it and the caller saw an unexpected failure naming neither the
+// field nor the limit. The Arabic wording for all of those refusals existed and was approved, and could
+// never be shown.
+//
+// That is the shape this whole class of gap takes: two lines inside a route, omitted, with nothing that
+// could notice. The permission on each route below cannot be forgotten the same way, because it is
+// declared rather than written out.
+//
 // There is no automatic linking anywhere. A link between a supplier and an organization exists only when
 // somebody holding the organization-management permission explicitly creates it here, which is the
 // ministry approving that link.
@@ -8,6 +22,7 @@
 namespace MotsSupplierPortal.Api.Endpoints;
 
 using FluentValidation;
+using MotsSupplierPortal.Api.Errors;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Domain.Identity;
@@ -50,21 +65,30 @@ public static class OrganizationEndpoints
         .RequirePermission(Permissions.AdminOrganizationsManage)
         .WithName("ListOrganizations");
 
-        group.MapPost("/", async (CreateOrganizationRequest request, ICreateOrganizationHandler handler, CancellationToken ct) =>
+        group.MapPost("/", async (
+            CreateOrganizationRequest request,
+            ICreateOrganizationHandler handler,
+            CancellationToken ct) =>
         {
             var result = await handler.HandleAsync(
                 new CreateOrganizationCommand(request.LegalNameAr, request.LegalNameEn, request.OrganizationType, request.ContactEmail, request.ContactPhone), ct);
             return MapOrganizationMutation(result);
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
+        .Validate<CreateOrganizationRequest>()
         .WithName("CreateOrganization");
 
-        group.MapPost("/{organizationId:guid}/org-units", async (Guid organizationId, AddOrgUnitRequest request, IManageOrgUnitHandler handler, CancellationToken ct) =>
+        group.MapPost("/{organizationId:guid}/org-units", async (
+            Guid organizationId,
+            AddOrgUnitRequest request,
+            IManageOrgUnitHandler handler,
+            CancellationToken ct) =>
         {
             var result = await handler.AddAsync(new AddOrgUnitCommand(organizationId, request.Name, request.ParentOrgUnitId), ct);
             return MapOrganizationMutation(result);
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
+        .Validate<AddOrgUnitRequest>()
         .WithName("AddOrgUnit");
 
         group.MapDelete("/{organizationId:guid}/org-units/{orgUnitId:guid}", async (Guid organizationId, Guid orgUnitId, IManageOrgUnitHandler handler, CancellationToken ct) =>
@@ -80,7 +104,11 @@ public static class OrganizationEndpoints
         .RequirePermission(Permissions.AdminOrganizationsManage)
         .WithName("ListSupplierOrgLinks");
 
-        group.MapPost("/supplier-links/{supplierReferenceCode}", async (string supplierReferenceCode, CreateSupplierOrgLinkRequest request, IManageSupplierOrgLinkHandler handler, CancellationToken ct) =>
+        group.MapPost("/supplier-links/{supplierReferenceCode}", async (
+            string supplierReferenceCode,
+            CreateSupplierOrgLinkRequest request,
+            IManageSupplierOrgLinkHandler handler,
+            CancellationToken ct) =>
         {
             var result = await handler.CreateAsync(new CreateSupplierOrgLinkCommand(supplierReferenceCode, request.OrganizationId), ct);
             return result switch
@@ -92,6 +120,7 @@ public static class OrganizationEndpoints
             };
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
+        .Validate<CreateSupplierOrgLinkRequest>()
         .WithName("CreateSupplierOrgLink");
 
         group.MapDelete("/supplier-links/{linkId:guid}", async (Guid linkId, IManageSupplierOrgLinkHandler handler, CancellationToken ct) =>

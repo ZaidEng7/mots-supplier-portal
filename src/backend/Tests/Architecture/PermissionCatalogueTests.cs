@@ -390,7 +390,14 @@ public sealed partial class PermissionCatalogueTests
     [GeneratedRegex(@"HasPermission\(Permissions\.(?<permission>\w+)\)|\?\s*Permissions\.(?<alternative>\w+)\s*:\s*Permissions\.\w+")]
     private static partial Regex HandlerCheck();
 
-    /// <summary>A gate whose route name is a variable, e.g. the lifecycle family's `.WithName(name)`.</summary>
-    [GeneratedRegex(@"RequirePermission\(Permissions\.(?<permission>\w+)\)\s*\.WithName\((?!"")\w+\)", RegexOptions.Singleline)]
+    /// <summary>A gate whose route name is a variable, e.g. the lifecycle family's `.WithName(name)`.
+    ///
+    /// <para>Bounded run of code between the two, like <see cref="GateAndName"/>, rather than whitespace
+    /// only. It was whitespace only, and the day a `.Validate&lt;T&gt;()` was declared between the gate
+    /// and the name, this silently stopped matching and the catalogue dropped
+    /// `supplier.lifecycle.manage`'s four routes - reporting a live permission as reaching no route,
+    /// which is the exact class of artifact-asserting-something-untrue this file exists to prevent. Caught
+    /// by diffing the regenerated file, which is the only reason it was caught at all.</para></summary>
+    [GeneratedRegex(@"RequirePermission\(Permissions\.(?<permission>\w+)\)(?<between>[^;]{0,600}?)\.WithName\((?!"")\w+\)", RegexOptions.Singleline)]
     private static partial Regex GateAndVariableName();
 }
