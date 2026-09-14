@@ -137,15 +137,6 @@ export interface Proposal {
   requirementAnswers: RequirementAnswer[]
 }
 
-export interface ItemPricingPayload {
-  quantity: number
-  unitPrice: number
-  discount: number | null
-  leadTimeDays: number | null
-  notesAr: string | null
-  notesEn: string | null
-}
-
 export interface CommercialTermsPayload {
   currencyCode: string
   paymentTerms: string | null
