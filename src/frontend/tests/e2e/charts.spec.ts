@@ -6,9 +6,11 @@
 // was of exactly that kind - an Arabic category name drawn on top of its own bar, a figure pinned to
 // the baseline instead of the tip - and none of them was visible to any instrument that existed.
 //
-// It runs against the built Storybook, which is where the charts have deterministic data. The product's
-// own award screens cannot serve: the demonstration database holds zero awards, so all three of them
-// render "no figures available to chart".
+// It runs against the built Storybook, because the stories carry fixed data. The assertions below
+// compare label text and mark positions against exact values - five months with three bars, six ranked
+// categories, five coverage figures - and a chart drawn from whatever the database happens to hold
+// would move underneath them on the next seed. The product's own award screens render whatever has
+// been awarded, which is right for the product and the wrong basis for a geometry assertion.
 //
 // open() waits for the story, then the recharts surface, then 300ms - recharts lays out on a measured
 // container, so the first frame is the pre-measure one.

@@ -3,8 +3,9 @@
 > Every command below was executed against a clean database while writing this file. Where a step
 > failed, the fix is in the step rather than in a footnote.
 
-**Prerequisites:** Docker, .NET 10 SDK, **Node 22**. On this machine the SDK is not on `PATH`, so every
-`dotnet` command is prefixed with `DOTNET_ROOT=...`; use your own path, or drop the prefix if `dotnet` is already on your PATH.
+**Prerequisites:** Docker, .NET 10 SDK, **Node 22**. Where the SDK is not on `PATH`, every `dotnet`
+command below is prefixed with `DOTNET_ROOT=$HOME/.dotnet`, the usual install location. Point it at a
+different path if yours differs, or drop the prefix entirely if `dotnet` is already on your PATH.
 
 > **Node 22, not 20.** This said "Node 20+" and Node 20 does not work: vitest, `tsc` and Playwright
 > all fail at startup with `webidl.util.markAsUncloneable is not a function`, which reads as a broken
@@ -40,7 +41,7 @@ no connection string and no JWT key:
 ## 3. Database and migrations
 
 ```bash
-DOTNET_ROOT=/Users/zaid/.dotnet dotnet ef database update --project src/backend/Infrastructure --startup-project src/backend/Api
+DOTNET_ROOT=$HOME/.dotnet dotnet ef database update --project src/backend/Infrastructure --startup-project src/backend/Api
 ```
 
 Compose creates the `mots_supplier_portal` database. Migrations also seed reference data: 6
@@ -56,7 +57,7 @@ docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS mot
 ## 4. The API
 
 ```bash
-cd src/backend/Api && DOTNET_ROOT=/Users/zaid/.dotnet ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="http://localhost:5080" dotnet run --no-launch-profile
+cd src/backend/Api && DOTNET_ROOT=$HOME/.dotnet ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="http://localhost:5080" dotnet run --no-launch-profile
 ```
 
 **`ASPNETCORE_URLS` is required and this is the trap.** Three ports disagree in the repository:
@@ -145,9 +146,9 @@ winner. Drive those through the UI.
 ## 8. Tests
 
 ```bash
-DOTNET_ROOT=/Users/zaid/.dotnet dotnet test src/backend/Tests/Unit
-DOTNET_ROOT=/Users/zaid/.dotnet dotnet test src/backend/Tests/Architecture
-DOTNET_ROOT=/Users/zaid/.dotnet dotnet test src/backend/Tests/Integration   # Testcontainers; ~10 min
+DOTNET_ROOT=$HOME/.dotnet dotnet test src/backend/Tests/Unit
+DOTNET_ROOT=$HOME/.dotnet dotnet test src/backend/Tests/Architecture
+DOTNET_ROOT=$HOME/.dotnet dotnet test src/backend/Tests/Integration   # Testcontainers; ~10 min
 cd src/frontend && npm run typecheck && npx vitest run && npx playwright test
 ```
 
