@@ -23,14 +23,14 @@ and surfaces the case to a person. That refusal is itself the implementable deci
 
 D-6 to D-16 were made before this file existed and live in the plan of record, which is not in this
 repository. **All eleven are now transcribed below.** Seven came from wording quoted verbatim in a
-work-batch brief or in `BACKLOG-REMEDIATION.md`; the remaining four (D-11, D-13, D-14 and D-16) were
+work-batch brief or in the remediation backlog of the time; the remaining four (D-11, D-13, D-14 and D-16) were
 supplied from the plan of record on 2026-09-05, after this file had recorded them as missing rather
 than reconstructing them.
 
 D-17 onward were made in the course of the work and are recorded here as they were taken.
 
 Batches 11 and 12 are the exception to "as they were taken": their six rulings were written into
-commit messages and into `COMPLETION-INVENTORY.md` at the time, and transcribed here afterwards as
+commit messages and into the completion inventory of the time, and transcribed here afterwards as
 **Part B** (D-50 onward, see the note there on why the numbering skips D-43 to D-49).
 
 ## The log
@@ -657,12 +657,12 @@ something else, that row is superseded and says so rather than being deleted.
 
 Six rulings taken while building the batch-11 screen list and walking the product from an empty
 database. They are recorded late: batches 11 and 12 wrote their reasoning into commit messages and
-into `COMPLETION-INVENTORY.md` §4–§5, and a commit message is not findable by someone asking why the
+into the completion inventory of the time, and a commit message is not findable by someone asking why the
 product behaves as it does. That is the gap this file exists to close, so they are transcribed here.
 
-**On the numbering.** These start at **D-50**, not D-43. `COMPLETION-INVENTORY.md` §5 has been using
-`D-43`–`D-49` for *defects* since batch 9, so those seven ids are spoken for in the other direction.
-Re-using them would make "D-44" mean two different things in two files that cite each other. The gap
+**On the numbering.** These start at **D-50**, not D-43. The completion inventory had been using
+`D-43` to `D-49` for *defects* since batch 9, so those seven ids were spoken for in the other direction.
+Re-using them would have made "D-44" mean two different things in two files that cited each other. The gap
 between D-42 and D-50 is deliberate and is what this paragraph is for.
 
 ---
@@ -756,8 +756,7 @@ between D-42 and D-50 is deliberate and is what this paragraph is for.
 
 ## Part C: the six answers, 2026-09-08
 
-Six questions this file, `MOTS-PROGRESS.md` §7 and `COMPLETION-INVENTORY.md` §4 had all been carrying
-as open. Answered by the product owner on 2026-09-08 and transcribed here the same day, before any of
+Six questions this file and the progress records of the time had all been carrying as open. Answered by the product owner on 2026-09-08 and transcribed here the same day, before any of
 them is built against, which is the whole point of the file and the lesson of Part B, where six
 rulings sat in commit messages until somebody had to reconstruct them.
 
@@ -786,7 +785,7 @@ Each says plainly below what still has to happen before it is safe to treat as s
 
 | | |
 |---|---|
-| **What was undecided** | BRULE-023 suspends a supplier when an award-critical document expires. `DocumentType.IsAwardCritical` has existed since batch 9, no seeded type has ever set it, and §4.1 of `COMPLETION-INVENTORY.md` recorded the rule as one that "suspends nobody". Which types are award-critical is a procurement-risk judgement, and no default was invented. |
+| **What was undecided** | BRULE-023 suspends a supplier when an award-critical document expires. `DocumentType.IsAwardCritical` has existed since batch 9, no seeded type has ever set it, and the completion inventory recorded the rule as one that "suspends nobody". Which types are award-critical is a procurement-risk judgement, and no default was invented. |
 | **What was decided** | Two: **commercial registration** and **tax certificate**. The chamber-of-commerce membership is not award-critical. |
 | **Why** | Both are the documents that make a company legally able to hold a contract at all - an expired commercial register means the entity is no longer registered to trade, and an expired tax card means it cannot be paid lawfully. Chamber membership is evidence of standing rather than of legal capacity, so its expiry is a compliance flag rather than a bar. |
 | **What it costs if wrong** | An over-broad list suspends suppliers who are still legally able to trade, and "was blocked from participating for a fortnight" is not undone by reactivation. An under-broad list awards a contract to a company that cannot lawfully hold it. Reversing either direction is one toggle on SCR-710 - the cost is in the tenders that ran meanwhile. |
@@ -912,7 +911,7 @@ which is the reason Part D exists rather than an edit to Part C.
 
 | | |
 |---|---|
-| **What was undecided** | BRULE-023 suspends a supplier automatically when an award-critical document expires. Whether approving the replacement should lift that suspension, or whether a person should confirm it, was logged as open in `WALKTHROUGH-FINDINGS.md` F-13 and was nobody's to decide here. |
+| **What was undecided** | BRULE-023 suspends a supplier automatically when an award-critical document expires. Whether approving the replacement should lift that suspension, or whether a person should confirm it, was logged as open by the manual walkthrough of the time and was nobody's to decide here. |
 | **What was decided** | Automatic, with an audit row and a notification to the supplier. |
 | **Why, and the correction the answer carried** | The question had been framed as "automatic reinstatement reverses a suspension nobody re-examined". That framing is wrong, and the ruling says so: somebody did re-examine it - the supplier uploaded a replacement and a **reviewer approved it**, and that approval is the human check. Requiring a second person to confirm afterwards adds no information and introduces the worse failure - a supplier who has fixed the problem sitting suspended and locked out of tenders until somebody happens to notice. A suspension that is automatic and rule-based should be reversed the same way once the rule's condition is objectively gone. |
 | **What "objectively gone" means, narrowly** | No award-critical document type on that supplier is left with an expired latest version. Not "this document is fine": a supplier suspended by two expiries is not reinstated by fixing one, and there is a test that pins exactly that. |

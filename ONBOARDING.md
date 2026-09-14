@@ -176,7 +176,7 @@ coverage must clear 45%, a floor that goes up and never down.
 | What is it for? | `PRODUCT.md`, then `docs/product/` |
 | Who can do X? | `PERMISSIONS.md` (generated) |
 | Why is it like this? | `DECISIONS-TAKEN.md`, and the comment above the line |
-| What is not finished? | `COMPLETION-INVENTORY.md`, `BACKLOG-REMEDIATION.md` |
+| What is not finished? | `DOCUMENTATION.md` §17, the boundaries and open decisions |
 | What does the pipeline do? | `.github/workflows/ci.yml`, which reads as a record of instruments found measuring nothing |
 | Why is that excluded from analysis? | `.sonar/analysis-scope.properties`, one argument per exclusion |
 

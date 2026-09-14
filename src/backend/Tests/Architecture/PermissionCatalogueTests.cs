@@ -111,12 +111,12 @@ public sealed partial class PermissionCatalogueTests
     private static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "BACKLOG-REMEDIATION.md")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "docker-compose.yml")))
         {
             dir = dir.Parent;
         }
 
-        dir.Should().NotBeNull("the catalogue lives at the repository root, next to BACKLOG-REMEDIATION.md");
+        dir.Should().NotBeNull("the catalogue lives at the repository root, next to docker-compose.yml");
         return dir!.FullName;
     }
 
