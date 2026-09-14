@@ -1,14 +1,399 @@
-name: CI
+# Continuous integration: build, test, scan, and the gate that decides whether a change may merge.
+# Everything this file does is explained here; the workflow below is the steps themselves.
+#
+#
+# THE JOB NAMES ARE LOAD-BEARING, NOT COSMETIC
+#
+# Task #24. Branch protection on `main` requires three exact check names before a merge is allowed:
+# "Backend (.NET)", "Frontend (React)" and "Container image build". SonarCloud Code Analysis stays
+# advisory and non-required, per this project's own coverage-ratchet standard. Renaming a job here
+# without updating branch protection's required-check list breaks the gate silently: the old name
+# stops reporting, and GitHub treats a check that never runs as pending forever rather than as a
+# failure. So a rename can turn "required" into "blocks every PR forever" or, if the name is dropped
+# from the required list at the same time, into no protection at all. Renaming a job is a
+# branch-protection change, not only a workflow edit.
+#
+#
+# THE fast-checks JOB
+#
+# Task #24 addendum. The fast half of the backend's checks, duplicated into their own job so a
+# compile error or a broken unit test reports in about ninety seconds instead of the eight minutes
+# the `backend` job takes.
+#
+# Duplication rather than extraction, on purpose. The unit and architecture suites cannot simply move
+# out of `backend`: their coverage reports have to be written on disk beside `sonar end`, which is why
+# MSP-70 pulled the integration suite back into that job in the first place. Moving them would delete
+# their contribution to the coverage the quality gate enforces, a gate weakening dressed up as a
+# speed-up. So this job re-runs them WITHOUT coverage, purely for the signal, and `backend` still runs
+# them exactly as before for the measurement.
+#
+# Deliberately not a required check: it proves a subset of what "Backend (.NET)" proves, so requiring
+# it would add a second thing to keep green without adding a second thing being checked. Its value is
+# the latency of the failure, not the failure itself.
+#
+#
+# THE backend JOB
+#
+# `fetch-depth: 0` because Sonar needs history for new-code and blame attribution.
+#
+# Node lives in this job too, because frontend coverage has to be produced beside the scanner
+# (MSP-70). It is the same version as the `frontend` job: two different Node versions producing the
+# analysed artifacts would be its own quiet source of drift.
+#
+# Sonar is gated on SONAR_TOKEN so a fork still builds normally. MSP-78: SonarCloud never analysed C#
+# here at all, because Automatic Analysis cannot - it needs the MSBuild scanner wrapping the build.
+#
+# MSP-98 puts continue-on-error on every Sonar-owned step. `Sonar begin` fetches the quality profile
+# from sonarcloud.io before anything is compiled, and when that call returned 5xx during PR #90 the
+# scanner aborted unhandled with exit 134 and reddened the REQUIRED "Backend (.NET)" check in 45
+# seconds, twice, before a single test ran. A required gate a third party can fail is not a gate on
+# this repository's code. The analysis is not weakened: every step still runs, still reports, and
+# SonarCloud Code Analysis remains a visible non-required check. What changes is only whether a
+# SonarCloud outage can fail the build.
+#
+# DEPENDENCY SCAN (.NET), NFR-SEC-011 via MSP-70. Until this existed the build printed "NU1902
+# OpenTelemetry.Api 1.11.2 has a known moderate vulnerability" on every run and CI went green anyway:
+# a scanner nobody could fail. It fails on high and critical only. Moderate is reported but not
+# blocking, deliberately, because a gate that fires on every transitive moderate advisory gets
+# switched off within a fortnight, and a gate that is off is worth less than one calibrated to what
+# will actually be acted on. Moderates still surface in the log and in MSP-80's triage.
+# `--include-transitive` because the advisory that prompted this was transitive: OpenTelemetry.Api
+# arrived through three direct OpenTelemetry packages and would have been invisible to a direct-only
+# scan.
+#
+# A scan that did not run must not read as a clean scan. Found while testing this gate: adding a
+# deliberately vulnerable package broke restore with NU1605, `dotnet list` produced no findings
+# because it had no assets to inspect, and a naive grep reported "no high or critical" - a green gate
+# over an unscanned tree. That is the same shape as every other defect in this arc, absence of a
+# signal presenting as a good signal. So the step asserts the scan actually enumerated projects before
+# trusting that it found nothing.
+#
+# DEPENDENCY SCAN (npm). Task #20/MSP-80 AC1, run for real. @lhci/cli is back, for the Lighthouse LCP
+# measurement in the frontend job, and brought its findings with it, re-confirmed fresh rather than
+# reused. Every one is still a transitive of @lhci/cli, which is still at 0.15.1, the latest published
+# version, unchanged since PR #8 first found this, with `npm audit fix` offering only a semver-major
+# downgrade to 0.1.0 as its "fix".
+#
+# It reduces to two actual CVEs rather than seven independent ones, because npm audit propagates a
+# dependency's worst transitive severity up the whole chain: five of the seven "high" entries
+# (@lhci/cli, @lhci/utils, @puppeteer/browsers, lighthouse, puppeteer-core) carry no CVE of their own
+# and are high only because they depend on extract-zip (GHSA-jmr9-qjv8-65gv, unvalidated symlink path
+# traversal during archive extraction) and tmp (GHSA-52f5-9888-hmc6 and GHSA-ph9p-34f9-6g65, arbitrary
+# temp file or directory write through a symlinked `dir`, and path traversal through an unsanitised
+# prefix or postfix). Both require the caller, meaning lighthouse or puppeteer's own internal code, to
+# pass an attacker-controlled path or archive into these functions. Nothing in this project's usage
+# does that: `lhci autorun` calls a well-known config and two hard-coded local URLs, and no user
+# input, uploaded file or externally supplied path ever reaches the tool.
+#
+# The 2026-09-04 re-triage under T-050 put the count at thirteen rather than ten. The three new ones
+# are qs, body-parser and express, all moderate, reached through @lhci/cli's own local report server
+# rather than through this product, which has no Express. Same verdict: dev-only, never bundled, and
+# unreachable in how this project invokes the tool. Recorded rather than left as a stale "10" that
+# quietly stops matching the output.
+#
+# This is accepted risk rather than a false positive. The CVEs are real but unreachable here: a
+# devDependency, never bundled, running only inside a disposable CI runner with `--ignore-scripts`
+# already blocking install-time code execution project-wide. The residual exposure is the one PR #8
+# named and accepted - a compromised @lhci/cli publishing a malicious release would run in CI with
+# build access - which is a supply-chain trust question rather than something these two CVEs change.
+# So production dependencies gate on high and critical, where there are zero findings because the
+# frontend bundle never includes @lhci/cli, and the full tree is reported without blocking.
+#
+# T-050 again, on the gate's shape. This step used to be `npm audit --omit=dev --audit-level=high`,
+# and it failed three times across two batches with registry errors on an unchanged lockfile, 400 and
+# 503, passing on re-run each time. The advisory service is genuinely flaky, reproduced locally as a
+# network timeout against the bulk endpoint, so it is not a matter of which endpoint npm picks. The
+# problem was never the flakiness. It was that `npm audit` exits non-zero both for "found a
+# high-severity CVE" and for "the registry did not answer", so the two were indistinguishable, and a
+# gate whose failures are routinely not its subject is one people learn to re-run without reading.
+# Same class as T-041. audit-gate.mjs separates them: exit 1 is an advisory and names the package,
+# exit 2 is a transport failure and says it is not a finding, and it retries before giving up. The
+# canary fixture is what stops the gate silently passing forever: it pins a package with a known
+# critical CVE and the gate MUST fail on it, which it did not on the first attempt, because npm prints
+# its error object as JSON on stdout, that parsed cleanly, and a report with no metadata counted as
+# zero advisories. A dependency gate that has quietly stopped checking looks exactly like a clean
+# repository from the outside.
+#
+# ANALYSIS SCOPE AND THE WORKING DIRECTORY. begin, build and end MUST share one working directory. The
+# scanner writes .sonarqube relative to where `begin` ran and the injected MSBuild targets look for it
+# there; running begin at the root and the build in src/backend produced "unable to collect the
+# required information about your projects" with every step reporting success. Root is the right
+# shared directory, because it makes the scanner's base directory cover src/ so the frontend stays in
+# scope: disabling Automatic Analysis removed the only thing scanning TypeScript, so a backend-only
+# base directory would trade one blind spot for another.
+#
+# sonar.sources is deliberately absent, since the .NET scanner ignores it with a warning and derives
+# scope from the MSBuild graph plus the base directory. sonar.test.inclusions IS set, under Task
+# #22/PR #71 and corrected in Task #26, because it classifies the frontend's TypeScript test sources:
+# without it the server falls back to filename-suffix detection and misses any test support file that
+# is not itself a *.spec.ts, such as tests/e2e/fixtures.ts, rating it as main code. PR #71 originally
+# set sonar.tests for this, which looks right and does nothing; the scanner's own warning names the
+# supported property, and it was silently ignored until a post-merge audit caught fixtures.ts still
+# misclassified on main days after that PR merged green.
+#
+# The scope values come from .sonar/analysis-scope.properties, a version-controlled file with the
+# reasoning beside each value, because the SonarScanner for .NET does not read sonar-project.properties
+# and a file that looks authoritative and is never read is its own failure.
+#
+# TESTS AND COVERAGE. opencover, because that is the format the C# scanner consumes and
+# coverlet.collector is already referenced by all three test projects.
+#
+# The integration suite runs in THIS job rather than its own, under MSP-70. Coverage reports cannot
+# cross a job boundary without being uploaded and downloaded as artifacts, and `sonar end` only sees
+# what is on disk beside it, so while the suite lived in a separate job it contributed nothing no
+# matter what flags it was given. That was not a small omission. Measured locally at the time: unit
+# 242 of 16,101 sequence points (1.5%), architecture 0 (0.0%), integration 13,703 (85.1%). The suite
+# carrying effectively all backend coverage was the one suite not collected, which is why PR #5's four
+# new integration tests reported 0.0% coverage on new code. Merging the jobs costs the parallelism the
+# separate job bought, about 1m40 on this job's wall time; passing artifacts between jobs would not
+# have recovered it, because `backend` would have to wait on the integration job regardless.
+#
+# Each `dotnet test` writes to its own GUID subdirectory, so ./TestResults holds three
+# coverage.opencover.xml files that the scanner's wildcard picks up. They are listed explicitly
+# because "the wildcard matched three files" and "the scanner merged three files" are different
+# claims, and only the second is being relied on.
+#
+# Frontend coverage is generated here for the same reason the integration suite moved: the scanner
+# reads what is on disk beside it, and `frontend` is a different job. vitest runs with `all: true`, so
+# every source file enters the denominator rather than the frontend quietly contributing no data and
+# shrinking the denominator it should be enlarging. `--ignore-scripts` because dependency lifecycle
+# scripts would otherwise execute here with access to the build; Sonar raised this against this exact
+# line and it is a fair finding, doubly so given the dev tree's unfixable advisories above. Verified
+# that the step produces identical coverage without them.
+#
+#
+# THE QUALITY GATE, WHICH IS THE AUTHORITATIVE ONE
+#
+# This workflow's own gate step, not SonarCloud's check, is what must be green to merge.
+#
+# SonarCloud's "Sonar way" gate is built in and cannot be edited on this plan, and it requires 80%
+# coverage on new code. That is unmeetable for any change that is mostly wiring or configuration, so
+# its check goes red on legitimate work as a matter of routine. The danger is not that coverage stops
+# being enforced, since the floor below handles that. It is that Sonar's check also carries the
+# conditions we genuinely care about - security rating, reliability rating, duplication - and a check
+# that is red routinely stops being read, so a real security regression arrives inside a red X that
+# looks like all the other red Xs. This repository has already produced exactly that failure:
+# `retries: 1` on the accessibility suite cried wolf until nobody looked, and concealed a
+# deterministic Dialog failure for as long as it sat there.
+#
+# So this gate enforces Sonar's OWN ratings unchanged, and evaluates coverage against the 45% floor we
+# agreed rather than the 80% we are stuck with. One check that is red only when something is actually
+# wrong. SonarCloud's own check is advisory: do not read a red Sonar badge as a broken build, and more
+# importantly do not read a green one as a clean project.
+#
+# THE COVERAGE RATCHET is a floor that goes up, never down. If a pull request cannot meet it, the
+# answer is tests rather than an edit to the number. A gate nobody can meet gets waived, and this
+# repository has already produced one of those.
+#
+# Why 45%, and on new code only. Overall coverage was 32.4% at MSP-70, the first honest measurement
+# this project had, dragged down by a large existing untested surface - the frontend at 0% and older
+# backend code - so gating on it would punish work that is not the problem. Code written from here
+# should be tested, and a new-code floor around 30% would permit new code that is mostly untested,
+# which defeats the point. Not higher, because PR #4 measured 47.3% on genuinely honest work that
+# included Program.cs wiring, which is awkward to cover, and a bar at 50% would have failed it. 45%
+# sits just under a real, recent, good pull request.
+#
+# Overall coverage is deliberately not gated yet. 32.4% is recorded as the baseline, should climb
+# under its own weight, and gets a gate once it is moving.
+#
+# Why this lives in CI rather than in the SonarCloud quality gate: the project is on the free plan,
+# which cannot associate any gate other than the built-in one. Creating a custom gate is possible but
+# it could never be attached to this project, which would be an instrument that looks configured and
+# does nothing. The gate step reads Sonar's own new_coverage measure rather than recomputing "new
+# code", so it agrees with the dashboard by construction instead of drifting from it.
+#
+# The gate step is deliberately NOT continue-on-error: a genuine ratings or coverage-floor breach must
+# still fail the build. It is instead conditioned on the analysis having completed, because if `Sonar
+# end` did not succeed there is no fresh server-side measurement to read, and a gate evaluating stale
+# or absent data would either pass vacuously or fail for a reason that is not this pull request's
+# fault. Both are worse than not running, and a skipped step does not fail the job.
+#
+#
+# VERIFYING THE SCOPE THE SERVER ACTUALLY RECEIVED
+#
+# MSP-96: what the server received, not what a file says. We have been wrong twice about the
+# difference between a configuration file and the thing that reads it - sonar-project.properties is
+# not read by the .NET scanner at all, and two exclusion lists disagreed on casing for a day. This
+# step asks the server what it actually holds. It is deliberately permanent rather than a one-off
+# query, because a fact established once by someone running a command is the class of evidence this
+# phase exists to replace. Informational queries are optional, so that a 404 from a neighbouring
+# endpoint cannot stop the assertion from running.
+#
+# THE NEW CODE DEFINITION is asserted rather than merely printed. It was inheriting the SonarCloud
+# instance default of a 7-day rolling window, which nobody chose and which DRAINS: code written eight
+# days ago stops being new and leaves every new-code condition permanently. Every condition in the
+# MSP-70 blocking flip is a new-code condition, so the gate would have emptied itself on a timer while
+# reporting green - the only entry in the register that would have arrived while everyone did the
+# right thing.
+#
+# It was set to a reference branch of main, and that broke the push-to-main analysis itself the same
+# day: "Invalid new code period 'main': version is none of the existing ones". A long-lived branch
+# cannot reference itself as its own diff target, and the project-level setting applies to main's own
+# analysis rather than only to PR comparisons. Found because main's push workflow went red
+# immediately after merge, which a PR run never exercises. It is now a fixed 90-day window: valid on
+# every branch including main, requiring no reference, and draining far slower than the 7-day default
+# it replaced. Whether PR gate conditions read this project-level setting at all, as opposed to always
+# diffing against the PR's target branch through a separate mechanism, is unconfirmed and is the open
+# question rather than an assumption.
+#
+#
+# HOW THE GATE READS AND REPORTS
+#
+# Every network response is written to a file and then read, rather than piped into an interpreter.
+# Sonar flagged the pipe form (S7772) on three lines of the first version. The pipe was arguably safe,
+# since the python programs are literals and the response is only ever parsed as JSON, but arguing
+# that is worse than not doing it, and going through a file is genuinely better: curl's exit status
+# becomes checkable, and a failed request leaves something inspectable instead of an empty stdin.
+#
+# `sonar end` writes the analysis task URL, and using it avoids guessing branch or PR keys.
+# Server-side analysis is asynchronous, so the measure does not exist until it finishes. When the
+# analysis fails, the step prints the SERVER's own reason: without that it said only "Sonar analysis
+# FAILED", which is indistinguishable between a broken analysis and a refusal that has nothing to do
+# with the code. The first time it fired it was the latter - SonarCloud refused the main-branch
+# analysis because the organization would cross the free plan's 50,000-line limit - which cost a round
+# trip through a browser to discover.
+#
+# A refused analysis on a push to MAIN is a warning; on a PULL REQUEST it stays fatal. The gate's
+# purpose is to block a merge, and a merge is blocked on the pull request. Nothing is weakened: a PR
+# whose analysis the server refuses still fails, so no unreviewed code reaches main behind a skipped
+# rating. What it stops is main going red for a reason no commit can fix, which is the failure this
+# repository has already paid for once.
+#
+# Sonar's own per-condition verdicts are read from the quality gate rather than recomputed, so the
+# ratings enforced here are exactly the ones Sonar computed, with no second opinion to drift out of
+# step with the dashboard. Ratings are 1=A through 5=E. new_coverage is excluded from that loop
+# because it is judged against our floor rather than Sonar's unmeetable 80%.
+#
+# A quality gate returning no conditions means the check did not run, and is failed rather than
+# passed: the same rule as everywhere else in this workflow.
+#
+# The rating conditions are enforced on PULL REQUESTS ONLY, for the identical reason the coverage
+# floor is, and found the same way - by main's own push analysis going red. On a pull request Sonar's
+# "new code" is the diff, which is what these ratings are meant to judge. On a push to main it is
+# whatever the new-code period says, and on a project this young almost any period covers nearly the
+# whole history: the push right after that fix landed reported 5,327 "new" lines and failed
+# Reliability at C and Duplication at 3.4% over effectively the entire codebase. That is overall
+# quality wearing a new-code label. Every change still reaches main through a PR, where these are
+# enforced, so nothing escapes review; only main's own after-the-fact analysis is exempt.
+#
+# When a rating fails, the step NAMES the issues rather than printing the grade alone. It once
+# reported "Reliability rating on new code: C (ERROR)" and nothing else, so the only way to find out
+# which rule fired was to open SonarCloud, which needs an account. Two commits were spent guessing at
+# the diff, both fixing real defects, neither the one Sonar meant. The token is already in the step,
+# so printing the issues costs one request and turns a letter grade into something actionable from the
+# log alone.
+#
+# A condition going missing is a silent loss of enforcement, UNLESS there was no new code at all, in
+# which case Sonar legitimately has nothing to rate: a docs-only PR has zero lines in any
+# duplication-eligible language so that condition is not computed, while Reliability and Security
+# default to a trivial pass on an empty diff and are still reported. That asymmetry is real Sonar
+# behaviour and was found by this exact audit failing on itself. So the step fails loudly only when a
+# condition goes missing while there was code for it to judge. The same distinction applies to
+# coverage: an absent measurement is not a failing one, and this project also ignores coverage
+# conditions below 20 new lines.
+#
+# The coverage floor is PULL REQUESTS ONLY, and that is a correctness fix rather than a softening. On
+# main, the new-code period makes main's new code essentially the entire codebase: the first run of
+# this check on main reported 28.9% over 4,687 new lines and failed, which is the overall coverage
+# number wearing a new-code label, and gating overall coverage is the one thing explicitly not being
+# done yet.
+#
+# WHOLE-PROJECT NUMBERS ARE REPORTED, NOT ENFORCED. The new-code conditions stop things getting worse
+# and are achievable today; these cannot pass until the existing debt is fixed, and a gate that cannot
+# pass gets ignored. They are printed so the repair work can be watched moving rather than found out
+# about at the end.
+#
+# Task #12: this section always reads main's own last analysis, pinned to branch=main explicitly, on a
+# PR run included. The call used to omit scope entirely and fall back silently to the default branch,
+# so on a PR it read main from BEFORE the PR being gated, while every other figure in the step used
+# the right scope. PR #28 reported 13,251 lines and 49.6% coverage while its own post-merge state was
+# 14,693 and 51.4%. The obvious fix, passing the PR scope here too, is NOT correct and was caught only
+# by testing it: PR analysis computes new-code metrics only, and querying with `pullRequest=N` on a
+# real PR returned ncloc=376 for a codebase of about 15,300 lines - not the PR's merged state, a
+# near-arbitrary small number, worse than staleness because it looks precise while being meaningless.
+# There is no PR-scoped whole-project reading to fall back to, for any PR, ever. So it reads main, the
+# only branch type these metrics are real for, makes that explicit rather than accidental, and labels
+# the output so nobody mistakes it for the PR's own state.
+#
+# Task #13, decided 2026-08-30 and closing Phase 4: these stay reporting-only and are NOT flipped to
+# blocking. A whole-project metric that only ever reflects main's past state, never the PR being
+# reviewed, is not something a PR can pass or fail on its own content; blocking on it would judge
+# every open PR identically off a number that PR cannot move. Building a second gate when the project
+# already has a real, PR-specific one would be exactly the instrument-over-nothing pattern this audit
+# exists to remove. The numbers remain printed because watching whole-project debt move is useful,
+# just never as a block. If this needs revisiting, that is a new decision to take deliberately rather
+# than a default this note should silently expire into.
+#
+# Where the report has nothing to say, it says so, rather than printing nothing and letting an empty
+# section read as "no problems".
+#
+#
+# THE frontend JOB
+#
+# MSP-94: restored. This job and `docker-build` were deleted by PR #7 when CI was consolidated into a
+# single job for the scanner's benefit, and that commit's message is long and careful about the
+# coverage ratchet while not mentioning the removal. For a day afterwards CI ran no typecheck, no
+# lint, no `npm run build`, no accessibility suite and no container build. Nothing was red: the checks
+# were ABSENT, and absence renders as a green PR summary. Both "green tests, red build" entries on
+# MSP-83 were caught by `npm run build`, so for that day the only thing standing behind them was
+# somebody remembering to run it locally. The job names matter as much as the steps, because branch
+# protection binds to names.
+#
+# Install uses `--ignore-scripts` (githubactions:S6505): dependency lifecycle scripts execute
+# arbitrary code during install. Verified the build still succeeds without them, since esbuild's
+# postinstall is not load-bearing here and the platform binary arrives through optionalDependencies.
+#
+# npx IS FORBIDDEN IN THIS WORKFLOW, and the step that greps for it is why. Stage 1 removed every such
+# call in favour of lockfile-pinned npm scripts, because the tool fetches and executes whatever
+# version is published at that moment, which is a supply-chain exposure in CI rather than a style
+# preference (githubactions:S6505 and S8543). A comment saying so already sat in this file. It did not
+# work: on that very ticket the forbidden call was written nineteen lines below the comment, and what
+# caught it was the Sonar gate turning Security-on-new-code to C. An instrument caught it, not the
+# comment, and the removal was reversible by anyone in under a minute. So there is now a grep, which
+# cannot be read past. Its pattern is assembled from a variable so the step does not match itself, and
+# comment lines are stripped so this explanation does not trip it either. Both of those are the
+# difference between a guard that works and one that fails on its own text.
+#
+# LINT, WITH ITS DENOMINATOR ASSERTED (MSP-95). oxlint prints no summary and no file count by default:
+# it reports diagnostics and nothing else, so a run that linted zero files is indistinguishable from a
+# clean one. That is the fifth instrument in this repository found reporting over an unstated set, and
+# `tsc --noEmit` spent the life of the project in exactly that position. The JSON reporter carries
+# number_of_files and number_of_rules, and both are asserted, so choosing rules deliberately cannot be
+# undone later by the step silently linting nothing. Warnings themselves are advisory, per
+# .oxlintrc.json.
+#
+# BUILD is kept separate from the vitest run in the backend job on purpose. Vitest passing while the
+# build fails is a real, recorded pathology here - TS18048 and `extends RenderResult` both did exactly
+# that - so the type-checking build is its own gate rather than a by-product.
+#
+# LIGHTHOUSE (Task #20/MSP-47) is real again rather than restored-but-unwired: this is the first
+# workflow step that has ever actually invoked @lhci/cli, which sat in package.json unused before it
+# was removed entirely. It is advisory, and continue-on-error is deliberate. There is no established
+# baseline yet to call a regression against; shared runners have real CPU and network variance, so a
+# strict threshold risks becoming the pattern this codebase has already rejected once, where a noisy
+# required check trains people to stop reading it; and the same precedent as Task #13 applies, that a
+# measurement-only signal is reported rather than enforced until it has proven stable on merit.
+# lighthouserc.json's own assertions still run and still fail the step's exit code, which is what
+# makes the printed numbers meaningful rather than decorative; continue-on-error only stops that from
+# failing the job. The numbers are printed separately because `lhci autorun` never prints them to the
+# log, only pass or fail per assertion and only on failure, and a measurement nobody can read back out
+# of the log is barely better than the unmeasured state this task exists to close. `if: always()` so a
+# violation still gets its numbers printed rather than silence.
+#
+# PLAYWRIGHT AND AXE is the repository's only accessibility gate. MSP-79 removed a masking retry from
+# this suite, which exposed UI/Dialog failing 6 of 6 deterministically, and proved 10 consecutive
+# green runs - and then the suite stopped running two hours later when this job was deleted.
+#
+#
+# THE docker-build JOB
+#
+# No `needs:`. It checks out the source and runs `docker build` against the Dockerfile, consuming
+# nothing the `backend` job produces, so waiting eight minutes to spend forty seconds bought only the
+# ordering of two independent failures. A broken Dockerfile now reports at the same time as a broken
+# test rather than after it. The container is the deployment artifact: without this step, a broken
+# Dockerfile ships.
 
-# Task #24: this job's own name ("Backend (.NET)") and the "Frontend (React)" / "Container image
-# build" job names below are load-bearing, not cosmetic - GitHub branch protection on `main`
-# requires these three exact check names before a merge is allowed (SonarCloud Code Analysis stays
-# advisory/non-required, per the project's own coverage-ratchet standard). Renaming a job here
-# without updating branch protection's required-checks list breaks the gate silently: the old name
-# stops reporting, GitHub treats a check that never runs as "pending forever", not as a failure -
-# so a rename could turn "required" into "blocks every PR forever" or, if the check is removed from
-# the required list at the same time, into no protection at all. Renaming a job is therefore also a
-# branch-protection change, not just a workflow edit.
+name: CI
 
 on:
   push:
@@ -17,20 +402,6 @@ on:
     branches: [main]
 
 jobs:
-  # Task #24 addendum. The fast half of the backend's checks, duplicated into their own job so a
-  # compile error or a broken unit test reports in about ninety seconds instead of the eight minutes
-  # the `backend` job takes.
-  #
-  # Duplication rather than extraction, on purpose. The unit and architecture suites CANNOT simply
-  # move out of `backend`: their coverage reports have to be written on disk beside `sonar end`,
-  # which is why MSP-70 pulled the integration suite back into that job in the first place. Moving
-  # them here would delete their contribution to the coverage the quality gate enforces - a gate
-  # weakening dressed up as a speed-up. So this job re-runs them WITHOUT coverage, purely for the
-  # signal, and `backend` still runs them exactly as before for the measurement.
-  #
-  # Deliberately NOT a required check: it proves a subset of what `Backend (.NET)` proves, so making
-  # it required would add a second thing to keep green without adding a second thing being checked.
-  # Its value is the latency of the failure, not the failure itself.
   fast-checks:
     name: Fast checks (build, unit, architecture)
     runs-on: ubuntu-latest
@@ -59,34 +430,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # Sonar needs history for new-code/blame attribution
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      # Node lives in this job too because frontend coverage has to be produced beside the scanner
-      # (MSP-70). Same version as the `frontend` job - two different Node versions producing the
-      # analysed artifacts would be its own quiet source of drift.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      # MSP-78: SonarCloud never analyzed C# here - Automatic Analysis cannot, it needs the
-      # MSBuild scanner wrapping the build. Gated on SONAR_TOKEN so a fork still builds normally.
       - name: Check for Sonar token
         id: sonar
         run: echo "enabled=${{ secrets.SONAR_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
 
-      # MSP-98: continue-on-error on every Sonar-owned step. `Sonar begin` fetches the quality
-      # profile from sonarcloud.io before anything is compiled, and when that call 5xx'd during
-      # PR #90 the scanner aborted unhandled (exit 134) and reddened the REQUIRED "Backend (.NET)"
-      # check in 45 seconds - twice - before a single test ran. A required gate that a third party
-      # can fail is not a gate on this repository's code.
-      #
-      # The analysis is NOT weakened: every step still runs, still reports, and SonarCloud Code
-      # Analysis remains a visible non-required check. What changes is only whether a SonarCloud
-      # outage can fail the build.
       - name: Setup Java (required by the Sonar scanner)
         continue-on-error: true
         if: steps.sonar.outputs.enabled == 'true'
@@ -103,29 +460,11 @@ jobs:
       - name: Restore
         run: dotnet restore src/backend/MotsSupplierPortal.slnx
 
-      # NFR-SEC-011 (MSP-70). Until now the build printed
-      #   NU1902 OpenTelemetry.Api 1.11.2 has a known moderate vulnerability
-      # on every single run and CI went green anyway - a scanner nobody could fail.
-      #
-      # Fails on High/Critical only. Moderate is reported but not blocking, deliberately: a gate
-      # that fires on every transitive moderate advisory gets switched off within a fortnight, and
-      # a gate that is off is worth less than one calibrated to what will actually be acted on.
-      # Moderates still surface in the log and in MSP-80's triage.
-      #
-      # --include-transitive because the advisory that prompted this was transitive: OpenTelemetry
-      # .Api arrived via three direct OpenTelemetry packages and would have been invisible to a
-      # direct-only scan.
       - name: Dependency scan (.NET)
         run: |
           set -o pipefail
           dotnet list src/backend/MotsSupplierPortal.slnx package --vulnerable --include-transitive 2>&1 | tee /tmp/dotnet-vuln.txt
 
-          # A scan that did not run must not read as a clean scan. Found while testing this gate:
-          # adding a deliberately vulnerable package broke restore (NU1605), `dotnet list` produced
-          # no findings because it had no assets to inspect, and the naive grep below reported
-          # "no High/Critical" - a green gate over an unscanned tree. Same shape as every other
-          # defect in this arc: absence of a signal presenting as a good signal.
-          # So: assert the scan actually enumerated projects before trusting that it found nothing.
           if ! grep -qE 'has the following vulnerable|has no vulnerable packages' /tmp/dotnet-vuln.txt; then
             echo "::error::Vulnerability scan produced no per-project verdict - it did not run. Treating as failure."
             exit 1
@@ -138,60 +477,6 @@ jobs:
           fi
           echo "No High/Critical NuGet advisories."
 
-      # Task #20/MSP-80 AC1, run for real: @lhci/cli is back (MSP-47 - Lighthouse LCP measurement,
-      # see the frontend job below) and brought its 10 findings back with it (7 high, 1 moderate,
-      # 2 low), re-confirmed fresh here, not reused from before it was removed. Every one of them
-      # is STILL a transitive of @lhci/cli, and @lhci/cli is STILL at 0.15.1 - the latest published
-      # version, unchanged since PR #8 first found this - with `npm audit fix` offering only a
-      # semver-major downgrade to 0.1.0 as its "fix", not a real one.
-      #
-      # Reduced to two actual CVEs, not seven independent ones - npm audit propagates a
-      # dependency's worst transitive severity up the whole chain, so 5 of the 7 "high" entries
-      # (@lhci/cli, @lhci/utils, @puppeteer/browsers, lighthouse, puppeteer-core) carry no CVE of
-      # their own; they are high only because they depend on:
-      #   - extract-zip (GHSA-jmr9-qjv8-65gv): unvalidated symlink path traversal during archive
-      #     extraction.
-      #   - tmp (GHSA-52f5-9888-hmc6, GHSA-ph9p-34f9-6g65): arbitrary temp file/dir write via a
-      #     symlinked `dir` param, and path traversal via unsanitized prefix/postfix.
-      #   Both require the CALLER (lighthouse/puppeteer's own internal code) to pass an attacker-
-      #   controlled path/archive into these functions. Nothing in this project's usage does that -
-      #   `lhci autorun` calls the well-known lighthouserc.json config and two hardcoded local
-      #   URLs; no user input, uploaded file, or externally-supplied path ever reaches this tool.
-      #
-      # 2026-09-04 re-triage (T-050): the count is now THIRTEEN, not ten. The three new ones are
-      # qs / body-parser / express (moderate), reached through @lhci/cli's own local report server -
-      # not this product's Express, which it does not have. Same verdict as the rest: dev-only, never
-      # bundled, and unreachable in how this project invokes the tool. Nothing here warrants an
-      # upgrade, and `npm audit fix --force` still offers only @lhci/cli@0.1.0, a five-major-version
-      # downgrade. Recorded rather than left as a stale "10" that quietly stops matching the output.
-      #
-      # Accepted risk, not a false positive: the CVEs are real, but unreachable in how this
-      # project actually invokes @lhci/cli - a devDependency, never bundled, running only inside a
-      # disposable CI runner with `--ignore-scripts` already blocking dependency install-time code
-      # execution project-wide. The residual exposure is the same one PR #8 named and accepted: a
-      # compromised @lhci/cli (or one of its dependencies) publishing a malicious release would run
-      # in CI with build access - a supply-chain trust question, not something these two CVEs
-      # change. So: production dependencies gate on high/critical (zero findings there - the
-      # frontend bundle never includes @lhci/cli), the full tree is reported but not blocking.
-      # T-050: this step used to be `npm audit --omit=dev --audit-level=high`, and it failed three
-      # times across two batches with registry errors on an UNCHANGED lockfile - 400 Bad Request and
-      # 503 Service Unavailable - passing on re-run each time. The advisory service is genuinely
-      # flaky right now: reproduced locally as a network timeout against the BULK endpoint, so this
-      # is not a matter of which endpoint npm picks.
-      #
-      # The problem was never the flakiness itself. It was that `npm audit` exits non-zero for BOTH
-      # "found a high-severity CVE" and "the registry did not answer", so the two were
-      # indistinguishable - and a gate whose failures are routinely not its subject is a gate people
-      # learn to re-run without reading. Same class as T-041.
-      #
-      # audit-gate.mjs separates them: exit 1 is an advisory and names the package, exit 2 is a
-      # transport failure and says it is NOT a finding. It retries before giving up.
-      #
-      # The canary fixture is what stops this from silently passing forever. It pins a package with a
-      # known critical CVE and the gate MUST fail on it - which it did not on the first attempt: npm
-      # prints its error object as JSON on stdout, that parsed cleanly, and a report with no
-      # metadata counted as zero advisories. A dependency gate that has quietly stopped checking
-      # looks exactly like a clean repository from the outside.
       - name: Dependency scan (npm) - the gate still bites
         run: |
           set +e
@@ -213,31 +498,6 @@ jobs:
           echo "--- production dependencies (blocking on high/critical) ---"
           node .github/audit/audit-gate.mjs src/frontend
 
-      # begin / build / end MUST share one working directory. The scanner writes .sonarqube
-      # relative to where `begin` ran and the injected MSBuild targets look for it there; running
-      # begin at the root and the build in src/backend produced "unable to collect the required
-      # information about your projects" with every step reporting success.
-      #
-      # Root is the right shared directory: it makes the scanner's base dir cover src/ so the
-      # frontend stays in scope. Disabling Automatic Analysis removed the only thing scanning
-      # TypeScript, so a backend-only base dir would trade one blind spot for another.
-      #
-      # sonar.sources is deliberately absent - the .NET scanner ignores it with a warning and
-      # derives scope from the MSBuild graph plus the base directory. sonar.test.inclusions IS set
-      # (Task #22/PR #71, corrected Task #26): it classifies the frontend's TypeScript test
-      # sources - without it the server falls back to filename-suffix detection (**/*.spec.ts),
-      # which misses any test support file that is not itself a *.spec.ts (e.g.
-      # tests/e2e/fixtures.ts) and rates it as main code instead. PR #71 originally set
-      # sonar.tests for this, which looked right but does nothing: the scanner's own warning
-      # ("sonar.sources and sonar.tests properties are not supported... use sonar.exclusions,
-      # sonar.inclusions, sonar.test.exclusions, and sonar.test.inclusions") names the actually-
-      # supported property, silently ignored until a post-merge audit caught fixtures.ts still
-      # misclassified on main days after PR #71 merged green. See SONAR_TEST_PATHS below for what
-      # broke and why.
-      # Analysis scope comes from a version-controlled file with the reasoning beside each
-      # value (.sonar/analysis-scope.properties). The SonarScanner for .NET does not read
-      # sonar-project.properties, so the values are sourced here rather than living in a file
-      # that looks authoritative and is never read.
       - name: Load analysis scope
         continue-on-error: true
         run: |
@@ -279,50 +539,18 @@ jobs:
       - name: Build
         run: dotnet build src/backend/MotsSupplierPortal.slnx --no-restore --configuration Release
 
-      # opencover because that is the format the C# scanner consumes; coverlet.collector is already
-      # referenced by all three test projects. Shared wiring with MSP-70.
       - name: Unit tests
         run: dotnet test src/backend/Tests/Unit/MotsSupplierPortal.Tests.Unit.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
       - name: Architecture tests (NetArchTest)
         run: dotnet test src/backend/Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
-      # MSP-70. The integration suite runs HERE, in the same job as begin/end, rather than in its
-      # own job as before. Coverage reports cannot cross a job boundary without being uploaded and
-      # downloaded as artifacts, and `sonar end` only sees what is on disk beside it - so while the
-      # suite lived in a separate job it contributed nothing, no matter what flags it was given.
-      #
-      # That was not a small omission. Measured locally on this commit:
-      #   Unit          242 / 16101 sequence points =  1.5%
-      #   Architecture    0 / 16101                 =  0.0%
-      #   Integration 13703 / 16101                 = 85.1%
-      # The suite that carried effectively all backend coverage was the one suite not collected,
-      # which is why PR #5's four new integration tests reported 0.0% coverage on new code.
-      #
-      # Merging the jobs costs the parallelism the separate job bought (~1m40 added to this job's
-      # wall time). Passing artifacts between jobs would not have recovered it: `backend` would
-      # have to `needs:` the integration job and wait for it regardless, so the choice was between
-      # the same serialisation with artifact plumbing or without it.
       - name: Integration tests (real Postgres via Testcontainers)
         run: dotnet test src/backend/Tests/Integration/MotsSupplierPortal.Tests.Integration.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
-      # Each `dotnet test` writes to its own GUID subdirectory, so ./TestResults now holds three
-      # coverage.opencover.xml files that the scanner's existing wildcard picks up. Listed
-      # explicitly because "the wildcard matched three files" and "the scanner merged three files"
-      # are different claims, and only the second one is the thing being relied on.
-      # Frontend coverage is generated HERE for the same reason the integration suite moved: the
-      # scanner reads what is on disk beside it, and `frontend` is a different job. There are no
-      # frontend unit tests yet, so this reports 0% - which is the point. vitest is configured with
-      # `all: true`, so every source file enters the denominator at 0% instead of the frontend
-      # quietly contributing no data and shrinking the denominator it should be enlarging.
       - name: Frontend coverage
         working-directory: src/frontend
         run: |
-          # --ignore-scripts: dependency lifecycle scripts would otherwise execute here with access
-          # to the build. Sonar raised this against this exact line and it is a fair finding, doubly
-          # so given the dev tree carries seven unfixable advisories (see the npm scan above).
-          # Verified this step still produces identical coverage without them; nothing in the
-          # vitest path needs a postinstall.
           npm ci --ignore-scripts
           npm run test:coverage
 
@@ -341,70 +569,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
-      # ---------------------------------------------------------------------------------------
-      # QUALITY GATE - the authoritative one.
-      #
-      # This step, not SonarCloud's own check, is what must be green to merge.
-      #
-      # SonarCloud's "Sonar way" gate is BUILT-IN and cannot be edited on this plan, and it requires
-      # 80% coverage on new code. That is unmeetable for any change that is mostly wiring or config,
-      # so its check goes red on legitimate work as a matter of routine. The danger is not that
-      # coverage stops being enforced - the floor below handles that. It is that Sonar's check also
-      # carries the conditions we genuinely care about (security rating, reliability rating,
-      # duplication), and a check that is red routinely stops being read. A real security regression
-      # then arrives inside a red X that looks like all the other red Xs.
-      #
-      # This repository has already produced exactly that failure: `retries: 1` on the a11y suite
-      # cried wolf until nobody looked, and concealed a deterministic Dialog failure for as long as
-      # it sat there.
-      #
-      # So this step enforces Sonar's OWN ratings - security, reliability, duplication - unchanged,
-      # and evaluates coverage against the 45% floor we agreed instead of the 80% we are stuck with.
-      # One check that is red only when something is actually wrong.
-      #
-      # SONARCLOUD'S OWN CHECK IS ADVISORY. Do not read a red Sonar badge as a broken build, and -
-      # more importantly - do not read a green one as a clean project.
-      #
-      # COVERAGE RATCHET - new code must be >= 45% covered.
-      #
-      # THIS IS A FLOOR THAT GOES UP, NEVER DOWN. If a pull request cannot meet it, the answer is
-      # tests, not an edit to this number. A gate nobody can meet gets waived, and this repository
-      # has already produced one of those: `retries: 1` on the a11y suite, with a comment
-      # explaining why it was there.
-      #
-      # Why 45%, on new code only:
-      #  - Overall coverage is 32.4% (MSP-70, the first honest measurement this project has had).
-      #    That figure is dragged down by a large existing untested surface - the frontend at 0%
-      #    and older backend code. Gating on it would punish work that is not the problem.
-      #  - Code written from here should be tested: every Phase 3 fix ships with a regression test.
-      #    A new-code floor at ~30% would permit new code that is mostly untested, which defeats
-      #    the point of having the floor at all.
-      #  - Not higher, because PR #4 measured 47.3% on genuinely honest work that included
-      #    Program.cs wiring which is awkward to cover. A bar at 50% would have failed it. 45% sits
-      #    just under a real, recent, good pull request.
-      #
-      # Overall coverage is deliberately NOT gated yet. 32.4% is recorded as the baseline; it
-      # should climb under its own weight as Phase 3 adds tests, and gets a gate once it is moving.
-      #
-      # Why this lives in CI rather than in the SonarCloud quality gate: the project is on the free
-      # plan, which cannot associate any gate other than the built-in "Sonar way". That gate
-      # requires 80% on new code and is not editable. Creating a custom gate is possible but it
-      # could never be attached to this project - an instrument that looks configured and does
-      # nothing, which is the failure mode this whole phase exists to remove. So the 80% condition
-      # stays as SonarCloud's own (currently unmeetable) opinion, and the number we actually hold
-      # ourselves to is enforced here, where we control it.
-      #
-      # NOTE this reads Sonar's own new_coverage measure rather than recomputing "new code", so it
-      # agrees with the dashboard by construction instead of drifting from it.
-      # MSP-96: what the SERVER received, not what a file says.
-      #
-      # We have now been wrong twice about the difference between a configuration file and the
-      # thing that reads it - sonar-project.properties is not read by the .NET scanner at all,
-      # and two exclusion lists disagreed on casing for a day. This step asks the server what it
-      # actually holds, and asserts the one thing that must be true.
-      #
-      # It is deliberately a permanent step rather than a one-off query. A fact established once
-      # by someone running a command is the class of evidence this phase exists to replace.
       - name: Verify analysis scope as the server received it
         continue-on-error: true
         env:
@@ -413,9 +577,6 @@ jobs:
         run: |
           set -euo pipefail
           api() { curl -sSf -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1"; }
-          # Optional queries: a 404 from one informational endpoint must not stop the
-          # assertion below from running. Losing the check because a neighbouring query
-          # changed shape is precisely how a guard stops guarding.
           api_opt() { curl -sS -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/$1" 2>/dev/null || echo '{}'; }
 
           echo "== whole-project measures =="
@@ -423,37 +584,6 @@ jobs:
             | jq -r '.component.measures[] | "  \(.metric): \(.value)"' | sort
 
           echo ""
-          # NEW CODE DEFINITION - asserted, not merely printed.
-          #
-          # This was inheriting the SonarCloud instance default of a 7-day rolling window. Nobody
-          # chose it, and it DRAINS: code written eight days ago stopped being "new" and left
-          # every new-code condition permanently. Every condition in the MSP-70 blocking flip is
-          # a new-code condition, so the gate would have emptied itself on a timer while
-          # reporting green - the register's top entry, arriving without anyone changing
-          # anything. The other six instruments went empty because someone edited a config or
-          # deleted a job. This one would have done it while everyone did the right thing.
-          #
-          # Set to a reference branch of main (MSP-70), which makes "new code" mean "not yet on
-          # main" - what everyone reading the gate already believes it means.
-          #
-          # Asserted rather than displayed, because a setting nobody re-reads is how it got here.
-          # The new_code_periods endpoints do not exist on SonarCloud (SonarQube Server only,
-          # "Unknown url"); the settings API is what answers.
-          # HOTFIX (MSP-70, same day): reference_branch/main at the PROJECT level broke the
-          # PUSH-to-main analysis itself. SonarCloud's error: "Invalid new code period 'main':
-          # version is none of the existing ones: [not provided]". A long-lived branch cannot
-          # reference itself as its own diff target, and the project-level setting applies to
-          # main's own analysis, not only to PR comparisons. This was found because main's push
-          # workflow went red immediately after merge - not caught by the PR that made the change,
-          # because a PR run never exercises a push-to-main analysis.
-          #
-          # Reset to a fixed 90-day window: valid on every branch including main, doesn't require
-          # a reference, and drains far slower than the 7-day default we were replacing. This is a
-          # stated, deliberate number rather than an inherited one - the property this whole
-          # exercise wanted - but it is provisional. Whether PR gate conditions ("new code")
-          # actually read this project-level setting at all, versus always diffing against the
-          # PR's target branch through a separate mechanism, is unconfirmed and now the open
-          # question rather than assumed.
           echo "== resetting new code period to days/90 (hotfix) =="
           curl -sS -u "$SONAR_TOKEN:" -X POST \
             "https://sonarcloud.io/api/settings/set?component=$PROJECT_KEY&key=sonar.leak.period.type&value=days" \
@@ -467,8 +597,6 @@ jobs:
 
           echo ""
           echo "== exclusions as the server holds them =="
-          # Scanner /d: arguments are analysis-time, so these may legitimately be empty here.
-          # Printing either way: an empty result is itself the answer to "where does this live".
           api_opt "settings/values?component=$PROJECT_KEY&keys=sonar.exclusions,sonar.coverage.exclusions,sonar.cpd.exclusions" \
             | jq -r 'if (.settings | length) == 0 then "  (none stored server-side - set per analysis via /d: arguments)" else (.settings[] | "  \(.key) = \(.value // (.values | join(",")))") end'
 
@@ -498,31 +626,16 @@ jobs:
 
           echo "  OK - test sources are classified as tests, not as main code."
 
-      # Deliberately NOT continue-on-error. This step is the authoritative gate described above,
-      # and a genuine ratings or coverage-floor breach must still fail the build. It is instead
-      # conditioned on the analysis having COMPLETED: if `Sonar end` did not succeed there is no
-      # fresh server-side measurement to read, and a gate evaluating stale or absent data would
-      # either pass vacuously or fail for a reason that is not this pull request's fault. Both are
-      # worse than not running. Skipped-because-Sonar-was-down is visible in the job log; a
-      # skipped step does not fail the job.
       - name: Quality gate (Sonar ratings + 45% coverage floor)
         if: steps.sonar.outputs.enabled == 'true' && steps.sonar_end.outcome == 'success'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           THRESHOLD: "45"
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          # Needed by issues_for() below, which names the issues behind a failing rating.
           PROJECT_KEY: ZaidEng7_mots-supplier-portal
         run: |
           set -euo pipefail
 
-          # Every network response is written to a file and then read, rather than piped into an
-          # interpreter. Sonar flagged the pipe form here (S7772, "avoid executing downloaded
-          # artifacts directly without verification") on three lines of the first version of this
-          # step. The pipe was arguably safe - the python programs are literals and the response is
-          # only ever parsed as JSON data - but arguing that is worse than not doing it, and going
-          # through a file is genuinely better: curl's exit status becomes checkable and a failed
-          # request leaves something inspectable instead of an empty stdin.
           api() {
             local url="$1" out="$2"
             if ! curl -sSf -u "$SONAR_TOKEN:" "$url" -o "$out"; then
@@ -531,11 +644,9 @@ jobs:
             fi
           }
 
-          # sonar end writes the analysis task URL here; using it avoids guessing branch/PR keys.
           TASK_URL=$(grep '^ceTaskUrl=' .sonarqube/out/.sonar/report-task.txt | cut -d= -f2-)
           [ -n "$TASK_URL" ] || { echo "::error::No ceTaskUrl - cannot verify coverage"; exit 1; }
 
-          # Server-side analysis is asynchronous; the measure does not exist until it finishes.
           STATUS=""
           for _ in $(seq 1 40); do
             api "$TASK_URL" task.json
@@ -543,28 +654,7 @@ jobs:
             case "$STATUS" in
               SUCCESS) break ;;
               FAILED|CANCELED)
-                # Print the SERVER's own reason. Without this the step said only "Sonar analysis
-                # FAILED", which is indistinguishable between a broken analysis and a refusal that
-                # has nothing to do with the code - and the first time it fired it was the latter:
-                # SonarCloud rejected the main-branch analysis because the organization would cross
-                # the free plan's 50,000-line limit. That cost a round trip through the browser to
-                # discover, which is exactly what this line prevents.
                 python3 -c "import json;t=json.load(open('task.json'))['task'];print('::error::Sonar analysis',t['status'],'-',t.get('errorMessage','no reason given by the server'))"
-                # A refused analysis on a MAIN push is a warning, not a failure; on a PULL REQUEST it
-                # stays fatal.
-                #
-                # The gate's whole purpose is to block a merge, and a merge is blocked on the pull
-                # request - which is also what this step's own header comment has always claimed it
-                # gates. Nothing is weakened by this: a PR whose analysis the server refuses still
-                # fails, so no unreviewed code reaches main behind a skipped rating.
-                #
-                # What it stops is main going red for a reason no commit can fix. SonarCloud refused
-                # the main-branch analysis outright because the organization would cross the free
-                # plan's 50,000-line limit (11,088 + 40,208 = 51,296) - a billing ceiling, not a
-                # finding. A permanently red main is the failure this repository has already paid for
-                # once: `retries: 1` on the a11y suite cried wolf until nobody looked, and hid a
-                # deterministic Dialog failure for as long as it sat there. A main that is red on
-                # every push teaches exactly that lesson again, faster.
                 if [ -z "${PR_NUMBER:-}" ]; then
                   echo "::warning::Sonar could not analyze main; the ratings below were NOT checked for this push. The gate still enforces on pull requests."
                   exit 0
@@ -585,34 +675,8 @@ jobs:
           api "$BASE&metricKeys=new_coverage&$SCOPE" coverage.json
           api "$BASE&metricKeys=new_lines_to_cover&$SCOPE" newlines.json
 
-          # Sonar's own per-condition verdicts. Read from the quality gate rather than recomputed,
-          # so the ratings enforced here are exactly the ones Sonar computed - no second opinion to
-          # drift out of step with the dashboard.
           api "https://sonarcloud.io/api/qualitygates/project_status?projectKey=ZaidEng7_mots-supplier-portal&$SCOPE" gate.json
 
-          # Whole-project measures, REPORTED ONLY - see the note in the python block below.
-          #
-          # Task #12/PR #28: this call used to omit scope entirely (falling back, silently, to
-          # whatever SonarCloud's api/measures/component defaults to with neither `branch` nor
-          # `pullRequest` given - the project's default branch, main, as last analyzed). On a PR run
-          # that read main from BEFORE the PR being gated, while every other figure in this step
-          # (new_coverage, the quality gate conditions) correctly used $SCOPE. PR #28 reported 13251
-          # lines/49.6% coverage here while the PR's own actual post-merge state was 14693/51.4%.
-          #
-          # The obvious-looking fix - pass $SCOPE here too, so a PR reads `pullRequest=$PR_NUMBER` -
-          # is NOT correct, and was caught only by testing it: SonarCloud's own docs (Pull request
-          # analysis) state plainly that PR analysis computes NEW-CODE metrics only; overall/
-          # whole-project metrics like plain `ncloc`/`coverage`/`security_rating` are not meaningfully
-          # populated for a pull-request-type component. Verified live before settling on this:
-          # querying with `pullRequest=N` on a real PR returned ncloc=376 for a ~15,300-line
-          # codebase - not "the PR's merged state", a near-arbitrary small number, worse than the
-          # original staleness because it now looks precise while being meaningless.
-          #
-          # So there is no PR-scoped whole-project reading to fall back to - this genuinely CANNOT
-          # reflect "the project as this PR would leave it" via this API, for any PR, ever. The
-          # honest fix is the one the ticket allowed for exactly this case: keep reading main (the
-          # only branch type these metrics are real for), make that explicit rather than an
-          # accidental default, and label the output so nobody mistakes it for the PR's own state.
           api "$BASE&metricKeys=security_rating,reliability_rating,sqale_rating,coverage,duplicated_lines_density,ncloc&branch=main" overall.json
 
           python3 - <<'PYEOF'
@@ -656,13 +720,8 @@ jobs:
                   print(f"  (could not list issues: {exc})")
                   return []
 
-          # on_pull_request decided here - the ENFORCED loop below needs it, not only the
-          # coverage section further down.
           on_pull_request = bool(os.environ.get("PR_NUMBER"))
 
-          # ---- Sonar's own conditions --------------------------------------------------------
-          # Ratings are 1=A 2=B 3=C 4=D 5=E. new_coverage is excluded here because it is judged
-          # below against our floor rather than Sonar's unmeetable 80%.
           RATINGS = {"1": "A", "2": "B", "3": "C", "4": "D", "5": "E"}
           ENFORCED = {
               "new_security_rating":          "Security rating on new code",
@@ -673,14 +732,9 @@ jobs:
           gate = json.load(open("gate.json")).get("projectStatus", {})
           conditions = gate.get("conditions", [])
           if not conditions:
-              # Same rule as everywhere else in this workflow: a check that could not evaluate must
-              # not report a pass.
               print("::error::Quality gate returned no conditions - the check did not run")
               sys.exit(1)
 
-          # Read BEFORE the ENFORCED loop, because whether a missing condition is a real
-          # enforcement loss or an expected absence depends on whether there was any new code
-          # for these conditions to be computed over.
           new_lines = measure("newlines.json") or "0"
           has_new_code = float(new_lines) > 0
 
@@ -694,32 +748,8 @@ jobs:
               shown = RATINGS.get(actual, actual) if key.endswith("_rating") else actual
               print(f"{ENFORCED[key]}: {shown} ({status})")
               if status == "ERROR":
-                  # PULL REQUESTS ONLY, for the identical reason the coverage floor further down
-                  # is PR-only - and found the same way that reasoning was found the first time:
-                  # by main's own push analysis going red.
-                  #
-                  # On a pull request, Sonar's "new code" is the diff, which is what these ratings
-                  # are meant to judge. On a push to main it is whatever the new-code period says,
-                  # and on a project this young almost any period covers nearly the whole history -
-                  # the push right after this fix landed reported 5,327 "new" lines and failed
-                  # Reliability (C) and Duplication (3.4%) over effectively the entire codebase.
-                  # That is overall quality wearing a new-code label, which is exactly what the
-                  # coverage exemption below was already written to prevent - it had simply never
-                  # been needed for the rating conditions before, because the previous 7-day
-                  # window kept main's new-code set small by accident on a project pushing daily.
-                  #
-                  # Every change still reaches main through a PR, where these ARE enforced, so
-                  # nothing escapes review. Only main's own after-the-fact analysis is exempted.
                   if on_pull_request:
                       failures.append(f"{ENFORCED[key]} = {shown}")
-                      # NAME the issues, not just the grade.
-                      #
-                      # This gate reported "Reliability rating on new code: C (ERROR)" and nothing
-                      # else, so the only way to find out WHICH rule fired was to open SonarCloud -
-                      # which needs an account. Two commits were spent guessing at the diff (both
-                      # fixed real defects, but neither was the one Sonar meant). The token is already
-                      # in this step; printing the issues costs one request and turns a letter grade
-                      # into something actionable from the log alone.
                       if key.endswith("_rating"):
                           quality = "RELIABILITY" if "reliability" in key else "SECURITY"
                           issues = issues_for(quality)
@@ -736,14 +766,6 @@ jobs:
                       print(f"  (not enforced on main - see MSP-70; this metric on this branch "
                             f"is currently rating the whole project, not a diff)")
 
-          # If Sonar stops reporting a condition we rely on, that is a silent loss of enforcement -
-          # UNLESS there was no new code at all, in which case Sonar legitimately has nothing to
-          # rate (a docs-only PR has zero lines in any CPD-eligible language, so
-          # new_duplicated_lines_density is not computed, while Reliability/Security default to a
-          # trivial pass on an empty diff and DO still get reported - this asymmetry is real Sonar
-          # behaviour, not a bug, and was found by this exact audit PR failing on itself).
-          #
-          # Fail loudly only when a condition goes missing WHILE there was code for it to judge.
           missing = [k for k in ENFORCED if k not in seen]
           if missing and has_new_code:
               print(f"::error::Quality gate no longer reports {', '.join(missing)} - enforcement would be silently reduced")
@@ -751,31 +773,13 @@ jobs:
           elif missing:
               print(f"  ({', '.join(missing)} not reported - no new code in any CPD-eligible language, nothing to rate)")
 
-          # ---- Coverage, against our floor rather than Sonar's ------------------------------
           threshold = float(os.environ["THRESHOLD"])
           coverage = measure("coverage.json")
 
-          # The floor applies to PULL REQUESTS ONLY, and that is a correctness fix, not a softening.
-          #
-          # On a pull request, Sonar's "new code" is the diff - exactly what the floor is meant to
-          # judge. On main it is whatever the new-code period says, and this project's period is
-          # "Previous version" with no version tags, so main's new code is essentially the entire
-          # codebase: the first run of this check on main reported 28.9% over 4687 new lines to
-          # cover and failed. That is the OVERALL coverage number wearing a new-code label, and
-          # gating overall coverage is the one thing we explicitly agreed not to do yet.
-          #
-          # Every change reaches main through a pull request, where the floor did apply, so nothing
-          # escapes it. The Sonar ratings above still run on main, because those are meaningful
-          # there. Fixing the new-code period is a separate known follow-up; when it is fixed this
-          # exemption should be revisited rather than left as scar tissue.
           if not on_pull_request:
               print(f"Coverage: {coverage}% over {new_lines} new lines - floor not applied on main "
                     f"(see comment above).")
 
-          # A check that could not measure must not report a pass. The one genuine exception is an
-          # empty new-code set - Sonar omits the measure when there is nothing to cover, and this
-          # project also ignores coverage conditions below 20 new lines. That is an absent
-          # measurement, not a failing one, so it is distinguished explicitly.
           if not on_pull_request:
               pass
           elif coverage is None:
@@ -790,39 +794,6 @@ jobs:
               if coverage < threshold:
                   failures.append(f"new-code coverage {coverage}% < {threshold}% floor - add tests, do not lower the floor")
 
-          # ---- Whole-project state: REPORTED, NOT ENFORCED ---------------------------------
-          # New-code conditions above are what stop things getting worse, and they are achievable
-          # today. These whole-project numbers cannot pass until the existing debt is actually
-          # fixed, and a gate that cannot pass gets ignored - the failure this project has already
-          # produced more than once. So they are printed, not enforced.
-          #
-          # They are printed at all because Phase 3 should be able to watch them move as fixes land,
-          # rather than working blind and finding out at the end. Same lesson as MSP-70 one level
-          # up: build the instrument before the repair work, not after.
-          #
-          # Task #12: this section ALWAYS reads main's own last analysis (the api call above is
-          # pinned to branch=main explicitly), on a PR run included. SonarCloud does not compute
-          # whole-project (non-new-code) metrics for pull request analysis at all - confirmed against
-          # Sonar's own docs and by testing it directly - so there is no PR-specific version of these
-          # numbers to show; main's is the only one that is ever real. The label says so plainly
-          # instead of implying "this PR" the way the old unscoped call accidentally did.
-          #
-          # TASK #13 - DECIDED, PHASE 4 CLOSED (2026-08-30): these stay reporting-only. NOT flipped
-          # to blocking. Zaid's decision, made on Task #12's finding directly above: a whole-project
-          # metric that only ever reflects main's PAST state, never the PR actually being reviewed,
-          # is not something a PR can pass or fail on its own content - blocking on it would judge
-          # every open PR identically off a number that PR cannot move no matter what it contains.
-          # That is a different thing from a quality gate, whatever it is labeled, and building a
-          # second one when the project already has a real, PR-specific gate (the 45% new-code
-          # coverage ratchet above, proven correct and used successfully on every PR this arc) would
-          # be exactly the instrument-over-nothing pattern this whole Phase 4 audit exists to remove
-          # (see MSP-83, EndpointAuthorizationCoverageTests.cs: an instrument that cannot measure
-          # what it claims to gate is worse than no instrument, because it reads as coverage that
-          # is not there). These numbers remain printed because watching whole-project debt move
-          # over time is still useful - just never as a block. This closes Phase 4; there is no
-          # further exit condition pending on this file. If this decision needs revisiting, that is
-          # a new decision to make deliberately, not a default this comment should silently expire
-          # into - see MSP-70 for the full record.
           print("")
           print("Whole project on main (reported, not enforced by decision - Task #13/Phase 4 closed "
                 "2026-08-30; this always reads main's own last analysis, never a PR's - see comment "
@@ -844,8 +815,6 @@ jobs:
               overall = {}
 
           if not overall:
-              # Not a failure - these are advisory. But say so, rather than printing nothing and
-              # letting an empty section read as "no problems".
               print("  (whole-project measures unavailable this run)")
           else:
               for key, label, is_rating in LABELS:
@@ -866,20 +835,6 @@ jobs:
           print("Quality gate passed (Sonar ratings + 45% coverage floor).")
           PYEOF
 
-  # ---------------------------------------------------------------------------------------------
-  # MSP-94: restored. This job and `docker-build` below were deleted by PR #7 (ed49a99) when CI was
-  # consolidated into a single job for the Sonar scanner's benefit. That commit's message is long
-  # and careful about the coverage ratchet and does not mention the removal.
-  #
-  # For a day afterwards CI ran no typecheck, no lint, no `npm run build`, no accessibility suite
-  # and no container build. Nothing was red - the checks were ABSENT, and absence renders as a green
-  # PR summary. Both "green tests, red build" entries on MSP-83 were caught by `npm run build`, so
-  # for that day the only thing standing behind them was a person remembering to run it locally.
-  #
-  # The job NAMES matter as much as the steps: branch protection binds to names, so the protection
-  # plan written against `Frontend (React)` and `Container image build` would have been configured
-  # against checks that did not exist.
-  # ---------------------------------------------------------------------------------------------
   frontend:
     name: Frontend (React)
     runs-on: ubuntu-latest
@@ -895,35 +850,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: src/frontend/package-lock.json
 
-      # githubactions:S6505 - lifecycle scripts of dependencies execute arbitrary code during
-      # install. Verified the build still succeeds without them (esbuild's postinstall is not
-      # load-bearing here; the platform binary arrives via optionalDependencies).
       - name: Install
         run: npm ci --ignore-scripts
 
-      # githubactions:S6505/S8543 - every tool below is invoked through an npm script so it
-      # resolves from the lockfile-pinned node_modules. `npx` was fetching-and-executing whatever
-      # version happened to be published at build time, which in a CI pipeline is a supply-chain
-      # exposure, not a style preference.
-      # MSP-95: npx is FORBIDDEN in this workflow, and this step is why.
-      #
-      # Stage 1 removed every npx call in favour of lockfile-pinned npm scripts, because npx
-      # fetches and executes whatever version is published at that moment - a supply-chain
-      # exposure in CI, not a style preference (githubactions:S6505/S8543). A comment saying so
-      # already sat in this file.
-      #
-      # It did not work. On this very ticket I wrote `npx oxlint` NINETEEN LINES below that
-      # comment, and what caught it was the Sonar gate turning Security-on-new-code to C - an
-      # instrument, not the comment. Stage 1's removal was reversible by anyone, including us,
-      # in under a minute.
-      #
-      # So: a grep, which cannot be read past.
       - name: Forbid unpinned tool invocation in CI
         run: |
           set -euo pipefail
-          # Pattern assembled from a variable so this step does not match itself, and comment
-          # lines are stripped so the explanation above does not trip it either. Both of those
-          # are the difference between a guard that works and one that fails on its own text.
           TOOL="npx"
           if grep -vE '^[[:space:]]*#' .github/workflows/*.yml \
              | grep -nE "(^|[^a-zA-Z_-])$TOOL "; then
@@ -937,23 +869,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # MSP-95: lint, WITH its denominator asserted.
-      #
-      # oxlint prints no summary and no file count by default - it reports diagnostics and
-      # nothing else, so a run that linted zero files is indistinguishable from a clean one.
-      # That is the fifth instrument in this repository found reporting over an unstated set,
-      # and `tsc --noEmit` spent the life of the project in exactly that position.
-      #
-      # The JSON reporter carries number_of_files and number_of_rules. Both are asserted here,
-      # so choosing rules deliberately cannot be undone later by the step silently linting
-      # nothing.
       - name: Lint
         run: |
           set -euo pipefail
-          # Through an npm script, NOT npx - see the S6505/S8543 note above. That comment sits
-          # 19 lines from here and I introduced the exposure it warns about anyway; the Sonar
-          # gate caught it as "Security rating on new code = C". An accurate comment beside the
-          # hazard is not a control, which is the argument this project keeps making to itself.
           npm run --silent lint:json > lint.json || true
 
           files=$(jq -r '.number_of_files' lint.json)
@@ -974,44 +892,15 @@ jobs:
             exit 1
           fi
 
-          # The gate itself. Warnings are deliberately advisory - see .oxlintrc.json.
           npm run lint
 
-      # Kept separate from the vitest run in the backend job on purpose. Vitest passing while the
-      # build fails is a real, recorded pathology here - TS18048 and `extends RenderResult` both
-      # did exactly that - so the type-checking build is its own gate, not a by-product.
       - name: Build
         run: npm run build
 
-      # Task #20/MSP-47: real again, not restored-but-unwired. @lhci/cli was reinstalled (see
-      # MSP-80's advisory triage on the backend job's "Dependency scan (npm)" step) and this is the
-      # first workflow step that has ever actually invoked it - PR #8's own commit message noted
-      # the tool sat in package.json unused, no step called it, before it was removed entirely.
-      #
-      # Advisory, not blocking - continue-on-error is deliberate, not an oversight:
-      #   1. This is the first measurement after a long gap with no signal at all. There is no
-      #      established baseline yet to call a "regression" against.
-      #   2. Shared GitHub Actions runners have real CPU/network variance run to run; a strict gate
-      #      on a LCP threshold here risks becoming exactly the pattern this codebase has already
-      #      named and rejected once - `retries: 1` on the a11y suite (MSP-79) cried wolf until
-      #      nobody looked, and hid a real deterministic failure. A noisy required check trains
-      #      people to stop reading it.
-      #   3. Same precedent as Task #13's decision on the whole-project Sonar ratings: a
-      #      measurement-only signal is reported, not enforced, until it has proven itself stable
-      #      on merit over real runs.
-      #
-      # lighthouserc.json's own assertions (LCP <= 2500ms, CLS <= 0.1) still run and still fail the
-      # STEP's own exit code on a violation - that is what makes the printed numbers meaningful
-      # rather than decorative - continue-on-error only stops that from failing the JOB.
       - name: Lighthouse CI (LCP/CLS, advisory)
         run: npm run lhci
         continue-on-error: true
 
-      # `lhci autorun` itself never prints the numeric LCP/CLS values to the log - only pass/fail
-      # per assertion, and only on failure. A measurement nobody can actually read back out of the
-      # log is barely better than the "unmeasured" state this whole task exists to close - the
-      # NFR-PERF-003 audit line needs a real number, not "the step exited 0". `if: always()` so a
-      # violation still gets its numbers printed, not just silence.
       - name: Print Lighthouse LCP/CLS results
         if: always()
         working-directory: src/frontend
@@ -1030,9 +919,6 @@ jobs:
       - name: Install Playwright browsers
         run: npm run e2e:install
 
-      # The repository's only accessibility gate. MSP-79 removed a masking retry from this suite,
-      # which exposed UI/Dialog failing 6 of 6 deterministically, and proved 10 consecutive green
-      # runs - and then the suite stopped running two hours later when this job was deleted.
       - name: Playwright smoke + axe a11y checks
         run: npm run test:e2e
         env:
@@ -1049,13 +935,8 @@ jobs:
   docker-build:
     name: Container image build
     runs-on: ubuntu-latest
-    # No `needs:`. This job checks out the source and runs `docker build` against the Dockerfile -
-    # it consumes nothing the `backend` job produces, so waiting eight minutes to spend forty
-    # seconds bought only the ordering of two independent failures. A broken Dockerfile now reports
-    # at the same time as a broken test rather than after it.
     steps:
       - uses: actions/checkout@v4
 
-      # The container is the deployment artifact. Without this a broken Dockerfile ships.
       - name: Build API image
         run: docker build -f src/backend/Api/Dockerfile -t mots-supplier-portal-api:ci src/backend

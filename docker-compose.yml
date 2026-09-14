@@ -1,13 +1,24 @@
-name: mots-supplier-portal
-
-# NFR-SEC-007 / yaml:S2068. Credentials are read from the environment with a dev-only default,
-# so this file never has to be edited to carry a real one. The defaults below are for the local
-# stack on a developer machine only - they are deliberately weak and well-known.
+# The local development stack: PostgreSQL, MinIO, ClamAV and a mail catcher.
 #
-# There is no production or staging compose file in this repository (verified 2026-08-28), and
-# production is NOT deployed from this file. When a real environment is built it must supply
-# these via a secret store; the wiring for that does not exist yet and is tracked as a
-# deployment-readiness item, not an assumption.
+# NFR-SEC-007 and yaml:S2068. Every credential here is read from the environment with a dev-only
+# default, so this file never has to be edited to carry a real one. The defaults are for the local
+# stack on a developer machine and are deliberately weak and well known.
+#
+# There is no production or staging compose file in this repository, verified 2026-08-28, and
+# production is NOT deployed from this file. A real environment must supply these through a secret
+# store. That wiring does not exist yet and is tracked as a deployment-readiness item rather than
+# assumed to be in place.
+#
+# minio is pinned to quay.io. Docker Hub no longer serves minio/minio at all, a change that also
+# had to be made in PostgresApiFixture.cs, where it took CI down.
+#
+# mailhog is Task #35: an SMTP catcher for development and test. It accepts any mail with no
+# authentication and is never a real destination, with a web interface on :8025 for reading what
+# was actually sent. Real environments point Smtp:Host, Smtp:User and Smtp:Password at a provider
+# through appsettings or the secret store. The dev-only rule above applies to it trivially, since
+# MailHog has no credential to carry in the first place.
+
+name: mots-supplier-portal
 
 services:
   postgres:
@@ -27,8 +38,6 @@ services:
       retries: 10
 
   minio:
-    # quay.io, pinned. Docker Hub no longer serves minio/minio at all - see the same change in
-    # PostgresApiFixture.cs, where it took CI down.
     image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address ":9001"
     environment:
@@ -59,11 +68,6 @@ services:
       retries: 20
       start_period: 180s
 
-  # Task #35: local SMTP catcher for dev/test. Accepts any mail with no auth (never a real
-  # destination), web UI at :8025 to read what was actually sent. Real environments configure
-  # Smtp:Host/User/Password to a real provider via appsettings/secret store - the same "the
-  # defaults here are dev-only, this file never carries a real credential" rule as the rest of
-  # this file applies here too, trivially, since MailHog has no credential to carry at all.
   mailhog:
     image: mailhog/mailhog:latest
     ports:
