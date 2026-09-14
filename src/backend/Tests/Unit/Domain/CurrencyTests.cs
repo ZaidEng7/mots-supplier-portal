@@ -1,7 +1,9 @@
-using FluentAssertions;
-using MotsSupplierPortal.Domain.ReferenceData;
+// The currency reference record.
 
 namespace MotsSupplierPortal.Tests.Unit.Domain;
+
+using FluentAssertions;
+using MotsSupplierPortal.Domain.ReferenceData;
 
 public class CurrencyTests
 {

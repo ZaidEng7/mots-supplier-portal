@@ -1,3 +1,104 @@
+// Generates the permission catalogue at the repository root, and fails when it drifts from the code.
+//
+//
+// WHY A TEST AND NOT A SCRIPT
+//
+// Every permission in this product is an invention against codebase convention. No document ratifies a single
+// one of them, so whoever owns that decision needs the whole set in one place to be able to answer at all.
+//
+// A hand-maintained list is the defect this project has already fixed twice, in the notification catalogue and
+// the reference-data seeds: it drifts, and the drift is invisible.
+//
+// So the file is generated from the permission constants, the default role map, and the actual gate call sites.
+// A renamed permission either regenerates the file or turns this test red. Setting the update environment
+// variable rewrites the file instead of asserting.
+//
+// The comparison normalises line endings only. The content itself must match exactly, because the point of the
+// file is that it is derived rather than curated.
+//
+//
+// EVERY CONSTANT MUST BE IN THE PUBLISHED LIST
+//
+// The catalogue is generated from that list, so a constant missing from it would be invisible in the file AND
+// ungated by the roles map, which is the exact drift the generator exists to prevent, one level up.
+//
+// Values without a dot are role names rather than permissions, and are excluded.
+//
+//
+// THE GATES ARE READ FROM SOURCE, NOT FROM THE ROUTE TABLE
+//
+// Building the route table needs the whole host: a database, a job server, a clean startup. An architecture
+// test that boots the application is a test that fails for reasons unrelated to what it asserts.
+//
+// The pairing being read, a permission requirement and the route name that follows it, is mechanical and
+// adjacent in every one of the hundred-and-forty-odd call sites.
+//
+// Three other shapes are read as well, each because the first version of the catalogue got it wrong:
+//
+// A GROUP-level gate covers every route in the group and the per-route name is what names them. The pair above
+// misses it, and the first generated catalogue said "no route" about a permission that gates six live routes
+// through exactly that shape. A catalogue reporting a live permission as dead is the kind of artefact asserting
+// something untrue that this project keeps deleting.
+//
+// A route whose NAME is a variable rather than a literal, where one loop maps four routes. It is recorded
+// against the file, because the name only exists at runtime and the honest answer is "this file's routes"
+// rather than "nothing".
+//
+// A permission checked INSIDE a handler rather than on a route. One rule is the whole reason that pass exists:
+// extending a deadline belongs to the officer and shortening it to the manager, so the route cannot carry
+// either permission and the handler decides from the requested value. It is reported as a handler check rather
+// than as "no route", because "no route" reads as dead code and this one guards a live rule.
+//
+//
+// COMMENTS ARE STRIPPED BEFORE MATCHING, AND THAT IS NOT TIDINESS
+//
+// The pair allows a bounded run of characters between a permission requirement and the route name it guards.
+//
+// A long block comment placed between them, explaining say why ten routes were guarded and four were not,
+// exceeds that bound, and the pair silently stops matching. The catalogue then reports the route as ungated,
+// which is the exact class of artefact-asserting-something-untrue this file exists to prevent.
+//
+// It happened while another change was being written, and the only reason it was noticed is that the
+// regenerated file was diffed by hand. The catalogue reported one permission as gating a single route when it
+// gates three, and dropped a route from another permission entirely. A generated document that under-reports
+// which routes a permission guards is worse than no document: it is the artefact somebody is meant to ratify,
+// and it was quietly wrong.
+//
+// Reading code with the prose removed also makes the bound mean what it looks like it means: characters of
+// CODE between a gate and its name, not characters of either.
+//
+// The variable-name form of the pair - the lifecycle family's `.WithName(name)` - allowed only whitespace
+// between the two calls until the same lesson reached it. The day a `.Validate<T>()` was declared between
+// the gate and the name it silently stopped matching, and the catalogue dropped all four of
+// `supplier.lifecycle.manage`'s routes, reporting a live permission as reaching none. Caught, again, only
+// by diffing the regenerated file. It now allows the same bounded run of code the named form does.
+//
+// TWO forms, because two passes want different things. The group-gate scan indexes into the text and reads
+// forward from that offset, so it needs positions preserved and comments are blanked in place rather than
+// removed, with newlines kept so line-based reasoning still holds. The gate-and-name pair does not care about
+// offsets and does care about length, so it reads a whitespace-collapsed copy: blanking a two-thousand-character
+// comment to two thousand spaces would leave the bound just as exceeded as the comment did, which is how the
+// first version of this fix still lost a route.
+//
+// String literals are tracked while stripping, because this codebase's routes and its comments both contain a
+// double slash: a naive strip would cut a URL in half and take the rest of the line with it, quietly removing
+// real gates. Verbatim and raw string literals are not handled and do not need to be, because no route pattern
+// or permission constant uses one; if that changes, the pass leaves them alone rather than mangling them,
+// because an unrecognised quote simply starts an ordinary string.
+//
+//
+// TWO CONTROLS, EACH ASSERTING THE MECHANISM RATHER THAN THE FILE
+//
+// The first builds a gate with an over-long comment between it and its route name, shows that the raw pair
+// really is defeated by it, and then shows the stripped copy matching. So it fails on the mechanism even if
+// the catalogue happens to have been regenerated.
+//
+// The second passes a route pattern containing a double slash and asserts that the pattern survives while the
+// trailing comment does not, which is the reason the stripper tracks string literals instead of using a pattern
+// match.
+
+namespace MotsSupplierPortal.Tests.Architecture;
+
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -5,21 +106,6 @@ using FluentAssertions;
 using MotsSupplierPortal.Domain.Identity;
 using Xunit;
 
-namespace MotsSupplierPortal.Tests.Architecture;
-
-/// <summary>
-/// A-16 (batch 10): generates <c>PERMISSIONS.md</c> at the repository root and fails when it drifts.
-///
-/// <para><b>Why a test and not a script.</b> Every permission in this product is an invention against
-/// codebase convention — no document ratifies a single one of them — so the doc owner needs the whole
-/// set in one place to be able to answer at all. A hand-maintained list is the defect this project has
-/// already fixed twice (the notification catalogue, the reference-data seeds): it drifts, and the drift
-/// is invisible. Generated from <see cref="Permissions"/>, <see cref="Roles.DefaultPermissions"/> and
-/// the actual <c>RequirePermission</c> call sites, so a renamed permission either regenerates the file
-/// or turns this test red.</para>
-///
-/// <para>Set <c>UPDATE_PERMISSION_CATALOGUE=1</c> to rewrite the file instead of asserting.</para>
-/// </summary>
 public sealed partial class PermissionCatalogueTests
 {
     private static string RepositoryRoot()
@@ -48,8 +134,6 @@ public sealed partial class PermissionCatalogueTests
         }
 
         File.Exists(path).Should().BeTrue("PERMISSIONS.md is generated - run with UPDATE_PERMISSION_CATALOGUE=1");
-        // Normalised on line endings only: the content itself must match exactly, because the point of
-        // the file is that it is derived rather than curated.
         Normalise(File.ReadAllText(path)).Should().Be(Normalise(generated),
             "PERMISSIONS.md has drifted from the code. Re-run this test with UPDATE_PERMISSION_CATALOGUE=1.");
     }
@@ -57,13 +141,9 @@ public sealed partial class PermissionCatalogueTests
     [Fact]
     public void Every_permission_constant_is_in_the_All_list()
     {
-        // The catalogue is generated from All, so a constant missing from it would be invisible in the
-        // file AND ungated by the roles map - the exact drift the generator exists to prevent, one
-        // level up.
         var declared = typeof(Permissions).GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(f => f.IsLiteral && f.FieldType == typeof(string))
             .Select(f => (string)f.GetRawConstantValue()!)
-            // Roles.* style values are not permissions; permissions are resource.action.
             .Where(v => v.Contains('.', StringComparison.Ordinal))
             .ToHashSet(StringComparer.Ordinal);
 
@@ -75,17 +155,6 @@ public sealed partial class PermissionCatalogueTests
     [Fact]
     public void A_comment_between_a_gate_and_its_route_name_does_not_hide_the_gate()
     {
-        // This was a real defect in the generated file, not a hypothetical. The gate/name pair bounds
-        // the characters allowed between the two calls, and three routes had a long block comment
-        // sitting there - explaining why `request-clarification` is a deliberate §8.1 exception, and
-        // why ten RFQ child writes were guarded and four were not. The pair silently stopped matching,
-        // and PERMISSIONS.md reported `rfq.clarify` as gating ONE route when it gates three, and
-        // dropped `AddRfqItem` from `rfq.edit` entirely.
-        //
-        // A generated document that under-reports which routes a permission guards is worse than no
-        // document: it is the artifact A-16 exists to let somebody ratify, and it was quietly wrong.
-        // Blanking comments before matching is the fix; this asserts the fix rather than the file, so
-        // it fails on the mechanism even if the catalogue happens to be regenerated.
         const string withComment = """
             group.MapPost("/{code}/items", Handler)
             .RequirePermission(Permissions.RfqEdit)
@@ -103,8 +172,6 @@ public sealed partial class PermissionCatalogueTests
             .WithName("AddRfqItem");
             """;
 
-        // The control, in the same test: the raw pair really is defeated by the comment, so the
-        // assertion below is the fix working rather than a regex that would have matched anyway.
         GateAndName().Matches(withComment).Should().BeEmpty();
 
         var matched = GateAndName().Matches(CollapseWhitespace(WithoutComments(withComment)));
@@ -117,10 +184,6 @@ public sealed partial class PermissionCatalogueTests
     [Fact]
     public void Stripping_comments_does_not_cut_a_string_containing_a_double_slash()
     {
-        // The control, and the reason the stripper tracks string literals instead of using a regex: a
-        // naive strip would cut `"https://..."` at the `//` and take the rest of the line with it -
-        // removing a real gate while looking like it removed a comment. Both this codebase's route
-        // patterns and its comments contain `//`.
         const string withUrl = """
             group.MapGet("https://example.test/callback", Handler) // a trailing comment
             .RequirePermission(Permissions.RfqRead)
@@ -172,7 +235,6 @@ public sealed partial class PermissionCatalogueTests
                 ? string.Join(", ", holders[permission].Select(r => $"`{r}`"))
                 : "**no role**";
             var routes = gatedBy.TryGetValue(permission, out var names) && names.Count > 0
-                // Route names are code and are quoted; a prose note about where a check lives is not.
                 ? string.Join(", ", names.OrderBy(n => n, StringComparer.Ordinal)
                     .Select(n => n.StartsWith("checked in ", StringComparison.Ordinal) ? n : $"`{n}`"))
                 : "**no route**";
@@ -195,26 +257,12 @@ public sealed partial class PermissionCatalogueTests
         return sb.ToString();
     }
 
-    /// <summary>
-    /// Maps each permission to the endpoint NAMES it gates, read from the Api source.
-    ///
-    /// <para>Source text rather than reflection over the route table: building the route table needs
-    /// the whole host (a database, Hangfire, a Sonar-clean startup), and an architecture test that
-    /// boots the application is a test that fails for reasons unrelated to what it asserts. The
-    /// pairing being read - a <c>RequirePermission</c> and the <c>WithName</c> that follows it - is
-    /// mechanical and adjacent in every one of the 140-odd call sites.</para>
-    /// </summary>
     private static Dictionary<string, List<string>> GateSites(string root)
     {
         var apiDir = Path.Combine(root, "src", "backend", "Api");
         var infrastructureDir = Path.Combine(root, "src", "backend", "Infrastructure");
         var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
-        // A permission checked INSIDE a handler rather than on the route. `rfq.deadline.shorten` is the
-        // whole reason this pass exists: BRULE-035 gives extension to the officer and shortening to the
-        // manager, so the route cannot carry either permission and the handler decides from the
-        // requested value (T-018). Reported as a handler check rather than as "no route", because "no
-        // route" reads as dead code and this one guards a live rule.
         foreach (var file in Directory.EnumerateFiles(infrastructureDir, "*.cs", SearchOption.AllDirectories))
         {
             if (IsBuildOutput(file)) continue;
@@ -236,25 +284,6 @@ public sealed partial class PermissionCatalogueTests
         {
             if (IsBuildOutput(file)) continue;
 
-            // Comments STRIPPED before matching, and this is not tidiness.
-            //
-            // The pair below allows a bounded run of characters between a RequirePermission and the
-            // WithName it guards. A long block comment placed between them - explaining, say, why ten
-            // routes were guarded and four were not - exceeds that bound, and the pair silently stops
-            // matching: the catalogue then reports the route as ungated, which is the exact class of
-            // artifact-asserting-something-untrue this file exists to prevent. It happened while
-            // T-030 split (2) was being written, and the only reason it was noticed is that the
-            // regenerated file was diffed by hand.
-            //
-            // Reading code with the prose removed also makes the bound mean what it looks like it
-            // means: 600 characters of CODE between a gate and its name, not 600 characters of either.
-            //
-            // TWO forms, because two passes want different things. The group-gate scan below indexes
-            // into the text and reads FORWARD from that offset, so it needs positions preserved -
-            // comments are blanked in place, not removed. The gate/name pair does not care about
-            // offsets and does care about length, so it reads a whitespace-collapsed copy: blanking a
-            // 2,000-character comment to 2,000 spaces would leave the bound just as exceeded as the
-            // comment did, which is how the first version of this fix still lost `AddRfqItem`.
             var text = WithoutComments(File.ReadAllText(file));
             var codeOnly = CollapseWhitespace(text);
 
@@ -271,11 +300,6 @@ public sealed partial class PermissionCatalogueTests
                 Record(match.Groups["permission"].Value, match.Groups["name"].Value);
             }
 
-            // A GROUP-level gate covers every route in the group, and the per-route WithName is what
-            // names them. Missed by the pair above, and the first generated catalogue said "no route"
-            // about `evaluation.template.manage`, which gates six live routes through exactly this
-            // shape. A catalogue that reports a live permission as dead is the kind of artifact
-            // asserting something untrue that this project keeps deleting, so the shape is read too.
             foreach (var group in GroupGate().Matches(text).Cast<Match>())
             {
                 foreach (var name in RouteName().Matches(text[group.Index..]).Cast<Match>())
@@ -284,10 +308,6 @@ public sealed partial class PermissionCatalogueTests
                 }
             }
 
-            // A route whose NAME is a variable rather than a literal - the supplier-lifecycle family
-            // maps four routes from one loop, `.WithName(name)`. Recorded against the file, because
-            // the name only exists at runtime and the honest answer is "this file's routes", not
-            // "nothing".
             foreach (var variable in GateAndVariableName().Matches(codeOnly).Cast<Match>())
             {
                 Record(variable.Groups["permission"].Value,
@@ -307,20 +327,6 @@ public sealed partial class PermissionCatalogueTests
             ? (string?)field.GetRawConstantValue()
             : null;
 
-    /// <summary>
-    /// The same source with <c>//</c> and <c>/* */</c> comments blanked out, string literals intact.
-    ///
-    /// <para>Replaced with spaces rather than deleted, so every offset in the result still lines up
-    /// with the original - the group-gate scan below indexes into this text and then reads forward
-    /// from that position.</para>
-    ///
-    /// <para>String literals are tracked because this codebase's routes and comments both contain
-    /// <c>//</c>: a naive strip would cut <c>"https://..."</c> in half and take the rest of the line
-    /// with it, quietly removing real gates. Verbatim strings (<c>@"..."</c>) and raw string literals
-    /// are not handled, and do not need to be - no route pattern or permission constant in Api uses
-    /// one; if that changes, the pass below leaves them alone rather than mangling them, because an
-    /// unrecognised quote simply starts an ordinary string.</para>
-    /// </summary>
     private static string WithoutComments(string source)
     {
         var output = source.ToCharArray();
@@ -353,7 +359,6 @@ public sealed partial class PermissionCatalogueTests
             {
                 var end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
                 var stop = end < 0 ? source.Length : end + 2;
-                // Newlines are kept so line-based reasoning about the file still holds.
                 for (; i < stop; i++) if (output[i] != '\n') output[i] = ' ';
                 i--;
             }
@@ -362,42 +367,25 @@ public sealed partial class PermissionCatalogueTests
         return new string(output);
     }
 
-    /// <summary>Runs of whitespace to a single space. Offsets are NOT preserved - only the pass that
-    /// bounds the distance between a gate and its name uses this.</summary>
     private static string CollapseWhitespace(string source) =>
         Whitespace().Replace(source, " ");
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Whitespace();
 
-    /// <summary>A RequirePermission and the WithName that names the route it guards, in that order.
-    /// Non-greedy across the fluent calls between them, and bounded so it cannot pair a permission
-    /// with a name from the NEXT endpoint when a route has no WithName of its own.</summary>
     [GeneratedRegex(@"RequirePermission\(Permissions\.(?<permission>\w+)\)(?<between>[^;]{0,600}?)\.WithName\(""(?<name>[^""]+)""\)",
         RegexOptions.Singleline)]
     private static partial Regex GateAndName();
 
-    /// <summary>A group-level gate: <c>MapGroup(...)...RequirePermission(P)</c>, which covers every
-    /// route mapped on that group.</summary>
     [GeneratedRegex(@"MapGroup\([^;]{0,400}?RequirePermission\(Permissions\.(?<permission>\w+)\)", RegexOptions.Singleline)]
     private static partial Regex GroupGate();
 
-    /// <summary>Any literal route name, used to enumerate what a group-level gate covers.</summary>
     [GeneratedRegex(@"\.WithName\(""(?<name>[^""]+)""\)")]
     private static partial Regex RouteName();
 
-    /// <summary>A permission consulted inside a handler: <c>HasPermission(Permissions.X)</c>.</summary>
     [GeneratedRegex(@"HasPermission\(Permissions\.(?<permission>\w+)\)|\?\s*Permissions\.(?<alternative>\w+)\s*:\s*Permissions\.\w+")]
     private static partial Regex HandlerCheck();
 
-    /// <summary>A gate whose route name is a variable, e.g. the lifecycle family's `.WithName(name)`.
-    ///
-    /// <para>Bounded run of code between the two, like <see cref="GateAndName"/>, rather than whitespace
-    /// only. It was whitespace only, and the day a `.Validate&lt;T&gt;()` was declared between the gate
-    /// and the name, this silently stopped matching and the catalogue dropped
-    /// `supplier.lifecycle.manage`'s four routes - reporting a live permission as reaching no route,
-    /// which is the exact class of artifact-asserting-something-untrue this file exists to prevent. Caught
-    /// by diffing the regenerated file, which is the only reason it was caught at all.</para></summary>
     [GeneratedRegex(@"RequirePermission\(Permissions\.(?<permission>\w+)\)(?<between>[^;]{0,600}?)\.WithName\((?!"")\w+\)", RegexOptions.Singleline)]
     private static partial Regex GateAndVariableName();
 }

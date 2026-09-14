@@ -1,3 +1,18 @@
+// Reading the notifications a recipient actually holds.
+//
+// Notifications are written to the outbox inside the state change's transaction and materialised by the
+// dispatcher afterwards, so a test that asserts on one has to run the dispatcher first, exactly as production
+// does.
+//
+// Asserting on the notification ROW rather than on the outbox message is deliberate: the outbox entry only proves
+// something was asked for, and what matters to a recipient is that a notification exists, addressed to them,
+// once.
+//
+// The dispatcher is bounded per run and the suite shares a database, so a single pass is not guaranteed to reach
+// this test's rows.
+
+namespace MotsSupplierPortal.Tests.Integration;
+
 using MotsSupplierPortal.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,17 +20,6 @@ using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Integration;
-
-/// <summary>
-/// EPIC-15 notifications are written to the Outbox inside the state change's transaction (D-5) and
-/// materialised by the dispatcher afterwards - so a test that asserts on a notification has to run
-/// the dispatcher first, exactly as production does.
-///
-/// <para>Asserting on the ROW rather than on the Outbox message is deliberate: the outbox entry only
-/// proves something was asked for. What matters to a recipient is that a notification exists,
-/// addressed to them, once.</para>
-/// </summary>
 public static class NotificationTestHelper
 {
     public static async Task DispatchAsync(PostgresApiFixture fixture)
@@ -24,8 +28,6 @@ public static class NotificationTestHelper
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var dispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher>();
 
-        // The dispatcher is bounded per run and the suite shares a database, so a single pass is not
-        // guaranteed to reach this test's rows.
         for (var attempt = 0; attempt < 50; attempt++)
         {
             await dispatcher.DispatchPendingAsync();

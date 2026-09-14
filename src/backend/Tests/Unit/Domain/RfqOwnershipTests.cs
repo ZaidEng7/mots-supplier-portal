@@ -1,14 +1,39 @@
+// The domain guards behind tender ownership.
+//
+// The HTTP surface is proven separately. What is asserted here is the aggregate's own refusals, which is where
+// they have to live so a future caller cannot route around them.
+//
+// An unowned tender is what every tender predating ownership looks like, and the fallback in the notification
+// layer depends on that absence being honest rather than an empty identifier. The control is that given an owner,
+// it keeps it.
+//
+// Reassigning to the same person is refused, because a row saying ownership changed from somebody to themselves
+// is a false entry in an append-only trail, which is what the audit row this operation exists for would become.
+//
+// Reassignment is also how a tender with no owner gets its first one. The alternative would be a second
+// operation for a case that is the same operation.
+//
+// The control for the terminal-state theory is that the refusal is about there being nothing left to own, not
+// about the tender being late in its life.
+//
+//
+// THE ASSIGNED APPROVER IS RECORDED SEPARATELY FROM WHOEVER DECIDED
+//
+// A nominated approver who is unavailable and the colleague who decides in their place are two different people,
+// and a trail that keeps only the second cannot answer who was asked.
+//
+// The control is the normal case: there is no approval-routing rule to fall back on, so the absence is recorded
+// rather than filled in.
+//
+// The setup walks the real transitions rather than setting the state directly, so the states reached are ones the
+// machine actually admits.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>
-/// A-7's domain guards. The HTTP surface is proven separately (Tests/Integration/RfqOwnershipTests);
-/// what is asserted here is the aggregate's own refusals, which is where they have to live so a future
-/// caller cannot route around them.
-/// </summary>
 public class RfqOwnershipTests
 {
     private static readonly Guid OrgId = Guid.CreateVersion7();
@@ -33,10 +58,7 @@ public class RfqOwnershipTests
     [Fact]
     public void An_RFQ_created_without_an_owner_has_none_rather_than_a_guessed_one()
     {
-        // Every RFQ that predates A-7 looks like this, and the fallback in the notification layer
-        // depends on it being an honest null rather than Guid.Empty.
         CreateDraftRfq().OwnerUserId.Should().BeNull();
-        // The control: given an owner, it keeps it.
         var owner = Guid.CreateVersion7();
         CreateDraftRfq(owner).OwnerUserId.Should().Be(owner);
     }
@@ -51,8 +73,6 @@ public class RfqOwnershipTests
         rfq.Reassign(second);
         rfq.OwnerUserId.Should().Be(second);
 
-        // A row saying ownership changed from a person to the same person is a false entry in an
-        // append-only trail, which is what the audit row this method exists for would become.
         var act = () => rfq.Reassign(second);
         act.Should().Throw<DomainException>().WithMessage("*already owns*");
     }
@@ -63,8 +83,6 @@ public class RfqOwnershipTests
         var rfq = CreateDraftRfq();
         var claimant = Guid.CreateVersion7();
 
-        // Reassignment is also how a legacy row gets its first owner - the alternative would be a
-        // second operation for a case that is the same operation.
         rfq.Reassign(claimant);
         rfq.OwnerUserId.Should().Be(claimant);
     }
@@ -84,8 +102,6 @@ public class RfqOwnershipTests
     [Fact]
     public void An_awarded_RFQ_is_still_reassignable_because_post_award_work_exists()
     {
-        // The control for the theory above: the refusal is about there being nothing left to own, not
-        // about the tender being late in its life.
         var rfq = CreateReadyToSubmitRfq(Guid.CreateVersion7());
         DriveTo(rfq, RfqState.Awarded);
 
@@ -106,8 +122,6 @@ public class RfqOwnershipTests
         pass.AssignedApproverUserId.Should().Be(nominated);
         pass.ApproverUserId.Should().BeNull("nobody has decided it yet");
 
-        // A nominated approver who is unavailable and the colleague who decides in their place are two
-        // different people, and a trail that keeps only the second cannot answer who was asked.
         rfq.Approve(whoActuallyDecided);
         pass.AssignedApproverUserId.Should().Be(nominated);
         pass.ApproverUserId.Should().Be(whoActuallyDecided);
@@ -116,8 +130,6 @@ public class RfqOwnershipTests
     [Fact]
     public void A_review_pass_that_names_nobody_records_nobody()
     {
-        // The control for the test above, and the normal case: there is no approval-routing rule to
-        // fall back on (BRULE-072/074, OQ-004, T-075), so the absence is recorded rather than filled in.
         var rfq = CreateReadyToSubmitRfq(Guid.CreateVersion7());
 
         rfq.SubmitForReview();
@@ -125,8 +137,6 @@ public class RfqOwnershipTests
         rfq.Approvals.Single().AssignedApproverUserId.Should().BeNull();
     }
 
-    /// <summary>Walks the real transitions rather than setting State, so the states reached are ones
-    /// the machine actually admits.</summary>
     private static void DriveTo(Rfq rfq, RfqState target)
     {
         if (target == RfqState.Cancelled)

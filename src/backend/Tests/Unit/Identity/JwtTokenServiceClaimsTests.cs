@@ -1,18 +1,22 @@
+// The access token carries the permissions once, not twice.
+//
+// It used to emit them a second time under a space-joined claim alongside the individual ones, and only the
+// individual ones were ever read.
+//
+// That was confirmed by searching the backend, the frontend, and the security architecture's own table of token
+// contents before removing it, in case an external consumer or a specification expected the conventional name for
+// the joined form. None was found.
+//
+// Two representations of one fact is the exact pattern already responsible for four other defects in this
+// codebase, so it was removed rather than kept.
+
+namespace MotsSupplierPortal.Tests.Unit.Identity;
+
 using System.IdentityModel.Tokens.Jwt;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Infrastructure.Identity;
 
-namespace MotsSupplierPortal.Tests.Unit.Identity;
-
-/// <summary>
-/// Task #18/MSP-92: JwtTokenService used to emit permissions twice - a space-joined "scope" claim
-/// alongside individual "perms" claims - and only "perms" was ever read anywhere (confirmed by
-/// grep across backend, frontend, and SECURITY-ARCHITECTURE.md's own token-contents table before
-/// removing it, in case an external consumer or spec expected the OAuth2-conventional "scope"
-/// claim name; none was found). Two representations of one fact is the exact pattern this session
-/// has already found responsible for four other defects - removed rather than kept.
-/// </summary>
 public sealed class JwtTokenServiceClaimsTests
 {
     private static JwtTokenService BuildService()

@@ -1,15 +1,63 @@
+// The evaluation aggregate: its states, the two-envelope gate, and the four tie-break rungs.
+//
+// The transitions are checked against the written process directly; the aggregate's own header carries the
+// quoted rows.
+//
+//
+// THE TWO-ENVELOPE GATE IS THIS FILE'S CENTREPIECE
+//
+// Scoring a financial criterion must be refused until the SAME evaluator has cleared every technical
+// criterion's threshold for that bid.
+//
+// It carries a revert-to-red: deliberately weaken the gate by scoring the financial criterion with no prior
+// technical score at all, which is the simplest possible bypass, and confirm the refusal fires for exactly
+// that reason rather than a coincidental different failure.
+//
+//
+// THE TIE-BREAK RUNGS, EACH STATED AS BEHAVIOUR RATHER THAN AS AN ORDERING CLAUSE
+//
+// Before this, the ranking ordered by the weighted total alone, so two bids with the same total took first and
+// second place in whatever order the score rows happened to iterate. First place is what the award flow offers.
+// Found by a sweep over the written rules.
+//
+// The bids in these tests have identical totals BY CONSTRUCTION, which is the case that used to be arbitrary.
+// That also needs the financial scores equal, not just the technical ones, because a tie on the weighted total
+// is the premise and the default weights make the totals differ otherwise.
+//
+// Rung one: with equal totals, the bid that scored higher on TECHNICAL criteria outranks the one that made the
+// total up on price, which is the direction the rule names.
+//
+// Rung three: identical totals and identical technical scores, so the only thing separating the two bids is
+// price, and the document says the cheaper compliant bid wins.
+//
+// Rung four, the last one a rule can decide: earliest submission, which is objective, already recorded, and
+// cannot be manipulated after the fact.
+//
+// And the order is REPRODUCIBLE. Consolidating the same scores again ranks them the same way, which is the
+// property the old code lacked and the one an auditor would ask about.
+//
+//
+// WHAT HAPPENS WHEN THE RUNGS RUN OUT
+//
+// Equal on total, technical score, price and submission instant is equal on everything a rule can see. The
+// ranks are still assigned, because a list with no order is useless, but they are MARKED and the award flow
+// refuses to act on them.
+//
+// One direction surfaces the case: two bids with no recorded price are not "equal on price" in any way that
+// resolves anything, so they must not be silently ordered by identifier.
+//
+// Resolving a tie by hand has three refusals, each a different mistake, and a control showing that a real
+// resolution takes effect, keeps the ranks it was given, and clears the marker for EVERY member of the group,
+// including the one that lost, because the tie is resolved for both once somebody has put their name to it.
+// Resolving something already resolved is refused.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Evaluation;
 using MotsSupplierPortal.Domain.Suppliers;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>FEAT-11.2..11.6. State list/transitions verified directly against
-/// BUSINESS-PROCESSES.md §5.1 - see Evaluation.cs's own doc comments. The two-envelope gate
-/// (OQ-009) is this file's centerpiece: ScoreCriterion must refuse a financial-criterion score
-/// until the SAME evaluator has cleared every technical criterion's threshold for that
-/// proposal.</summary>
 public class EvaluationTests
 {
     private static readonly Guid RfqId = Guid.CreateVersion7();
@@ -59,8 +107,6 @@ public class EvaluationTests
         evaluation.State.Should().Be(EvaluationState.InProgress);
     }
 
-    // ---- The two-envelope gate (OQ-009), this file's centerpiece ----
-
     [Fact]
     public void ScoreCriterion_refuses_financial_score_before_technical_criteria_are_scored()
     {
@@ -103,9 +149,6 @@ public class EvaluationTests
         evaluation.IsTechnicallyQualifiedByEvaluator(EvaluatorB, ProposalA).Should().BeFalse();
     }
 
-    /// <summary>Revert-to-red: deliberately weaken the gate (score the financial criterion with no
-    /// prior technical score at all, the simplest possible bypass attempt) and confirm the
-    /// DomainException fires for exactly this reason, not a coincidental different failure.</summary>
     [Fact]
     public void Revert_to_red_financial_gate_cannot_be_bypassed_by_scoring_financial_first()
     {
@@ -118,8 +161,6 @@ public class EvaluationTests
         evaluation.Scores.Should().BeEmpty("the refused financial score must never be persisted onto the aggregate");
     }
 
-    // ---- Blind independent scoring (OQ-005/BRULE-058) ----
-
     [Fact]
     public void EvaluatorScore_rows_are_isolated_per_evaluator()
     {
@@ -130,8 +171,6 @@ public class EvaluationTests
         evaluation.Scores.Where(s => s.EvaluatorUserId == EvaluatorA).Should().ContainSingle(s => s.RawScore == 75m);
         evaluation.Scores.Where(s => s.EvaluatorUserId == EvaluatorB).Should().ContainSingle(s => s.RawScore == 30m);
     }
-
-    // ---- Submit / consolidate / finalize ----
 
     [Fact]
     public void SubmitEvaluator_refuses_until_all_technical_criteria_scored_for_every_proposal()
@@ -175,8 +214,6 @@ public class EvaluationTests
 
     private static EvaluationAggregate CreateFullySubmittedEvaluation(
         decimal proposalAScore, decimal proposalBScore, decimal threshold = 60m,
-        // A-1's tie tests need the FINANCIAL scores equal too - a tie on the weighted total is the
-        // premise, and the default 50/70 makes the totals differ by construction.
         decimal proposalAFinancial = 50m, decimal proposalBFinancial = 70m)
     {
         var evaluation = CreateAssignedEvaluation(threshold);
@@ -193,7 +230,6 @@ public class EvaluationTests
         return evaluation;
     }
 
-    /// <summary>Two bids equal on every score, which is A-1's premise.</summary>
     private static EvaluationAggregate CreateTiedEvaluation() =>
         CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m, proposalAFinancial: 60m, proposalBFinancial: 60m);
 
@@ -261,20 +297,12 @@ public class EvaluationTests
     [Fact]
     public void Consolidate_breaks_a_tied_total_on_the_technical_score_and_never_on_iteration_order()
     {
-        // BRULE-069. Before this the ranking ordered by WeightedTotal alone, so two proposals with the
-        // same total took ranks 1 and 2 in whatever order the score rows iterated - and rank 1 is what
-        // the award flow offers. Found by the batch 9 BRULE re-sweep.
-        //
-        // Both proposals here have identical totals by construction (same technical score, same
-        // financial score), which is the case that used to be arbitrary.
         var evaluation = CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m);
         evaluation.Consolidate();
 
         var ranks = evaluation.Results.Where(r => r.TechnicallyQualified).Select(r => r.Rank).ToList();
         ranks.Should().BeEquivalentTo([1, 2], "a tie still produces a total order, not two rank ones");
 
-        // And the order is REPRODUCIBLE: consolidating the same scores again ranks them the same way.
-        // That is the property the old code lacked, and the one an auditor would ask about.
         var first = evaluation.Results.Single(r => r.Rank == 1).ProposalId;
 
         var again = CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m);
@@ -285,9 +313,6 @@ public class EvaluationTests
     [Fact]
     public void Consolidate_ranks_the_higher_technical_score_first_when_totals_are_equal()
     {
-        // The first rung stated as behaviour rather than as an ordering clause: with equal totals, the
-        // proposal that scored higher on TECHNICAL criteria outranks the one that made the total up on
-        // price - which is the direction BRULE-069 names.
         var evaluation = CreateFullySubmittedEvaluation(proposalAScore: 80m, proposalBScore: 80m);
         evaluation.Consolidate();
 
@@ -302,8 +327,6 @@ public class EvaluationTests
     [Fact]
     public void Consolidate_breaks_a_tie_on_the_lower_commercial_total()
     {
-        // A-1/BRULE-069 rung three. Identical totals and identical technical scores, so the only thing
-        // separating these two bids is price - and the document says the cheaper compliant bid wins.
         var evaluation = CreateTiedEvaluation();
         var submittedAt = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
 
@@ -321,8 +344,6 @@ public class EvaluationTests
     [Fact]
     public void Consolidate_breaks_a_price_tie_on_the_earlier_submission()
     {
-        // Rung four, and the last one a rule can decide: earliest submission is objective, already
-        // recorded, and cannot be manipulated after the fact.
         var evaluation = CreateTiedEvaluation();
 
         evaluation.Consolidate(new Dictionary<Guid, EvaluationAggregate.BidTieBreakFacts>
@@ -338,9 +359,6 @@ public class EvaluationTests
     [Fact]
     public void Consolidate_surfaces_a_tie_that_survives_every_rung_rather_than_picking_one()
     {
-        // A-1. Equal on total, technical score, price and submission instant is equal on everything a
-        // rule can see. The ranks are still assigned - a list with no order is useless - but they are
-        // MARKED, and the award flow refuses to act on them.
         var at = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
         var evaluation = CreateTiedEvaluation();
 
@@ -357,8 +375,6 @@ public class EvaluationTests
     [Fact]
     public void An_unknown_price_counts_as_a_tie_rather_than_as_a_difference()
     {
-        // The direction that surfaces the case: two bids with no recorded price are not "equal on
-        // price" in any way that resolves anything, so they must not be silently ordered by identifier.
         var at = DateTimeOffset.Parse("2026-09-01T10:00:00Z");
         var evaluation = CreateTiedEvaluation();
 
@@ -383,15 +399,11 @@ public class EvaluationTests
         });
         var resolver = Guid.CreateVersion7();
 
-        // Three refusals, each a different mistake.
         ((Action)(() => evaluation.ResolveTie(ProposalA, resolver, "   ")))
             .Should().Throw<DomainException>().WithMessage("*reason is required*");
         ((Action)(() => evaluation.ResolveTie(Guid.CreateVersion7(), resolver, "Because.")))
             .Should().Throw<DomainException>().WithMessage("*not part of this evaluation*");
 
-        // The control: a real resolution takes effect, keeps the ranks it was given, and clears the
-        // marker for EVERY member of the group - including the one that lost, because the tie is
-        // resolved for both once someone has put their name to it.
         evaluation.ResolveTie(ProposalB, resolver, "Prior delivery record on comparable work.");
 
         evaluation.Results.Single(r => r.ProposalId == ProposalB).Rank.Should().Be(1);
@@ -400,7 +412,6 @@ public class EvaluationTests
         evaluation.Results.Where(r => r.TechnicallyQualified).Should()
             .OnlyContain(r => r.TieResolvedByUserId == resolver && r.TieResolutionReason == "Prior delivery record on comparable work.");
 
-        // And the guard the other way: resolving something already resolved is refused.
         ((Action)(() => evaluation.ResolveTie(ProposalB, resolver, "Again.")))
             .Should().Throw<DomainException>().WithMessage("*not part of an unresolved tie*");
     }

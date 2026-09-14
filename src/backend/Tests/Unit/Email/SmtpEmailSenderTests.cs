@@ -1,17 +1,21 @@
+// The same privacy property the logging sender's tests prove, extended to the real transport's FAILURE path.
+//
+// That is the path the logging sender never had.
+//
+// A real mail rejection commonly echoes the recipient address back in its own error text, so passing the
+// exception object straight to the logger, which this class deliberately avoids, would have reintroduced exactly
+// what the other tests guard against, through the failure path instead of the success path.
+//
+// The unreachable port on the loopback address is chosen so the connection fails fast and deterministically,
+// without needing a real or fake mail server up for this test.
+
+namespace MotsSupplierPortal.Tests.Unit.Email;
+
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Infrastructure.Email;
 
-namespace MotsSupplierPortal.Tests.Unit.Email;
-
-/// <summary>
-/// Task #35. Same MSP-93/BRULE-091 property LoggingEmailSenderTests proves for the stub, extended
-/// to SmtpEmailSender's failure path - the one LoggingEmailSender never had. A real SMTP rejection
-/// commonly echoes the recipient address back in its own error text, so the naive `logger.LogError(ex, ...)`
-/// this class deliberately avoids would have reintroduced exactly what LoggingEmailSenderTests
-/// guards against, just through the exception path instead of the success path.
-/// </summary>
 public sealed class SmtpEmailSenderTests
 {
     private sealed class CapturingLogger : ILogger<SmtpEmailSender>
@@ -33,8 +37,6 @@ public sealed class SmtpEmailSenderTests
     public async Task A_failed_send_throws_and_never_logs_the_email_address()
     {
         var logger = new CapturingLogger();
-        // Port 1 on loopback: nothing listens there, so ConnectAsync fails fast and deterministically
-        // without needing a real (or fake) SMTP server up for this test.
         var options = Options.Create(new SmtpOptions { Host = "127.0.0.1", Port = 1, FromAddress = "no-reply@example.com" });
         var sender = new SmtpEmailSender(options, logger);
         var userId = Guid.CreateVersion7();

@@ -1,15 +1,36 @@
-using FluentAssertions;
-using MotsSupplierPortal.Domain.Suppliers;
+// The supplier record: registration, the profile, the submit gate, and resubmission.
+//
+// The shared setup fills every field the submit gate checks, including the written minimums, mirroring the shape
+// a real onboarding flow ends up with.
+//
+//
+// RESUBMISSION TAKES ITS GATE AS A REQUIRED ARGUMENT
+//
+// It used to take none, which made it a second entrance to review with no gate on it.
+//
+// A supplier could re-upload a required document, superseding the approved version and leaving the latest one
+// unscanned, resubmit through that door, and be approved holding a document nobody had scanned.
+//
+// The argument is required rather than optional so a caller cannot forget it.
+//
+//
+// WHAT RESUBMISSION IS SCOPED TO, AND WHAT SUBMISSION IS NOT
+//
+// A document rejected independently of the information request, through the separate per-document review action,
+// must not block resolving what the open request actually flagged.
+//
+// So only the flagged documents and fields gate a resubmission. Submission, by contrast, stays fully unscoped.
 
 namespace MotsSupplierPortal.Tests.Unit.Domain;
+
+using FluentAssertions;
+using MotsSupplierPortal.Domain.Suppliers;
 
 public class SupplierTests
 {
     private static Supplier CreateDraftSupplier() => Supplier.Register(
         "SUP-2026-000001", "شركة الاختبار", "Test Co", "CR-1", "Zaid", "zaid@example.com");
 
-    /// <summary>Fills every EPIC-04 field the submit gate checks (STORY-04.3.1/04.7.1's minimums
-    /// included), mirroring the shape a real onboarding flow ends up with.</summary>
     private static void CompleteProfile(Supplier supplier)
     {
         supplier.UpdateCoreProfile("A tourism supplier", "https://example.com", "SME", "SYP");
@@ -325,11 +346,6 @@ public class SupplierTests
     [Fact]
     public void Resubmit_refuses_when_a_required_document_is_outstanding()
     {
-        // MSP-91. Resubmit used to take no argument, which made it a second entrance to review with
-        // no gate on it - a supplier could re-upload a required document (superseding the approved
-        // version, leaving the latest in PendingScan), resubmit through here, and be approved
-        // holding a document nobody had scanned. The parameter is required rather than optional so
-        // a caller cannot forget it.
         var supplier = CreateSubmittedSupplier();
         supplier.PickUpForReview();
         supplier.RequestInfo();
@@ -344,10 +360,6 @@ public class SupplierTests
     [Fact]
     public void Resubmit_ignores_an_outstanding_document_that_was_not_flagged()
     {
-        // Task #32 / SUP-2026-000044: a document rejected independently of the info request
-        // (e.g. via the separate per-document review action) must not block resolving what the
-        // open annotation actually flagged - only what's in FlaggedDocumentTypeIds/FlaggedProfileFields
-        // gates Resubmit while InfoRequested. Submit(), by contrast, stays fully unscoped.
         var supplier = CreateSubmittedSupplier();
         supplier.PickUpForReview();
         supplier.RequestInfo();

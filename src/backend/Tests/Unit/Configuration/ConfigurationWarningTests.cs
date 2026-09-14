@@ -1,15 +1,44 @@
+// The two startup warnings, and the cases where each must stay silent.
+//
+//
+// THE EXPIRY WINDOW AND THE REMINDER LADDER
+//
+// They are independent numbers that coincide only at their shared default. Widen the window past the widest rung
+// and a document sits in the expiring state with nobody told.
+//
+// That is accurately documented on both settings, and documentation is not where the person changing a
+// configuration value is looking.
+//
+// A NARROWER window is not a misconfiguration: the rung simply falls due while the document is still approved,
+// and it is still sent. Warning about it would train people to ignore this channel, which is how the one warning
+// that matters gets lost.
+//
+// And with a wider rung configured, a wider window is entirely covered. Comparing against the shipped default
+// instead of the configured ladder would fire a warning that is simply untrue, and a warning that is wrong is
+// worse than none, because the next true one is not believed.
+//
+//
+// RECURRING JOBS DISABLED OUTSIDE DEVELOPMENT
+//
+// A mistyped key cannot be caught by any test, because a test asserting the correct key passes whether or not
+// the deployed environment reads the same one. So this covers the VALUE being set, which is what an operator can
+// actually see and act on.
+//
+// Development turns them off deliberately, and the integration suite does exactly that, so warning there would
+// fire on every local run and train the reader to ignore the whole channel.
+//
+//
+// THE LOAD-BEARING CASE IN BOTH HALVES
+//
+// The shipped configuration must produce no warning at all. A warning that fires on the defaults is noise, and
+// noise at boot is how a real warning gets ignored later.
+
+namespace MotsSupplierPortal.Tests.Unit.Configuration;
+
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using MotsSupplierPortal.Api.Configuration;
 
-namespace MotsSupplierPortal.Tests.Unit.Configuration;
-
-/// <summary>
-/// The ExpiringSoon window and the BRULE-025 reminder ladder are independent numbers that coincide
-/// only at their shared default of 30. Widen the window past the widest rung and the document sits
-/// in ExpiringSoon with nobody told - accurately documented on both settings, and documentation is
-/// not where the person changing a config value is looking.
-/// </summary>
 public sealed class ConfigurationWarningTests
 {
     private static IConfiguration Build(params (string Key, string Value)[] settings) =>
@@ -26,8 +55,6 @@ public sealed class ConfigurationWarningTests
     [Fact]
     public void The_defaults_are_silent()
     {
-        // The load-bearing case. A warning that fires on the shipped configuration is noise, and
-        // noise at boot is how a real warning gets ignored later.
         RequiredConfiguration.Warnings(Build()).Should().BeEmpty();
     }
 
@@ -55,27 +82,15 @@ public sealed class ConfigurationWarningTests
     [InlineData(14)]
     public void A_window_at_or_below_the_widest_rung_is_silent(int window)
     {
-        // A NARROWER window is not a misconfiguration: the rung simply falls due while the document
-        // is still Approved, and it is still sent. Warning about it would train people to ignore
-        // this channel, which is how the one warning that matters gets lost.
         RequiredConfiguration.Warnings(WithWindowAndCadence(window, 30, 14, 3)).Should().BeEmpty();
     }
 
     [Fact]
     public void The_comparison_uses_the_configured_cadence_rather_than_the_default_one()
     {
-        // With a 60-day rung configured, a 45-day window is entirely covered. Comparing against the
-        // hard-coded 30 would fire a warning that is simply untrue - and a warning that is wrong is
-        // worse than none, because the next true one is not believed.
         RequiredConfiguration.Warnings(WithWindowAndCadence(45, 60, 30, 14, 3)).Should().BeEmpty();
     }
 
-    // ---- MSP-98: recurring jobs disabled outside Development ---------------------------------
-
-    /// <summary>
-    /// The same load-bearing case as the defaults test above: the shipped configuration sets nothing,
-    /// Jobs:EnableRecurring defaults to true, and a warning that fires on it would be noise.
-    /// </summary>
     [Fact]
     public void Recurring_jobs_at_their_default_are_silent()
     {
@@ -83,11 +98,6 @@ public sealed class ConfigurationWarningTests
             .Should().NotContain(w => w.Contains("Jobs:EnableRecurring"));
     }
 
-    /// <summary>
-    /// The case the warning exists for. A typo'd key cannot be caught by any test - a test asserting
-    /// the correct key passes whether or not the deployed environment reads the same one - so this
-    /// covers the value being set, which is what an operator can actually see and act on.
-    /// </summary>
     [Fact]
     public void Recurring_jobs_disabled_in_production_warns_about_the_consequence()
     {
@@ -101,10 +111,6 @@ public sealed class ConfigurationWarningTests
             "reading it at boot knows what a tender is and may not know what a recurring job is");
     }
 
-    /// <summary>
-    /// Development turns them off deliberately - the integration suite does exactly this - so
-    /// warning there would fire on every local run and train the reader to ignore the whole channel.
-    /// </summary>
     [Fact]
     public void Recurring_jobs_disabled_in_development_is_silent()
     {

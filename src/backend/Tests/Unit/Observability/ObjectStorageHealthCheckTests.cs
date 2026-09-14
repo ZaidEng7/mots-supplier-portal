@@ -1,15 +1,16 @@
+// The object-storage readiness check, proven against a real socket failure rather than a stubbed client.
+//
+// The probe is pointed at a genuinely unreachable address, where the connection is refused immediately, and the
+// check must translate that real exception into an unhealthy result rather than letting it propagate.
+
+namespace MotsSupplierPortal.Tests.Unit.Observability;
+
 using FluentAssertions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Infrastructure.Observability;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Tests.Unit.Observability;
-
-/// <summary>Task #16/NFR-OBS-006: proven against a real socket failure, not a mocked client -
-/// MinioFileStorage.PingAsync is pointed at a genuinely unreachable address (port 1, refused
-/// immediately) and the health check must translate that real AmazonS3/socket exception into
-/// Unhealthy rather than letting it propagate.</summary>
 public sealed class ObjectStorageHealthCheckTests
 {
     [Fact]

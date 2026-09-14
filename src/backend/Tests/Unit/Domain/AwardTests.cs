@@ -1,13 +1,23 @@
+// The award record: its states, segregation of duties, and immutability after the award is issued.
+//
+// The transitions are checked against the written process directly; the record's own header carries the quoted
+// rows.
+//
+// Two things are this file's centrepieces.
+//
+// Segregation of duties: the approver may not be the person who recommended.
+//
+// And immutability after issue, which is STRUCTURAL rather than conventional. The revert-to-red attempts every
+// mutating method against an issued award, proving that each one's OWN guard is what makes the record immutable,
+// rather than a separate lock flag somebody could forget to set. The immutable core is then asserted untouched by
+// any of them.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>FEAT-14.1..14.5. State list/transitions verified directly against
-/// BUSINESS-PROCESSES.md §6 - see Award.cs's own doc comments for the exact quoted rows this
-/// exercises. Segregation of duties (BRULE-073) and post-Awarded immutability (BRULE-083) are this
-/// file's centerpieces.</summary>
 public class AwardTests
 {
     private static readonly Guid RfqId = Guid.CreateVersion7();
@@ -42,8 +52,6 @@ public class AwardTests
         award.Approvals[0].StepNo.Should().Be(1);
         award.Approvals[0].Decision.Should().BeNull();
     }
-
-    // ---- Segregation of duties (BRULE-073) - the centerpiece ----
 
     [Fact]
     public void Approve_refuses_the_recommender_approving_their_own_recommendation()
@@ -114,10 +122,6 @@ public class AwardTests
         award.ErpSyncStatus.Should().Be(ErpSyncStatus.Requested);
     }
 
-    // ---- Post-Awarded immutability (BRULE-083/FEAT-14.7) - structural, not conventional ----
-
-    /// <summary>Revert-to-red: every mutating method attempted against an Awarded instance, proving
-    /// each one's own guard - not a separate lock flag - is what makes the award file immutable.</summary>
     [Fact]
     public void Every_mutating_method_refuses_once_Awarded()
     {
@@ -133,13 +137,10 @@ public class AwardTests
         ((Action)(() => award.Reject(ApproverId, "reason"))).Should().Throw<DomainException>();
         ((Action)(() => award.ExecuteAward("{}"))).Should().Throw<DomainException>();
 
-        // The immutable core is untouched by any of the above.
         award.WinningProposalId.Should().Be(ProposalId);
         award.ComparisonSnapshotJson.Should().Be("{}");
         award.State.Should().Be(AwardState.Awarded);
     }
-
-    // ---- ERP sync sub-flow (BRULE-077/078/079) ----
 
     [Fact]
     public void ERP_sync_status_can_progress_and_regress_independently_of_AwardState()

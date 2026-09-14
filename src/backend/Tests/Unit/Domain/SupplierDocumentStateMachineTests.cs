@@ -1,20 +1,45 @@
+// The document state machine, which had no domain tests at all.
+//
+// The written requirements ask for tests per state machine, and the onboarding machine has good ones.
+//
+// This was written first because everything else in that piece of work touches these transitions. The tests are
+// the safety net the rest of it leans on rather than a formality after it.
+//
+//
+// THE EXHAUSTIVE THEORIES ASSERT THEIR OWN COVERAGE
+//
+// A closed set of states is asserted to BE covered rather than trusting whoever wrote the list to have
+// enumerated it. That assertion caught a missing onboarding state on its first run.
+//
+// The guard test fails if the set of states grows and the list is not updated, so a new state cannot inherit its
+// transition rules by omission.
+//
+// States are forced where the aggregate cannot currently reach them, for the same reason the shared factory
+// forces onboarding states: the point of an exhaustive theory is to cover combinations that are unreachable
+// today, because those are exactly where a future transition could quietly permit something.
+//
+//
+// WHAT EACH GROUP COVERS
+//
+// The scan result is asserted in both directions, because a document that has already been scanned must not be
+// re-decided by a late or duplicate callback from the scanner.
+//
+// A second decision is refused from the not-yet-scanned states and from the already-settled ones. A second
+// approval on an approved document would silently overwrite who reviewed it and when.
+//
+// Re-marking a document as expiring is refused, notably including from the expiring state itself, because
+// otherwise the expiry job would re-notify on every run, which is the de-duplication concern the written
+// requirement raises.
+//
+// And renewal is a NEW version rather than a resurrection of the expired row, which is what superseding exists
+// for and why the history survives.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using System.Reflection;
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>
-/// MSP-68: the document state machine had ZERO domain unit tests, while NFR-CMP-003 requires them
-/// per state machine and the onboarding machine has good ones.
-///
-/// This is written first because everything else in MSP-68 touches these transitions. The tests are
-/// the safety net the rest of the ticket leans on, not a formality after it.
-///
-/// The exhaustive theories use the technique that already earned itself in the eligibility work: a
-/// closed set of states is asserted to BE covered, rather than trusting whoever wrote the list to
-/// have enumerated it. That assertion caught a missing onboarding state on its first run.
-/// </summary>
 public sealed class SupplierDocumentStateMachineTests
 {
     private static SupplierDocument InState(DocumentState state)
@@ -28,9 +53,6 @@ public sealed class SupplierDocumentStateMachineTests
 
         if (state != DocumentState.PendingScan)
         {
-            // Forced, for the same reason SupplierTestFactory forces onboarding states: the point of
-            // an exhaustive theory is to cover combinations the aggregate cannot currently reach,
-            // because those are exactly where a future transition could quietly permit something.
             typeof(SupplierDocument)
                 .GetProperty(nameof(SupplierDocument.State), BindingFlags.Public | BindingFlags.Instance)!
                 .SetMethod!.Invoke(document, [state]);
@@ -39,8 +61,6 @@ public sealed class SupplierDocumentStateMachineTests
         return document;
     }
 
-    /// <summary>Every state the machine defines. The guard test below fails if the enum grows and
-    /// this list is not updated, so a new state cannot inherit its transition rules by omission.</summary>
     private static readonly DocumentState[] AllStates =
     [
         DocumentState.PendingScan, DocumentState.ScanRejected, DocumentState.Uploaded,
@@ -56,8 +76,6 @@ public sealed class SupplierDocumentStateMachineTests
             "omission is how a machine silently permits something nobody decided");
     }
 
-    // ---- the happy path, end to end -----------------------------------------------------
-
     [Fact]
     public void Clean_scan_carries_a_document_from_upload_to_approved()
     {
@@ -72,19 +90,13 @@ public sealed class SupplierDocumentStateMachineTests
         document.State.Should().Be(DocumentState.Approved);
     }
 
-    // ---- MarkScanClean / MarkScanRejected ------------------------------------------------
-
     [Theory]
     [MemberData(nameof(StatesOtherThan), DocumentState.PendingScan)]
     public void Scan_results_are_rejected_from_any_state_but_PendingScan(DocumentState state)
     {
-        // Both directions of the scan result, because a document that has already been scanned
-        // must not be re-decided by a late or duplicate AV callback.
         InState(state).Invoking(d => d.MarkScanClean("clean/key")).Should().Throw<DomainException>();
         InState(state).Invoking(d => d.MarkScanRejected()).Should().Throw<DomainException>();
     }
-
-    // ---- Approve / Reject ----------------------------------------------------------------
 
     [Theory]
     [InlineData(DocumentState.Uploaded)]
@@ -108,9 +120,6 @@ public sealed class SupplierDocumentStateMachineTests
     [MemberData(nameof(StatesOtherThan2), DocumentState.Uploaded, DocumentState.UnderReview)]
     public void A_document_cannot_be_decided_before_it_has_been_scanned_or_after_it_is_settled(DocumentState state)
     {
-        // Covers PendingScan and ScanRejected (not yet scanned clean) and Approved, Rejected,
-        // ExpiringSoon, Expired (already settled). A second approval on an approved document would
-        // silently overwrite who reviewed it and when.
         InState(state).Invoking(d => d.Approve(Guid.CreateVersion7())).Should().Throw<DomainException>();
         InState(state).Invoking(d => d.Reject(Guid.CreateVersion7(), "Reason")).Should().Throw<DomainException>();
     }
@@ -127,8 +136,6 @@ public sealed class SupplierDocumentStateMachineTests
             .Should().Throw<DomainException>().WithMessage("*reason is required*");
     }
 
-    // ---- expiry ---------------------------------------------------------------------------
-
     [Fact]
     public void Only_an_approved_document_can_become_expiring_soon()
     {
@@ -139,8 +146,6 @@ public sealed class SupplierDocumentStateMachineTests
     [MemberData(nameof(StatesOtherThan), DocumentState.Approved)]
     public void Expiring_soon_is_rejected_from_every_other_state(DocumentState state)
     {
-        // Notably including ExpiringSoon itself: re-marking would let the expiry job re-notify on
-        // every run, which is the de-duplication concern FR-NOT-006 raises.
         InState(state).Invoking(d => d.MarkExpiringSoon()).Should().Throw<DomainException>();
     }
 
@@ -172,8 +177,6 @@ public sealed class SupplierDocumentStateMachineTests
         document.Invoking(d => d.MarkExpired()).Should().Throw<DomainException>();
         document.Invoking(d => d.Approve(Guid.CreateVersion7())).Should().Throw<DomainException>();
 
-        // Renewal is a NEW version, not a resurrection of the expired row - which is what
-        // SupersedeWithNewVersion exists for and why history survives.
         document.State.Should().Be(DocumentState.Expired);
     }
 

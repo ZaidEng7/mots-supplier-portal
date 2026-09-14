@@ -1,27 +1,26 @@
+// The send-logging call site itself, not the email pipeline around it.
+//
+// The written rule is that personal or sensitive data is never placed in URLs, query strings, logs or
+// notification payloads. An email address is personal data on its own.
+//
+// Before this fix, the logging sender logged the recipient's real address on every send: the one production
+// log-writing call site in the email pipeline, and the exact thing that rule forbids.
+//
+// It captures the actual logger output rather than going through the sending interface, because the defect was
+// never in what gets sent. It is in what gets written to the log stream, and only reading the real formatted line
+// proves that.
+//
+// The capture is close enough to a real provider to prove what actually reaches the stream, without pulling in a
+// logging framework's own test harness for a single call site.
+
+namespace MotsSupplierPortal.Tests.Unit.Email;
+
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using MotsSupplierPortal.Infrastructure.Email;
 
-namespace MotsSupplierPortal.Tests.Unit.Email;
-
-/// <summary>
-/// MSP-93/BRULE-091: the send-logging call site itself, not the email pipeline around it.
-///
-/// <para>BRULE-091 (docs/product/BUSINESS-RULES.md): "Personal/sensitive data is never placed in
-/// URLs, query strings, logs, or notification payloads." An email address is personal data on its
-/// own. Before this fix, <see cref="LoggingEmailSender"/> logged the recipient's real address on
-/// every send - the one production log-writing call site in the email pipeline, and the exact
-/// thing this rule forbids.</para>
-///
-/// <para>Captures the actual <see cref="ILogger"/> output rather than going through
-/// <c>IEmailSender</c> - the defect was never in what gets sent, it is in what gets written to the
-/// log stream, and only reading the real formatted log line proves that.</para>
-/// </summary>
 public sealed class LoggingEmailSenderTests
 {
-    /// <summary>Captures every formatted log line and its structured state, close enough to a real
-    /// provider to prove what actually reaches the log stream, without pulling in a logging
-    /// framework's own test harness for a single call site.</summary>
     private sealed class CapturingLogger : ILogger<LoggingEmailSender>
     {
         public List<string> Messages { get; } = [];

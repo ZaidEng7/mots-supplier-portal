@@ -1,13 +1,25 @@
+// The validation rules on the administrator-editable settings.
+//
+// They live on the definition so there is exactly one copy of each rule. These assert the rules themselves, and
+// the integration tests then prove they are actually reached.
+//
+// A repeated rung in the reminder ladder is not harmless: the reminder ledger keys on the threshold value, so the
+// second send is suppressed and the setting behaves differently from what it says.
+//
+// The defaults are asserted against their own validation, because they are what a fresh deployment runs on and
+// what an unparseable value degrades to. A default that failed its own validation would be a setting nobody could
+// restore.
+//
+// The public subset is asserted in both directions: a mistyped key would be one that silently never appears in
+// the public response, and the settings NOT on that list stay off it, because the expiry cadence is operational
+// detail an unauthenticated visitor has no reason to read.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Configuration;
 using Xunit;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>
-/// T-060. The validation lives on the definition so there is exactly one copy of each rule; these
-/// assert the rules themselves, which the integration tests then prove are actually reached.
-/// </summary>
 public sealed class SystemSettingDefinitionTests
 {
     private static SettingDefinition Definition(string key) => SystemSettings.Find(key)!;
@@ -37,8 +49,6 @@ public sealed class SystemSettingDefinitionTests
     [InlineData(",", "value_required")]
     public void The_reminder_ladder_refuses_a_repeated_rung(string value, string? expected)
     {
-        // A repeated rung is not harmless: the reminder ledger keys on the threshold value, so the
-        // second send is suppressed and the setting behaves differently from what it says.
         Definition(SystemSettings.RenewalReminderDays).Validate(value).Should().Be(expected);
     }
 
@@ -55,8 +65,6 @@ public sealed class SystemSettingDefinitionTests
     [Fact]
     public void Every_definitions_own_default_is_valid_under_its_own_rules()
     {
-        // The defaults are what a fresh deployment runs on and what an unparseable value degrades to.
-        // A default that fails its own validation would be a setting nobody could restore.
         foreach (var definition in SystemSettings.All)
         {
             definition.Validate(definition.DefaultValue)
@@ -67,14 +75,11 @@ public sealed class SystemSettingDefinitionTests
     [Fact]
     public void The_public_allow_list_names_only_settings_that_exist()
     {
-        // A typo here would be a key that silently never appears in the public response.
         foreach (var key in SystemSettings.PubliclyReadable)
         {
             SystemSettings.Find(key).Should().NotBeNull(key);
         }
 
-        // And the ones NOT on it stay off it: the expiry cadence is operational detail an
-        // unauthenticated visitor has no reason to read.
         SystemSettings.PubliclyReadable.Should().NotContain(SystemSettings.ExpiringSoonWindowDays);
         SystemSettings.PubliclyReadable.Should().NotContain(SystemSettings.RenewalReminderDays);
     }

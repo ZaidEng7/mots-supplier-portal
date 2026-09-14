@@ -1,16 +1,33 @@
+// The fail-fast rule on startup configuration.
+//
+// Before this existed, three settings fell back to a local default when absent and degraded silently in
+// production: the database connection, the public URL used to build every verification, reset and invitation
+// link, and the list of permitted browser origins. None threw, logged, or failed a health check.
+//
+// Discovering these one redeploy at a time is its own small outage.
+//
+//
+// TWO KEYS ARE LISTED HERE RATHER THAN LEFT TO THEIR OWN DOWNSTREAM FAILURE
+//
+// The token settings had a throw of their own, and with only that throw a deployment missing both learned about
+// them one redeploy apart. A live boot test caught exactly that after the first version of this shipped.
+//
+// The mail host is marked required on its own options type, but that only fails at the first real send, when the
+// options are first bound. Listing it here makes it fail at boot instead.
+//
+//
+// WHAT IS DELIBERATELY NOT REQUIRED
+//
+// The development settings file supplies several values, and requiring them would add friction locally without
+// protecting anything.
+
+namespace MotsSupplierPortal.Tests.Unit.Configuration;
+
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using MotsSupplierPortal.Api.Configuration;
 
-namespace MotsSupplierPortal.Tests.Unit.Configuration;
-
-/// <summary>
-/// Guards the fail-fast rule. Before this existed, three settings fell back to localhost when
-/// absent and degraded silently in production: the database connection, the public URL used to
-/// build every verification/reset/invite link, and the CORS origin list. None threw, logged, or
-/// failed a health check.
-/// </summary>
 public sealed class RequiredConfigurationTests
 {
     private sealed class FakeEnvironment(string name) : IHostEnvironment
@@ -74,8 +91,6 @@ public sealed class RequiredConfigurationTests
     [Fact]
     public void Missing_smtp_host_prevents_startup_outside_Development()
     {
-        // Task #35: SmtpOptions.Host is `required`, but that only fails at the first real send
-        // (IOptions<SmtpOptions>.Value binding) - listed here so it fails at boot instead.
         var settings = Complete().Where(e => e.Key != "Smtp:Host").ToArray();
 
         var act = () => RequiredConfiguration.Validate(Config(settings), new FakeEnvironment("Production"));
@@ -96,16 +111,12 @@ public sealed class RequiredConfigurationTests
     [Fact]
     public void All_missing_keys_are_reported_together()
     {
-        // Discovering these one redeploy at a time is its own small outage.
         var act = () => RequiredConfiguration.Validate(Config(), new FakeEnvironment("Production"));
 
         act.Should().Throw<InvalidOperationException>()
             .Which.Message.Should()
                 .Contain("ConnectionStrings:Default").And
                 .Contain("App:PublicUrl").And
-                // Jwt is listed here rather than left to its own downstream throw: with only that
-                // throw, a deployment missing both learned about them one redeploy apart. A live
-                // boot test caught exactly that after the first version of this class shipped.
                 .Contain("Jwt:Issuer").And
                 .Contain("Jwt:Audience").And
                 .Contain("Cors:AllowedOrigins").And
@@ -124,8 +135,6 @@ public sealed class RequiredConfigurationTests
     [Fact]
     public void Development_is_exempt_so_dotnet_run_needs_no_configuration()
     {
-        // appsettings.Development.json supplies these; requiring them would add friction locally
-        // without protecting anything.
         var act = () => RequiredConfiguration.Validate(Config(), new FakeEnvironment("Development"));
 
         act.Should().NotThrow();

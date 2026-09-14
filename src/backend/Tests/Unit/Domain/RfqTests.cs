@@ -1,13 +1,56 @@
+// The tender aggregate: its states, its transitions, and the content rules on the things it carries.
+//
+// The transitions are checked against the written process directly; the aggregate's own header carries the
+// quoted rows.
+//
+//
+// A CORRECTION MUST REFUSE WHAT A CREATE REFUSES
+//
+// Editing a line owes three refusals no integration test reaches: an unknown identifier, an empty title, and a
+// non-positive quantity. They are the same guards adding one has.
+//
+// A correction that accepted what a create refuses would let a tender reach a state authoring could never have
+// produced.
+//
+//
+// AN ENVELOPE EXPECTATION NEEDS A DOCUMENT TO ATTACH TO
+//
+// A requirement that asks for no document has nothing to expect an envelope for, and the expectation would
+// render as guidance about a file the supplier is never asked for.
+//
+// Both adding and editing a requirement refuse it, and the control is the point: the supplier had a tag to set
+// and nothing to set it against. It stays optional, because most requirements have no document and no
+// expectation.
+//
+//
+// CLARIFICATION ANSWERS ARE BROADCAST, AND WHAT SURVIVES OF THE OLDER READING
+//
+// A recorded decision reversed the earlier default in favour of the written rule: answers are broadcast to all
+// invitees with the questioner anonymised. There is no longer a private answer to produce.
+//
+// What survives of the older reasoning is the half that still holds: a bidder's thinking is not on display to
+// competitors while the buyer is still deciding what to say.
+//
+// So nothing new can be private, and the only case exercisable at the domain level is the guard. The path it
+// exists for, rows written under the older rule, is covered end to end in the clarification endpoint tests,
+// where such a row can be seeded in storage.
+//
+//
+// AN ADDENDUM IS ADDITIVE
+//
+// The tender's own locked content is untouched by one, which is asserted rather than assumed.
+//
+// The setup walks the aggregate through every real transition up to the state a case needs, using only the
+// domain's own methods. That is the same pattern the theory-table cancellation test uses, and it avoids
+// duplicating setup per case.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>FEAT-07.1..07.10. State list/transitions verified directly against
-/// docs/product/BUSINESS-PROCESSES.md §3.1 - see Rfq.cs's own doc comments for the exact quoted
-/// transition rows this exercises.</summary>
 public class RfqTests
 {
     private static readonly Guid OrgId = Guid.CreateVersion7();
@@ -45,12 +88,6 @@ public class RfqTests
         CreateDraftRfq().State.Should().Be(RfqState.Draft);
     }
 
-    /// <summary>
-    /// The three refusals UpdateItem owes, none of which an integration test reaches: an unknown id,
-    /// an empty title, and a non-positive quantity. They are the same guards AddItem has, and a
-    /// correction that accepted what a create refuses would let a tender reach a state authoring
-    /// could never have produced.
-    /// </summary>
     [Fact]
     public void UpdateItem_enforces_the_same_guards_as_adding_one()
     {
@@ -103,8 +140,6 @@ public class RfqTests
 
         var unknownId = () => rfq.UpdateRequirement(Guid.NewGuid(), "شرط", "Text", true, null);
         var emptyText = () => rfq.UpdateRequirement(requirement.Id, "شرط", "   ", true, null);
-        // A-2: an envelope expectation on a requirement that asks for no document has nothing to
-        // attach to - the same refusal AddRequirement makes.
         var envelopeWithoutDocument = () => rfq.UpdateRequirement(
             requirement.Id, "شرط", "Text", true, null, ProposalDocumentEnvelope.Technical);
 
@@ -523,8 +558,6 @@ public class RfqTests
     [Fact]
     public void AnswerClarification_publishes_to_every_invitee_per_A_4()
     {
-        // A-4 reversed the OQ-008/ASM-044 default in favour of BRULE-036: "answers ... are broadcast
-        // to all invitees (anonymized questioner)". There is no longer a private answer to produce.
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
         var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
@@ -540,8 +573,6 @@ public class RfqTests
     [Fact]
     public void An_unanswered_question_stays_private()
     {
-        // The half of OQ-008's reasoning that survives A-4: a bidder's thinking is not on display to
-        // competitors while the buyer is still deciding what to say.
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
 
@@ -567,9 +598,6 @@ public class RfqTests
     [Fact]
     public void PublishClarification_refuses_a_clarification_that_is_already_published()
     {
-        // A-4 leaves nothing new in PrivateToAsker, so the only exercisable case at the domain level is
-        // the guard. The legacy-row path it exists for is covered end to end in
-        // ClarificationEndpointsTests, where a private row can be seeded in storage.
         var rfq = CreateReadyToSubmitRfq();
         AdvanceTo(rfq, RfqState.Published);
         var clarification = rfq.PostClarificationQuestion(Guid.CreateVersion7(), "Question?");
@@ -612,14 +640,10 @@ public class RfqTests
         var addendum = rfq.IssueAddendum("تمديد الموعد النهائي", "Deadline extended", "تم تمديد موعد التقديم", "The submission deadline has been extended.", ApproverId);
 
         rfq.Addenda.Should().ContainSingle(a => a.Id == addendum.Id);
-        // The RFQ's own locked content is untouched - an addendum is additive, not an in-place edit.
         var act = () => rfq.AddItem("late", "late", null, null, "catering", 1m, "unit", false, false);
         act.Should().Throw<DomainException>().WithMessage("*only 'Draft' allows edits*");
     }
 
-    /// <summary>Drives the aggregate through every real transition up to (not including) the
-    /// requested state, using only the domain's own methods - the same "walk the machine" pattern
-    /// used to prove the theory-table Cancel test above without duplicating setup per case.</summary>
     private static void AdvanceTo(Rfq rfq, RfqState state)
     {
         if (state == RfqState.Draft) return;
@@ -637,8 +661,6 @@ public class RfqTests
     [Fact]
     public void An_expected_envelope_needs_a_document_to_attach_to()
     {
-        // A-2. An envelope expectation on a requirement that asks for no document would render as
-        // guidance about a file the supplier is never asked for.
         var rfq = CreateDraftRfq();
 
         var act = () => rfq.AddRequirement("شرط", "Requirement", isMandatory: true, documentTypeCode: null,
@@ -650,7 +672,6 @@ public class RfqTests
     [Fact]
     public void A_requirement_that_asks_for_a_document_can_state_its_envelope()
     {
-        // The control, and A-2's point: the supplier had a tag to set and nothing to set it against.
         var rfq = CreateDraftRfq();
 
         var requirement = rfq.AddRequirement("شرط", "Provide the spec", isMandatory: true,
@@ -658,7 +679,6 @@ public class RfqTests
 
         requirement.ExpectedEnvelope.Should().Be(ProposalDocumentEnvelope.Technical);
 
-        // And it stays optional - most requirements have no document and no expectation.
         rfq.AddRequirement("شرط آخر", "Another", isMandatory: false, documentTypeCode: null)
             .ExpectedEnvelope.Should().BeNull();
     }

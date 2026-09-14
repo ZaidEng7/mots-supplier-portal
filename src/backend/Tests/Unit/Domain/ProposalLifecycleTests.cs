@@ -1,28 +1,46 @@
+// The middle of the bid state machine, which nothing could reach.
+//
+// Six of eleven states were never assigned anywhere in production code, so a bid went from draft to submitted to
+// an outcome and skipped evaluation intake, the clarification loop and shortlisting entirely.
+//
+// The third instance of this class of defect in this codebase, after three tender states and an entire
+// unreachable feature.
+//
+// Driven through the aggregate's real transitions rather than a test seam, which is the convention the other
+// domain state-machine tests follow. An empty required-item set is a bid with nothing mandatory outstanding,
+// which is what the submit guard checks.
+//
+//
+// THE CLARIFICATION LOOP IS ASSERTED AS A LOOP
+//
+// The written table marks it as repeatable, so asserting one pass would not prove what the table describes. A
+// second pass is asserted too.
+//
+// Its own guard requires a reason, and the control shows that with a reason it succeeds, so the guard can be
+// satisfied as well as refuse.
+//
+//
+// THE REGRESSION THAT MAKING THE MIDDLE REACHABLE CAUSED
+//
+// Moving the winner out of submitted broke the award, which accepted only submitted bids, and produced an
+// uncaught refusal and a server error on executing an award. One test here is the guard for that, with a control
+// showing a draft is still refused so the widening did not become "anything goes".
+//
+// A final assertion covers the predicate six queries now depend on. If a state is listed there but unreachable,
+// those queries filter for something that never exists, which is the defect this work closed, reintroduced
+// through the back door.
+
+namespace MotsSupplierPortal.Tests.Unit.Domain;
+
 using FluentAssertions;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.Suppliers;
 
-namespace MotsSupplierPortal.Tests.Unit.Domain;
-
-/// <summary>
-/// T-051: the middle of BUSINESS-PROCESSES.md §4.1's proposal machine, which nothing could reach.
-///
-/// <para>Six of eleven states were never assigned anywhere in production code, so a proposal went
-/// Draft → Submitted → outcome and skipped evaluation intake, the clarification loop and
-/// shortlisting entirely. Third instance of this class after T3-36's three RFQ states and EPIC-17's
-/// unreachable epic.</para>
-/// </summary>
 public sealed class ProposalLifecycleTests
 {
-    /// <summary>
-    /// Driven through the aggregate's real transitions rather than a test seam - the convention the
-    /// other domain state-machine tests here already follow. An empty required-item set is a
-    /// proposal with nothing mandatory outstanding, which is what Submit's own guard checks.
-    /// </summary>
     private static Proposal SubmittedProposal(string code = "PRP-2026-000001")
     {
         var proposal = Proposal.Create(code, Guid.CreateVersion7(), Guid.CreateVersion7());
-        // Submit's own guards: terms carry the validity window it checks for.
         proposal.SetCommercialTerms(
             "SYP", "Net 30", "FOB", null, null, null,
             DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)));
@@ -54,7 +72,6 @@ public sealed class ProposalLifecycleTests
     [Fact]
     public void Intake_refuses_a_draft()
     {
-        // The control: a guard that accepts everything would pass the test above.
         var proposal = Proposal.Create("PRP-2026-000003", Guid.CreateVersion7(), Guid.CreateVersion7());
 
         var act = () => proposal.OpenForReview();
@@ -65,8 +82,6 @@ public sealed class ProposalLifecycleTests
     [Fact]
     public void The_clarification_loop_runs_and_can_repeat()
     {
-        // §4.1 marks the loop "(ClarificationRequested → Revised → UnderReview)*" - repeatable, so
-        // asserting one pass would not prove what the table describes.
         var proposal = UnderReviewProposal();
 
         proposal.RequestClarification("Please confirm the delivery window.");
@@ -80,7 +95,6 @@ public sealed class ProposalLifecycleTests
         proposal.ReturnToReview();
         proposal.State.Should().Be(ProposalState.UnderReview);
 
-        // Second pass - the asterisk in the table.
         proposal.RequestClarification("And the warranty term.");
         proposal.RecordRevision();
         proposal.RevisionNumber.Should().Be(3);
@@ -89,14 +103,12 @@ public sealed class ProposalLifecycleTests
     [Fact]
     public void A_clarification_without_a_reason_is_refused()
     {
-        // §4.1's own guard: "Reason; specific questions".
         var proposal = UnderReviewProposal();
 
         var act = () => proposal.RequestClarification("   ");
 
         act.Should().Throw<DomainException>().WithMessage("*reason is required*");
 
-        // Control: with a reason it succeeds, so the guard can be satisfied as well as refuse.
         proposal.RequestClarification("A real question.");
         proposal.State.Should().Be(ProposalState.ClarificationRequested);
     }
@@ -108,7 +120,6 @@ public sealed class ProposalLifecycleTests
         proposal.Shortlist();
         proposal.State.Should().Be(ProposalState.Shortlisted);
 
-        // Control on the other side: a second shortlist is refused, so the guard is real.
         var act = () => proposal.Shortlist();
         act.Should().Throw<DomainException>().WithMessage("*only 'UnderReview' is valid*");
     }
@@ -116,9 +127,6 @@ public sealed class ProposalLifecycleTests
     [Fact]
     public void The_award_path_still_accepts_every_state_that_can_now_reach_it()
     {
-        // Making the middle reachable moved the winner out of Submitted, and Award() accepted only
-        // Submitted - which produced an uncaught DomainException and a 500 on award/execute. This is
-        // the regression guard for that.
         var fromSubmitted = SubmittedProposal("PRP-2026-000010");
         fromSubmitted.Award();
         fromSubmitted.State.Should().Be(ProposalState.Awarded, "the pre-evaluation award path still works");
@@ -132,7 +140,6 @@ public sealed class ProposalLifecycleTests
         fromShortlisted.Award();
         fromShortlisted.State.Should().Be(ProposalState.Awarded, "§4.1's canonical path");
 
-        // Control: a Draft is still refused, so the widening did not become "anything goes".
         var draft = Proposal.Create("PRP-2026-000099", Guid.CreateVersion7(), Guid.CreateVersion7());
         var act = () => draft.Award();
         act.Should().Throw<DomainException>();
@@ -141,9 +148,6 @@ public sealed class ProposalLifecycleTests
     [Fact]
     public void Every_state_in_the_evaluation_set_is_one_the_machine_can_actually_reach()
     {
-        // The predicate six queries now depend on. If a state is listed here but unreachable, those
-        // queries filter for something that never exists - which is the defect this batch closed,
-        // reintroduced through the back door.
         ProposalStates.InEvaluation.Should().BeEquivalentTo(new[]
         {
             ProposalState.Submitted,

@@ -1,18 +1,21 @@
-using FluentAssertions;
-using MotsSupplierPortal.Domain.Suppliers;
+// The six profile child collections have a cap, and both directions of it are proven.
+//
+// None of the six had one before this, which a scan during that work confirmed.
+//
+// Real cursor paging was scoped out for these, unlike the queue, the team list and the sessions list, because
+// they are business-bounded rather than genuinely unbounded; the caps on the record itself carry that reasoning.
+//
+// What replaces paging here is proving both directions of the guard, per the standing rule: the cap is not
+// silently absent, so exceeding it must fail, and not silently wrong in the other direction, so reaching exactly
+// the cap must still succeed.
+//
+// One representative already exists from registration, so the setup fills up to the cap from there.
 
 namespace MotsSupplierPortal.Tests.Unit.Domain;
 
-/// <summary>
-/// MSP-84: the six profile child collections on Supplier (Representatives, Addresses, Contacts,
-/// Branches, BankAccounts, CategoryLinks) had no cap on any Add* method before this - a scan
-/// during MSP-84's investigation confirmed all six. Real cursor pagination was scoped out for
-/// these (unlike Review Queue/Team Members/Sessions) since they are business-bounded, not
-/// genuinely unbounded - see MaxRepresentatives etc. on Supplier.cs for the reasoning. What
-/// replaces pagination here is proving both directions of the guard, per this week's standing
-/// rule: the cap is not silently absent (exceeding it must fail) and not silently wrong in the
-/// other direction (reaching exactly the cap must still succeed).
-/// </summary>
+using FluentAssertions;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed class SupplierProfileCollectionCapTests
 {
     private static Supplier EditableSupplier()
@@ -28,7 +31,6 @@ public sealed class SupplierProfileCollectionCapTests
     public void Representatives_can_reach_the_cap_but_not_exceed_it()
     {
         var supplier = EditableSupplier();
-        // One representative already exists from Register(); fill up to the cap.
         for (var i = supplier.Representatives.Count; i < 20; i++)
         {
             supplier.AddRepresentative($"Rep {i}", $"rep{i}@example.com", null, null);

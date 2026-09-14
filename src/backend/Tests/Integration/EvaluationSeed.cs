@@ -1,3 +1,60 @@
+// Everything an evaluation test needs to exist before the thing it is testing.
+//
+// A tender driven all the way to an open evaluation with one submitted bid.
+//
+// Shared because several suites need the same forty lines to reach the state they are actually about. Copying it
+// would mean two lifecycles drifting apart, and the one that drifts is the one nobody is looking at.
+//
+// Later additions kept that property: the supplier side of the same tender and the bid's own public code for the
+// clarification loop, and documents on both sides of the buyer-side gate, which is only provable if a document
+// exists on each. The documents are opt-in, so the suites that predate them seed exactly what they seeded before.
+//
+// One file is declared as technical and one leaves the field unsent. The second is the default, and asserting it
+// is the commercial side is the only way to know the default is the gated one rather than whatever the
+// enumeration happens to declare first.
+//
+//
+// EVERY STEP IS CHECKED, AND NAMES ITSELF WHEN IT FAILS
+//
+// This seed drives eleven calls and used to check none of them, so a refusal anywhere surfaced three lines later
+// as a missing key from a property read, which says nothing about which call was refused or why.
+//
+// The window between publishing and submitting is real work on a loaded machine, and when it loses, that is the
+// shape the failure takes: a mystery in a file that did nothing wrong. Same family as another intermittent
+// nobody could diagnose because the failure carried no information.
+//
+//
+// THE SUBMISSION WINDOW IS AN HOUR, NOT A SECOND, AND THAT IS THE FIX FOR A REAL FLAKE
+//
+// It used to open one second after the tender was created and close two seconds later. Everything in between,
+// approving, publishing, waiting, the timeline job, starting the bid, pricing it, setting terms and sometimes two
+// file uploads, had to fit inside that.
+//
+// On a loaded machine it did not: the submission was refused by the closed window, the seed did not check the
+// result, and the failure surfaced steps later as a complaint from a completely different endpoint about there
+// being no submitted bid. That is the unidentified flake the backlog carried.
+//
+// The window is now an hour, and the seed CLOSES it in storage when it needs it closed, which is the same
+// technique another suite adopted after the same class of failure. No sleeping: the real job still performs the
+// transition, so what is exercised is unchanged and only the waiting is gone.
+//
+// The open and close are computed from ONE instant an hour and two hours out, not from two separate reads of the
+// clock. Two reads differ by microseconds, or by nothing at all when the clock does not tick between them, and a
+// window whose close is not strictly after its open is refused. That failed twenty-eight times in a full run and
+// passed every time in isolation, which is the signature of a race against a clock rather than against another
+// test.
+//
+//
+// THE PUBLIC CODE IS RESOLVED FROM STORAGE
+//
+// The evaluator's scoring route names a bid by its public code, so a test holding an internal identifier needs
+// the code that addresses it.
+//
+// Resolved from storage rather than threaded through ten setup helpers, which would have meant reshaping every
+// one of their return values.
+
+namespace MotsSupplierPortal.Tests.Integration;
+
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -9,20 +66,11 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Rfqs;
 
-namespace MotsSupplierPortal.Tests.Integration;
-
-/// <summary>Everything an evaluation test needs to exist before the thing it is testing.</summary>
 public sealed record Seeded(
     HttpClient Officer, Guid OfficerId, HttpClient Manager, Guid ManagerId,
     HttpClient Evaluator, Guid EvaluatorId, string RfqCode, Guid SupplierUserId, Guid OrgId,
     Guid EvaluationId, int CriterionCount, int SubmittedProposalCount,
-    // T-051 additions: the clarification loop needs the SUPPLIER side of this same RFQ, and the
-    // proposal's own code. Added here rather than re-seeding forty lines in a third suite - the
-    // reason this helper exists at all.
     HttpClient Supplier, string ProposalCode,
-    // T-028 additions: the buyer-side document routes are keyed by proposal GUID, and the gate is
-    // only provable if a document exists on both sides of it. Both are opt-in (see CreateAsync's
-    // withDocuments) so the suites that predate T-028 seed exactly what they seeded before.
     Guid ProposalId, Guid TechnicalDocumentId, Guid CommercialDocumentId);
 
 public static class EvaluationSeed
@@ -42,27 +90,6 @@ public static class EvaluationSeed
         return (client, supplier.Id);
     }
 
-    /// <summary>
-    /// An RFQ driven all the way to an open evaluation with one submitted proposal.
-    ///
-    /// <para>Shared because two suites need the same forty lines to reach the state they are actually
-    /// about - T3-36's transitions and SCR-500's assignments both begin at UnderEvaluation. Copying
-    /// it would mean two lifecycles drifting apart, and the one that drifts is the one nobody is
-    /// looking at.</para>
-    /// </summary>
-    /// <summary>
-    /// Fails at the step that failed, naming it and quoting the body.
-    ///
-    /// <para><b>Why this exists.</b> This seed drives eleven HTTP calls and checked none of them, so
-    /// a refusal anywhere surfaced three lines later as
-    /// <c>KeyNotFoundException: The given key was not present in the dictionary</c> from a
-    /// <c>GetProperty("proposalCode")</c> - which says nothing about which call was refused or why.
-    /// The window between publishing and submitting is real work on a loaded machine, and when it
-    /// loses, this is the shape the failure takes: a mystery in a file that did nothing wrong.</para>
-    ///
-    /// <para>Same family as T-090, the intermittent nobody could diagnose because the failure carried
-    /// no information.</para>
-    /// </summary>
     private static Task<HttpResponseMessage> Step(string name, Task<HttpResponseMessage> call) =>
         SetupStep.Of(nameof(EvaluationSeed), name, call);
 
@@ -89,29 +116,6 @@ public static class EvaluationSeed
         {
             titleAr = "طلب", titleEn = $"{label} RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
             currencyCode = "SYP", publishAt = (DateTimeOffset?)null,
-            // A REAL window, not a three-second one.
-            //
-            // This used to be now+1s to now+3s, and everything between publishing and submitting -
-            // approve, publish, a 1.2s wait, the timeline job, starting the proposal, pricing it,
-            // setting terms, and with withDocuments TWO file uploads - had to fit inside two seconds. On
-            // a loaded machine it did not: the submit was refused by the closed window, the seed did not
-            // check the result, and the failure surfaced three steps later as "at least one Submitted
-            // proposal is required" from a completely different endpoint.
-            //
-            // That is the unidentified flake carried in the backlog since batch 9. The window is now an
-            // hour, and the seed CLOSES it in storage when it needs it closed - the same technique
-            // CrossOrganizationScopeTests adopted after the same class of failure.
-            // An HOUR, not a second. The window used to open one second after the RFQ was created,
-            // and everything between - the item, the requirement, a supplier registration and
-            // verification, the invitation - had to finish inside it, because submit-review is
-            // refused once the window has opened. It regularly did not, and the seed reported the
-            // refusal as a missing proposalCode much further down. The window is moved open below
-            // instead, and the real job still performs the transition.
-            // An hour out, and TWO hours for the close - not two calls to UtcNow an hour out each.
-            // Those differ by microseconds, or by nothing at all when the clock does not tick between
-            // them, and a window whose close is not strictly after its open is refused. It failed 28
-            // times in a full run and passed every time in isolation, which is the signature of a
-            // race against a clock rather than against another test.
             submissionOpensAt = DateTimeOffset.UtcNow.AddHours(1),
             submissionClosesAt = DateTimeOffset.UtcNow.AddHours(2),
             clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
@@ -155,20 +159,13 @@ public static class EvaluationSeed
         var commercialDocumentId = Guid.Empty;
         if (withDocuments)
         {
-            // One file the supplier declares Technical, one where the field is simply not sent -
-            // the second is the D-7 default, and asserting it is Commercial is the only way to know
-            // the default is the gated side rather than whatever the enum happens to declare first.
             technicalDocumentId = await UploadDocumentAsync(supplier, proposalCode, "spec.pdf", "Technical");
             commercialDocumentId = await UploadDocumentAsync(supplier, proposalCode, "prices.pdf", envelope: null);
         }
 
-        // Checked. An unchecked submit here is what made every downstream failure anonymous.
         var submitted = await supplier.PostAsync($"/api/v1/proposals/{proposalCode}/submit", null);
         submitted.StatusCode.Should().Be(HttpStatusCode.OK, await submitted.Content.ReadAsStringAsync());
 
-        // Close the window by moving the deadline into the past, then let the real job notice. No sleep:
-        // the job is still what performs the transition, so what is being exercised is unchanged - only
-        // the waiting is gone.
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -213,10 +210,6 @@ public static class EvaluationSeed
             supplier, proposalCode, proposalId, technicalDocumentId, commercialDocumentId);
     }
 
-
-    /// <summary>Uploads one supporting file to a Draft proposal and returns its id. envelope null
-    /// means the multipart field is omitted entirely, not sent empty - "unstated" is the case D-7's
-    /// default exists for.</summary>
     private static async Task<Guid> UploadDocumentAsync(
         HttpClient supplier, string proposalCode, string fileName, string? envelope)
     {
@@ -237,11 +230,6 @@ public static class EvaluationSeed
     }
 }
 
-/// <summary>
-/// T-068: the evaluator scoring route names a bid by its PUBLIC code, so a test holding a proposal
-/// GUID needs the code that addresses it. Resolved from storage rather than threaded through ten
-/// setup helpers, which would have meant reshaping every one of their return tuples.
-/// </summary>
 public static class ProposalCodeLookup
 {
     public static async Task<string> ProposalCodeAsync(this PostgresApiFixture fixture, Guid proposalId)

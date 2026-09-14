@@ -1,3 +1,97 @@
+// The fixture the whole integration suite shares: real containers, the real host, the real migrations.
+//
+// It starts PostgreSQL, object storage and the virus scanner as containers, boots the actual API against them,
+// and applies the real migrations. No mocked persistence.
+//
+// Object storage is required rather than optional, because the host ensures its bucket exists at startup, so
+// without a real endpoint the whole host fails to boot and every test in the fixture fails with it, not only the
+// document ones.
+//
+// The scanner is real too. There is no ready-made module for it, so it is the generic container against the same
+// image the local stack uses. The streaming-upload work's whole point was proving the scan path still rejects
+// malware once it no longer buffers the file first, and a stubbed scanner could not prove that. Its startup is
+// slow, because the daemon loads virus definitions on boot, and that is paid once per run through the single
+// shared fixture rather than once per test.
+//
+// Its readiness probe mirrors the local stack's own: a real handshake over the scanning port, not merely "the
+// port accepted a connection". The daemon can open the port before definitions finish loading, which would make
+// a malware sample fail closed for the wrong reason rather than proving anything.
+//
+//
+// EVERY IMAGE IS PINNED, AND ONE OF THEM WAS LEARNED THE EXPENSIVE WAY
+//
+// The database is pinned because these tests assert behaviour belonging to the database itself, so an unpinned
+// image would let a silent upstream bump change what the suite is testing.
+//
+// The object store used to float on its latest tag. Then the registry it was pulled from stopped serving that
+// repository, because the vendor publishes elsewhere. Nothing in this repository changed. Every backend job went
+// red at once, one millisecond into the run, with a pull-access error, and it was invisible on any developer
+// machine that had already pulled the image, because the tooling reuses what it has.
+//
+// A floating tag is what made a decision somebody else took land in this repository as a failure. A pinned
+// release changes only when a person changes it.
+//
+//
+// THE ORDER OF MIGRATION AND BOOT
+//
+// The migrations run through a standalone context BEFORE the host boots, because the host seeds identity roles as
+// part of startup and that needs the identity schema to already exist. Touching the host's services first would
+// boot it and seed against an empty database.
+//
+//
+// WHAT IS SWITCHED OFF UNDER THE SUITE, AND WHY EACH ONE
+//
+// The demonstration data seeder. It exists so no screen renders empty in a manual walkthrough, and its suppliers
+// appeared in another suite's page-one assertions, which name the rows they expect. A fixture that plants rows
+// tests do not know about makes every count and every ordering assertion conditional on it, and only in a full
+// run.
+//
+// The recurring job SCHEDULER, but not the job framework. Tests invoke jobs directly, which is the behaviour
+// under test in places, and enqueued email jobs still process. A job runs when a test asks for it and never when
+// a test does not.
+//
+// Without that, a scheduled synchronisation job synced an award a test had staged to fail, once the suite grew
+// long enough to span a tick. That failure was loud. The one that is not loud is a test asserting a state a job
+// also produces, and passing because the job did the work.
+//
+// The external breach-password lookup, to keep continuous integration hermetic. Failing open is fine in
+// production; a flaky or offline network should never be why an integration test fails.
+//
+// And both per-address rate limits are raised, because every test class shares this one host and therefore one
+// limiter partition. At the production defaults the suite throttles itself, and the resulting empty refusals
+// present as parse errors far from the cause.
+//
+//
+// THE CLIENTS THIS FIXTURE HANDS OUT
+//
+// The default one carries the version-header handler, so the precondition requirement does not have to be
+// repeated in the three hundred assertions written before it existed. The concurrency tests construct their own
+// without it, because a handler that always sends a current version cannot observe a stale one.
+//
+// It shadows the factory's own method rather than overriding it, because that method is not virtual. Every call
+// site has the fixture as its static type, so they all bind to this one.
+//
+// There is also a client that does not follow redirects, so a documented redirect can be asserted as one rather
+// than as whatever the signed link answers.
+//
+//
+// THE SHARED-ROW LEAK CHECK
+//
+// The state of the globally shared rows is snapshotted before any test runs and compared again when the run ends.
+//
+// It runs BEFORE the containers go away, because it needs the database. A failure is thrown rather than asserted,
+// because this is a fixture and the runner surfaces that as a run-level error naming the collection, which is
+// the right shape: the leak belongs to the RUN rather than to whichever test happened to be last.
+//
+// A database that has already gone away is not a leak and must not be reported as one, because a false failure
+// here would land on whatever test ran last and cost somebody an hour.
+//
+// The comparison is also public, so a test can ask for it. The end-of-run check reports at collection level, and
+// the runner's adapter exits successfully on a collection cleanup failure: loud in the log, invisible to
+// continuous integration. A dedicated test is what makes it a gate.
+
+namespace MotsSupplierPortal.Tests.Integration;
+
 using Microsoft.Extensions.DependencyInjection;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
@@ -8,51 +102,14 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using Testcontainers.Minio;
 using Testcontainers.PostgreSql;
 
-namespace MotsSupplierPortal.Tests.Integration;
-
-/// <summary>
-/// Spins up real PostgreSQL and MinIO containers (Testcontainers) and boots the actual API host
-/// (WebApplicationFactory&lt;Program&gt;) against them, applying the real EF Core migrations -
-/// no mocked persistence, matching docs/backlog gap item 3's "Testcontainers-backed
-/// integration tests" requirement. MinIO is required because Program.cs calls
-/// EnsureBucketExistsAsync at startup (MSP-49's document storage) - without a real endpoint the
-/// whole host fails to boot, failing every test in this fixture, not just document ones.
-/// </summary>
 public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    // CS0618: the parameterless PostgreSqlBuilder is obsolete and the image must now be explicit.
-    // Pinned to a specific major rather than `latest` on purpose - these tests assert behaviour
-    // that belongs to Postgres itself (xmin row versioning, ON CONFLICT allocation), so an
-    // unpinned image would let a silent upstream bump change what the suite is testing.
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
-    // quay.io, and PINNED - for the same reason the Postgres line above is pinned, learned the
-    // expensive way.
-    //
-    // This read `minio/minio:latest` until Docker Hub stopped serving that repository: the Hub API
-    // now answers 404 for minio/minio while answering 200 for library/postgres, because MinIO
-    // publishes to quay.io. Nothing in this repository changed. Every backend job went red at once,
-    // one millisecond into the run, with "pull access denied for minio/minio, repository does not
-    // exist" thrown from the line below - and it was invisible on any developer machine that had
-    // pulled the image before, because Docker reuses what it has.
-    //
-    // `latest` is what made a decision somebody else took land in this repository as a failure. A
-    // pinned release changes only when a person changes it.
     private readonly MinioContainer _minio =
         new MinioBuilder("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z").Build();
 
-    // MSP-84/NFR-PERF-008: no official Testcontainers.ClamAv module exists, so this is the generic
-    // ContainerBuilder against the same image docker-compose.yml already uses for local dev. Real
-    // clamd, not a stub - the streaming-upload fix's whole point is proving the AV-scan path still
-    // rejects malware correctly once it no longer buffers the file first, and a stubbed scanner
-    // couldn't prove that. Startup is slow (clamd loads virus definitions on boot, docker-compose's
-    // own healthcheck allows up to 180s) - paid once per test run via IntegrationTestCollection's
-    // single shared fixture, not once per test.
     private readonly IContainer _clamav = new ContainerBuilder("clamav/clamav:stable")
         .WithPortBinding(3310, true)
-        // Mirrors docker-compose.yml's own clamav healthcheck exactly (PING/PONG over the
-        // INSTREAM port), not just "the port accepted a TCP connection" - clamd can open the
-        // port before virus definitions finish loading, which would make an EICAR scan below
-        // fail closed for the wrong reason (definitions not ready) rather than proving anything.
         .WithWaitStrategy(Wait.ForUnixContainer()
             .UntilCommandIsCompleted("sh", "-c", "echo PING | nc -w 3 localhost 3310 | grep -q PONG"))
         .Build();
@@ -61,10 +118,6 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
     {
         await Task.WhenAll(_postgres.StartAsync(), _minio.StartAsync(), _clamav.StartAsync());
 
-        // Migrate with a standalone DbContext BEFORE the host boots: Program.cs seeds Identity
-        // roles as part of startup (Development-only), which needs the identity schema to
-        // already exist - touching Services here would start the host first and seed against
-        // an empty database.
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(_postgres.GetConnectionString())
             .Options;
@@ -73,36 +126,20 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
             await db.Database.MigrateAsync();
         }
 
-        // Now touch Services to actually boot the host against the migrated schema.
         _ = Services;
 
-        // T-073: the world as the seed left it, before any test has run. Compared again when the run
-        // ends - see GlobalRowSnapshot for what is in it and why.
         await using var snapshotScope = Services.CreateAsyncScope();
         _seededGlobals = await GlobalRowSnapshot.TakeAsync(
             snapshotScope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
-    /// <summary>The shared rows as the seeder left them. Null only if InitializeAsync did not finish.</summary>
     private IReadOnlyDictionary<string, string>? _seededGlobals;
 
-    /// <summary>
-    /// Every client in the suite carries <see cref="ETagAttachingHandler"/>, so §8.1's If-Match
-    /// requirement does not have to be repeated in each of the ~300 assertions written before it.
-    /// The concurrency tests construct their own client without it - a handler that always sends a
-    /// current version cannot observe a stale one.
-    /// </summary>
-    /// `new` rather than `override` because WebApplicationFactory.CreateClient is not virtual.
-    /// Every call site in the suite has the fixture as its static type, so they all bind to this one.
     public new HttpClient CreateClient() =>
         CreateDefaultClient(new ETagAttachingHandler());
 
-    /// <summary>A client WITHOUT the ETag handler, for tests that need to control the header.</summary>
     public HttpClient CreateRawClient() => ((WebApplicationFactory<Program>)this).CreateClient();
 
-    /// <summary>A client that does NOT follow redirects, so a 302 can be asserted as a 302. The
-    /// default client follows them, which would turn §12.3's documented redirect into whatever the
-    /// pre-signed URL answers.</summary>
     public HttpClient CreateClientWithoutRedirects() =>
         CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
@@ -111,22 +148,8 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         builder.UseEnvironment("Development");
         builder.UseSetting("ConnectionStrings:Default", _postgres.GetConnectionString());
 
-        // The demo data seeder stays OFF under the suite. It exists so no screen renders empty in a manual
-        // walkthrough, and its five suppliers appeared in ReviewQueuePaginationTests' page-one assertions,
-        // which name the rows they expect. A fixture that plants rows tests do not know about makes every
-        // count and every ordering assertion in the suite conditional on it - and only in a full run.
         builder.UseSetting("DevSeed:Enabled", "false");
 
-        // MSP-98: no recurring job may fire under the suite. Hangfire itself stays on - tests
-        // invoke jobs directly (AwardEndpointsTests runs AwardErpSyncJob against a deliberately
-        // failing adapter, which IS the behaviour under test) and enqueued email jobs still
-        // process. What is switched off is the SCHEDULER: a job runs when a test asks for it, and
-        // never when a test does not.
-        //
-        // Without this, award-erp-sync (*/5) synced an award a test had staged to fail, once the
-        // suite grew long enough to span a tick. That failure was loud. The one that is not loud is
-        // a test asserting a state a job also produces - SubmissionClosed, Expired - and passing
-        // because the job did the work.
         builder.UseSetting("Jobs:EnableRecurring", "false");
 
         var minioEndpoint = new Uri(_minio.GetConnectionString());
@@ -138,26 +161,14 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         builder.UseSetting("ClamAv:Host", _clamav.Hostname);
         builder.UseSetting("ClamAv:Port", _clamav.GetMappedPublicPort(3310).ToString());
 
-        // Keep CI hermetic: the HIBP breach-password check (HibpBreachedPasswordValidator) calls
-        // an external API - fine to fail open in prod/dev, but a flaky/offline network shouldn't
-        // ever be why an integration test fails.
         builder.UseSetting("Password:BreachCheckEnabled", "false");
 
-        // Every test class shares this one host (IntegrationTestCollection), so they also share the
-        // per-IP auth rate-limit partition. At the production default of 10/min the suite throttles
-        // itself and the resulting empty 429 bodies present as JSON parse errors far from the cause.
         builder.UseSetting("RateLimiting:AuthPermitLimit", "10000");
-        // Same reasoning, same fix, for the registration-specific per-IP policy (NFR-SEC-009).
         builder.UseSetting("RateLimiting:RegisterPermitLimit", "10000");
     }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        // T-073, and it runs BEFORE the containers go away because it needs the database.
-        //
-        // Thrown rather than asserted: this is a fixture, not a test, and xUnit surfaces a failure
-        // here as a run-level error naming this collection. That is the right shape - the leak
-        // belongs to the RUN rather than to whichever test happened to be last.
         var drift = await DriftAsync();
 
         await Task.WhenAll(_postgres.DisposeAsync().AsTask(), _minio.DisposeAsync().AsTask(), _clamav.DisposeAsync().AsTask());
@@ -166,13 +177,6 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         if (drift is not null) throw new InvalidOperationException(drift);
     }
 
-    /// <summary>
-    /// T-073: what has changed in the globally shared rows since the seeder left them, or null.
-    ///
-    /// <para>Public so a test can ask, because the end-of-run check below reports at COLLECTION
-    /// level and xUnit v2's VSTest adapter exits 0 on a collection cleanup failure - loud in the
-    /// log, invisible to CI. <c>GlobalRowRestorationTests</c> is what makes it a gate.</para>
-    /// </summary>
     public Task<string?> GlobalRowDriftAsync() => DriftAsync();
 
     private async Task<string?> DriftAsync()
@@ -187,8 +191,6 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         }
         catch (Exception ex)
         {
-            // A database that has already gone away is not a leak, and must not be reported as one:
-            // a false failure here would land on whatever test ran last and cost somebody an hour.
             return $"The global-row check could not read the database at the end of the run: {ex.Message}";
         }
     }

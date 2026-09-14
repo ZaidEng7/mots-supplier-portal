@@ -1,14 +1,15 @@
+// The job-storage readiness check's own failure handling, proven against a storage that genuinely throws.
+//
+// Not a stub configured to return a canned failure, but an actual implementation whose monitoring call fails,
+// which is what a real unreachable storage backend would do.
+
+namespace MotsSupplierPortal.Tests.Unit.Observability;
+
 using FluentAssertions;
 using Hangfire.Storage;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotsSupplierPortal.Infrastructure.Observability;
 
-namespace MotsSupplierPortal.Tests.Unit.Observability;
-
-/// <summary>Task #16/NFR-OBS-006: the health check's own try/catch behavior, proven against a real
-/// storage that genuinely throws - not a mock configured to return a canned failure, an actual
-/// implementation whose GetMonitoringApi() call fails, matching what a real unreachable Hangfire
-/// storage backend would do.</summary>
 public sealed class HangfireStorageHealthCheckTests
 {
     private sealed class ThrowingJobStorage : Hangfire.JobStorage

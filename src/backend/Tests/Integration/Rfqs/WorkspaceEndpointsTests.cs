@@ -1,0 +1,256 @@
+// The guided workspace read model, at the two states the report calls for: a mid-authoring draft with a blocked next
+// action, and a completed tender with none left.
+//
+//
+// THE TRACKER SHOWS EVERY STAGE, INCLUDING THE THREE THAT USED TO BE UNREACHABLE
+//
+// They were excluded precisely because no code path produced them. Leaving them out once they became reachable
+// would give a tender sitting in one of them no current stage at all, and mark everything before it complete.
+//
+//
+// THE RAIL NAMES EVERY UNMET PRECONDITION, NOT THE FIRST ONE
+//
+// It used to name one, so a person fixed it, pressed the button, and was told about the next: five round trips to
+// learn what submitting needs.
+//
+// Worse, the list was missing the submission-window rule entirely, so the rail and the domain disagreed about why a
+// draft was blocked. A person fixed what they were told and was refused for something else. Walked into by hand.
+//
+// The tender under test is created with nothing at all, so all four that apply are named, in the order the domain
+// checks them, and the window blocker has its own test because it is the one the rail did not check.
+//
+//
+// THE WINDOW IS AN HOUR AND IS CLOSED IN STORAGE
+//
+// A seconds-wide window made everything between publishing and submitting race a wall clock. The real job still
+// performs the transition; only the waiting is gone.
+
+namespace MotsSupplierPortal.Tests.Integration.Rfqs;
+
+using System.Net.Http.Json;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Infrastructure.Awards;
+using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Rfqs;
+using MotsSupplierPortal.Tests.Integration;
+
+[Collection(IntegrationTestCollection.Name)]
+public sealed class WorkspaceEndpointsTests(PostgresApiFixture fixture)
+{
+    private async Task RunTimelineJobAsync()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var job = scope.ServiceProvider.GetRequiredService<RfqTimelineJob>();
+        await job.RunAsync(CancellationToken.None);
+    }
+
+    private async Task RunErpSyncJobAsync()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var job = scope.ServiceProvider.GetRequiredService<AwardErpSyncJob>();
+        await job.RunAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Workspace_for_a_Draft_RFQ_shows_Draft_as_current_and_a_blocked_submit_review_action()
+    {
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب مسودة", titleEn = "Workspace Draft RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null,
+            currencyCode = "SYP", publishAt = (DateTimeOffset?)null, submissionOpensAt = (DateTimeOffset?)null,
+            submissionClosesAt = (DateTimeOffset?)null, clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString()!;
+
+        var workspace = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/workspace");
+
+        workspace.GetProperty("rfqReferenceCode").GetString().Should().Be(referenceCode);
+        workspace.GetProperty("rfqState").GetString().Should().Be(nameof(RfqState.Draft));
+        workspace.GetProperty("isCancelled").GetBoolean().Should().BeFalse();
+        workspace.GetProperty("submittedProposalCount").GetInt32().Should().Be(0);
+        workspace.GetProperty("evaluationState").ValueKind.Should().Be(JsonValueKind.Null);
+        workspace.GetProperty("awardState").ValueKind.Should().Be(JsonValueKind.Null);
+
+        var stages = workspace.GetProperty("stages").EnumerateArray().ToList();
+        stages.Should().HaveCount(13, "every reachable RfqState is shown, and T3-36 added three");
+        var draftStage = stages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.Draft));
+        draftStage.GetProperty("isCurrent").GetBoolean().Should().BeTrue();
+        draftStage.GetProperty("isCompleted").GetBoolean().Should().BeFalse();
+        var laterStage = stages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.Published));
+        laterStage.GetProperty("isCurrent").GetBoolean().Should().BeFalse();
+        laterStage.GetProperty("isCompleted").GetBoolean().Should().BeFalse();
+
+        var actions = workspace.GetProperty("nextActions").EnumerateArray().ToList();
+        actions.Should().ContainSingle();
+        var submitReview = actions.Single();
+        submitReview.GetProperty("action").GetString().Should().Be("submit_review");
+        submitReview.GetProperty("permitted").GetBoolean().Should().BeFalse("a Draft RFQ with no items yet cannot be submitted for review");
+
+        submitReview.GetProperty("blockedReasonEn").GetString().Should().Be(
+            "No items yet. Submission dates not set. No evaluation template bound. No supplier invited yet.");
+        submitReview.GetProperty("blockedReasonAr").GetString().Should().Be(
+            "لا توجد بنود بعد. لم يتم تحديد تواريخ التقديم. لم يتم ربط قالب تقييم. لم تتم دعوة أي مورد بعد.");
+    }
+
+    [Fact]
+    public async Task Workspace_names_a_submission_window_that_has_already_started()
+    {
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب بنافذة منتهية", titleEn = "Window already open RFQ",
+            descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
+            publishAt = (DateTimeOffset?)null,
+            submissionOpensAt = DateTimeOffset.UtcNow.AddHours(-2),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddDays(7),
+            clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+        var rfq = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var referenceCode = rfq.GetProperty("referenceCode").GetString()!;
+
+        var workspace = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/workspace");
+        var reason = workspace.GetProperty("nextActions").EnumerateArray().Single()
+            .GetProperty("blockedReasonEn").GetString();
+
+        reason.Should().Contain("The submission window has already started.",
+            "the rail reports every precondition SubmitForReview checks, and this is the one it used to miss");
+        reason.Should().NotContain("Submission dates not set.",
+            "the dates ARE set; what is wrong is that one of them has passed");
+    }
+
+    [Fact]
+    public async Task Workspace_for_an_Awarded_RFQ_shows_the_ERP_sync_wait_then_Completed_with_no_next_action()
+    {
+        var supplierName = $"Wksp {Guid.NewGuid():N}"[..25];
+        var (supplierClient, _) = await SupplierTestClient.CreateVerifiedSupplierWithEmailAsync(fixture, supplierName);
+        Guid supplierId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplier = await db.Suppliers.FirstAsync(s => s.DisplayNameEn == supplierName);
+            supplierId = supplier.Id;
+            await db.Suppliers.Where(s => s.Id == supplierId).ExecuteUpdateAsync(p => p
+                .SetProperty(s => s.OnboardingState, Domain.Suppliers.SupplierOnboardingState.Approved)
+                .SetProperty(s => s.LifecycleState, Domain.Suppliers.SupplierLifecycleState.Active));
+        }
+
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var officer = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementOfficer, org.Id);
+        var manager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, org.Id);
+        var otherManager = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, org.Id);
+
+        var templateResponse = await manager.PostAsJsonAsync("/api/v1/evaluation-templates", new { nameAr = "قالب", nameEn = $"Workspace Template {Guid.NewGuid():N}" });
+        var templateId = (await templateResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        await manager.PostAsJsonAsync($"/api/v1/evaluation-templates/{templateId}/criteria", new
+        {
+            nameAr = "جودة", nameEn = "Quality", dimension = "Technical", weight = 100, maxScore = 100,
+            threshold = 50, scoringType = "Numeric", guidanceAr = (string?)null, guidanceEn = (string?)null,
+        });
+        await manager.PostAsync($"/api/v1/evaluation-templates/{templateId}/activate", null);
+
+        var createResponse = await officer.PostAsJsonAsync("/api/v1/rfqs", new
+        {
+            titleAr = "طلب ترسية", titleEn = "Workspace Awarded RFQ", descriptionAr = (string?)null, descriptionEn = (string?)null, currencyCode = "SYP",
+            publishAt = (DateTimeOffset?)null, submissionOpensAt = DateTimeOffset.UtcNow.AddSeconds(1),
+            submissionClosesAt = DateTimeOffset.UtcNow.AddHours(1),
+            clarificationDeadlineAt = (DateTimeOffset?)null, evaluationTargetDate = (DateTimeOffset?)null,
+        });
+        var referenceCode = (await createResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("referenceCode").GetString()!;
+
+        var itemResponse = await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/items", new
+        {
+            titleAr = "بند", titleEn = "Item", specificationAr = (string?)null, specificationEn = (string?)null,
+            categoryCode = "catering", quantity = 5, unitOfMeasureCode = "unit", isUnitPrice = true, isOptional = false,
+        });
+        var itemId = (await itemResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        await officer.PutAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation-template", new { evaluationTemplateId = templateId });
+        await officer.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/invitations", new { supplierId });
+        await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/submit-review", null);
+        await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/approve", null);
+        await officer.PostAsync($"/api/v1/rfqs/{referenceCode}/publish", null);
+
+        await Task.Delay(TimeSpan.FromSeconds(1.2));
+        await RunTimelineJobAsync();
+
+        var start = await supplierClient.PostAsync($"/api/v1/rfqs/{referenceCode}/proposals", null);
+        var proposalReferenceCode = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("proposalCode").GetString()!;
+        await ProposalPatch.PriceItemAsync(supplierClient, proposalReferenceCode, itemId, 10m, 5m, (decimal?)null, 3, (string?)null, (string?)null );
+        await ProposalPatch.SetTermsAsync(supplierClient, proposalReferenceCode, new
+        {
+            currencyCode = "SYP", paymentTerms = "Net 30", incotermCode = "FOB", deliveryTermsAr = "3 أيام", deliveryTermsEn = "3 days",
+            warranty = (string?)null, validityStart = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date), validityEnd = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date.AddDays(30)),
+        });
+        await supplierClient.PostAsync($"/api/v1/proposals/{proposalReferenceCode}/submit", null);
+
+        Guid proposalId;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            proposalId = (await db.Proposals.FirstAsync(p => p.ReferenceCode == proposalReferenceCode)).Id;
+        }
+
+        await SubmissionWindowTestHelper.CloseAsync(fixture, referenceCode);
+        await RunTimelineJobAsync();
+
+        var openResult = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/open", null);
+        var criterionId = (await openResult.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("criteria").EnumerateArray().Single().GetProperty("id").GetGuid();
+
+        var (evaluator, evaluatorId) = await StaffTestClient.CreateWithIdAsync(fixture, Roles.Evaluator);
+        await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/evaluation/assignments", new { evaluatorUserIds = new[] { evaluatorId } });
+        await evaluator.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/my-evaluation");
+        var scoreResponse = await evaluator.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/scores", new
+        { proposalCode = await fixture.ProposalCodeAsync(proposalId), criterionId, rawScore = 90m, commentAr = (string?)null, commentEn = (string?)null });
+        scoreResponse.EnsureSuccessStatusCode();
+        var submitEval = await evaluator.PostAsync($"/api/v1/rfqs/{referenceCode}/my-evaluation/submit", null);
+        submitEval.EnsureSuccessStatusCode();
+        var consolidate = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/consolidate", null);
+        consolidate.EnsureSuccessStatusCode();
+        var finalize = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/evaluation/finalize", null);
+        finalize.EnsureSuccessStatusCode();
+
+        var recommend = await manager.PostAsJsonAsync($"/api/v1/rfqs/{referenceCode}/award/recommend", new
+        { winningProposalCode = await fixture.ProposalCodeAsync(proposalId), justificationAr = "الأفضل", justificationEn = "Best overall" });
+        recommend.EnsureSuccessStatusCode();
+        var route = await manager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/route-for-approval", null);
+        route.EnsureSuccessStatusCode();
+        var approve = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/approve", null);
+        approve.EnsureSuccessStatusCode();
+        var execute = await otherManager.PostAsync($"/api/v1/rfqs/{referenceCode}/award/execute", null);
+        execute.EnsureSuccessStatusCode();
+
+        var awardedWorkspace = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/workspace");
+        awardedWorkspace.GetProperty("rfqState").GetString().Should().Be(nameof(RfqState.Awarded));
+        awardedWorkspace.GetProperty("isCancelled").GetBoolean().Should().BeFalse();
+        awardedWorkspace.GetProperty("evaluationState").GetString().Should().Be("Finalized");
+        awardedWorkspace.GetProperty("awardState").GetString().Should().Be("Awarded");
+        var awardedStages = awardedWorkspace.GetProperty("stages").EnumerateArray().ToList();
+        awardedStages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.Awarded)).GetProperty("isCurrent").GetBoolean().Should().BeTrue();
+        awardedStages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.SubmissionClosed)).GetProperty("isCompleted").GetBoolean().Should().BeTrue();
+        var awardedActions = awardedWorkspace.GetProperty("nextActions").EnumerateArray().ToList();
+        awardedActions.Should().ContainSingle();
+        awardedActions.Single().GetProperty("action").GetString().Should().Be("awaiting_erp_sync");
+        awardedActions.Single().GetProperty("permitted").GetBoolean().Should().BeFalse("ERP sync is system-driven, no user action can force it");
+
+        await RunErpSyncJobAsync();
+
+        var completedWorkspace = await officer.GetFromJsonAsync<JsonElement>($"/api/v1/rfqs/{referenceCode}/workspace");
+        completedWorkspace.GetProperty("rfqState").GetString().Should().Be(nameof(RfqState.Completed));
+        var completedActions = completedWorkspace.GetProperty("nextActions").EnumerateArray().ToList();
+        completedActions.Should().ContainSingle();
+        completedActions.Single().GetProperty("action").GetString().Should().Be("completed");
+        var completedStages = completedWorkspace.GetProperty("stages").EnumerateArray().ToList();
+        completedStages.Single(s => s.GetProperty("key").GetString() == nameof(RfqState.Completed)).GetProperty("isCurrent").GetBoolean().Should().BeTrue();
+    }
+}
