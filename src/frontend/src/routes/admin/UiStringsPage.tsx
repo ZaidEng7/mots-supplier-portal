@@ -1,8 +1,7 @@
 // SCR-716 at /back-office/ui-strings, for system_admin, P2.
 //
 // Correcting one word used to mean a code change and a deployment, because every string is compiled into i18n/config.ts.
-// ARABIC-REVIEW.md is a long list of corrections waiting on exactly that, and the people who own the wording are not the
-// people who own releases.
+// The people who own the wording are not the people who own releases, and corrections accumulate faster than releases do.
 //
 // The shipped string is shown beside the override so an administrator can see what they are replacing - without it, the
 // screen is a text box next to a key nobody can read. The editor is pre-filled with the string being replaced rather than

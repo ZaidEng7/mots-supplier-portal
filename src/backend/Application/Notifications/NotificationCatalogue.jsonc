@@ -239,7 +239,7 @@
   // GLOSSARY: «استيضاح», never «إيضاح». These are not synonyms - Form X (استيضاح) is the ASKING,
   // Form IV (إيضاح) is the explanation given in reply - and §8's glossary settles which word the
   // product uses for the event. These two entries were drafted later than the RFQ ones and used
-  // «إيضاح»; corrected under DECISIONS-TAKEN.md D-17. See ARABIC-REVIEW.md.
+  // «إيضاح»; corrected under DECISIONS-TAKEN.md D-17.
   // ==========================================================================================
   {
     "type": "proposal.clarification_requested",
@@ -361,7 +361,7 @@
     "flag": "Wording deliberately mirrors award.recommended: §3.1 records the RFQ's move into Recommendation while §3.4 records the Award's own creation, and they are the same moment to a reader. Two rows for one event is a de-duplication question for the doc owner."
   },
   {
-    // A-9/BRULE-052. Drafted in §7's register - marked, and in ARABIC-REVIEW.md's pile.
+    // A-9/BRULE-052. Drafted in §7's register - marked, and awaiting a native review.
     "type": "proposal.lapsed",
     "source": "drafted",
     "titleAr": "انتهت مهلة تقديم عرضك",

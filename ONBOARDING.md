@@ -21,8 +21,8 @@ decision follows from the difference between them:
 - **A supplier company** uses it a few times a year, under deadline, to complete a legal application
   and bid.
 
-Both languages ship together, Arabic and English, with full right-to-left support. `PRODUCT.md` is the
-shortest honest description of scope; `docs/product/` holds the specification.
+Both languages ship together, Arabic and English, with full right-to-left support. `DOCUMENTATION.md` is
+the shortest honest description of scope; `docs/product/` holds the specification.
 
 ---
 
@@ -41,8 +41,6 @@ database. Follow it. Three corrections to it, all costly:
 SPA hard-defaults to 5080 (`src/frontend/src/api/auth.ts`). The runbook says so; it is worth repeating
 because the symptom is a working page where every request fails.
 
-`.claude/launch.json` carries both servers with the right environment already set.
-
 ---
 
 ## 3. The shape of the system
@@ -53,10 +51,10 @@ because the symptom is a working page where every request fails.
 - **Domain** is sealed aggregate roots with private constructors and private setters. Each owns its
   state machine as a run of explicit guards that throw `DomainException`. No base classes, no domain
   events, no mediator.
-- **Application** holds no behaviour at all — DTOs, command records, handler *interfaces*, and result
+- **Application** holds no behaviour at all: DTOs, command records, handler *interfaces*, and result
   unions as `abstract record` hierarchies. All 87 handlers live in **Infrastructure**.
 - **Api** is Minimal APIs only, no controllers. One `Map*Endpoints()` extension method per
-  resource family, each opening an `app.MapGroup("/api/v1/...")` — 27 groups across the endpoint files.
+  resource family, each opening an `app.MapGroup("/api/v1/...")`, 27 groups across the endpoint files.
 
 **The split you must hold in your head:** a rule the aggregate can see, the aggregate enforces. A rule
 that needs a second aggregate is checked by the handler *before* it calls the aggregate. Sixteen domain
@@ -76,10 +74,10 @@ defect that shipped. Read the comment before changing the line.
 
 | Rule | What catches you |
 | --- | --- |
-| Every endpoint states its authorization intent out loud — `.RequirePermission`, `.RequireAuthorization`, or an explicit `.AllowAnonymous()`. The deny-by-default fallback policy is a backstop, not a declaration. | An integration test that enumerates the live endpoint table |
+| Every endpoint states its authorization intent out loud: `.RequirePermission`, `.RequireAuthorization`, or an explicit `.AllowAnonymous()`. The deny-by-default fallback policy is a backstop, not a declaration. | An integration test that enumerates the live endpoint table |
 | Never build a problem+json body by hand. Return a plain result and let the middleware conform it. | A per-status integration theory over the real responses |
 | Every `string?` filter parameter goes through a `FilterValues.*` guard. A `string?` binds anything, and an unrecognised value used to fall through as "no filter". | A Roslyn source scan in the architecture suite |
-| Components read **semantic** tokens only — never `--n-500`, `--brand-500`. Tailwind's own type, weight and shadow scales are banned too. | `src/frontend/src/styles/tokenConformance.test.ts` |
+| Components read **semantic** tokens only, never `--n-500` or `--brand-500`. Tailwind's own type, weight and shadow scales are banned too. | `src/frontend/src/styles/tokenConformance.test.ts` |
 | Every route is offered by a navigation row or carries a written exemption of at least 40 characters. | `src/frontend/src/shells/reachability.test.tsx` |
 | `PERMISSIONS.md` is generated. Never edit it. | `PermissionCatalogueTests` fails on exact content mismatch |
 | Every sweep asserts its own denominator before it asserts its rule, and ships a control that proves the matchers can still go red. | Convention, written into each test file |
@@ -98,7 +96,7 @@ Each of these is real, each has already cost someone a day, and none of them ann
 
 **Row-scoping has no enforcement mechanism.** Every handler re-filters on the caller's own
 `SupplierId` or `OrganizationId` from the token. There is no EF query filter, no base handler, no
-architecture test — `HasQueryFilter` appears zero times in `AppDbContext`. A new handler that forgets
+architecture test: `HasQueryFilter` appears zero times in `AppDbContext`. A new handler that forgets
 the predicate fails nothing. It is the risk register's only Critical entry.
 
 **Two personas deliberately have no organisation:** the bootstrap administrator and the Ministry
@@ -111,7 +109,7 @@ custom `roles` claim and `RoleClaimType` is never set. It compiles, it reads cor
 everyone.
 
 **`fallbackLng` is `'ar'`.** A key present in Arabic and missing from English renders **Arabic text to
-an English reader** — no key, no blank, no error. The reverse direction is loud. `keyParity.test.ts` is
+an English reader**: no key, no blank, no error. The reverse direction is loud. `keyParity.test.ts` is
 the only thing comparing the two catalogues.
 
 **Frontend unit tests run inside the `Backend (.NET)` CI job**, not `Frontend (React)`, because the
@@ -123,8 +121,8 @@ while the type-checking build failed.
 
 **The integration suite shares one database across all 130 test classes** with no truncation between
 tests. A test that asserts a row count or "page one holds exactly these rows" is asserting against
-every other test's leftovers. Two fixture settings exist solely to stop quiet false passes —
-`DevSeed:Enabled=false` and `Jobs:EnableRecurring=false` — and re-enabling either breaks the suite in
+every other test's leftovers. Two fixture settings exist solely to stop quiet false passes,
+`DevSeed:Enabled=false` and `Jobs:EnableRecurring=false`, and re-enabling either breaks the suite in
 ways that look like product regressions.
 
 **`fixture.CreateClient()` attaches `If-Match` and an idempotency key to every mutation.** A
@@ -136,7 +134,7 @@ One production path already does this on a versioned root.
 **ClamAV is fail-closed and nothing waits for it.** On a fresh machine it accepts TCP before its
 signature database has loaded, so a clean PDF is rejected. It is not one of the four readiness checks.
 
-**Adding a route fails a hard-coded count** — `expect(routes.length).toBe(70)` in the accessibility
+**Adding a route fails a hard-coded count.** `expect(routes.length).toBe(70)` in the accessibility
 sweep. That is deliberate: the number moves only when a person also names the new screen.
 
 ---
@@ -175,10 +173,10 @@ coverage must clear 45%, a floor that goes up and never down.
 | Question | Read |
 | --- | --- |
 | How do I run it? | `RUNBOOK.md` |
-| What is it for? | `PRODUCT.md`, then `docs/product/` |
+| What is it for? | `DOCUMENTATION.md`, then `docs/product/` |
 | Who can do X? | `PERMISSIONS.md` (generated) |
 | Why is it like this? | `DECISIONS-TAKEN.md`, and the comment above the line |
-| What is not finished? | `COMPLETION-INVENTORY.md`, `BACKLOG-REMEDIATION.md` |
+| What is not finished? | `DOCUMENTATION.md` §17, the boundaries and open decisions |
 | What does the pipeline do? | `.github/workflows/ci.yml`, which reads as a record of instruments found measuring nothing |
 | Why is that excluded from analysis? | `.sonar/analysis-scope.properties`, one argument per exclusion |
 

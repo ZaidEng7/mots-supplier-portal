@@ -4,11 +4,11 @@
 `Roles.DefaultPermissions` and the `RequirePermission` call sites; the test fails when this file
 drifts from the code. Regenerate with `UPDATE_PERMISSION_CATALOGUE=1 dotnet test`.
 
-Every name here is an **invention against codebase convention** — no document in `docs/`
+Every name here is an **invention against codebase convention**: no document in `docs/`
 ratifies a `resource.action` string. That is the point of this file: A-16 asks for one pass in
 which the whole set can be ratified or renamed, rather than each name staying provisional
 forever. A permission held by NO role is reachable by nobody, and one gating NO route is
-either dead or waiting for a surface — both are called out below.
+either dead or waiting for a surface. Both are called out below.
 
 53 permissions, 8 roles.
 
