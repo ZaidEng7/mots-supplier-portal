@@ -1,8 +1,10 @@
+// Somebody at the supplier worth contacting, such as a finance or technical person.
+//
+// This is not a representative. A representative is authorised to act for the supplier and exactly one
+// of them is primary. A contact is informational and implies no authority at all.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>FR-PROF-004/STORY-04.4.1: a non-representative contact (e.g. finance, technical) -
-/// distinct from Representative, which carries the "authorized to act for the supplier / exactly
-/// one primary" invariant. A Contact is informational only, no authority implication.</summary>
 public sealed class Contact
 {
     public Guid Id { get; init; }

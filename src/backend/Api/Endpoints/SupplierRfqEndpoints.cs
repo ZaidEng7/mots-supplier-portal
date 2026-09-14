@@ -1,6 +1,19 @@
-using FluentValidation;
+// Nothing is mapped here any more. Only the request shapes and their validator remain.
+//
+// The supplier-facing tender routes used to live under their own supplier prefix and now live on the
+// single tender collection alongside the buyer's, in the tender endpoints file.
+//
+// The contract describes the tender list as the supplier-facing list of tenders they were invited to,
+// and in the same section documents a buyer-only transition on the same collection, and says of the
+// detail response that the visible fields depend on who is asking. So it is one collection, with
+// authority decided per caller by permission and row scoping rather than by the shape of the path.
+//
+// The request shapes stayed because the relocated routes reference them, and moving the types as well
+// would have made the change to the routes unreadable.
 
 namespace MotsSupplierPortal.Api.Endpoints;
+
+using FluentValidation;
 
 public sealed record DeclineInvitationRequest(string? Reason);
 
@@ -11,21 +24,6 @@ public sealed class PostClarificationRequestValidator : AbstractValidator<PostCl
     public PostClarificationRequestValidator() => RuleFor(x => x.Question).NotEmpty().MaximumLength(4000);
 }
 
-/// <summary>
-/// §12-A/C1: the supplier-facing RFQ routes that used to live at
-/// <c>/api/v1/suppliers/me/rfqs/**</c> now live on the single <c>/api/v1/rfqs</c> collection, in
-/// <see cref="RfqEndpoints"/>.
-///
-/// <para>API-ARCHITECTURE.md §12.4 documents <c>GET /rfqs</c> as *"supplier-facing list of
-/// invited/published RFQs"* while documenting <c>POST /rfqs/{rfqCode}/publish</c> in the same
-/// section as a buyer transition, and states of the detail response that *"Fields visible per
-/// persona are row-scoped"* with *"- for buyers - invitations[]"*. One collection, authority
-/// decided per caller by permission and row-scope (§9.2), not by path prefix.</para>
-///
-/// <para>Only the request contracts and their validator remain here, because they are referenced
-/// by the relocated endpoints and moving the types too would have made the route diff unreadable.
-/// The class itself no longer maps anything.</para>
-/// </summary>
 public static class SupplierRfqEndpoints
 {
 }

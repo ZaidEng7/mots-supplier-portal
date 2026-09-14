@@ -1,25 +1,47 @@
+// The notification bell: the list, the unread count, marking one or all read, and the switches for what a user
+// does not want to be told about.
+//
+// Nothing here needs a permission beyond being signed in, deliberately. A notification is already addressed to
+// exactly one person, so the row scoping is the authorisation. A permission on top would be a second gate over
+// the same fact, and the kind that drifts. The preference routes live under notifications rather than under an
+// administrative surface for the same reason: they are the caller's own preferences and every persona has them.
+//
+// Marking read requires no write precondition, which is a considered departure from the letter of the contract.
+// That contract exists to stop two writers overwriting each other. Marking read is idempotent and
+// single-valued, so there is no update to lose, and requiring a precondition would make opening the bell a
+// read-then-write round trip. The same reasoning covers saving preferences: sending the same set twice changes
+// nothing, and two people editing one user's own preferences is not a case that exists.
+//
+// The list is cursor-based with no page numbers at all, because an inbox is read newest-first and scrolled
+// rather than jumped into at page forty.
+//
+// The unread-only filter is parsed from text rather than bound directly, and bound directly it failed open: an
+// unreadable value arrived as nothing, which reads as no filter, so a request for the unread set answered with
+// every notification the caller has. A filter that exists to narrow, returning more than was asked for, is the
+// worst shape of this defect, and a longer inbox is indistinguishable from having nothing unread, so nothing
+// surfaces it.
+//
+// The badge is a count rather than a list, because it is on every page for every persona, and shipping fifty
+// rows to render a number is the kind of thing that only becomes a problem once there are fifty.
+//
+// Somebody else's notification and an unknown one give the same answer.
+//
+// Preferences are saved as a whole set replacing what was stored, rather than one switch at a time. An absent
+// or empty set means deliver everything, which is the same thing a user asking for nothing to be muted means.
+//
+// A switch the server will not honour is named rather than silently dropped. A screen that appeared to accept
+// a mute it did not apply would be worse than one that refuses, because the user would find out by missing
+// something. It goes through a proper result type rather than a plain object, because the middleware reshapes
+// every failure and a plain object arrives as a generic validation failure, telling the caller that something
+// was wrong rather than which switch was refused.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Api.Errors;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Notifications;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>
-/// EPIC-15 / T3-14 / SCR-900. The in-app notification channel.
-///
-/// <para><b>No permission beyond authentication, deliberately.</b> SCREEN-INVENTORY lists SCR-900 as
-/// "all authenticated" personas, and a notification is already addressed to exactly one user - the
-/// authorization IS the row scope. A permission on top would be a second gate over the same fact,
-/// and the kind that drifts.</para>
-///
-/// <para><b>No <c>If-Match</c> on marking read</b>, and that is a considered departure from §8.1's
-/// letter - see the batch report. The contract exists to prevent lost updates; marking read is
-/// idempotent and single-valued, so there is no update to lose, and requiring a precondition would
-/// make the bell's open gesture a read-then-write round trip.</para>
-/// </summary>
-/// <summary>SCR-901: the types this user wants switched off. Absent or empty means "deliver everything",
-/// which is the same thing a user asking for nothing to be muted means.</summary>
 public sealed record SetNotificationPreferencesRequest(List<string>? MutedTypes);
 
 public static class NotificationEndpoints
@@ -28,8 +50,6 @@ public static class NotificationEndpoints
     {
         var group = app.MapGroup("/api/v1/notifications").RequireAuthorization().WithTags("Notifications");
 
-        // §6.1 names notifications as a cursor-default collection, so there is no page mode here at
-        // all - an inbox is read newest-first and scrolled, never jumped into at page 40.
         group.MapGet("/", async (
             string? cursor,
             int? pageSize,
@@ -38,11 +58,6 @@ public static class NotificationEndpoints
             IListNotificationsHandler handler,
             CancellationToken ct) =>
         {
-            // Bound to `bool?` this filter FAILED OPEN: `?unreadOnly=maybe` arrived as null, which
-            // reads as "no filter", so a request for the unread set answered with every
-            // notification the caller has. A filter that exists to narrow returning MORE than asked
-            // is the worst shape of this defect - and a longer inbox is indistinguishable from
-            // having nothing unread, so nothing surfaces it. See FilterValues.TryParseBoolFilter.
             if (!FilterValues.TryParseBoolFilter(unreadOnly, out var unreadOnlyValue, out var badUnreadOnly))
             {
                 return FilterValues.InvalidFilterValue("unreadOnly", badUnreadOnly!);
@@ -53,9 +68,6 @@ public static class NotificationEndpoints
         })
         .WithName("ListNotifications");
 
-        // The bell's badge. A count rather than a list because the badge is on every page of the app
-        // for every persona, and shipping fifty rows to render a number is the kind of thing that
-        // only shows up as a problem once there are fifty.
         group.MapGet("/unread-count", async (IUnreadNotificationCountHandler handler, CancellationToken ct) =>
             Results.Ok(new { count = await handler.HandleAsync(ct) }))
         .WithName("UnreadNotificationCount");
@@ -69,7 +81,6 @@ public static class NotificationEndpoints
             return result switch
             {
                 MarkNotificationReadResult.Success s => Results.Ok(s.Notification),
-                // §9.2: someone else's notification and an unknown id are the same answer.
                 MarkNotificationReadResult.NotFoundOrOutOfScope => Results.NotFound(),
                 _ => Results.Problem(),
             };
@@ -80,19 +91,10 @@ public static class NotificationEndpoints
             Results.Ok(new { marked = await handler.MarkAllReadAsync(ct) }))
         .WithName("MarkAllNotificationsRead");
 
-        // SCR-901/FR-NOT-004, under D-60. No permission beyond authentication: these are the caller's own
-        // preferences, and every persona has them - which is also why the route is under /notifications
-        // rather than under an admin surface.
         group.MapGet("/preferences", async (IGetNotificationPreferencesHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.HandleAsync(ct)))
         .WithName("GetNotificationPreferences");
 
-        // The whole muted SET, replacing what was stored - see SetNotificationPreferencesCommand for why this
-        // is one request rather than a toggle per type.
-        //
-        // No If-Match, and the reason is the one this file already records for marking read: the write is
-        // idempotent and single-valued (send the same set twice, nothing changes), so there is no update to
-        // lose. Two people editing one user's own preferences is not a case that exists.
         group.MapPut("/preferences", async (
             SetNotificationPreferencesRequest request,
             ISetNotificationPreferencesHandler handler,
@@ -102,11 +104,6 @@ public static class NotificationEndpoints
             return result switch
             {
                 SetNotificationPreferencesResult.Success s => Results.Ok(s.Preferences),
-                // Named, not silently dropped: a screen that appeared to accept a mute it did not apply
-                // would be worse than one that refuses, because the user would find out by missing something.
-                // Through a result type rather than Results.UnprocessableEntity(anonymous): §7's middleware
-                // reshapes every non-2xx into problem+json, so an anonymous body arrives as VALIDATION_FAILED
-                // and the caller learns that something was wrong rather than WHICH switch was refused.
                 SetNotificationPreferencesResult.NotMuteable n => NotificationPreferenceRefusalResult.NotMuteable(n.Types),
                 SetNotificationPreferencesResult.UnknownTypes u => NotificationPreferenceRefusalResult.Unknown(u.Types),
                 _ => Results.Problem(),

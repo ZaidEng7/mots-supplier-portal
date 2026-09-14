@@ -1,22 +1,22 @@
-using Microsoft.AspNetCore.OpenApi;
-using Microsoft.OpenApi;
+// Puts the write precondition into the published API document.
+//
+// A write on an existing resource must send the version it read, or it is refused. The document said
+// nothing about that, so a consumer generating a client from it produced one that could not perform a
+// single update, and learned why only by running it.
+//
+// Which routes require it is read off the route's own marker, the same one the filter sets, so a route
+// that starts or stops requiring a precondition changes its documentation in the same edit. The
+// permission transformer does the same thing for the same reason.
+//
+// The two refusals are documented alongside the header: one for a missing precondition and one for a
+// failed or unreadable one. A required header a caller can read and refusals they cannot anticipate is
+// only half an answer.
 
 namespace MotsSupplierPortal.Api.Concurrency;
 
-/// <summary>
-/// Puts §8.1's precondition into the contract.
-///
-/// <para><b>The gap this closes.</b> <c>RequireIfMatch()</c> has refused unconditional writes since batch 3,
-/// and the published OpenAPI document said nothing about it: no <c>If-Match</c> parameter, no 428, no ETag
-/// response header anywhere. A client generated from that document could not write to this API at all, and
-/// would discover why only at runtime - which is close to what happened to this repository's own SPA five
-/// separate times in batch 13.</para>
-///
-/// <para>Driven off the endpoint metadata rather than a hand-kept list, so an endpoint that adds the filter
-/// gets the documentation with it. <see cref="IfMatchPreconditionSweepTests"/> (integration) and the SPA's
-/// own sweep both read the same two markers, one through the endpoint table and one through the published
-/// document.</para>
-/// </summary>
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.OpenApi;
+
 internal sealed class ConcurrencyOpenApiTransformer : IOpenApiOperationTransformer
 {
     public Task TransformAsync(
@@ -45,8 +45,6 @@ internal sealed class ConcurrencyOpenApiTransformer : IOpenApiOperationTransform
 
         if (metadata.OfType<EmitsETagMetadata>().Any())
         {
-            // On the success response only. A 404 carries no version, and saying it does would send a
-            // client looking for a header that is not there.
             var header = new OpenApiHeader
             {
                 Description = "The version of this resource, to be sent back as If-Match on a write.",

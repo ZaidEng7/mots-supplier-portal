@@ -1,40 +1,50 @@
-using System.Text.Json.Nodes;
-using MotsSupplierPortal.Api.Errors;
+// What one list route accepts in its query string, and the filter that enforces it.
+//
+// The contract is explicit: query parameters are explicitly listed, type-checked per route, with no
+// general-purpose query language, and an unknown filter key is refused rather than silently ignored. The
+// same rule applies to sorting, where only listed sort keys are accepted and anything else is refused.
+//
+// It is a route filter rather than a check inside each handler because the framework binds the parameters
+// a handler declares and silently drops everything else, so a misspelt filter name previously returned an
+// unfiltered list that looked correct, which is the exact failure the contract names. The check has to see
+// the raw query string, and only a filter positioned before parameter binding can. One implementation, one
+// place to add a route.
+//
+// A policy declares three things. The sort applied when the caller asks for none, which the handler echoes
+// back in the response envelope. The sort keys the route can actually order by, written without their
+// leading direction marker, where every other key is refused rather than being an order the caller
+// silently did not get. And the filter parameters this route understands, beyond the paging parameters
+// every list accepts.
+//
+// The always-accepted set is the cursor, the page size, the count flag and the sort. It deliberately
+// leaves out a page number, because no route in this codebase serves numbered pages, so asking for page
+// two would otherwise be answered with page one of a cursor-based list, which is silently wrong in exactly
+// the way the contract forbids.
+//
+// The failure type for an unknown filter key is the one the contract names, and the base address comes
+// from the catalogue, so both are transcribed. The catalogue calls itself an extract and has no row for
+// that case, so it names no code. A bad sort key has no named type at all, so it reuses the documented
+// validation one rather than inventing something no document defines. Both reported as documented
+// silences.
+//
+// The refusal body is bilingual and follows the validation shape, which is the only failure body the
+// contract specifies in full, so the interface can render either language without asking again.
+//
+// It is built through the shared failure builder so these guards stop being a special case. They used to
+// hand-build their own body, which the reshaping middleware passed through untouched: right media type,
+// right type identifier, and missing the path and the two tracing identifiers the contract requires on
+// every failure. The bilingual list of errors is preserved as an extra field.
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
-/// <summary>
-/// What one list endpoint accepts in its query string, and the endpoint filter that enforces it.
-///
-/// <para>API-ARCHITECTURE.md §6.2: <i>"Explicit, whitelisted, type-checked query params per endpoint
-/// - no generic query-language passthrough"</i> and <i>"Unknown filter key → 422
-/// (`type: …/errors/unknown-filter`) rather than silent ignore."</i> §6.3 adds the same rule for
-/// sorting: <i>"Only whitelisted sort keys per endpoint; unknown key → 422."</i></para>
-///
-/// <para><b>Why an endpoint filter rather than per-handler checks.</b> Minimal APIs bind the
-/// parameters a handler declares and silently drop everything else, so <c>?stat=Approved</c> (a
-/// typo) previously returned an unfiltered list that looked correct - the exact failure §6.2 names.
-/// The check has to see the raw query string, which only a filter positioned before model binding
-/// can. One implementation, one place to add an endpoint.</para>
-/// </summary>
-/// <param name="DefaultSort">The sort the endpoint applies when the caller asks for none. Echoed in
-/// the envelope's <c>meta.sort</c> by the handler, and documented per endpoint as §6.3 requires.</param>
-/// <param name="SortKeys">Sort keys the endpoint can actually order by, without the leading
-/// <c>-</c>. Every other key is a 422, never a silently ignored request for an order the caller
-/// did not get.</param>
-/// <param name="FilterKeys">Filter parameters this endpoint understands, beyond the pagination
-/// parameters every list endpoint accepts.</param>
+using System.Text.Json.Nodes;
+using MotsSupplierPortal.Api.Errors;
+
 public sealed record ListQueryPolicy(
     string DefaultSort,
     IReadOnlySet<string> SortKeys,
     IReadOnlySet<string> FilterKeys)
 {
-    /// <summary>
-    /// Query parameters every list endpoint accepts, from §6.1 (<c>cursor</c>, <c>pageSize</c>,
-    /// <c>withCount</c>) and §6.3 (<c>sort</c>). Deliberately excludes <c>page</c>: no endpoint in
-    /// this codebase serves page mode, so <c>?page=2</c> is a caller mistake that would otherwise be
-    /// answered with page one of a cursor list - silently wrong in exactly the way §6.2 forbids.
-    /// </summary>
     private static readonly HashSet<string> PaginationKeys =
         new(StringComparer.OrdinalIgnoreCase) { "cursor", "pageSize", "withCount", "sort" };
 
@@ -46,23 +56,11 @@ public sealed record ListQueryPolicy(
     internal bool Accepts(string queryKey) =>
         PaginationKeys.Contains(queryKey) || FilterKeys.Contains(queryKey);
 
-    /// <summary>Splits `?sort=-a,b` into its keys, each stripped of its direction marker.</summary>
     internal static IEnumerable<string> SortKeysIn(string sort) =>
         sort.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(k => k.StartsWith('-') ? k[1..] : k);
 }
 
-/// <summary>
-/// Rejects query parameters an endpoint does not understand, per §6.2/§6.3.
-///
-/// <para><b>The `type` slug is the document's, the rest is not.</b> §6.2 names
-/// <c>…/errors/unknown-filter</c> and §7.1's catalog gives the base
-/// <c>https://api.mots-portal.sy/errors/…</c>, so both are transcribed. §7.1's catalog is an
-/// "extract" and carries no row for unknown-filter, so it names no <c>code</c>; §6.3 names no slug
-/// at all for a bad sort key, so that case reuses the documented
-/// <c>/errors/validation</c> rather than inventing <c>/errors/unknown-sort</c>. Reported as
-/// documented silences.</para>
-/// </summary>
 internal sealed class ListQueryFilter(ListQueryPolicy policy) : IEndpointFilter
 {
     private const string TypeBase = "https://api.mots-portal.sy/errors/";
@@ -94,21 +92,9 @@ internal sealed class ListQueryFilter(ListQueryPolicy policy) : IEndpointFilter
         return await next(context);
     }
 
-    /// <summary>
-    /// RFC 9457 problem+json. The bilingual <c>errors[]</c> follows §7.2's validation shape - the
-    /// only error body this contract specifies in full - so the SPA can render either language
-    /// without a round-trip, as §7.2's own rationale requires.
-    /// </summary>
     private static IResult Problem(string type, string title, string code, string detail, string field) =>
         new ProblemResult(type, title, code, detail, field);
 
-    /// <summary>
-    /// Routes through <see cref="ProblemResponse"/> so these guards stop being a special case:
-    /// before this they emitted their own hand-built problem+json, which the shaping middleware
-    /// passed through untouched - correct media type, correct slug, and missing `instance`,
-    /// `traceId` and `correlationId` that §7 requires on every error. The bilingual `errors[]` is
-    /// preserved as an RFC 9457 extension member.
-    /// </summary>
     private sealed record ProblemResult(string Type, string Title, string Code, string Detail, string Field) : IResult
     {
         public async Task ExecuteAsync(HttpContext httpContext)
@@ -134,7 +120,6 @@ internal sealed class ListQueryFilter(ListQueryPolicy policy) : IEndpointFilter
 
 internal static class ListQueryExtensions
 {
-    /// <summary>Applies §6.2/§6.3 whitelisting to a list endpoint.</summary>
     public static RouteHandlerBuilder WithListQuery(this RouteHandlerBuilder builder, ListQueryPolicy policy) =>
         builder.AddEndpointFilter(new ListQueryFilter(policy));
 }

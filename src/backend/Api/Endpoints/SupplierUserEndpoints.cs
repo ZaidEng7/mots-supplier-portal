@@ -1,10 +1,24 @@
+// A supplier's own team: listing the people who can sign in for the company, inviting one, and accepting
+// an invitation.
+//
+// The count flag on the list is parsed from text rather than bound as a true-or-false value. Bound
+// directly, an unreadable value is refused by the framework as a malformed body, which is the wrong
+// answer for a bad filter value on a request that has no body, and it names no field. Parsed here, the
+// refusal is the same one every other filter value in this API earns.
+//
+// The list is ordered by email address. A team list is read to find a person, not to see what changed
+// last.
+//
+// Accepting an invitation is public by design. The invitee has no session yet, and the invitation token
+// is the credential.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record InviteSupplierUserRequest(string Email, string FullName);
 
@@ -28,7 +42,6 @@ public sealed class AcceptSupplierUserInviteRequestValidator : AbstractValidator
     }
 }
 
-/// <summary>FEAT-04.8/FR-PROF-008/MSP-55.</summary>
 public static class SupplierUserEndpoints
 {
     public static void MapSupplierUserEndpoints(this IEndpointRouteBuilder app)
@@ -37,10 +50,6 @@ public static class SupplierUserEndpoints
 
         group.MapGet("/", async (string? cursor, int? pageSize, string? withCount, HttpContext httpContext, IListSupplierUsersHandler handler, CancellationToken ct) =>
         {
-            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
-            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
-            // no body, and one that names no field. Parsed as text so the refusal is the same
-            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
             if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
             {
                 return FilterValues.InvalidFilterValue("withCount", badWithCount!);
@@ -50,7 +59,6 @@ public static class SupplierUserEndpoints
             return ListResponse.Ok(httpContext, page, pageSize);
         })
         .RequirePermission(Permissions.SupplierUserManage)
-        // Alphabetical by email: a team list is read to find a person, not to see what changed last.
         .WithListQuery(ListQueryPolicy.Create("email", ["email"]))
         .WithName("ListSupplierUsers");
 
@@ -109,7 +117,6 @@ public static class SupplierUserEndpoints
         .WithTags("SupplierUsers")
         .WithName("AcceptSupplierUserInvite")
         .RequireRateLimiting("auth-strict")
-        // Public by design: the invitee has no session yet - the invite token is the credential.
         .AllowAnonymous();
     }
 }

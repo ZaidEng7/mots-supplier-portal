@@ -1,31 +1,31 @@
-using System.Text.Json.Nodes;
+// A notification-preferences write refused, with the offending notification types on the response.
+//
+// Two reasons to refuse. Some notifications can never be switched off: invitations, clarification
+// requests, award outcomes and document expiry are always delivered. And a type this system does not
+// produce is refused rather than stored, because a preference for a notification nobody sends can never
+// be honoured and never be seen to fail.
+//
+// It is its own result type for the same reason the unknown-reference-codes refusal is. The middleware
+// reshapes every failure into the standard problem format, so a plain object carrying the types arrives
+// as a generic validation failure, which tells the caller something was wrong with the request but not
+// which switch the server would not accept. Found by asserting the code in a test.
+//
+// The types travel on the body because the screen has to say which switch it could not accept. A
+// refusal a user cannot act on is a refusal they will simply retry.
 
 namespace MotsSupplierPortal.Api.Errors;
 
-/// <summary>
-/// SCR-901: a preferences write refused, with the offending types on the response.
-///
-/// <para>Same shape and same reason as <see cref="UnknownReferenceCodesResult"/>: §7's middleware reshapes
-/// every non-2xx into problem+json, so an anonymous <c>{ code, types }</c> body does not survive - it arrives
-/// as VALIDATION_FAILED, which tells the caller that something was wrong with the request and not WHICH
-/// preference the server would not honour. Found by asserting the code in the test.</para>
-///
-/// <para>The types travel on the body because the screen has to say which switch it could not accept. A
-/// refusal a user cannot act on is a refusal they will retry.</para>
-/// </summary>
+using System.Text.Json.Nodes;
+
 internal sealed record NotificationPreferenceRefusalResult(string Code, string Title, string Detail, IReadOnlyList<string> Types)
     : IResult
 {
-    /// <summary>D-60's constraint: invitations, clarification requests, award outcomes and document expiry
-    /// are always delivered.</summary>
     public static NotificationPreferenceRefusalResult NotMuteable(IReadOnlyList<string> types) =>
         new("NOTIFICATION_NOT_MUTEABLE",
             "Some notifications cannot be switched off.",
             "Invitations, clarification requests, award outcomes and document expiry are always delivered.",
             types);
 
-    /// <summary>A type this system does not produce. Refused rather than stored: a row for a type nobody
-    /// sends is a preference that can never be honoured and never be seen to fail.</summary>
     public static NotificationPreferenceRefusalResult Unknown(IReadOnlyList<string> types) =>
         new("UNKNOWN_NOTIFICATION_TYPES",
             "Unknown notification types.",

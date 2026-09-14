@@ -1,12 +1,14 @@
+// One priced line on a bid, answering one line of the tender.
+//
+// This is the financial half of the two-envelope split: technical content is qualified before pricing
+// is opened. It is deliberately its own table, owned by the bid but never included by any query that
+// should see only the technical envelope.
+//
+// LineTotal is computed rather than stored. Totals are always derived from the lines and never taken
+// from the client.
+
 namespace MotsSupplierPortal.Domain.Proposals;
 
-/// <summary>FEAT-09.1/FR-PRP-002/DOMAIN-MODEL.md §5.5: a priced line answering one RfqItem - the
-/// two-envelope FINANCIAL content (OQ-009 resolution: two-envelope evaluation, technical qualified
-/// before financial is opened). Deliberately its own table (proposal.proposal_item), owned by
-/// Proposal but never included by any query that should only see the technical envelope - see
-/// Proposal.cs's own doc comment for the full separation reasoning. LineTotal is computed, never
-/// stored - Totals are always derived from lines, never client-supplied (DOMAIN-MODEL.md §5.5's own
-/// invariant).</summary>
 public sealed class ProposalItem
 {
     public Guid Id { get; init; }

@@ -1,20 +1,28 @@
+// Reading and writing the system settings. A system administrator sees and changes all of them; everybody
+// else, including a visitor who has not signed in, reads a small allowed subset.
+//
+// The public read exists because two of these settings govern screens that render before anyone has signed
+// in: whether the registration form should be offered at all, and which currency a bid defaults to.
+// Without it the interface would keep its own copy of both, and the copy would be the one that goes stale.
+//
+// The subset is built from an explicit allow-list rather than a filter, so a setting added later is
+// invisible to the public read until somebody decides otherwise. That is the direction that fails safely.
+//
+// A key that is not in the catalogue answers not-found rather than a validation failure. The caller asked
+// for something that does not exist, and telling them their value was invalid would send them looking in
+// the wrong place.
+//
+// The finance-system status route is signed in but gated by no permission, because the handler answers the
+// narrowest thing the caller is entitled to know. There is no wider answer for a gate to protect.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Configuration;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
 public sealed record UpdateSystemSettingRequest(string Value);
 
-/// <summary>
-/// FR-ADM-006/T-060. `system_admin` reads and writes the settings catalogue; everyone else - including
-/// an unauthenticated visitor - reads the allow-listed public subset.
-///
-/// <para>The public read exists because two of these settings govern screens that render before
-/// anyone has signed in: whether the registration form should be offered at all, and which currency
-/// a proposal defaults to. Without it the SPA would keep its own copy of both, and the copy would be
-/// the one that goes stale.</para>
-/// </summary>
 public static class SystemSettingEndpoints
 {
     public static void MapSystemSettingEndpoints(this IEndpointRouteBuilder app)
@@ -34,9 +42,6 @@ public static class SystemSettingEndpoints
             return result switch
             {
                 SystemSettingResult.Success s => Results.Ok(s.Setting),
-                // A key that is not in the catalogue is not a resource here, and saying so is a 404
-                // rather than a 422: the caller asked for something that does not exist, and telling
-                // them their VALUE was invalid would send them looking in the wrong place.
                 SystemSettingResult.UnknownKey => Results.NotFound(),
                 SystemSettingResult.Invalid invalid =>
                     Results.UnprocessableEntity(new { error = "invalid_setting_value", reason = invalid.Reason }),
@@ -46,13 +51,6 @@ public static class SystemSettingEndpoints
         .RequirePermission(Permissions.ReferenceDataManage)
         .WithName("UpdateSystemSetting");
 
-        // Public, for the same stated reason the reference lists are (MSP-67): the registration form
-        // is unauthenticated and has to know whether it should be shown. The response is built from
-        // SystemSettings.PubliclyReadable, an allow-list - a setting added later is invisible here
-        // until someone decides otherwise, which is the direction that fails safely.
-        // SCR-045: the global chrome's ERP banner. Authenticated but ungated by permission - the
-        // handler answers the narrowest thing the CALLER is entitled to know, so there is no wider
-        // answer for a gate to protect. See SystemStatusHandler on the three scopes.
         app.MapGet("/api/v1/system/status", async (
             MotsSupplierPortal.Application.Platform.ISystemStatusHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.HandleAsync(ct)))

@@ -1,15 +1,19 @@
+// The guided workspace: one read-only view that gathers everything about a tender in one place.
+//
+// It is gated on the same permission the tender's own detail route uses as its broad "may view this
+// tender" gate, because the workspace is a view over that same tender rather than a new resource with
+// visibility rules of its own.
+//
+// That shared gate used to be the authoring permission, which locked a procurement manager out of the
+// workspace for the same reason it locked them out of the tender list. The workspace moves with the gate
+// it was deliberately tied to.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Workspace;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>FEAT-13.1/FR-PWF-001: the guided-workspace read model. Gated on the same
-/// <see cref="Permissions.RfqRead"/> claim RfqEndpoints' own GET /{referenceCode} uses as its
-/// broad "can view this RFQ" gate - the workspace is a read-side view over that same RFQ, not a new
-/// resource with its own visibility rules. That shared gate was rfq.create until this batch, which
-/// locked procurement_manager out of the workspace for the same reason it locked them out of the
-/// list; the workspace moves with the gate it was deliberately tied to.</summary>
 public static class WorkspaceEndpoints
 {
     public static void MapWorkspaceEndpoints(this IEndpointRouteBuilder app)

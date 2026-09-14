@@ -1,3 +1,77 @@
+// The evaluation routes, split between the people who run an evaluation and the people who score it.
+//
+// The manager's and officer's routes sit under a tender's own evaluation path, mirroring how the tender
+// routes nest. The evaluator's scoring routes sit under a separate path and are scoped to the caller's own
+// active assignment rather than to an organization.
+//
+//
+// HOW THINGS ARE NAMED ON THE WIRE
+//
+// A bid is named by its public code. A criterion is still named by its internal identifier, because criteria
+// are frozen rows on the evaluation with no public code of their own, and minting one is a piece of work in
+// its own right.
+//
+// One route is keyed by a bid's internal identifier rather than its code: opening a technical file on a bid
+// under evaluation from the buyer's side. That is the identifier a buyer actually holds, because two response
+// shapes already emit it. That pre-existing exposure diverges from the rule that internal identifiers never
+// appear in addresses, and it is recorded rather than widened here. Inventing a second addressing scheme for
+// one route would have made the divergence harder to fix rather than easier.
+//
+// The evaluator's own version of that route is keyed by the bid's public code, which is the code the
+// workspace read emits, so nothing has to translate anything.
+//
+// Both file routes live under the group whose state gates them. The buyer's is under the evaluation rather
+// than under the bid, because it is the evaluation's state that decides access; putting it under the bid
+// would imply a bid read that does not exist and a gate keyed on the wrong record. The evaluator's is under
+// the assignment, because the assignment is the scope.
+//
+//
+// TWO REASONS THAT ARE MANDATORY, AND ONE THAT IS NOT
+//
+// Declaring a conflict requires a reason; declaring no conflict does not. An unexplained withdrawal from a
+// committee is not an audit record, and a declaration that there is nothing to declare needs no prose.
+//
+// Breaking a tie requires a reason. A tie broken with no stated basis is exactly what the system refuses to
+// do on its own, so it must not be what a person does either.
+//
+//
+// PERMISSIONS THAT ARE SHARED ON PURPOSE
+//
+// The list of people a manager may assign sits behind the same permission as assigning them. The list exists
+// only to make that action performable, and a wider gate would be a roster of ministry staff readable by
+// anyone who can open a tender.
+//
+// That list did not exist, and the screen could not work without it: assigning was a free-text box for a raw
+// identifier, and the only staff list in the product requires a permission a procurement manager does not
+// hold. Found by walking a tender through in the browser.
+//
+// Breaking a tie sits behind the same permission as consolidating, because it is the same act, producing the
+// order, and a separate permission would be one more grant to make on every deployment for no additional
+// separation of duty.
+//
+//
+// THE EVALUATOR'S OWN SURFACE
+//
+// The evaluator's assignments are a collection of their own rather than a sub-resource of one tender, because
+// that is what they are. "The evaluations assigned to me" has no single parent tender, and hanging it off one
+// would require the caller to already know which tender to ask about, which is the thing this screen exists
+// to tell them. The whole evaluation feature was complete and unreachable for exactly that reason.
+//
+// An unrecognised tab filter is refused rather than dropped, because dropping it returns everything, so a
+// caller that asked to narrow gets the opposite with no way to tell.
+//
+// The conflict-declaration read deliberately does not open scoring. The main workspace read does open it, as
+// a documented side effect, so an evaluator who loaded the workspace first would have passed the declaration
+// window before ever seeing a bidder's name.
+//
+// An evaluator who is not assigned gets not-found rather than refused, the same shape every other
+// evaluator-scoped read uses.
+//
+// Every transition puts the new version on its own response, so a second transition has a precondition to
+// send without waiting for a re-read.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
@@ -5,8 +79,6 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Application.Proposals;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record AssignEvaluatorsRequest(IReadOnlyList<Guid> EvaluatorUserIds);
 
@@ -29,8 +101,6 @@ public sealed class ReopenEvaluationRequestValidator : AbstractValidator<ReopenE
     public ReopenEvaluationRequestValidator() => RuleFor(x => x.Reason).NotEmpty().MaximumLength(2000);
 }
 
-// T-068: the bid is named by its public code. CriterionId stays a GUID - criteria are snapshot rows
-// on the evaluation with no public code of their own, and minting one is T-055's kind of work.
 public sealed record ScoreCriterionRequest(string ProposalCode, Guid CriterionId, decimal RawScore, string? CommentAr, string? CommentEn);
 
 public sealed class ScoreCriterionRequestValidator : AbstractValidator<ScoreCriterionRequest>
@@ -42,18 +112,11 @@ public sealed class ScoreCriterionRequestValidator : AbstractValidator<ScoreCrit
     }
 }
 
-/// <summary>FEAT-11.2..11.8/FR-EVL-001..011. Buyer/manager-side routes live under
-/// /api/v1/rfqs/{referenceCode}/evaluation (mirrors RfqEndpoints' own nesting); evaluator-side
-/// scoring routes live under /api/v1/rfqs/{referenceCode}/my-evaluation and are scoped to the
-/// caller's own active EvaluationAssignment, never to Organization (see EvaluationLoader's own doc
-/// comment).</summary>
 public sealed record DeclareConflictRequest(bool HasConflict, string? Reason);
 
 public sealed class DeclareConflictRequestValidator : AbstractValidator<DeclareConflictRequest>
 {
     public DeclareConflictRequestValidator() =>
-        // A-8: a reason only when there IS a conflict, and then mandatory - an unexplained withdrawal
-        // from a committee is not an audit record. A "no conflict" declaration needs no prose.
         RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000).When(x => x.HasConflict);
 }
 
@@ -64,8 +127,6 @@ public sealed class ResolveTieRequestValidator : AbstractValidator<ResolveTieReq
     public ResolveTieRequestValidator()
     {
         RuleFor(x => x.ProposalCode).NotEmpty();
-        // A tie broken with no stated basis is what A-1 refuses to let the SYSTEM do, so it must not be
-        // what a person does either.
         RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000);
     }
 }
@@ -101,16 +162,6 @@ public static class EvaluationEndpoints
         .WithETag()
         .WithName("GetEvaluation");
 
-        // T-028, buyer half. Under the evaluation group because the EVALUATION's state is what
-        // gates it (D-7) - putting it under /rfqs/{code}/proposals would have implied a proposal
-        // read that does not exist and a gate keyed on the wrong aggregate.
-        //
-        // Keyed by proposal GUID because that is the identifier a buyer actually holds:
-        // ConsolidatedResultDto.ProposalId and MyEvaluationDto.ProposalIds both already emit it.
-        // That pre-existing GUID exposure diverges from §3 ("internal identifiers are never exposed
-        // in URLs, payloads, or errors") and is recorded rather than widened here - inventing a
-        // second addressing scheme for one route would have made the divergence harder to fix, not
-        // easier.
         group.MapGet("/proposals/{proposalId:guid}/documents", async (
             string referenceCode, Guid proposalId,
             IGetProposalDocumentsForBuyerHandler handler, CancellationToken ct) =>
@@ -137,13 +188,6 @@ public static class EvaluationEndpoints
         .RequirePermission(Permissions.EvaluationOpen)
         .WithName("OpenEvaluation");
 
-        // Who a manager may assign. Behind the SAME permission as the assignment itself: the list exists only
-        // to make that action performable, and a wider gate would be a roster of ministry staff readable by
-        // anyone who can open an RFQ.
-        //
-        // It did not exist, and the screen could not work without it - assigning was a free-text box for a raw
-        // user GUID, and the only staff list in the product requires admin.users.manage, which a
-        // procurement_manager does not hold. Found by walking the tender in the browser.
         group.MapGet("/candidates", async (
             string referenceCode, IListEvaluatorCandidatesHandler handler, CancellationToken ct) =>
         {
@@ -181,14 +225,9 @@ public static class EvaluationEndpoints
             MapMutation(await handler.HandleAsync(new ConsolidateEvaluationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.EvaluationConsolidate)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ConsolidateEvaluation");
 
-        // A-1/BRULE-069: a person breaks a tie the rules could not. Same permission as consolidating,
-        // because it is the same act - producing the order - and a separate permission would be one
-        // more grant to make on every deployment for no additional separation of duty.
         group.MapPost("/resolve-tie", async (
             string referenceCode,
             ResolveTieRequest request,
@@ -209,8 +248,6 @@ public static class EvaluationEndpoints
             MapMutation(await handler.HandleAsync(new FinalizeEvaluationCommand(referenceCode), ct)))
         .RequirePermission(Permissions.EvaluationFinalize)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("FinalizeEvaluation");
 
@@ -225,25 +262,14 @@ public static class EvaluationEndpoints
         })
         .RequirePermission(Permissions.EvaluationReopen)
         .RequireIfMatch()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("ReopenEvaluation");
 
-        // SCR-500 / FR-DSH-004 / T3-02. The evaluator's own assignments, across RFQs.
-        //
-        // A COLLECTION of its own rather than a sub-resource of one RFQ, because that is what it is:
-        // "the evaluations assigned to me" has no single parent RFQ, and hanging it off one would
-        // mean the caller already knowing which RFQ to ask about - which is the thing this screen
-        // exists to tell them. EPIC-11 was complete and unreachable for exactly that reason.
         app.MapGet("/api/v1/my-evaluations", async (
             string? tab,
             IListMyAssignmentsHandler handler,
             CancellationToken ct) =>
         {
-            // An unrecognised tab must not be dropped: dropping the filter returns everything, so a
-            // caller that asked to narrow gets the opposite with no way to tell. Same answer as
-            // Batch 0.2's unknown filter values.
             if (tab is not null && !MyAssignmentTabs.All.Contains(tab))
             {
                 return FilterValues.InvalidFilterValue("tab", tab);
@@ -262,14 +288,9 @@ public static class EvaluationEndpoints
         .RequirePermission(Permissions.EvaluationScore)
         .WithName("GetMyEvaluation");
 
-        // A-8/BRULE-067: the recusal declaration window. A GET that deliberately does NOT open scoring -
-        // GetMyEvaluation does, as a documented side effect, so an evaluator who loaded the workspace
-        // first would have passed this window before ever seeing a bidder's name.
         myGroup.MapGet("/bidders", async (string referenceCode, IGetConflictDeclarationHandler handler, CancellationToken ct) =>
         {
             var declaration = await handler.HandleAsync(referenceCode, ct);
-            // §9.2: not assigned is a 404, never a 403 - the same shape every other evaluator-scoped
-            // read uses.
             return declaration is null ? Results.NotFound() : Results.Ok(declaration);
         })
         .RequirePermission(Permissions.EvaluationScore)
@@ -301,9 +322,6 @@ public static class EvaluationEndpoints
         .RequirePermission(Permissions.EvaluationScore)
         .WithName("ScoreCriterion");
 
-        // T-067: opening a technical supporting file on a bid under evaluation. Under the
-        // my-evaluation group because the ASSIGNMENT is the scope, and keyed by the proposal's public
-        // code - the same code the workspace read emits, so nothing has to translate an id.
         myGroup.MapGet("/proposals/{proposalCode}/documents/{documentId:guid}/download-url", async (
             string referenceCode, string proposalCode, Guid documentId,
             IGetProposalDocumentDownloadUrlForEvaluatorHandler handler, CancellationToken ct) =>

@@ -1,3 +1,29 @@
+// The two reports, procurement and compliance, and their exports.
+//
+// They are gated on a permission that is an invention. The information architecture names the route and says
+// it is gated, and no document defines the permission itself.
+//
+// Exports go through the same rendering engine the audit and comparison exports use. A second export path
+// would mean a second provenance block, a second byte-order-mark decision and a second font stack, and the one
+// that drifts is whichever gets touched least.
+//
+// The format is chosen from a named set, so an unrecognised one is refused rather than quietly answered in the
+// default.
+//
+// One filter on the procurement report is a floor rather than a choice: the earliest date any cycle-time
+// figure in this file can see. It is presented as a filter because that is what it behaves like, an invisible
+// lower bound on what was measurable, and because a reader who cannot see it reads a short history as a fast
+// process.
+//
+// The compliance counts are ministry-wide, and that is stated rather than dressed up as a scope it does not
+// have. A supplier belongs to no buying organization, so those counts cannot be narrower by construction.
+//
+// A multi-section export is one file with several tables in it, each section's heading written as a comment
+// line above its own header row. That is unusual for a spreadsheet, and splitting the report into three
+// downloads would lose the provenance block on two of them.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Exports;
@@ -5,19 +31,6 @@ using MotsSupplierPortal.Application.Reports;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Exports;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary>
-/// FEAT-19.1/19.2 at <c>/api/v1/reports</c>, backing the <c>/bo/reports</c> route.
-///
-/// <para>Gated on <see cref="Permissions.ReportRead"/>, which is an invention - the IA names the
-/// route and the gate, no document defines the permission. It is granted to no role by default and
-/// needs a manual grant in any deployed environment.</para>
-///
-/// <para>Exports go through FEAT-19.4's engine, the same one the audit and comparison exports use.
-/// A second export path would mean a second provenance block, a second BOM decision and a second
-/// font stack, and the one that drifts is whichever is touched least.</para>
-/// </summary>
 public static class ReportEndpoints
 {
     public static void MapReportEndpoints(this IEndpointRouteBuilder app)
@@ -89,10 +102,6 @@ public static class ReportEndpoints
                 [
                     ExportFilterValue.Bound("from", fromBound),
                     ExportFilterValue.Bound("to", toBound),
-                    // The floor below which no cycle-time figure in this file can see. Named as a
-                    // filter because that is what it behaves like - an invisible lower bound on what
-                    // was measurable - and because a reader who cannot see it reads a short history
-                    // as a fast process.
                     ExportFilterValue.Bound("cycleTimeCoverageFrom", report.CoverageFloor),
                 ]);
 
@@ -122,8 +131,6 @@ public static class ReportEndpoints
             var locale = RegistrationEndpoints.ResolveLocale(httpContext.Request.Headers.AcceptLanguage);
             var provenance = new ExportProvenance(
                 DateTimeOffset.UtcNow,
-                // Stated as it is, not dressed up as a scope it does not have - Supplier carries no
-                // OrganizationId, so these counts are ministry-wide by construction.
                 Scope: "all suppliers - the registry has no organization dimension (report.read)",
                 Filters: []);
 
@@ -137,8 +144,6 @@ public static class ReportEndpoints
     }
 }
 
-/// <summary>The formats a report export offers, whitelisted so an unrecognised one is refused
-/// rather than silently answered in the default.</summary>
 public static class ReportExportFormats
 {
     public const string Pdf = "pdf";
@@ -148,10 +153,6 @@ public static class ReportExportFormats
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Pdf, Csv };
 }
 
-/// <summary>
-/// Renders any sectioned report to either format through FEAT-19.4's engine. Shared by both reports
-/// so the two cannot drift into two provenance shapes or two BOM decisions.
-/// </summary>
 internal static class ReportArtefact
 {
     public static IResult Render(
@@ -172,11 +173,6 @@ internal static class ReportArtefact
         return Results.File(buffer.ToArray(), "application/pdf", $"{fileStem}.pdf");
     }
 
-    /// <summary>
-    /// A CSV of several sections. Each section's heading is written as a comment line above its own
-    /// header row: one file with three tables in it is unusual, but splitting a report into three
-    /// downloads loses the provenance block on two of them.
-    /// </summary>
     private sealed record CsvReportResult(
         ExportProvenance Provenance, string ArtefactName, string FileStem, IReadOnlyList<ReportSection> Sections) : IResult
     {

@@ -40,6 +40,10 @@
 // The other half, the one that survives a new formatting site nobody qualifies, is read off the composition root
 // rather than off a running thread, because the fixture builds the host so the process-wide pin has already run by
 // the time any test observes it.
+//
+// That pin moved out of Program.cs when the start-up file was split by concern. It is the same two statements,
+// now in the file that owns observability, and the check is on the statements rather than on which file holds
+// them - so it follows them instead of being deleted.
 
 namespace MotsSupplierPortal.Tests.Integration.Contract;
 
@@ -106,14 +110,14 @@ public sealed class CultureFormattingTests(PostgresApiFixture fixture)
     [Fact]
     public void The_process_pins_the_invariant_culture_at_startup()
     {
-        var source = File.ReadAllText(ProgramFile());
+        var source = File.ReadAllText(CulturePinningFile());
 
         source.Should().Contain("CultureInfo.DefaultThreadCurrentCulture = System.Globalization.CultureInfo.InvariantCulture",
             "an unpinned process formats by the host's locale, which is how T-048 reopened");
         source.Should().Contain("CultureInfo.DefaultThreadCurrentUICulture = System.Globalization.CultureInfo.InvariantCulture");
     }
 
-    private static string ProgramFile()
+    private static string CulturePinningFile()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MotsSupplierPortal.slnx")))
@@ -122,7 +126,7 @@ public sealed class CultureFormattingTests(PostgresApiFixture fixture)
         }
 
         directory.Should().NotBeNull("the check cannot find the backend solution root from the test binaries");
-        var file = Path.Combine(directory!.FullName, "Api", "Program.cs");
+        var file = Path.Combine(directory!.FullName, "Api", "Startup", "ObservabilityRegistration.cs");
         File.Exists(file).Should().BeTrue($"expected {file}");
         return file;
     }

@@ -1,3 +1,28 @@
+// One step of internal review on a tender: who was asked, who decided, and what they decided.
+//
+// Today there is a single approver per review pass, so exactly one pending step exists at a time. It is
+// still modelled as an ordered, growing list of steps rather than one approver field on the tender, so
+// that a later multi-level or amount-routed approval chain is an extension of this same shape rather
+// than a database migration. An award's approvals already have exactly this shape.
+//
+// Returning a tender for edits resolves the pending step as rejected, carrying the reviewer's comments,
+// rather than deleting it, so the history of every review pass is kept. The next submission for review
+// creates a fresh pending step for the next pass.
+//
+// Nothing here encodes routing by amount or a quorum of approvers. That logic does not exist yet and
+// must not be inferred from the shape.
+//
+// AssignedApproverUserId is the manager the step is waiting on, recorded when the step is created.
+// ApproverUserId is who actually decided it, and is null while the step is pending.
+//
+// They are two fields on purpose. One field carrying both meanings would mean different things before
+// and after a decision, and the case where that matters is real: a nominated approver who is
+// unavailable and a colleague who decides in their place are two different people, and a record that
+// keeps only the second cannot answer who was asked.
+//
+// AssignedApproverUserId is null when the pass named nobody, which is a recorded absence rather than a
+// missing default.
+
 namespace MotsSupplierPortal.Domain.Rfqs;
 
 public enum RfqApprovalDecision
@@ -6,41 +31,14 @@ public enum RfqApprovalDecision
     Rejected,
 }
 
-/// <summary>OQ-004 interim: RFQ internal-review/publish approval is a single configurable approver
-/// today (docs/product/ASSUMPTIONS.md ASM-040), but modeled here as an ORDERED, GROWING array
-/// (StepNo), not a scalar approver field, deliberately - so a later multi-level/threshold-routed
-/// approval chain (docs/product/OPEN-QUESTIONS.md OQ-004) is a config/data extension onto this
-/// same shape, not a schema migration. Same array-of-approval-steps shape as the already-designed
-/// award.approval table (DATABASE-MODEL.md §2.6).
-///
-/// <para>This is genuinely interim, not final: with a single approver, exactly one pending
-/// RfqApproval (StepNo=1, Decision=null) exists per review pass. A ReturnForEdits resolves that
-/// pending row to Rejected (with the reviewer's comments) rather than deleting it, so the full
-/// history of every review pass is preserved; the next SubmitForReview creates a fresh StepNo=1
-/// pending row for the next pass. Nothing here encodes amount-threshold routing or multi-approver
-/// quorum (BRULE-072/074) - that logic does not exist yet and must not be inferred from this
-/// shape.</para></summary>
 public sealed class RfqApproval
 {
     public Guid Id { get; init; }
     public Guid RfqId { get; init; }
     public int StepNo { get; init; }
 
-    /// <summary>
-    /// A-7: the manager this step is waiting ON, recorded when the step is created.
-    ///
-    /// <para>Separate from <see cref="ApproverUserId"/>, which records who actually DECIDED it. One
-    /// field carrying both meanings would be a field whose value means different things before and
-    /// after a decision, and the case that makes the difference matter is real: a nominated approver
-    /// who is unavailable and a colleague who decides in their place are two different people, and an
-    /// audit trail that keeps only the second cannot answer who was asked.</para>
-    ///
-    /// <para>Null when the pass named nobody - see <c>Rfq.SubmitForReview</c> on why that is a
-    /// recorded absence and not a missing default.</para>
-    /// </summary>
     public Guid? AssignedApproverUserId { get; set; }
 
-    /// <summary>Who decided this step. Null while it is pending.</summary>
     public Guid? ApproverUserId { get; set; }
     public RfqApprovalDecision? Decision { get; set; }
     public string? Comment { get; set; }

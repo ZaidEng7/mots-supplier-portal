@@ -1,3 +1,116 @@
+// The compliance documents: uploading one, listing them, downloading one, reading its version history, and a
+// reviewer approving or rejecting one.
+//
+//
+// ONE PATH, TWO SHAPES
+//
+// The contract gives one path for the document list and describes it as paged by default for the back
+// office, while the supplier's own checklist lives at the same resource. So the route serves two shapes and
+// decides between them by who is asking, rather than inventing a second address. That is the same persona
+// dispatch the tender routes use, for the same reason.
+//
+// The supplier keeps an unpaged view of their own checklist, which is what the registration wizard renders
+// and is not a back-office grid. The reviewer gets the paged form.
+//
+// An unrecognised state filter is refused rather than dropped. Dropping the only value leaves an empty
+// filter, and an empty filter returns everything, so the caller asked to narrow and got the opposite with no
+// way to tell.
+//
+// The paging cap is checked before the query runs, which is the point of a cap.
+//
+//
+// UPLOADING
+//
+// Scope is checked before the body is read. An out-of-scope caller must not be able to tell a malformed
+// upload from an unauthorised one, and must not stream a file at all.
+//
+// Dates are parsed with the invariant calendar rather than the host's. A host whose locale defaults to a
+// non-Gregorian calendar silently fails to parse the plain date string that a browser's own date input
+// always sends, because those inputs are locale-independent by specification.
+//
+// The answer is accepted rather than created, which is the honest code: the row exists but the pipeline is
+// not finished with it, and the scanning job is what finishes it. Created would have promised a completed
+// creation. The location header points at the path the contract names, and that path is real because the
+// read behind it was added in the same change. An earlier pass left the header non-conforming on the
+// grounds that conforming the string alone would point at nothing; the answer was to make the documented
+// path real rather than keep the divergence.
+//
+// A disallowed file type and an oversized file get their own statuses, which the contract names explicitly.
+// They used to be generic refusals, which tell a client the request was malformed rather than that the file
+// was too big or of the wrong kind.
+//
+// The expiry-date refusal carries the domain's own message, which says what is wrong with the date rather
+// than leaving the uploader to guess between missing, past and misformatted.
+//
+// The upload has its own request-size limit. Without it the framework's multipart reader accepts up to its
+// own default, which is far larger, before the application's own check ever runs, so an oversized body was
+// already fully buffered by then. The limit is derived from the single source of truth for the file cap,
+// plus a little headroom for the multipart boundaries and the other form fields rather than slack on the
+// file itself.
+//
+//
+// WHY THE UPLOAD IS NOT GUARDED BY A WRITE PRECONDITION
+//
+// I added the guard first and then removed it, for two reasons, one of which a test found.
+//
+// There is no lost update to refuse. Uploading adds a document; it cannot overwrite another upload, and two
+// of a supplier's users adding two different documents both succeeding is the correct outcome. That is the
+// same reasoning that leaves a supplier posting a clarification unguarded: concurrent additions are not a
+// conflict.
+//
+// And the hazard is real and one-sided. This route answers with the document, so there is no root version to
+// hand back and no filter to supply one, while the interface drops its cached version on every successful
+// write. A supplier uploading two documents in a row would therefore be refused on the second with nothing
+// on screen to explain it. The streaming upload test caught exactly that shape immediately.
+//
+// The decisions below are guarded, because that is where the lost update lives: two reviewers deciding the
+// same document is one decision silently replacing the other.
+//
+//
+// DOWNLOADING
+//
+// There are two download routes on purpose. One returns a short-lived link as data, which is what the
+// interface calls and can read. The other redirects to that link, which is what the contract documents, and
+// which a browser can follow but application code cannot hand back to itself.
+//
+// They share one handler, so the two cannot authorise differently. The redirect is a temporary one that must
+// not be cached, because the link it points at expires in minutes.
+//
+// Both carry only a requirement to be signed in, and that is not an oversight. The handler serves both a
+// supplier reading their own document and a reviewer reading somebody else's, and it does the scoping
+// itself. A permission here would have to name one of the two personas and would lock out the other, and
+// two routes onto one handler must not authorise differently.
+//
+//
+// VERSION HISTORY
+//
+// A document has carried a version number and a latest-version marker since it was first built, and nothing
+// returned the history, so a supplier could see a document's current state and never why it got there. A
+// rejection followed by a re-upload looked exactly like a first upload that was approved.
+//
+//
+// THE REVIEWER'S DECISION
+//
+// The path names the supplier as well as the document, and the guard is not "is this mine" but "does the
+// path name the document's real owner". Otherwise a reviewer could act on one supplier's document through
+// another supplier's address, and the audit row would name the wrong supplier.
+//
+// Both decisions require a write precondition, because a document decision is a write on the supplier as a
+// whole, and two reviewers deciding one document at once is the lost update worth refusing. The precondition
+// comes from the reviewer's own read of the application, which issues it.
+//
+// The response carries the document, with the supplier's new version on the header rather than in the body.
+// The shared fresh-version filter is not used, because it looks for a version on the response body, and a
+// document has no version of its own. Putting the supplier's version into the document's shape to satisfy
+// the filter would ship a field whose name lies about what it describes, and the contract documents this
+// response as the document.
+//
+// The supplier's version is the right one anyway, because that is what the precondition guards and what the
+// reviewer's read issues. So a reviewer deciding a second document already holds the value the next write
+// needs, instead of meeting a refusal only a re-read could clear.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using System.Globalization;
 using MotsSupplierPortal.Api.Concurrency;
 using Microsoft.AspNetCore.Mvc;
@@ -8,18 +121,12 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Storage;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
 public sealed record RejectDocumentRequest(string Reason);
 
 public static class DocumentEndpoints
 {
     public static void MapDocumentEndpoints(this IEndpointRouteBuilder app)
     {
-        // §12-A/C3, §12.3: "GET /suppliers/{supplierCode}/documents - list (page mode default for
-        // back-office)". See ListSupplierDocumentsEndpoint below for the paged, reviewer-facing
-        // form; this route keeps the supplier's own unpaginated view of their checklist, which is
-        // what the onboarding wizard renders and is not a back-office grid.
         app.MapGet("/api/v1/suppliers/{supplierCode}/documents", async (
             string supplierCode,
             string? state,
@@ -32,20 +139,12 @@ public static class DocumentEndpoints
             IListSupplierDocumentsPagedHandler pagedHandler,
             CancellationToken ct) =>
         {
-            // Same persona dispatch as the converged /rfqs routes, and for the same reason: §12.3
-            // gives ONE path and describes it as "page mode default for BACK-OFFICE", while the
-            // supplier's own onboarding checklist lives at the same resource. Two shapes, one path,
-            // decided by the caller's scope (§9.2) rather than by inventing a second URL.
             if (scope.SupplierId is not null)
             {
                 if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
                 return Results.Ok(await ownHandler.HandleOwnAsync(ct));
             }
 
-            // An unrecognised state must not simply be dropped: dropping the only member leaves an
-            // EMPTY filter, and an empty filter returns everything - the caller asked to narrow and
-            // got the opposite, with no way to tell. Same failure shape as Batch 0.2's
-            // ?aggregateTyp=X, so the same answer: 422 rather than silent widening.
             if (!FilterValues.TryParseEnumCsv<DocumentState>(state, out _, out var invalidState))
             {
                 return FilterValues.InvalidFilterValue("state", invalidState!);
@@ -53,8 +152,6 @@ public static class DocumentEndpoints
 
             var requestedPage = page is null or < 1 ? 1 : page.Value;
 
-            // §6.1: "Hard cap page*pageSize <= 10 000 to protect the DB; beyond that -> 422 advising
-            // cursor mode." Checked before the query runs, which is the point of a cap.
             if (ListEnvelope<SupplierDocumentListItemDto>.ExceedsPageCap(requestedPage, pageSize))
             {
                 return Results.Json(new
@@ -81,8 +178,6 @@ public static class DocumentEndpoints
             IUploadDocumentHandler handler,
             CancellationToken ct) =>
         {
-            // Scope FIRST, before the body is read: an out-of-scope caller must not be able to tell
-            // a malformed upload from an unauthorised one, and must not stream a file at all.
             if (await codeScope.ResolveOwnAsync(supplierCode, ct) is null) return Results.NotFound();
 
             if (!request.HasFormContentType)
@@ -102,10 +197,6 @@ public static class DocumentEndpoints
                 return Results.BadRequest(new { error = "documentTypeId_required" });
             }
 
-            // Invariant culture, not CurrentCulture: the host's OS/container locale (e.g. an
-            // Arabic-region default) can default to a non-Gregorian calendar, silently failing
-            // TryParse on the ISO "yyyy-MM-dd" string the frontend's <input type="date"> always
-            // sends (HTML5 date inputs are locale-independent by spec).
             DateOnly? issueDate = DateOnly.TryParse(form["issueDate"], CultureInfo.InvariantCulture, out var issue) ? issue : null;
             DateOnly? expiryDate = DateOnly.TryParse(form["expiryDate"], CultureInfo.InvariantCulture, out var expiry) ? expiry : null;
 
@@ -117,25 +208,12 @@ public static class DocumentEndpoints
 
             return result switch
             {
-                // T-011: 202, not 201. §12.3 specifies Accepted and it is the honest code - the row
-                // exists but the pipeline is not finished with it, and DocumentScanJob is what
-                // finishes it (see T-052). 201 promised a completed creation.
-                //
-                // T-012: and the Location is now §12.3's own path, because the GET behind it exists
-                // as of this change. Batch 8 left the header non-conforming on the ground that
-                // conforming the string alone would emit a path resolving to nothing; the answer was
-                // to make the documented path real rather than to keep the divergence.
                 UploadDocumentResult.Success s => Results.Accepted(
                     $"/api/v1/suppliers/{supplierCode}/documents/{s.Document.DocumentId}", s.Document),
                 UploadDocumentResult.NotFoundOrOutOfScope => Results.NotFound(),
                 UploadDocumentResult.InvalidDocumentType => Results.BadRequest(new { error = "invalid_document_type" }),
-                // T-014: §12.3 names both of these explicitly - "Disallowed MIME -> 415; oversize
-                // -> 413". They had been 400s, which tells a client the request was malformed rather
-                // than that the file was too big or of the wrong kind.
                 UploadDocumentResult.TooLarge => Results.StatusCode(StatusCodes.Status413PayloadTooLarge),
                 UploadDocumentResult.UnsupportedType => Results.StatusCode(StatusCodes.Status415UnsupportedMediaType),
-                // BRULE-020: the domain's message names what is wrong with the date rather than
-                // leaving the uploader to guess which of null/past/format was rejected.
                 UploadDocumentResult.InvalidExpiry e => Results.BadRequest(new { error = "invalid_expiry", message = e.Message }),
                 UploadDocumentResult.ContentMismatch => Results.BadRequest(new { error = "content_type_mismatch" }),
                 UploadDocumentResult.NotEditable n => Results.Conflict(new { error = n.Reason }),
@@ -143,45 +221,14 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.SupplierEdit)
-        // T-030 split (4) deliberately does NOT guard the upload, and the reason is the same shape as the
-        // RFQ group's four stated exclusions rather than an omission.
-        //
-        // I added the guard first and then removed it. Two reasons, one of which a test found:
-        //
-        // 1. There is no lost update here to refuse. Uploading ADDS a document row; it cannot overwrite
-        //    another upload, and two of a supplier's users adding two different documents both succeeding is
-        //    the correct outcome. That is the same reasoning that leaves the supplier's own
-        //    POST /rfqs/{code}/clarifications unguarded - concurrent additions are not a conflict.
-        //
-        // 2. The hazard is real and asymmetric. This route answers 201 with the DOCUMENT, so there is no
-        //    root version to hand back and no WithFreshETag to give one; the SPA's store drops its cached
-        //    version on every successful mutation, so a supplier uploading two documents in a row would meet
-        //    a 428 on the second with nothing on screen to explain it. StreamingUploadTests caught the same
-        //    shape immediately - it uploads with the raw client and got a 428 where it asserts 202.
-        //
-        // The DECISIONS below are guarded, because that is where the lost update lives: two reviewers
-        // deciding the same document is one decision silently replacing the other.
         .WithTags("Documents")
         .WithName("UploadDocument")
         .DisableAntiforgery()
-        // MSP-84/NFR-PERF-008: without this, ASP.NET Core's multipart form reader accepts up to
-        // its own default MultipartBodyLengthLimit (128MB) before UploadDocumentHandler's 20MB
-        // application-level check ever runs - the framework had already buffered/spooled the
-        // whole oversized body by then. FileTypeSniffer.MaxSizeBytes is the single source of
-        // truth for the 20MB figure; the +1MB headroom is for multipart boundaries and the other
-        // form fields (documentTypeId/issueDate/expiryDate), not slack on the file itself.
         .WithMetadata(new RequestFormLimitsAttribute
         {
             MultipartBodyLengthLimit = FileTypeSniffer.MaxSizeBytes + 1024 * 1024,
         });
 
-        // T-013: §12.3 documents the download as GET /documents/{documentId}/content answering 302
-        // to a short-lived pre-signed URL. Added ALONGSIDE the download-url route rather than
-        // replacing it: the SPA calls download-url and reads JSON, and a 302 to a foreign origin is
-        // not something fetch() can hand back to application code. Same handler, so the two cannot
-        // authorize differently.
-        // T-012: the read §12.3's Location header names. Same two callers and same row-scope rule as
-        // the download - see IGetSupplierDocumentHandler.
         app.MapGet("/api/v1/suppliers/{supplierCode}/documents/{documentCode}", async (
             string supplierCode, string documentCode,
             IGetSupplierDocumentHandler handler, CancellationToken ct) =>
@@ -193,10 +240,6 @@ public static class DocumentEndpoints
         .WithTags("Documents")
         .WithName("GetSupplierDocument");
 
-        // SCR-132: the version chain. SupplierDocument has carried Version and IsLatestVersion since
-        // EPIC-05 and nothing returned the history, so a supplier could see a document's current
-        // state and never why it got there - a rejection then a re-upload looked exactly like a
-        // first upload that was approved.
         app.MapGet("/api/v1/suppliers/{supplierCode}/documents/types/{documentTypeCode}/history", async (
             string supplierCode, string documentTypeCode,
             IGetDocumentHistoryHandler handler, CancellationToken ct) =>
@@ -216,18 +259,11 @@ public static class DocumentEndpoints
             var result = await handler.HandleAsync(documentCode, ct);
             return result switch
             {
-                // preserveMethod:false, permanent:false - a 302, per the document. The URL it points
-                // at expires in minutes, so nothing about this redirect may be cached.
                 DocumentDownloadUrlResult.Success s => Results.Redirect(s.Url),
                 DocumentDownloadUrlResult.NotFoundOrForbidden => Results.NotFound(),
                 _ => Results.Problem(),
             };
         })
-        // Bare RequireAuthorization, matching download-url exactly. Not an oversight: this handler
-        // serves BOTH a supplier reading their own document and a reviewer reading someone else's,
-        // and it does the row scoping itself (see GetDocumentDownloadUrlHandler's own note). A
-        // permission filter here would have to name one of the two personas and would lock out the
-        // other - and two routes onto one handler must not authorize differently.
         .RequireAuthorization()
         .WithTags("Documents")
         .WithName("GetDocumentContent");
@@ -249,11 +285,6 @@ public static class DocumentEndpoints
         .WithTags("Documents")
         .WithName("GetDocumentDownloadUrl");
 
-        // §3 lists "POST /suppliers/{supplierCode}/documents/{documentId}/approve" among the
-        // state-transition sub-resource POSTs. Reviewer-facing, so the guard is not "is this mine"
-        // but "does the path name the document's real owner" - otherwise a reviewer could act on
-        // supplier B's document through supplier A's URL and the audit row would name the wrong
-        // supplier.
         app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{documentCode}/approve", async (
             string supplierCode,
             string documentCode,
@@ -274,22 +305,11 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.DocumentReview)
-        // T-030 split (4). A document decision is a child write on the Supplier aggregate, and two reviewers
-        // deciding the same document at once is the lost update worth refusing on this aggregate - the
-        // second decision would overwrite the first with no trace on screen. The precondition comes from
-        // GET /review/{referenceCode}, which now issues it.
         .RequireIfMatch()
-        // P12 item 26's last two routes. See OkWithFreshSupplierETag: the version is the SUPPLIER's, and it
-        // goes on the header rather than into the body, which stays the document §3 describes.
         .WithMetadata(EmitsETagMetadata.Instance)
         .WithTags("Documents")
         .WithName("ApproveDocument");
 
-        // §3 lists "POST /suppliers/{supplierCode}/documents/{documentId}/approve" among the
-        // state-transition sub-resource POSTs. Reviewer-facing, so the guard is not "is this mine"
-        // but "does the path name the document's real owner" - otherwise a reviewer could act on
-        // supplier B's document through supplier A's URL and the audit row would name the wrong
-        // supplier.
         app.MapPost("/api/v1/suppliers/{supplierCode}/documents/{documentCode}/reject", async (
             string supplierCode,
             string documentCode,
@@ -311,28 +331,12 @@ public static class DocumentEndpoints
             };
         })
         .RequirePermission(Permissions.DocumentReview)
-        // T-030 split (4); same reasoning as approve above, and the same fresh ETag.
         .RequireIfMatch()
         .WithMetadata(EmitsETagMetadata.Instance)
         .WithTags("Documents")
         .WithName("RejectDocument");
     }
 
-    /// <summary>
-    /// P12 item 26's last two routes: the document decision answers with the DOCUMENT and an <c>ETag</c>
-    /// carrying the SUPPLIER's new version.
-    ///
-    /// <para><b>Why not <c>WithFreshETag()</c>.</b> That filter reflects over the response body for a
-    /// <c>RowVersion</c> property, and the body here is a child - a document has no version of its own.
-    /// Putting the supplier's version into the document DTO to satisfy the filter would ship a field whose
-    /// name lies about what it describes, and §3 documents this response as the document.</para>
-    ///
-    /// <para><b>Why the supplier's version is the right one anyway.</b> <c>RequireIfMatch</c> on these
-    /// routes guards the Supplier aggregate, and the precondition's source is
-    /// <c>GET /review/{referenceCode}</c>, whose ETag is that same root version. So a reviewer deciding a
-    /// second document now has the value the next <c>If-Match</c> needs, instead of a 428 that only a
-    /// re-read could clear.</para>
-    /// </summary>
     private static IResult OkWithFreshSupplierETag(HttpContext http, ReviewDocumentResult.Success success)
     {
         http.SetETag(success.SupplierRowVersion);

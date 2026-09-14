@@ -1,20 +1,29 @@
+// The wording of every validation message, in both languages, loaded from the file beside this one.
+//
+// The sentences live in the JSON file rather than in code because the product owner reviews and
+// approves the Arabic, and a reviewer should not have to read code to do it. The file is embedded in
+// the built assembly, so there is exactly one copy and it cannot drift from what shipped.
+//
+// A message is looked up by the property that failed and the rule that failed it. That is the same key
+// the file is ordered by and the same key the coverage test compares against the validators, so a
+// missing or orphaned sentence is a test failure rather than an English string leaking to a supplier.
+//
+// Normalize strips collection indexes for the lookup: a failure on the fourth attribute and one on
+// the first are the same rule and share one sentence. The index survives in the field path on the
+// response, because a client needs to know which input to point at. Only the catalogue key is
+// index-free.
+//
+// The pattern that strips indexes carries a timeout. That is belt and braces rather than a real risk,
+// since the pattern is linear and the input is a property name from a validator rather than user
+// text, but a pattern without one is a standing invitation for the next pattern here to be written
+// the same way and actually misbehave.
+
+namespace MotsSupplierPortal.Api.Errors;
+
 using System.Collections.Frozen;
 using System.Reflection;
 using System.Text.Json;
 
-namespace MotsSupplierPortal.Api.Errors;
-
-/// <summary>
-/// The §7.2 message catalogue, loaded from <c>ValidationCatalogue.jsonc</c>.
-///
-/// <para>The strings live in the .jsonc file rather than in C# because the product owner reviews and
-/// approves the Arabic, and a reviewer should not have to read code to do that. The file is embedded
-/// in the assembly, so there is exactly one copy and it cannot drift from what shipped.</para>
-///
-/// <para>Lookup is by <c>"{PropertyName}.{RuleName}"</c> - the same key the catalogue is ordered by
-/// and the same key <c>ValidationCatalogueCoverageTests</c> compares against the validators, so a
-/// missing or orphaned entry is a test failure rather than an English string leaking to a supplier.</para>
-/// </summary>
 public static class ValidationCatalogue
 {
     public sealed record Entry(string Key, string Code, string Source, string Ar, string En);
@@ -26,17 +35,8 @@ public static class ValidationCatalogue
     public static Entry? Find(string? field, string rule) =>
         Entries.TryGetValue($"{Normalize(field)}.{rule}", out var entry) ? entry : null;
 
-    /// <summary>
-    /// Collection indices are stripped for lookup: a failure on <c>Attributes[3].Key</c> and one on
-    /// <c>Attributes[0].Key</c> are the same rule and share one sentence. The index survives in the
-    /// emitted <c>field</c> path - §7.2 needs <c>items[0].unitPrice</c> to point at a specific input -
-    /// it is only the catalogue key that is index-free.
-    /// </summary>
     public static string Normalize(string? field) => IndexPattern.Replace(field ?? string.Empty, "[]");
 
-    // The timeout is belt-and-braces rather than a real risk - the pattern is linear and the input is
-    // a property name from a validator, not user text - but a regex without one is a standing
-    // invitation for the next pattern here to be written the same way and actually backtrack.
     private static readonly System.Text.RegularExpressions.Regex IndexPattern =
         new(@"\[\d+\]", System.Text.RegularExpressions.RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 

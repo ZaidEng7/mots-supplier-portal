@@ -1,52 +1,90 @@
+// Refuses to start when a setting that has no safe default is missing, and warns about settings that
+// are legal but combine into behaviour nobody asked for.
+//
+//
+// WHY IT EXISTS
+//
+// Not one bug but a class of them. Three settings carried a hardcoded local fallback so that local
+// development would work without configuration, and each degraded silently rather than failing when the
+// real configuration was missing.
+//
+// The database connection quietly pointed at a local machine instead of the real database. The public
+// address of the site quietly shipped local links in every verification, password-reset, resend and
+// invitation email, so account recovery was dead with no error anywhere. The allowed browser origins
+// quietly allowed only the local one, so the real interface was blocked.
+//
+// None of them logged, threw, or failed a health check. A misconfigured deployment looked healthy and
+// was not. Checking here means it fails at start-up, where somebody is watching, rather than months
+// later in a user's inbox.
+//
+// Local development is deliberately exempt, because its own settings file supplies all of these, and
+// requiring them would add friction to running the project without protecting anything.
+//
+//
+// THE REQUIRED SETTINGS
+//
+// Add to that list rather than reintroducing an inline local fallback.
+//
+// The signing settings already had their own refusal further down the start-up sequence, but that one
+// fires after this check, so a deployment missing both learned about them one redeploy apart, which is
+// the exact failure this class exists to prevent. They are listed here so the start-up error reports
+// everything at once, and the deeper structural check still stands.
+//
+// The mail host and sender address are declared as required where they are bound, but that only fires
+// the moment something actually resolves them, which is the first real email send and could be hours
+// after a bad deployment. They are listed here so a missing mail section is caught at start-up. The
+// user name and password are deliberately not required, because an internal relay that permits
+// anonymous sending has no credential to supply.
+//
+// Every missing key is reported at once. Discovering them one redeploy at a time is its own small
+// outage.
+//
+// The allowed origins need their own check, because a list binds as numbered children, so testing the
+// parent key for emptiness cannot tell "absent" from "present but empty".
+//
+//
+// THE WARNINGS
+//
+// These are returned rather than thrown. They describe configurations that are suboptimal rather than
+// broken, and refusing to start over a questionable-but-working setup would be a worse failure than the
+// thing it prevents.
+//
+// They exist because documenting an interaction on the settings involved is not sufficient, and this
+// project has the evidence. A comment explaining a constraint does not survive contact with somebody
+// changing the value, because the person changing it is looking at a configuration file rather than at
+// the code. A setting that looks free and has a real interaction is the same trap as a comment that has
+// rotted into a lie, milder but the same shape. Saying it at start-up puts the warning in front of the
+// person who caused it, at the moment they caused it.
+//
+// They run in every environment, local development included, because that is where somebody experiments
+// with a value before promoting it.
+//
+// The first warning is about a document expiry window wider than the widest reminder in the ladder,
+// which leaves a document sitting in the expiring state for days before its supplier is told anything.
+// The ladder is deliberately not widened to follow the window, because a reminder schedule should be a
+// list of decisions rather than a side effect of a threshold, so the warning tells the reader to add a
+// rung if that silence is unwanted.
+//
+// The second is about scheduled work being switched off. That is a legitimate setting for a deployment
+// that runs no background worker, which is why it is a warning rather than a refusal, and almost
+// certainly not intended anywhere else. It is stated in terms of consequence rather than mechanism: the
+// person reading it at start-up may not know what a recurring job is in this system, but they do know
+// what a tender is.
+
 namespace MotsSupplierPortal.Api.Configuration;
 
-/// <summary>
-/// Fail-fast validation of settings that must be present outside Development.
-///
-/// This exists because of a defect *class*, not a single bug. Three separate settings carried a
-/// literal localhost fallback so local development would work without configuration, and each one
-/// degraded silently rather than failing when that configuration was missing in a real
-/// environment:
-///
-/// - ConnectionStrings:Default  -> quietly pointed at localhost instead of the real database.
-/// - App:PublicUrl              -> quietly shipped "http://localhost:5173" links in every
-///                                 verification, password-reset, resend and invite email, so
-///                                 account recovery was dead with no error anywhere.
-/// - Cors:AllowedOrigins        -> quietly allowed only localhost, so the real SPA was blocked.
-///
-/// None of them logged, threw, or failed a health check. A misconfigured deployment looked healthy
-/// and was not. Validating here means it fails at boot, where somebody is watching, instead of
-/// months later in a user's inbox.
-///
-/// Development is deliberately exempt: appsettings.Development.json supplies all of these, and
-/// requiring them would only add friction to `dotnet run` without protecting anything.
-/// </summary>
 public static class RequiredConfiguration
 {
-    /// <summary>Settings with no safe default outside Development. Add to this list rather than
-    /// reintroducing an inline `?? "http://localhost..."` fallback.</summary>
     private static readonly string[] RequiredKeys =
     [
         "ConnectionStrings:Default",
         "App:PublicUrl",
-        // Jwt already had its own throw further down Program.cs, but that fires *after* this
-        // check - so a deployment missing both learned about them one redeploy apart, which is
-        // the exact failure mode this class exists to prevent. Listed here so the boot error
-        // reports everything at once. The structural validation downstream still stands.
         "Jwt:Issuer",
         "Jwt:Audience",
-        // Task #35: SmtpOptions.Host/FromAddress are `required` (binding-time failure), but that
-        // only fires the moment something actually resolves IOptions<SmtpOptions>.Value - the
-        // first real email send, which could be hours after a bad deploy. Listed here so a missing
-        // Smtp section is caught at boot instead. User/Password are deliberately NOT required: an
-        // internal relay or a permitted-anonymous-relay setup has no credential to supply.
         "Smtp:Host",
         "Smtp:FromAddress",
     ];
 
-    /// <summary>Throws when a required setting is absent in a non-Development environment.
-    /// Reports every missing key at once - discovering them one redeploy at a time is its own
-    /// small outage.</summary>
     public static void Validate(IConfiguration configuration, IHostEnvironment environment)
     {
         if (environment.IsDevelopment())
@@ -58,8 +96,6 @@ public static class RequiredConfiguration
             .Where(key => string.IsNullOrWhiteSpace(configuration[key]))
             .ToList();
 
-        // Array-valued settings bind as indexed children, so a null check on the parent key is not
-        // enough to tell "absent" from "present but empty".
         if (configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() is not { Length: > 0 })
         {
             missing.Add("Cors:AllowedOrigins");
@@ -77,22 +113,6 @@ public static class RequiredConfiguration
             "with defaults, because the previous defaults failed silently in production.");
     }
 
-    /// <summary>
-    /// Settings that are legal, but whose combination produces behaviour nobody asked for. Returned
-    /// rather than thrown: these are suboptimal, not broken, and refusing to boot over a
-    /// questionable-but-working configuration would be a worse failure than the thing it prevents.
-    ///
-    /// <para><b>Why this exists at all.</b> The interaction below is accurately documented on both
-    /// settings it involves. That is not sufficient, and this project has the evidence: a comment
-    /// explaining a constraint does not survive contact with someone changing the value, because the
-    /// person changing it is looking at a config file rather than at the code. A setting that looks
-    /// free and has a real interaction is the same trap as a comment that has rotted into a lie -
-    /// milder, but the same shape. Saying it at boot puts the warning in front of the person who
-    /// caused it, at the moment they caused it.</para>
-    ///
-    /// <para>Runs in every environment, Development included - that is where someone experiments
-    /// with a value before promoting it.</para>
-    /// </summary>
     public static IReadOnlyList<string> Warnings(IConfiguration configuration)
     {
         var warnings = new List<string>();
@@ -115,11 +135,6 @@ public static class RequiredConfiguration
                 $"silence is unwanted, add a {window}-day rung to Documents:RenewalReminderDays.");
         }
 
-        // MSP-98: recurring jobs switched off outside Development. Legal - a worker-less deployment
-        // is a real configuration, which is why this is a warning and not a startup failure - and
-        // almost certainly not intended anywhere else. Stated in terms of CONSEQUENCE rather than
-        // mechanism: the person reading this at boot may not know what a recurring job is in this
-        // system, but they do know what a tender is.
         var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? configuration["DOTNET_ENVIRONMENT"];
         var recurringEnabled = configuration.GetValue("Jobs:EnableRecurring", true);
 

@@ -1,10 +1,17 @@
+// Creating buying organizations, managing their department trees, and the manual act of linking a
+// supplier to one. Administrators only.
+//
+// There is no automatic linking anywhere. A link between a supplier and an organization exists only when
+// somebody holding the organization-management permission explicitly creates it here, which is the
+// ministry approving that link.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Organizations;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record CreateOrganizationRequest(string LegalNameAr, string LegalNameEn, OrganizationType OrganizationType, string? ContactEmail, string? ContactPhone);
 
@@ -32,11 +39,6 @@ public sealed class CreateSupplierOrgLinkRequestValidator : AbstractValidator<Cr
     public CreateSupplierOrgLinkRequestValidator() => RuleFor(x => x.OrganizationId).NotEmpty();
 }
 
-/// <summary>Task #7/Stage C: admin-only. Organization creation, OrgUnit management, and the
-/// manual "Ministry approves this link" SupplierOrgLink action (BRULE-010) - no auto-linking
-/// anywhere; a link exists only when explicitly created here by an admin.organizations.manage
-/// permission holder. See OrganizationHandlers.cs's doc comment for the internal-Guid-in-URL and
-/// missing-Address decisions.</summary>
 public static class OrganizationEndpoints
 {
     public static void MapOrganizationEndpoints(this IEndpointRouteBuilder app)
@@ -72,8 +74,6 @@ public static class OrganizationEndpoints
         })
         .RequirePermission(Permissions.AdminOrganizationsManage)
         .WithName("RemoveOrgUnit");
-
-        // --- SupplierOrgLink: the manual "Ministry approves this link" action ---
 
         group.MapGet("/supplier-links/{supplierReferenceCode}", async (string supplierReferenceCode, IManageSupplierOrgLinkHandler handler, CancellationToken ct) =>
             Results.Ok(await handler.ListForSupplierAsync(supplierReferenceCode, ct)))

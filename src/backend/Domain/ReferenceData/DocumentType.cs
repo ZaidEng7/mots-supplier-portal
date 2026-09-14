@@ -1,9 +1,26 @@
+// A kind of document a supplier may be asked for: a commercial registration, a tax
+// certificate, a chamber membership.
+//
+// IsRequired means an application cannot be submitted without it. ExpiryTracked means the
+// supplier must give an expiry date, and the portal warns as that date approaches.
+//
+// IsAwardCritical is the one that carries consequences: when a document of this type
+// expires, the supplier is suspended automatically.
+//
+// It is false on every seeded type, deliberately. The ministry has not yet said which
+// documents are award-critical, and the two ways of being wrong are not symmetric.
+// Flagging a type the ministry would not have chosen suspends real suppliers, blocks their
+// participation, and reactivating them later does not undo having been blocked. Flagging
+// none leaves behaviour exactly as it is today. So the mechanism ships complete and
+// dormant, and the ministry's answer becomes a data change rather than a deployment.
+//
+// Stated plainly: the auto-suspension rule does nothing in production until somebody sets
+// this flag. That is intended, not an oversight. The flag is editable from the
+// administration screens for that reason - it used to be settable only by a migration,
+// which meant a ministry that HAD decided still could not record the decision.
+
 namespace MotsSupplierPortal.Domain.ReferenceData;
 
-/// <summary>
-/// Configurable required-document catalog (FR-DOC-001, EPIC-21 reference data). Generic types only -
-/// no invented Syrian-specific document rules (docs/product/ASSUMPTIONS.md ASM-020 pattern).
-/// </summary>
 public sealed class DocumentType
 {
     public Guid Id { get; init; }
@@ -12,26 +29,6 @@ public sealed class DocumentType
     public required string NameEn { get; set; }
     public bool IsRequired { get; set; }
     public bool ExpiryTracked { get; set; }
-
-    /// <summary>
-    /// BRULE-023: expiry of a document of this type auto-suspends the supplier.
-    ///
-    /// <para><b>Defaults to false on every seeded type, deliberately.</b> BUSINESS-RULES.md marks
-    /// which types are award-critical as `[ASSUMPTION / REQUIRES BUSINESS CONFIRMATION]`, and the
-    /// two ways of being wrong here are not symmetric. Flagging a type the Ministry would not have
-    /// chosen suspends real suppliers - it blocks their participation, and reactivating them later
-    /// does not undo having been blocked. Flagging none leaves behaviour exactly as it is today.
-    /// So the mechanism ships complete and dormant, and the Ministry's answer becomes a data
-    /// change rather than a deployment.</para>
-    ///
-    /// <para>The consequence worth stating plainly: BRULE-023 does nothing in production until
-    /// somebody sets this. That is the intended state, not an oversight - see
-    /// docs/product/BLOCKED-DECISIONS.md.</para>
-    /// </summary>
-    /// <para><b>Settable since batch 11.</b> It was <c>init</c>-only, which meant the only way to turn the
-    /// rule on was a migration - so a ministry that HAD decided still could not record the decision. That was
-    /// the code half of §4.1's finding; the decision half is still open, and no seeded value changed with
-    /// this.</para>
     public bool IsAwardCritical { get; set; }
     public bool IsActive { get; set; } = true;
 }

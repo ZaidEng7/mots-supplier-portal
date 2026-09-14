@@ -1,23 +1,30 @@
-using System.Threading.RateLimiting;
-using MotsSupplierPortal.Infrastructure.Observability;
+// The second rate limit on the sign-in and registration surfaces: one per email address, on top of
+// the one per network address.
+//
+// The security rules want both dimensions. Signing in needs a limit per network address and per
+// account; registering, resending a verification and resetting a password need one per network address
+// and per target. The framework's own rate limiting supports only one dimension per route, so this is
+// the second one, keyed by the normalised identity in the request body rather than by the connection.
+// Both must pass, and each endpoint checks this one explicitly alongside the per-address policy.
+//
+// Registration has a tighter budget than everything else. Every surface used to share one hardcoded
+// budget regardless of how consequential the request was. A sign-in attempt costs a password
+// comparison; a registration attempt writes two rows and queues an email. Everything not listed keeps
+// the previous default.
+//
+// The surface tag is part of the key so that the same email does not share a budget across unrelated
+// surfaces.
+//
+// RateLimitResults is the refusal: a 429 carrying the header that says how long to wait, as the
+// security rules require.
 
 namespace MotsSupplierPortal.Api.Authorization;
 
-/// <summary>
-/// SECURITY-ARCHITECTURE.md §5.1: login needs per-IP + per-account limiting, and
-/// register/resend/reset need per-IP + per-target - the ASP.NET Core rate-limiting middleware's
-/// endpoint policy selection only supports one partition dimension (client IP) at a time, so this
-/// is the second dimension, keyed by the normalized identity in the request body rather than the
-/// connection. Both must pass for a request to proceed; this one is checked explicitly by each
-/// endpoint alongside the existing "auth-strict" per-IP policy.
-/// </summary>
+using System.Threading.RateLimiting;
+using MotsSupplierPortal.Infrastructure.Observability;
+
 public sealed class PerTargetRateLimiter(AppMetrics metrics) : IDisposable
 {
-    // NFR-SEC-009: every surface shared one hardcoded 10/min budget
-    // regardless of how consequential a request actually is. A login attempt costs a password
-    // hash comparison; a registration attempt writes a Supplier + AppUser row and enqueues an
-    // email - registration gets its own, tighter budget instead. Everything not listed here keeps
-    // the previous 10/min default, unchanged.
     private static readonly Dictionary<string, (int PermitLimit, TimeSpan Window)> SurfaceLimits = new()
     {
         ["register"] = (5, TimeSpan.FromMinutes(1)),
@@ -37,9 +44,6 @@ public sealed class PerTargetRateLimiter(AppMetrics metrics) : IDisposable
         });
     });
 
-    /// <param name="surface">A short tag for the endpoint (e.g. "login", "register") so the same
-    /// email doesn't share a budget across unrelated surfaces.</param>
-    /// <param name="target">The normalized identity being targeted (email).</param>
     public bool TryAcquire(string surface, string target)
     {
         var acquired = _limiter.AttemptAcquire($"{surface}:{target}").IsAcquired;
@@ -57,7 +61,6 @@ public sealed class PerTargetRateLimiter(AppMetrics metrics) : IDisposable
 
 public static class RateLimitResults
 {
-    /// <summary>SECURITY-ARCHITECTURE.md §5.1: "Rate-limit responses use 429 with Retry-After".</summary>
     public static IResult TooManyRequests(HttpContext httpContext, int retryAfterSeconds = 60)
     {
         httpContext.Response.Headers.RetryAfter = retryAfterSeconds.ToString();

@@ -1,37 +1,43 @@
-using MotsSupplierPortal.Domain.Common;
+// Settings an administrator can change without a deployment, one row per field.
+//
+// Each row is a pair: which group of settings it belongs to, and which field inside that group.
+// IsEnabled is the answer. Three groups exist.
+//
+// ComplianceRetrigger decides which supplier fields send an approved supplier back for review
+// when they are edited. The field codes match what the re-trigger check already records:
+// legalInfo, bankAccount, categoryLink.
+//
+// LegalInfoRequired decides which legal-information fields a supplier must fill in. The field
+// codes match the property names on the legal information itself: legalNameAr, legalNameEn,
+// registrationNumber, taxId, supplierType, establishedOn.
+//
+// GovernanceVisibility is the ministry's policy on showing commercial values, as one flag whose
+// field code is commercialValues and whose default is off. Putting it here rather than inventing
+// a new settings mechanism is deliberate: this table is already the answer to "a thing
+// procurement decides that code must not", so the ministry's lawyers flip a row instead of
+// commissioning a feature.
+//
+// All three replace lists that used to be hard-coded at the places that read them, so what was
+// documented as configurable is now genuinely configurable.
+//
+// RowVersion is here because these rows are the ones worth refusing a race on. They decide
+// whether editing a bank account re-opens a compliance review, so two administrators tightening
+// and loosening the same control at once should be refused rather than quietly resolved in favour
+// of whoever saved second.
 
 namespace MotsSupplierPortal.Domain.Configuration;
 
-/// <summary>The category a SupplierFieldConfig row governs.</summary>
+using MotsSupplierPortal.Domain.Common;
+
 public static class FieldConfigCategory
 {
-    /// <summary>FEAT-04.9: which Supplier fields re-trigger review (Approved -> UnderReview) when
-    /// edited. FieldCode matches the values ComplianceReTrigger already logs: legalInfo,
-    /// bankAccount, categoryLink.</summary>
     public const string ComplianceRetrigger = "ComplianceRetrigger";
 
-    /// <summary>FEAT-04.2: which LegalInfo fields are required on UpdateLegalInfo. FieldCode
-    /// matches LegalInfo's own property names: legalNameAr, legalNameEn, registrationNumber,
-    /// taxId, supplierType, establishedOn.</summary>
     public const string LegalInfoRequired = "LegalInfoRequired";
 
-    /// <summary>
-    /// D-6/BRULE-087: the Ministry's commercial-visibility policy, as ONE flag.
-    ///
-    /// <para>BRULE-087 makes this a policy decision and defaults it to aggregate-only. Putting it here
-    /// rather than in a new settings mechanism is deliberate - this table is already
-    /// admin-editable and already the answer to "a thing procurement decides that code must not", so
-    /// MOT Legal's answer flips a row instead of commissioning an epic.</para>
-    ///
-    /// <para>FieldCode <c>commercialValues</c>, default OFF.</para>
-    /// </summary>
     public const string GovernanceVisibility = "GovernanceVisibility";
 }
 
-/// <summary>Admin-editable configuration, one row per (Category, FieldCode) pair - replaces what
-/// used to be hardcoded call sites/validator rules for FEAT-04.9's compliance re-trigger field
-/// list and FEAT-04.2's LegalInfo requiredness, per product-owner decision 2026-08-27 to make both
-/// genuinely configurable rather than just documented as such.</summary>
 public sealed class SupplierFieldConfig : IVersionedAggregate
 {
     public Guid Id { get; init; }
@@ -39,16 +45,5 @@ public sealed class SupplierFieldConfig : IVersionedAggregate
     public required string FieldCode { get; init; }
     public bool IsEnabled { get; set; }
 
-    /// <summary>
-    /// T-029: the last genuine gap in §8.1's coverage. Batch 4's survey found the other candidates
-    /// were not gaps - four have no update endpoint at all, and SupplierDocument's state machine
-    /// already refuses a second decision - which left this one, the only mutable root with a live
-    /// PUT and no version.
-    ///
-    /// <para>The race is not exotic here: these rows decide whether editing a bank account
-    /// re-triggers compliance review, so two administrators tightening and loosening the same
-    /// control at once is exactly the case worth refusing rather than silently resolving in favour
-    /// of whoever saved second.</para>
-    /// </summary>
     public uint RowVersion { get; private set; }
 }

@@ -1,13 +1,132 @@
+// Signing in and out, refreshing a session, forgotten and changed passwords, the account screen, and session
+// management.
+//
+//
+// ANONYMOUS ROUTES ARE DECLARED ONE AT A TIME, NOT ON THE GROUP
+//
+// This is the single most important thing in this file.
+//
+// Anonymous access used to be declared on the whole group, with a comment claiming that the
+// session-management routes' own requirement to be signed in would not be weakened by it. That claim was
+// wrong. The framework treats the mere presence of an anonymous marker on a route as an unconditional
+// override: it stops before ever looking at what else the route requires, so a route carrying both is
+// anonymous, full stop, and its own requirement was dead code.
+//
+// Verified directly: listing sessions and revoking all sessions both answered successfully with no
+// authorisation header at all. Only the handlers' own checks for a missing user, which returned an empty
+// page and a count of zero, kept this from handing out real session data. The authorisation pipeline was
+// never gating those three routes.
+//
+//
+// THE REFRESH COOKIE
+//
+// The refresh token travels only as a cookie that scripts cannot read, marked secure, restricted to
+// same-site requests and scoped to this path. It is never in a response body. The access token is
+// short-lived and does go in the body, for the interface to hold in memory.
+//
+// The secure flag is unconditional. Do not reintroduce a switch for it.
+//
+// It was once tied to the environment, then to a configuration key defaulting to on. Each was an
+// improvement on the last, and each left exactly one setting standing between a refresh token and plain
+// text: first a leaked environment variable, then a configuration key. A configuration key is the same
+// shape as the environment variable it replaced, so the same objection applies, which is why there is now
+// no setting at all.
+//
+// This does not break local development. Browsers treat a local address as trustworthy and accept secure
+// cookies over plain connections there, a special case that exists so developers are not forced into local
+// certificates. Verified against the running stack rather than assumed: signing in set the cookie and a
+// refresh round trip succeeded with it. If a future non-local development setup needs this, the answer is
+// certificates on that host, not a switch here.
+//
+//
+// WHY THE COOKIE DELETIONS OMIT THOSE FLAGS
+//
+// The static analyser flags the delete calls for not repeating the secure, script-blocked and same-site
+// flags, on the reasoning that they are set when the cookie is written. That reasoning does not hold, and
+// this is the record of why; the marking in the analyser is only bookkeeping.
+//
+// A browser identifies a cookie by its name, its domain and its path. Those three flags are attributes
+// carried by a cookie rather than part of its identity, so they play no part in matching. Deleting emits
+// the same name with an expiry in the past, and the browser matches on the identity alone and removes the
+// cookie whatever its flags were. Repeating them would change nothing about which cookie is removed.
+//
+// The path is part of that identity, which is the part that genuinely matters, and it is the one supplied,
+// from the same constant the write uses. Were the two paths to drift apart, the delete would silently match
+// nothing and signing out would leave a live refresh token in the browser while reporting success. So the
+// shared constant, not the flags, is what these calls depend on for correctness.
+//
+//
+// RATE LIMITS
+//
+// Signing in, forgotten password and changing a password each carry a per-target limit on top of the
+// group's per-address one, so somebody spreading an attack across many addresses at one account is still
+// throttled. The forgotten-password limit is consumed even for an address that does not exist, which is the
+// same anti-enumeration shape as the handler answering identically either way.
+//
+//
+// THE DELIBERATE STATUS CHOICES
+//
+// A sign-in that needs a second factor is refused with its own code rather than answered successfully,
+// because no session exists yet and nothing there is a partial success a client could mistake for one.
+//
+// A wrong current password on the change-password screen is unprocessable rather than unauthorised, because
+// the caller is authenticated. Unauthorised would tell the interface the session had expired and bounce
+// them to the sign-in screen in the middle of a form.
+//
+// Forgotten password answers identically whether or not the account exists.
+//
+//
+// THE ACCOUNT SCREEN
+//
+// Changing a password and editing the account both take the identity from the session and never from the
+// payload. A user identifier in a change-password request would be an account-takeover primitive, and the
+// email address is not editable at all.
+//
+// The password rule checked here is length only, matching the configured policy. The real strength check is
+// the identity framework's own, reported back with its reasons.
+//
+// Neither route carries a permission, deliberately. Every signed-in persona owns their own name and their
+// own interface language, and gating them would put an account screen behind a grant that would then have
+// to be given to all eight roles, which is the same as no gate spelled out in eight places that can drift
+// apart.
+//
+// Both screens exist because of real gaps. A signed-in user had no way to change their own password, so the
+// only path was signing out and using the forgotten-password email, which is a recovery flow being used as
+// a routine one. And a name and language were fixed at registration with no screen to change either, so a
+// user whose name was mistyped by whoever invited them was stuck with it.
+//
+// The language chooser is one field, because a first-run question asks one thing, and the moment of choice
+// is recorded so it is only ever asked once. The two accepted languages are the two the product ships;
+// anything outside that set has no text to render.
+//
+//
+// SESSIONS
+//
+// The list is newest-first, so the current device and the most recent sign-ins are on the first page. Its
+// count flag is parsed by hand for the same reason every other list's is: bound directly, an unreadable
+// value is refused as a malformed body, which names no field on a request that has no body.
+//
+//
+// THE LOGIN RESPONSE
+//
+// The token type and the lifetime in seconds are additions: the contract names both, they cost nothing, and
+// the relative lifetime is what a standards-shaped client reaches for. The absolute expiry stays alongside
+// rather than being replaced, because a relative lifetime forces every client to trust its own clock
+// against the server's, and this one already ships an absolute value the interface uses.
+//
+// The contract's user object is deliberately absent. The interface reads roles and permissions out of the
+// access token's own claims, so a second copy in the body would be a second source of truth for
+// authorisation data, and the two disagree the moment a role changes mid-session.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
+using MotsSupplierPortal.Api.Startup;
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <summary><paramref name="TotpCode"/> is omitted on the first attempt; when the response is
-/// <c>mfa_required</c> the client re-posts the same credentials plus a code (MSP-67).</summary>
 public sealed record LoginRequest(string Email, string Password, string? TotpCode = null);
 
 public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
@@ -29,8 +148,6 @@ public sealed class ForgotPasswordRequestValidator : AbstractValidator<ForgotPas
     }
 }
 
-/// <summary>SCR-903. Both passwords in the body; the identity comes from the session, never the
-/// payload - a user id in a change-password request would be an account-takeover primitive.</summary>
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
@@ -38,33 +155,24 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
     public ChangePasswordRequestValidator()
     {
         RuleFor(x => x.CurrentPassword).NotEmpty();
-        // Length only, matching the Identity policy configured in Program.cs. The real strength
-        // check is Identity's own, reported back as weak_password with its reasons.
         RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(12);
     }
 }
 
-/// <summary>SCR-902. Name and interface language, both the caller's own. No id and no email: the
-/// identity comes from the session, and email is not editable - see AccountDto's own note.</summary>
 public sealed record UpdateAccountRequest(string FullName, string Language);
 
-/// <summary>SCR-010. One field, because a first-run chooser asks one question.</summary>
 public sealed record ChooseLanguageRequest(string Language);
 
 public sealed class ChooseLanguageRequestValidator : AbstractValidator<ChooseLanguageRequest>
 {
     public ChooseLanguageRequestValidator()
     {
-        // The same two values UpdateAccountRequestValidator accepts and i18n/config.ts's supportedLngs
-        // defines. Duplicated as a rule, not as a list: see UpdateAccountRequestValidator.Supported.
         RuleFor(x => x.Language).Must(l => l is "ar" or "en").WithMessage("Language must be one of: ar, en.");
     }
 }
 
 public sealed class UpdateAccountRequestValidator : AbstractValidator<UpdateAccountRequest>
 {
-    /// <summary>The two languages the product ships and the two values i18n/config.ts defines. Not a
-    /// policy anyone else owns - an interface language outside this set has no strings to render.</summary>
     private static readonly string[] Supported = ["ar", "en"];
 
     public UpdateAccountRequestValidator()
@@ -93,17 +201,6 @@ public static class AuthEndpoints
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        // Task #11: AllowAnonymous is applied per-route below, NOT at the group level. It used to
-        // be here, with a comment claiming the session-management routes' own .RequireAuthorization()
-        // "does not weaken" the group's AllowAnonymous - that claim was wrong. ASP.NET Core's
-        // AuthorizationMiddleware treats the mere PRESENCE of IAllowAnonymous metadata on an endpoint
-        // as an unconditional override: it short-circuits before ever looking at IAuthorizeData, so
-        // an endpoint carrying BOTH (inherited AllowAnonymous from the group, plus its own
-        // RequireAuthorization) is anonymous, full stop - the RequireAuthorization call was dead code.
-        // Verified directly: GET /sessions and POST /sessions/revoke-all both returned 200 with no
-        // Authorization header at all; only the handlers' own `scope.UserId is null` guards (which
-        // return an empty page / revokedCount 0) kept this from leaking real session data - the auth
-        // pipeline itself was never actually gating these three routes.
         var group = app.MapGroup("/api/v1/auth").WithTags("Auth");
 
         group.MapPost("/login", async (
@@ -121,8 +218,6 @@ public static class AuthEndpoints
                 return ValidationProblems.From(validation);
             }
 
-            // Per-IP is the "auth-strict" policy below; per-account here (SECURITY-ARCHITECTURE
-            // §5.1) so a distributed-IP attacker targeting one account is still throttled.
             if (!perTargetRateLimiter.TryAcquire("login", request.Email.Trim().ToLowerInvariant()))
             {
                 return RateLimitResults.TooManyRequests(httpContext);
@@ -137,8 +232,6 @@ public static class AuthEndpoints
             {
                 LoginResult.Success s => LoginOk(httpContext, s.Tokens),
                 LoginResult.LockedOut => Results.Json(new { error = "locked_out" }, statusCode: StatusCodes.Status423Locked),
-                // 401 + a distinct code, not 200: no session exists yet, so nothing here is a
-                // partial success the client could mistake for one.
                 LoginResult.MfaRequired => Results.Json(new { error = "mfa_required" }, statusCode: StatusCodes.Status401Unauthorized),
                 LoginResult.MfaInvalid => Results.Json(new { error = "mfa_invalid" }, statusCode: StatusCodes.Status401Unauthorized),
                 LoginResult.MfaEnrollmentRequired => Results.Json(new { error = "mfa_enrollment_required" }, statusCode: StatusCodes.Status403Forbidden),
@@ -148,7 +241,7 @@ public static class AuthEndpoints
             };
         })
         .WithName("Login")
-        .RequireRateLimiting("auth-strict")
+        .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
         .AllowAnonymous();
 
         group.MapPost("/refresh", async (
@@ -180,22 +273,6 @@ public static class AuthEndpoints
 
         group.MapPost("/logout", (HttpContext httpContext) =>
         {
-            // Sonar flags these Delete calls for omitting Secure/HttpOnly/SameSite, on the reasoning
-            // that they are set on the Append above. That reasoning does not hold, and this comment
-            // is the record of why - the marking in SonarCloud is only bookkeeping.
-            //
-            // A browser identifies a cookie by the triple (name, domain, path). Secure, HttpOnly and
-            // SameSite are attributes carried BY a cookie, not part of its identity, so they play no
-            // role in matching. Delete emits a Set-Cookie for the same name with an expiry in the
-            // past; the browser matches it on the triple alone and removes the cookie whatever its
-            // flags were. Repeating Secure/HttpOnly here would change nothing about which cookie is
-            // removed.
-            //
-            // Path IS part of that triple, which is the part that genuinely matters, and it is the
-            // one supplied: RefreshCookiePath is the same constant the Append uses. Were the paths
-            // to drift apart, the Delete would silently match nothing and logout would leave a live
-            // refresh token in the browser while reporting 204 - so the shared constant, not the
-            // flags, is what this call depends on for correctness.
             httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
             return Results.NoContent();
         })
@@ -216,20 +293,16 @@ public static class AuthEndpoints
                 return ValidationProblems.From(validation);
             }
 
-            // Per-target on top of the per-IP "auth-strict" policy (SECURITY-ARCHITECTURE §5.1) -
-            // checked (and consumes budget) even for a non-existent address, same anti-enumeration
-            // shape as the handler's own identical-response behavior below.
             if (!perTargetRateLimiter.TryAcquire("forgot-password", request.Email.Trim().ToLowerInvariant()))
             {
                 return RateLimitResults.TooManyRequests(httpContext);
             }
 
-            // Identical response regardless of whether the account exists (no enumeration).
             await handler.HandleAsync(new ForgotPasswordCommand(request.Email), ct);
             return Results.Ok(new { message = "if_account_exists_email_sent" });
         })
         .WithName("ForgotPassword")
-        .RequireRateLimiting("auth-strict")
+        .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
         .AllowAnonymous();
 
         group.MapPost("/reset-password", async (
@@ -256,12 +329,9 @@ public static class AuthEndpoints
             };
         })
         .WithName("ResetPassword")
-        .RequireRateLimiting("auth-strict")
+        .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
         .AllowAnonymous();
 
-        // SCR-903. The gap this closes: a signed-in user had no way to change their own password -
-        // the only path was signing out and using the forgotten-password email, which is a recovery
-        // flow being used as a routine one.
         group.MapPost("/change-password", async (
             ChangePasswordRequest request,
             IValidator<ChangePasswordRequest> validator,
@@ -282,8 +352,6 @@ public static class AuthEndpoints
             return result switch
             {
                 ChangePasswordResult.Success => Results.Ok(new { changed = true }),
-                // 422, not 401: the caller IS authenticated. A 401 here would tell the SPA the
-                // session had expired and bounce them to the login screen mid-form.
                 ChangePasswordResult.IncorrectCurrentPassword =>
                     Results.UnprocessableEntity(new { error = "incorrect_current_password" }),
                 ChangePasswordResult.SameAsCurrent =>
@@ -294,12 +362,9 @@ public static class AuthEndpoints
             };
         })
         .RequireAuthorization()
-        // Same limiter as the other credential paths: this one takes a password guess per call.
-        .RequireRateLimiting("auth-strict")
+        .RequireRateLimiting(HttpTransportRegistration.AuthRateLimitPolicy)
         .WithName("ChangePassword");
 
-        // SCR-902. The gap: name and interface language were fixed at registration with no screen to
-        // change either, so a user whose name was mistyped by whoever invited them was stuck with it.
         group.MapGet("/me", async (IGetAccountHandler handler, IScopeContext scope, CancellationToken ct) =>
         {
             if (scope.UserId is not { } userId) return Results.Unauthorized();
@@ -320,17 +385,12 @@ public static class AuthEndpoints
             if (!validation.IsValid) return ValidationProblems.From(validation);
             if (scope.UserId is not { } userId) return Results.Unauthorized();
 
-            // No permission on either route, deliberately. Every authenticated persona owns their own
-            // name and their own interface language, and gating them would put an account screen
-            // behind a grant that would then have to be given to all eight roles - which is the same
-            // as no gate, spelled out in eight places that can drift apart.
             var updated = await handler.HandleAsync(new UpdateAccountCommand(userId, request.FullName, request.Language), ct);
             return updated is null ? Results.Unauthorized() : Results.Ok(updated);
         })
         .RequireAuthorization()
         .WithName("UpdateAccount");
 
-        // SCR-010: the first-login language choice, recorded so the chooser is shown once.
         group.MapPost("/me/language", async (
             ChooseLanguageRequest request,
             IValidator<ChooseLanguageRequest> validator,
@@ -348,7 +408,6 @@ public static class AuthEndpoints
         .RequireAuthorization()
         .WithName("ChooseLanguage");
 
-        // FR-IAM-007: session management - view active sessions, revoke one or all.
         group.MapGet("/sessions", async (
             string? cursor,
             int? pageSize,
@@ -357,10 +416,6 @@ public static class AuthEndpoints
             IListSessionsHandler handler,
             CancellationToken ct) =>
         {
-            // `withCount` binds to `bool?`, so an unparseable value is refused by model binding with
-            // a 400 MALFORMED_JSON - the wrong code for an unprocessable filter value on a GET with
-            // no body, and one that names no field. Parsed as text so the refusal is the same
-            // 422/INVALID_FILTER_VALUE every other filter value in this API earns.
             if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
             {
                 return FilterValues.InvalidFilterValue("withCount", badWithCount!);
@@ -371,7 +426,6 @@ public static class AuthEndpoints
             return ListResponse.Ok(httpContext, sessions, pageSize);
         })
         .RequireAuthorization()
-        // Newest session first, so "this device" and the most recent sign-ins are on page one.
         .WithListQuery(ListQueryPolicy.Create("-createdAt", ["createdAt"]))
         .WithName("ListSessions");
 
@@ -399,50 +453,17 @@ public static class AuthEndpoints
         .WithName("RevokeAllOtherSessions");
     }
 
-    /// <summary>
-    /// Refresh token travels only as an HttpOnly, Secure, SameSite=Strict cookie scoped to
-    /// /api/v1/auth - never in a JS-readable response body (OWASP ASVS L2 token-handling review).
-    /// The access token is short-lived and returned in the body for the SPA to hold in memory.
-    /// </summary>
     private static IResult LoginOk(HttpContext httpContext, TokenPair tokens)
     {
         httpContext.Response.Cookies.Append(RefreshCookieName, tokens.RefreshToken, new CookieOptions
         {
             HttpOnly = true,
-            // Secure is UNCONDITIONAL. Do not reintroduce a toggle here.
-            //
-            // This was `!env.IsDevelopment()`, then `Cookies:RequireSecure` defaulting to true.
-            // Both were an improvement on the last, and both left one setting standing between a
-            // refresh token and plaintext: first a leaked ASPNETCORE_ENVIRONMENT, then a config key.
-            // A config key is the same shape as the environment variable it replaced, so the same
-            // objection applies - which is why there is now no setting at all.
-            //
-            // This does not break local development. Browsers treat http://localhost as a
-            // trustworthy origin and accept Secure cookies over plain HTTP there (the "secure
-            // contexts" special case exists so developers are not forced into local TLS). Verified
-            // against the running stack over http://localhost, not assumed: login set the cookie
-            // and a subsequent refresh round-trip succeeded with it.
-            //
-            // If a future non-localhost dev setup needs this, the answer is TLS on that host, not a
-            // switch here. csharpsquid:S2092 flagged the previous conditional form; it is satisfied
-            // now because the value is genuinely constant rather than annotated away.
             Secure = true,
             SameSite = SameSiteMode.Strict,
             Path = RefreshCookiePath,
             Expires = DateTimeOffset.UtcNow.AddDays(30),
         });
 
-        // §12.1's documented login body, conformed where conforming is safe.
-        //
-        // tokenType and expiresIn are ADDED: §12.1 names both, they cost nothing, and expiresIn is
-        // what an OAuth-shaped client reaches for. accessTokenExpiresAt STAYS alongside rather than
-        // being replaced - a relative lifetime forces every client to trust its own clock against the
-        // server's, and this one already ships an absolute value the SPA uses.
-        //
-        // §12.1's `user` object is deliberately NOT here. See DECISIONS-TAKEN.md D-26: the SPA reads
-        // roles and permissions out of the access token's own claims (authStore decodes it), so a
-        // second copy in the body would be a second source of truth for authorization data - and the
-        // two disagree the moment a role changes mid-session.
         return Results.Ok(new
         {
             accessToken = tokens.AccessToken,
@@ -454,9 +475,6 @@ public static class AuthEndpoints
 
     private static IResult ClearAndUnauthorized(HttpContext httpContext)
     {
-        // Same Sonar finding and same answer as the Delete in /logout above: Secure/HttpOnly/SameSite
-        // are not part of the (name, domain, path) triple a browser matches on, so omitting them
-        // does not affect which cookie is removed. Path is part of it, and is supplied.
         httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
         return Results.Unauthorized();
     }

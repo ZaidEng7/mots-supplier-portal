@@ -1,10 +1,12 @@
+// One round of a reviewer asking a supplier for something: which profile fields and which document
+// types were flagged, and why.
+//
+// While the supplier is being reviewed, the latest unresolved annotation is what decides which fields
+// the supplier is currently allowed to touch. That is why the flagged lists are stored rather than just
+// the reason.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>
-/// A single info-request round (FEAT-03.3): which profile fields and/or document types the
-/// reviewer flagged, and why. The onboarding-editable-scope check reads the latest unresolved
-/// annotation to decide which fields the supplier may currently touch.
-/// </summary>
 public sealed class SupplierReviewAnnotation
 {
     public Guid Id { get; init; }

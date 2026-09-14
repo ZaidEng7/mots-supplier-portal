@@ -1,10 +1,24 @@
-using MotsSupplierPortal.Domain.Proposals;
+// A condition a supplier must satisfy to bid, and optionally the kind of document that proves it.
+//
+// IsMandatory decides whether an answer is required before the bid can be submitted.
+//
+// DocumentTypeCode, when set, points at a document type by code rather than by a database link, the
+// same convention the item's category code follows.
+//
+// ExpectedEnvelope says which envelope the buyer expects a document answering this requirement to
+// belong in. It is null when the requirement asks for no document at all, which is most of them.
+//
+// Suppliers already tag each file as they upload it, and had nothing to tag it against, so the tender
+// now says what it expects.
+//
+// It is advisory on purpose, and it does not override the tag on the file. Whoever attached a file
+// knows what is actually inside it, and a buyer's expectation silently re-tagging a supplier's
+// document is exactly how a price ends up in the technical envelope.
 
 namespace MotsSupplierPortal.Domain.Rfqs;
 
-/// <summary>A mandatory or optional qualifying condition/document the supplier must satisfy to
-/// propose (DOMAIN-MODEL.md §5.4). DocumentTypeCode, when set, references reference.document_type
-/// by code (same code-not-FK convention as RfqItem.CategoryCode).</summary>
+using MotsSupplierPortal.Domain.Proposals;
+
 public sealed class Requirement
 {
     public Guid Id { get; init; }
@@ -14,17 +28,5 @@ public sealed class Requirement
     public bool IsMandatory { get; set; }
     public string? DocumentTypeCode { get; set; }
 
-    /// <summary>
-    /// A-2: which envelope a document answering this requirement belongs in.
-    ///
-    /// <para>The supplier tags each file at upload (OQ-009's two-envelope control, built since T-028
-    /// with a Commercial default), and had nothing to tag against - so the RFQ now says what it expects.
-    /// Null when this requirement asks for no document at all, which is most of them.</para>
-    ///
-    /// <para>Advisory, deliberately: it tells the supplier what the buyer expects, and it does NOT
-    /// override the tag on the file. The knowledge of what a given file actually contains sits with
-    /// whoever attached it, and a buyer's expectation silently re-tagging a supplier's document is how a
-    /// price ends up in the technical envelope.</para>
-    /// </summary>
     public ProposalDocumentEnvelope? ExpectedEnvelope { get; set; }
 }

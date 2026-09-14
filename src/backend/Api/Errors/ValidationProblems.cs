@@ -1,35 +1,45 @@
-using System.Text.Json.Nodes;
-using FluentValidation.Results;
+// Builds the body of a validation failure: which fields were wrong, why, in both languages.
+//
+// It replaces the framework's own validation response, which produced a 400 carrying English
+// sentences keyed by the code's own property names. The written contract asks for three things that
+// shape does not have. The status is 422, not 400. The payload is a list of errors rather than a
+// dictionary. And each entry carries both languages, so the interface renders in the reader's
+// language without asking the server again.
+//
+// Field paths are converted to the naming the wire uses, so a failure on the first item's unit price
+// arrives named the way the form field is named. The paths exist so the interface can put an error
+// straight onto the input the reader is looking at, and the forms are registered against those names.
+//
+// SensitiveFields is the list of fields whose value is never echoed back. The contract says the
+// attempted value may be included only for fields that are not sensitive, never for passwords or
+// tokens. Matching is on the last part of the field path, case-insensitively, so a nested new-password
+// field is caught as well as a top-level one.
+//
+// RuleNames maps the validation library's own internal rule names onto the names the message
+// catalogue is keyed by. Anything not listed has no catalogue entry by construction, and the coverage
+// test is what catches that.
+//
+// The message lookup falls back to the last part of the field path. A partial update re-paths a
+// failure to where it sits in the patch body, while the catalogue is keyed by the rule's own property,
+// so without the fallback every patched field would answer in English.
+//
+// If a catalogue entry were ever missing, the library's English sentence is used in both language
+// slots. That cannot happen in a built product, because the coverage test fails first, but putting the
+// same text in both slots makes the gap visible rather than silent.
+//
+// MalformedMergePatch is a different failure: the body could not be read as an object at all. There
+// are no fields to name, so it is a 400 about the request rather than a 422 about its contents.
 
 namespace MotsSupplierPortal.Api.Errors;
 
-/// <summary>
-/// Builds §7.2's field-scoped bilingual validation body.
-///
-/// <para>Replaces <c>Results.ValidationProblem(validation.ToDictionary())</c>, which produced a 400
-/// carrying FluentValidation's own English sentences keyed by PascalCase property name. §7.2 asks for
-/// three things that shape does not have: the status is <b>422</b>, the payload is an
-/// <c>errors[]</c> array rather than a dictionary, and each entry carries <b>both</b> languages so the
-/// SPA renders in the active locale without a round-trip.</para>
-///
-/// <para><b>Field paths are camelCased per segment</b> - <c>Items[0].UnitPrice</c> becomes
-/// <c>items[0].unitPrice</c> - because §7.2 says the paths exist so React Hook Form can map an error
-/// straight onto an input, and the SPA's forms are registered against the JSON names.</para>
-/// </summary>
+using System.Text.Json.Nodes;
+using FluentValidation.Results;
+
 public static class ValidationProblems
 {
-    /// <summary>
-    /// Fields whose value must never be echoed. §7.2: "<c>attemptedValue</c> is included only for
-    /// non-sensitive fields (never for passwords/tokens)". Matched on the property name's last
-    /// segment, case-insensitively, so <c>Reset.NewPassword</c> is caught as well as <c>Password</c>.
-    /// </summary>
     private static readonly string[] SensitiveFields =
         ["password", "newpassword", "currentpassword", "token", "code", "secret", "otp"];
 
-    /// <summary>
-    /// FluentValidation's default error codes, mapped to the rule names the catalogue is keyed by.
-    /// Anything not listed has no catalogue entry by construction and is caught by the coverage test.
-    /// </summary>
     private static readonly Dictionary<string, string> RuleNames = new(StringComparer.Ordinal)
     {
         ["NotEmptyValidator"] = "NotEmpty",
@@ -69,10 +79,6 @@ public static class ValidationProblems
         foreach (var failure in validation.Errors)
         {
             var rule = RuleNameFor(failure.ErrorCode ?? string.Empty);
-            // §12.5's PATCH re-paths a failure to where it sits in the merge patch body
-            // ("items[0].UnitPrice"), because §7.2's paths exist for the editor to map onto an
-            // input. The catalogue is keyed by the rule's own property, so the lookup falls back to
-            // the last segment - otherwise every patched field would answer in English.
             var entry = rule is null
                 ? null
                 : ValidationCatalogue.Find(failure.PropertyName, rule)
@@ -84,9 +90,6 @@ public static class ValidationProblems
                 ["code"] = entry?.Code ?? "VALIDATION_FAILED",
                 ["messages"] = new JsonObject
                 {
-                    // A missing entry cannot reach here in a built tree - the coverage test fails
-                    // first - but if it ever did, FluentValidation's English is a better answer than
-                    // an empty string, and it is identical in both slots so the gap is visible.
                     ["ar"] = entry?.Ar ?? failure.ErrorMessage,
                     ["en"] = entry?.En ?? failure.ErrorMessage,
                 },
@@ -118,7 +121,6 @@ public static class ValidationProblems
 
     private static string CamelCaseSegment(string segment)
     {
-        // "Items[0]" keeps its index; only the name part is lowered.
         var bracket = segment.IndexOf('[', StringComparison.Ordinal);
         var name = bracket < 0 ? segment : segment[..bracket];
         var suffix = bracket < 0 ? string.Empty : segment[bracket..];
@@ -127,11 +129,6 @@ public static class ValidationProblems
         return char.ToLowerInvariant(name[0]) + name[1..] + suffix;
     }
 
-
-    /// <summary>
-    /// §12.5's PATCH could not be read as a JSON object. Not a validation failure - there are no
-    /// fields to name - so it is 400 MALFORMED_JSON rather than 422.
-    /// </summary>
     public static IResult MalformedMergePatch(HttpContext context) =>
         new MalformedResult(ProblemResponse.Build(context, StatusCodes.Status400BadRequest,
             ProblemTypes.MalformedRequest, "The request body could not be read.", "MALFORMED_JSON",

@@ -1,3 +1,10 @@
+// One of a supplier's addresses. A supplier may have several: a head office, a billing address and
+// branch addresses.
+//
+// RegionCode points at reference data by code.
+//
+// IsPrimary marks the one to use when only one is shown.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
 public enum AddressKind
@@ -7,8 +14,6 @@ public enum AddressKind
     Branch,
 }
 
-/// <summary>FR-PROF-003/STORY-04.3.1: a supplier may have multiple addresses (HQ/billing/branch),
-/// region sourced from reference data.</summary>
 public sealed class Address
 {
     public Guid Id { get; init; }

@@ -1,9 +1,11 @@
+// A named person authorised to act for the supplier.
+//
+// Exactly one of them is the primary at all times, and the primary is the supplier's administrator.
+//
+// UserId links the person to a sign-in account once they have one.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
-/// <summary>
-/// A named person authorized to act for the supplier. Exactly one is the primary
-/// (supplier_admin) at all times (docs/architecture/DOMAIN-MODEL.md §5.3).
-/// </summary>
 public sealed class Representative
 {
     public Guid Id { get; init; }

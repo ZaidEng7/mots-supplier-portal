@@ -1,14 +1,15 @@
-using System.Text.Json.Nodes;
+// A write refused because it named reference codes that do not exist, with the offending codes listed
+// on the response.
+//
+// It is a result type of its own for the same reason the token refusal is. The middleware reshapes
+// every failure into the standard problem format, so a plain object carrying the codes would not
+// survive the trip. And telling an administrator only that "one of these is not a category" sends them
+// to compare two lists by eye.
 
 namespace MotsSupplierPortal.Api.Errors;
 
-/// <summary>
-/// A write refused because it named reference codes that do not exist, with the codes on the response.
-///
-/// <para>Same shape and same reason as <see cref="TokenContractResult"/>: §7's middleware reshapes every
-/// non-2xx into problem+json, so an anonymous <c>{ error, codes }</c> body does not survive - and "one of
-/// these is not a category" sends an administrator to compare two lists by eye.</para>
-/// </summary>
+using System.Text.Json.Nodes;
+
 internal sealed record UnknownReferenceCodesResult(string Field, IReadOnlyList<string> Codes) : IResult
 {
     public static UnknownReferenceCodesResult For(string field, IReadOnlyList<string> codes) => new(field, codes);
