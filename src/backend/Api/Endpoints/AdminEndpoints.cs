@@ -1,14 +1,26 @@
+// The administrator's editable field configuration: which supplier fields re-open a compliance review
+// when edited, and which legal-information fields are required.
+//
+// The single-item read exists because the update's precondition depends on it. It was added in the same
+// change as the precondition rather than afterwards, because a precondition nobody can obtain refuses
+// every caller, which is a mistake this project has already made once on another resource.
+//
+// These rows are worth a precondition because they decide whether editing a bank account re-opens a
+// compliance review. Two administrators tightening and loosening the same control at once is exactly the
+// race worth refusing rather than resolving in favour of whoever saved second.
+//
+// The update returns the new version on its own response, so a second change to the same row has a
+// precondition to send without waiting for a re-read.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Concurrency;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
 public sealed record UpdateFieldConfigRequest(bool IsEnabled);
 
-/// <summary>FEAT-04.9/FEAT-04.2: admin-editable field config (compliance re-trigger list,
-/// LegalInfo requiredness) - see SupplierFieldConfig's own doc comment for why this exists.</summary>
 public static class AdminEndpoints
 {
     public static void MapAdminEndpoints(this IEndpointRouteBuilder app)
@@ -20,9 +32,6 @@ public static class AdminEndpoints
         .RequirePermission(Permissions.AdminUsersManage)
         .WithName("GetFieldConfig");
 
-        // T-029: the single-item read the PUT's If-Match depends on. Added in the same change as the
-        // guard, not after it - a precondition nobody can obtain refuses every caller (batch 3,
-        // Offering).
         group.MapGet("/{category}/{fieldCode}", async (
             string category, string fieldCode, IGetOneFieldConfigHandler handler, CancellationToken ct) =>
         {
@@ -49,13 +58,8 @@ public static class AdminEndpoints
             };
         })
         .RequirePermission(Permissions.AdminUsersManage)
-        // These rows decide whether editing a bank account re-triggers compliance review. Two
-        // administrators tightening and loosening the same control at once is exactly the race worth
-        // refusing rather than resolving in favour of whoever saved second.
         .RequireIfMatch()
         .WithETag()
-                // T-030 split (4)/P12 item 26: the new version goes back on the response, so a second
-        // transition on this aggregate has a precondition to send without waiting for a re-read.
         .WithFreshETag()
 .WithName("UpdateFieldConfig");
     }

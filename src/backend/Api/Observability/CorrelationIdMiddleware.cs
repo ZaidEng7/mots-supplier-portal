@@ -1,28 +1,37 @@
-using System.Diagnostics;
-using MotsSupplierPortal.Application.Common;
+// Reads the caller's own correlation identifier, echoes it back, and makes it the identifier every
+// audit row and every failure response for this request carries.
+//
+// Every audit row and failure response already carried one, derived from the trace, but the request
+// header was never read. A client that sent its own identifier got a different one back and could not
+// join its log line to the server's, which is the entire purpose of sending one. The framework does
+// pick up the standard tracing header automatically, but that is a different header in a different
+// format, and not the one somebody integrating against this API would think to send.
+//
+// A value that cannot be parsed is ignored rather than carried. An identifier a caller cannot match
+// back is worse than a generated one, because it looks like correlation and joins nothing. Anything
+// unparseable is dropped and the trace-derived identifier stands, and the response then echoes that, so
+// a caller who sent rubbish can see from the reply that their value was not used.
+//
+// An all-zeroes identifier is refused alongside unparseable ones. It is what a client sends when its
+// own identifier was never set, and treating it as real would join every such request to every other.
+//
+// A supplied identifier is also attached to the trace, so it reaches the logs and any downstream system
+// rather than only the audit table. It is attached as a label rather than replacing the trace
+// identifier, which the tracing system owns; rewriting that would break the hierarchy this request is
+// already part of.
+//
+// The header is echoed on every response, not only on failures. A client reconciling a successful
+// write, which is the case that matters when two systems compare their records of one submission, needs
+// the identifier just as much as one reading a failure.
+//
+// The echo is registered before the response starts, because headers cannot be added once it has, and
+// it has to fire for a server error written further up the pipeline as much as for a success.
 
 namespace MotsSupplierPortal.Api.Observability;
 
-/// <summary>
-/// Reads the caller's <c>Correlation-Id</c>, echoes it back, and makes it the id every audit row and
-/// problem response for this request carries.
-///
-/// <para><b>The gap this closes.</b> Every audit row and every problem response already carried a
-/// correlation id - <see cref="Authorization.HttpAuditContext"/> reinterprets the W3C trace id as a Guid -
-/// but the REQUEST header was never read. A client that sent <c>Correlation-Id: X</c> got a different id
-/// back and could not join its own log line to the server's, which is the entire purpose of sending one.
-/// ASP.NET does pick up <c>traceparent</c> automatically, but that is a different header in a different
-/// format, and not the one a caller integrating against this API would think to send.</para>
-///
-/// <para><b>A malformed value is ignored, not carried.</b> An id a caller cannot parse back is worse than
-/// a generated one: it looks like correlation and joins nothing. Anything that is not a plain Guid is
-/// dropped and the trace-derived id stands - and the response then echoes THAT, so a caller who sent
-/// rubbish can see from the reply that their value was not used.</para>
-///
-/// <para><b>The header is echoed on every response, not only on errors.</b> A client correlating a
-/// successful write - the case that matters when reconciling two systems' records of one submission -
-/// needs the id just as much as one reading a failure.</para>
-/// </summary>
+using System.Diagnostics;
+using MotsSupplierPortal.Application.Common;
+
 public sealed class CorrelationIdMiddleware(RequestDelegate next)
 {
     public const string HeaderName = "Correlation-Id";
@@ -33,20 +42,11 @@ public sealed class CorrelationIdMiddleware(RequestDelegate next)
             && Guid.TryParse(supplied.ToString(), out var correlationId)
             && correlationId != Guid.Empty)
         {
-            // Guid.Empty is refused alongside unparseable values: it is what a client sends when its own
-            // id was never set, and treating "all zeroes" as a real correlation id would join every such
-            // request to every other.
             auditContext.OverrideCorrelationId(correlationId);
 
-            // Also onto the Activity, so the id reaches the logs and any downstream trace rather than only
-            // the audit table. A tag rather than a replacement of the trace id: the trace id is 16 bytes
-            // the tracing system owns, and rewriting it would break the span hierarchy this request is
-            // already part of.
             Activity.Current?.SetTag("correlation.id", correlationId.ToString());
         }
 
-        // Registered before the response starts, because headers cannot be added once it has - and this
-        // must fire for a 500 written by the pipeline above as much as for a 200.
         context.Response.OnStarting(() =>
         {
             context.Response.Headers[HeaderName] = auditContext.CorrelationId.ToString();

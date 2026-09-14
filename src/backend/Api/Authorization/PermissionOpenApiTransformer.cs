@@ -1,28 +1,27 @@
-using Microsoft.AspNetCore.OpenApi;
-using Microsoft.OpenApi;
+// Puts each route's required permission into the published API document.
+//
+// The document is the source for the interface's types and for the finance-system client. Every route
+// in this API is gated by a permission, and the published document said nothing about any of them, so a
+// consumer reading it could not tell which token would be admitted where and learned the answer as a
+// refusal at run time.
+//
+// The permissions are read off the route's own metadata, the same object the filter enforces, so a
+// route that changes its permission changes its documentation in the same edit. A hand-kept list is
+// the thing this project keeps finding wrong: it agrees with the code the day it is written and drifts
+// silently afterwards. The precondition transformer does the same thing for the same reason.
+//
+// A set of permissions means any one of them, which is what the filter means by a set, so that a read
+// several roles legitimately need can stay open while its writes stay narrow.
+//
+// The refusal response is documented alongside, because a permission a caller can read and a refusal
+// they cannot anticipate is only half an answer. The permission is also named in the prose
+// description, since a code generator that drops unknown extension fields still carries the words.
 
 namespace MotsSupplierPortal.Api.Authorization;
 
-/// <summary>
-/// T-108: puts each operation's REQUIRED PERMISSION into the contract.
-///
-/// <para><b>The gap this closes.</b> §11 says the OpenAPI document is the source for the SPA's types
-/// and for the ERP client. Every route in this API is gated by a permission - <c>PermissionEndpointFilter</c>
-/// has refused callers since batch 2 - and the published document said nothing about any of them. A
-/// consumer reading it could not tell which token would be admitted to which route, and learned the
-/// answer as a 403 at runtime.</para>
-///
-/// <para><b>Derived, never hand-typed.</b> The permissions come off the endpoint's own
-/// <see cref="RequiredPermissionsMetadata"/>, the same object the filter enforces, so a route that
-/// changes its permission changes its documentation in the same edit. A hand-kept list is the thing
-/// this repository keeps finding wrong: it agrees with the code on the day it is written and drifts
-/// silently afterwards. Same shape and same reason as
-/// <c>ConcurrencyOpenApiTransformer</c>, which does this for §8.1's precondition.</para>
-///
-/// <para><b>The 403 is documented with it</b>, because a permission a caller can read and a refusal
-/// they cannot anticipate is only half an answer. The description names the permission in words as
-/// well, since a generator that drops unknown <c>x-</c> extensions still carries the prose.</para>
-/// </summary>
+using Microsoft.AspNetCore.OpenApi;
+using Microsoft.OpenApi;
+
 internal sealed class PermissionOpenApiTransformer : IOpenApiOperationTransformer
 {
     public Task TransformAsync(
@@ -37,8 +36,6 @@ internal sealed class PermissionOpenApiTransformer : IOpenApiOperationTransforme
 
         if (required.Count == 0) return Task.CompletedTask;
 
-        // "Any one of these", which is what the filter means by a set - RequireAnyPermission exists so a
-        // read several roles legitimately need can stay open while its writes stay narrow.
         var sentence = required.Count == 1
             ? $"Requires the `{required[0]}` permission."
             : $"Requires any one of: {string.Join(", ", required.Select(p => $"`{p}`"))}.";

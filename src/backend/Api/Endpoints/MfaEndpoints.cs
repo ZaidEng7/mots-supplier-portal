@@ -1,9 +1,14 @@
+// Setting up and verifying a second sign-in factor.
+//
+// A second factor is available but not mandatory. The whole surface sits behind a setting so it can be
+// switched on or off without a deployment.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
-
-namespace MotsSupplierPortal.Api.Endpoints;
 
 public sealed record ConfirmMfaRequest(string Code);
 
@@ -21,8 +26,6 @@ public static class MfaEndpoints
     {
         var group = app.MapGroup("/api/v1/auth/mfa").WithTags("Mfa").RequireAuthorization();
 
-        // STORY-01.5.1: MFA is available-but-not-mandatory (ASM-081). The whole surface is gated
-        // behind Mfa:Enabled so it can be toggled without a deploy.
         group.MapPost("/enroll", async (
             IScopeContext scope,
             IEnrollMfaHandler handler,

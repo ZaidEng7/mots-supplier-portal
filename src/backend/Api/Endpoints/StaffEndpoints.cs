@@ -1,36 +1,51 @@
+// Administering staff accounts: inviting one, listing them, deactivating, changing a role, resetting somebody's
+// second factor, and accepting an invitation.
+//
+// Two of the screens here had no route at all for a while. A system administrator could invite a staff account
+// and then never list, deactivate, re-role or reset one, so an account created in error could not be removed.
+//
+// The organization on an invitation is optional and carries an explicit default rather than only being
+// nullable, because the two are different on the wire. Without the default the generator emits it as required,
+// and the contract check correctly refused that: a field that was optional and becomes required breaks every
+// existing client that does not send it, even though nothing was removed.
+//
+// Two roles must be given an organization, and the rest must not.
+//
+// Every procurement query is scoped by the caller's organization, so an officer or a manager invited without
+// one signs in successfully, holds every permission their role grants, and meets an empty product. No tenders,
+// no dashboard figures, no approval queue, and no error anywhere to say why, because returning nothing is the
+// correct answer to a request for the tenders of no organization.
+//
+// The other five roles are deliberately exempt. An evaluator is scoped by assignment and may belong to no
+// organization at all. A reviewer works the national supplier registry, which belongs to no buying body. The
+// ministry's viewer is cross-organization by rule, and pinning it to one would narrow it. A system
+// administrator has no tenancy. Requiring an organization of any of those would refuse a legitimate invitation.
+//
+// A user who is not a staff account, whether a supplier's user or nobody at all, answers not-found rather than
+// refused. There is no information in that difference which an administrator needs and an attacker does not.
+//
+// The count flag uses the same shared parsing every other list uses. A second parser here would be a second
+// answer to the same question.
+//
+// Resetting somebody else's second factor exists because a system administrator cannot hold a session without
+// one, so a lost authenticator would otherwise be a lockout with no way back. A self-service reset would be a
+// way past the factor itself, which is why the handler refuses one.
+//
+// Accepting an invitation is public by design. The invitee has no session yet, and the invitation token is the
+// credential.
+
+namespace MotsSupplierPortal.Api.Endpoints;
+
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Api.Endpoints;
-
-/// <param name="OrganizationId">
-/// Optional, with a DEFAULT rather than just a nullable type - the two are different on the wire.
-/// Without `= null` the generator emits it as a required property, and the contract gate correctly
-/// refused that: a request field that was optional and becomes required breaks every existing client
-/// that does not send it, even though nothing was removed.
-/// </param>
 public sealed record InviteStaffRequest(string Email, string FullName, string Role, Guid? OrganizationId = null);
 
 public sealed class InviteStaffRequestValidator : AbstractValidator<InviteStaffRequest>
 {
-    /// <summary>
-    /// The roles whose every screen is scoped to a buying body, so an account without one sees nothing.
-    ///
-    /// <para>BRULE-029 scopes every procurement query by the caller's OrganizationId. An officer or a
-    /// manager invited without one therefore signs in successfully, holds every permission their role
-    /// grants, and meets an empty product: no tenders, no dashboard figures, no approval queue - and
-    /// no error anywhere to say why, because returning nothing is the correct answer to "show me the
-    /// tenders of no organisation".</para>
-    ///
-    /// <para>The other five roles are deliberately absent. An evaluator is scoped by ASSIGNMENT and may
-    /// belong to no organisation at all; a reviewer works the national supplier registry, which belongs
-    /// to no buying body; ministry_viewer's grant is cross-organisation by BRULE-086 and pinning it to
-    /// one would narrow it; a system administrator has no tenancy. Requiring an organisation of any of
-    /// those would be refusing a legitimate invitation.</para>
-    /// </summary>
     private static readonly string[] RequireAnOrganization = [Roles.ProcurementOfficer, Roles.ProcurementManager];
 
     public InviteStaffRequestValidator()
@@ -66,15 +81,11 @@ public sealed class ChangeStaffRoleRequestValidator : AbstractValidator<ChangeSt
     public ChangeStaffRoleRequestValidator() => RuleFor(x => x.Role).NotEmpty();
 }
 
-/// <summary>Task #28/FR-ADM-001. Mirrors SupplierUserEndpoints's shape exactly.</summary>
 public static class StaffEndpoints
 {
     private static IResult Map(StaffAccountResult result) => result switch
     {
         StaffAccountResult.Success s => Results.Ok(s.Staff),
-        // §9.2: a user who is not a staff account - a supplier's user, or nobody - is a 404 rather than a
-        // 403. There is no information in the difference that an administrator needs and an attacker does
-        // not.
         StaffAccountResult.NotFound => Results.NotFound(),
         StaffAccountResult.CannotActOnSelf =>
             Results.UnprocessableEntity(new { error = "cannot_act_on_own_account" }),
@@ -107,18 +118,11 @@ public static class StaffEndpoints
         .RequirePermission(Permissions.AdminUsersManage)
         .WithName("InviteStaff");
 
-        // ─── T-077: administering an account, not merely creating one ────────────────────────────
-        //
-        // SCR-701/SCR-702, both P0, had no screen and no endpoint. `system_admin` could invite a staff
-        // account and then never list, deactivate, re-role or MFA-reset one - so an account created in
-        // error could not be removed at all.
         var admin = app.MapGroup("/api/v1/staff").WithTags("Staff");
 
         admin.MapGet("/", async (string? cursor, int? pageSize, string? withCount,
             IListStaffHandler handler, CancellationToken ct) =>
         {
-            // The same ?withCount= handling every other list uses. A second parser here would be a
-            // second answer to the same question - see SupplierUserEndpoints, which this mirrors.
             if (!FilterValues.TryParseBoolFilter(withCount, out _, out var badWithCount))
             {
                 return FilterValues.InvalidFilterValue("withCount", badWithCount!);
@@ -151,9 +155,6 @@ public static class StaffEndpoints
         .RequirePermission(Permissions.AdminUsersManage)
         .WithName("ChangeStaffRole");
 
-        // A reset of someone ELSE's second factor. `system_admin` cannot hold a session without MFA, so
-        // a lost authenticator is otherwise a lockout with no path back; and a self-service reset would
-        // be a way past the factor itself, which is why the handler refuses one.
         admin.MapPost("/{userId:guid}/reset-mfa", async (Guid userId, IResetStaffMfaHandler handler, CancellationToken ct) =>
             Map(await handler.HandleAsync(userId, ct)))
         .RequirePermission(Permissions.AdminUsersManage)
@@ -180,7 +181,6 @@ public static class StaffEndpoints
         .WithTags("Staff")
         .WithName("AcceptStaffInvite")
         .RequireRateLimiting("auth-strict")
-        // Public by design: the invitee has no session yet - the invite token is the credential.
         .AllowAnonymous();
     }
 }
