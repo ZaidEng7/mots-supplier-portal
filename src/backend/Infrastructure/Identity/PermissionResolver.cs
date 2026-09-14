@@ -1,15 +1,15 @@
-using Microsoft.AspNetCore.Identity;
-using MotsSupplierPortal.Domain.Identity;
+// Working out what a user may actually do, from the roles they hold.
+//
+// Roles are named permission sets, seeded once when the role is created and administrator-editable afterwards.
+//
+// That is why this reads the stored role claims rather than the shipped map: an administrator's edit must reach
+// the next sign-in, and the map is only the seed.
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
-/// <summary>
-/// Resolves a user's effective resource.action permissions from their roles' current DB-stored
-/// "perms" claims (docs/architecture/00-foundational-decisions.md §6). Roles are named permission
-/// sets, seeded from Roles.DefaultPermissions once at role creation (RoleSeeder) and admin-editable
-/// thereafter (FR-ADM-002, ManageRolesHandler) - this is why resolution reads role claims from the
-/// database rather than the static dictionary directly: an admin's edit must reach the next login.
-/// </summary>
+using Microsoft.AspNetCore.Identity;
+using MotsSupplierPortal.Domain.Identity;
+
 public sealed class PermissionResolver(UserManager<AppUser> userManager, RoleManager<IdentityRole<Guid>> roleManager)
 {
     public async Task<IReadOnlyList<string>> ResolveAsync(AppUser user)

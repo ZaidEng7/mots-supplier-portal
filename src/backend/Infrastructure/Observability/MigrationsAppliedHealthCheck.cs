@@ -1,17 +1,17 @@
+// The readiness check that this replica's schema matches this build.
+//
+// Distinct from plain database connectivity. A connection can succeed against a schema this version does not
+// actually match: a rollback deployed against a database mid-migration, or a migration that failed partway.
+//
+// Readiness has to mean "can this replica correctly serve traffic against the database it is connected to", not
+// just "can it open a socket".
+
+namespace MotsSupplierPortal.Infrastructure.Observability;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Observability;
-
-/// <summary>
-/// Task #16/NFR-OBS-006: readiness dimension #2 (docs/architecture/OBSERVABILITY-ARCHITECTURE.md
-/// §5) - "migrations applied", distinct from #1's plain "PostgreSQL connectivity"
-/// (AddNpgSql). A connection can succeed against a schema this app version does not actually
-/// match (a rollback deployed against a database mid-forward-migration, or a migration that
-/// failed partway) - readiness has to mean "can this replica correctly serve traffic against the
-/// database it is actually connected to", not just "can it open a socket".
-/// </summary>
 public sealed class MigrationsAppliedHealthCheck(AppDbContext db) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken ct = default)

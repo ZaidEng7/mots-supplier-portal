@@ -1,3 +1,31 @@
+// Adding, editing, removing and re-designating a supplier's authorised representatives.
+//
+// The invariant the written model states, exactly one primary at all times, is enforced here for real
+// rather than only at registration.
+//
+// A new representative is added to the tracked set explicitly. Its identifier is assigned by us rather than
+// by the database, so the graph-tracking heuristic would otherwise take it for an existing row and issue a
+// pointless update instead of an insert.
+//
+//
+// WHY SWAPPING THE PRIMARY SAVES TWICE
+//
+// The table carries a unique index covering primary representatives only, so at most one primary per
+// supplier is enforced by the database.
+//
+// It is an index rather than a constraint, so it cannot be deferred to the end of the transaction: deferral
+// needs a table constraint, and constraints do not support the condition a partial index needs.
+//
+// Clearing the old primary and setting the new one in a single save therefore risks the mapper issuing the
+// promotion before the demotion, which the index checks statement by statement and rejects as a momentary
+// duplicate. Reproduced: promoting a previously-demoted representative back failed with a duplicate-key
+// error.
+//
+// Saving the demotion first, and committing it, means only one row can be primary at any moment regardless
+// of the order the mapper chooses.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -5,11 +33,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.4/FR-PROF-004: add/edit/remove representatives with primary designation,
-/// enforcing DOMAIN-MODEL.md's "exactly one primary at all times" invariant for real (not just at
-/// registration).</summary>
 public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageRepresentativeHandler
 {
     public async Task<ProfileMutationResult> AddAsync(AddRepresentativeCommand command, CancellationToken ct)
@@ -31,9 +54,6 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        // Representative.Id is client-assigned (Guid.CreateVersion7()), so EF's graph-tracking
-        // heuristic would otherwise mark it Modified (no-op UPDATE) instead of Added - track it
-        // explicitly.
         db.Representatives.Add(representative);
 
         var changes = AuditChangeBuilder.Build(
@@ -116,16 +136,6 @@ public sealed class ManageRepresentativeHandler(AppDbContext db, IScopeContext s
 
         var previousPrimary = supplier.Representatives.FirstOrDefault(r => r.IsPrimary);
 
-        // "representative" table has a partial unique index on (SupplierId) WHERE IsPrimary - at
-        // most one primary per supplier, enforced at the DB. It is a plain index, not a
-        // constraint, so Postgres cannot make it DEFERRABLE (that requires a table CONSTRAINT,
-        // and constraints don't support the WHERE clause a partial index needs). Clearing the old
-        // primary and setting the new one in a single SaveChangesAsync therefore risks EF issuing
-        // the "true" UPDATE before the "false" one, which the index checks per-statement and
-        // rejects as a transient duplicate - reproduced: swapping primary back to a
-        // previously-demoted representative 500'd with "duplicate key value violates unique
-        // constraint IX_representative_SupplierId". Saving the demotion first, and committing it,
-        // means only one row can ever be IsPrimary=true at a time, regardless of write order.
         if (previousPrimary is not null && previousPrimary.Id != command.RepresentativeId)
         {
             previousPrimary.IsPrimary = false;

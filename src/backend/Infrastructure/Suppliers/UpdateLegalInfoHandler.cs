@@ -1,3 +1,12 @@
+// Editing a supplier's legal identity: names, registration number, tax identifier, type and founding date.
+//
+// Which of those are required is an administrator's switch rather than a constant, and changing one of them
+// can send an approved supplier back for review, which the shared retrigger recorder writes down.
+//
+// The write is guarded by the caller's expected version where they sent one.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -6,9 +15,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.2/FR-PROF-002.</summary>
 public sealed class UpdateLegalInfoHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger, IConcurrencyContext concurrency) : IUpdateLegalInfoHandler
 {
     public async Task<UpdateProfileResult> HandleAsync(UpdateLegalInfoCommand command, CancellationToken ct)

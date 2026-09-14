@@ -1,12 +1,17 @@
+// Adding, editing and removing a supplier's contact people.
+//
+// The new row is added to the tracked set explicitly. Its identifier is assigned by us rather than by the
+// database, so the graph-tracking heuristic would otherwise take it for an existing row and issue a
+// pointless update instead of an insert.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.4/FR-PROF-004.</summary>
 public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageContactHandler
 {
     public async Task<ProfileMutationResult> AddAsync(AddContactCommand command, CancellationToken ct)
@@ -28,8 +33,6 @@ public sealed class ManageContactHandler(AppDbContext db, IScopeContext scope, I
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        // Contact.Id is client-assigned (Guid.CreateVersion7()), so EF's graph-tracking heuristic
-        // would otherwise mark it Modified (no-op UPDATE) instead of Added - track it explicitly.
         db.Contacts.Add(contact);
 
         await auditLogger.LogAsync("Supplier", supplier.Id, "contact_added", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);

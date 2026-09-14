@@ -1,3 +1,14 @@
+// Claiming and releasing the categories a supplier says it can supply.
+//
+// The category has to exist and be active. Whether a category change sends an approved supplier back for
+// review is an administrator's switch rather than a constant, read per call.
+//
+// A new link is added to the tracked set explicitly, because its identifier is assigned by us rather than by
+// the database and the graph-tracking heuristic would otherwise take it for an existing row. No link at all
+// means the claim was already recorded and the domain did nothing.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
@@ -6,9 +17,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.7/FR-PROF-007.</summary>
 public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IManageCategoryLinkHandler
 {
     public async Task<ProfileMutationResult> LinkAsync(LinkCategoryCommand command, CancellationToken ct)
@@ -36,9 +44,6 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
             return new ProfileMutationResult.InvalidState(ex.Message);
         }
 
-        // CategoryLink.Id is client-assigned (Guid.CreateVersion7()), so EF's graph-tracking
-        // heuristic would otherwise mark it Modified (no-op UPDATE) instead of Added - track it
-        // explicitly. Null means LinkCategory was a no-op (already linked).
         if (link is not null) db.CategoryLinks.Add(link);
 
         var changes = AuditChangeBuilder.Build(("categoryCode", null, command.CategoryCode));

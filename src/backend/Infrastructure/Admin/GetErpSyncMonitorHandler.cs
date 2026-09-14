@@ -1,0 +1,68 @@
+// The integration monitor: every award's synchronisation state, and whether a real transport exists to do it.
+//
+//
+// THE TRANSPORT FLAG IS NOT DECORATION
+//
+// The real adapter has not landed, so what is registered is a logging stand-in: it accepts everything and sends
+// nothing.
+//
+// A monitor showing a column of successes without saying that would be an instrument asserting something untrue,
+// which is the failure a recorded decision caught on the dashboard tile and the same one avoided here.
+//
+// Failed first, then oldest, which is the order an operator works in.
+//
+// Retrying is not offered by this handler. The retry endpoint already exists behind its own permission and
+// enforces the rule that only a failed synchronisation may be retried; a second retry path would be a second
+// guard to keep in step.
+//
+// The rows are joined to the tender, because an award reference alone does not tell an operator WHICH tender is
+// stuck, and that is the first thing they will be asked.
+
+namespace MotsSupplierPortal.Infrastructure.Admin;
+
+using Hangfire;
+using Hangfire.Storage;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using MotsSupplierPortal.Application.Admin;
+using MotsSupplierPortal.Domain.Awards;
+using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Suppliers;
+
+public sealed class GetErpSyncMonitorHandler(AppDbContext db, IOutboxTransport transport) : IGetErpSyncMonitorHandler
+{
+    private const int PageSize = 100;
+
+    public async Task<ErpSyncMonitorDto> HandleAsync(string? status, CancellationToken ct)
+    {
+        var counts = Enum.GetValues<ErpSyncStatus>().ToDictionary(s => s.ToString(), _ => 0);
+        var grouped = await db.Awards.AsNoTracking()
+            .GroupBy(a => a.ErpSyncStatus)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        foreach (var group in grouped) counts[group.Status.ToString()] = group.Count;
+
+        var wanted = (status ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(token => Enum.TryParse<ErpSyncStatus>(token, ignoreCase: false, out var parsed) ? parsed : (ErpSyncStatus?)null)
+            .Where(parsed => parsed is not null)
+            .Select(parsed => parsed!.Value)
+            .ToList();
+
+        var query = db.Awards.AsNoTracking().AsQueryable();
+        if (wanted.Count > 0) query = query.Where(a => wanted.Contains(a.ErpSyncStatus));
+
+        var awards = await query
+            .OrderBy(a => a.ErpSyncStatus == ErpSyncStatus.Failed ? 0 : 1)
+            .ThenBy(a => a.CreatedAt)
+            .Take(PageSize)
+            .Join(db.Rfqs.AsNoTracking(), a => a.RfqId, r => r.Id, (a, r) => new ErpSyncRowDto(
+                r.ReferenceCode, a.ErpSyncStatus.ToString(),
+                a.ErpRetryCount, a.ErpSyncedAt, a.ExternalPurchaseOrderRef))
+            .ToListAsync(ct);
+
+        return new ErpSyncMonitorDto(transport is not LoggingOutboxTransport, counts, awards);
+    }
+}

@@ -1,3 +1,20 @@
+// Builds the bid comparison: a view derived from the bids and the evaluation, storing nothing of its own.
+//
+//
+// THE TWO GATES ARE BOTH ENFORCED HERE, IN ONE PLACE
+//
+// One decision decides which bids get their priced lines and their evaluation-derived fields at all.
+//
+// Before the evaluation's scores have been gathered, that set is empty for every bid. Not empty for
+// unscored bids: literally no bid has passed qualification yet as far as this view is concerned. Peer
+// scores are unreadable until then, and a comparison is by definition a view across evaluators, so it
+// cannot show anything evaluation-derived one instant before every other blind-scoring read does.
+//
+// Per-criterion scores are averaged from the individual scores fresh on every read rather than stored, so
+// there is one place that decides what a consolidated score is.
+
+namespace MotsSupplierPortal.Infrastructure.Comparison;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Comparison;
 using MotsSupplierPortal.Application.Common;
@@ -6,30 +23,6 @@ using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using EvaluationAggregate = MotsSupplierPortal.Domain.Evaluation.Evaluation;
 
-namespace MotsSupplierPortal.Infrastructure.Comparison;
-
-/// <summary>FEAT-12.1..12.4/FR-CMP-001..004: a derived read-side view over Proposal + Evaluation - no
-/// new aggregate, no new writes, exactly as EPIC-12's own domain note in BACKLOG.md says.
-///
-/// <para><b>The two-envelope gate and evaluation blindness, both enforced here (FEAT-12.4/FR-CMP-004,
-/// OQ-009, BRULE-058):</b> <paramref name="qualifiedProposalIds"/>-equivalent logic below is the
-/// single point that decides which proposal ids get ProposalItem rows and evaluation-derived fields
-/// at all. Before the evaluation reaches Consolidated, that set is empty for EVERY proposal - not
-/// "empty for unscored proposals", literally no proposal has passed qualification yet from the
-/// comparison view's perspective, matching BRULE-058's "peer scores/comments not readable until
-/// Consolidated" applied at the aggregate level (a comparison view is definitionally cross-evaluator,
-/// so it cannot show anything evaluation-derived one instant before every other blind-scoring read
-/// path in this codebase does). Per-criterion scores are averaged from EvaluatorScore fresh on every
-/// read, gated by the exact same State check - there is no second, separately-cached copy of
-/// "consolidated" data that could drift out of sync with the real gate.</para>
-///
-/// <para><b>No client-supplied sort/filter parameter exists on this endpoint at all</b> - the one
-/// deliberate simplification that closes off the exact injection risk the task brief calls out
-/// ("the query itself can't be coaxed into leaking a disqualified proposal's pricing or a
-/// pre-consolidation evaluator score through a parameter or sort/filter option"). Highlighting/
-/// sorting in the UI operates only on the DTO this handler already decided is safe to return -
-/// there is no server-side query parameter whose value could change what gets loaded from the
-/// EvaluatorScore/ProposalItem tables.</para></summary>
 public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) : IGetComparisonHandler
 {
     public async Task<ComparisonDto?> HandleAsync(string rfqReferenceCode, CancellationToken ct)
@@ -42,8 +35,6 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
 
         var proposals = await db.Proposals
             .Include(p => p.RequirementAnswers)
-            // T-064: UnderComparison, not InEvaluation - see that field's own note on why the award
-            // snapshot would otherwise lose the winning bid the moment the offer is made.
             .Where(p => p.RfqId == rfq.Id && ProposalStates.UnderComparison.Contains(p.State))
             .ToListAsync(ct);
 
@@ -59,8 +50,6 @@ public sealed class GetComparisonHandler(AppDbContext db, IScopeContext scope) :
             .AsSplitQuery()
             .FirstOrDefaultAsync(e => e.RfqId == rfq.Id, ct);
 
-        // The gate: empty until Consolidated+, regardless of anything any single evaluator has
-        // scored - see this class's own doc comment.
         var consolidatedOrLater = evaluation is not null && evaluation.State is EvaluationState.Consolidated or EvaluationState.Finalized;
         var qualifiedProposalIds = consolidatedOrLater
             ? evaluation!.Results.Where(r => r.TechnicallyQualified).Select(r => r.ProposalId).ToHashSet()

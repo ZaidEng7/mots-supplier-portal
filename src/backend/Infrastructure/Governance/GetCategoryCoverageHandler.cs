@@ -1,3 +1,34 @@
+// How well each category of the market is covered: suppliers, catalogue entries, tenders and awards.
+//
+// No organization filter, the same inversion the governance overview explains. A category's coverage is a national
+// question, and filtering it by the reader's own buying body would answer a different one silently.
+//
+//
+// DRIVEN BY THE CATEGORY LIST, NOT BY THE LINKS
+//
+// Grouping the links would produce a list of categories that HAVE suppliers, which is the opposite of what a
+// coverage screen is for. The empty rows are the finding.
+//
+// Five small grouped queries, each keyed by category code, joined in memory over a list a few dozen rows long. One
+// query with five correlated sub-selects reads worse and buys nothing at this size.
+//
+//
+// APPROVED AND ACTIVE ARE BOTH ON THE ROW
+//
+// The two numbers differ exactly when a supplier has been suspended, and a category whose only supplier is
+// suspended reads as covered until both are shown.
+//
+// Tenders are counted distinctly per category: a tender with four catering lines asked the catering market once.
+//
+// Only tenders that actually reached the market count. A draft, one in internal review and an approved but
+// unpublished one never reached a supplier, and a cancelled one withdrew the question. Both would count a tender
+// that asked this category for nothing.
+//
+// The category list is flat, and the response says so rather than presenting a hierarchy, because a hierarchy
+// nobody has decided is not one a screen may invent.
+
+namespace MotsSupplierPortal.Infrastructure.Governance;
+
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Governance;
 using MotsSupplierPortal.Domain.Awards;
@@ -5,26 +36,8 @@ using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Governance;
-
-/// <summary>
-/// SCR-604, under BRULE-086.
-///
-/// <para><b>No organization predicate, deliberately</b> - the same inversion <c>GetGovernanceOverviewHandler</c>
-/// documents. A category's coverage is a national question, and filtering it by the reader's own buying body
-/// would answer a different one silently.</para>
-///
-/// <para><b>Driven by the CATEGORY list, not by the links.</b> Grouping the links would produce a list of
-/// categories that have suppliers, which is the opposite of what a coverage screen is for: the empty rows are
-/// the finding. Five small aggregate queries, each keyed by category code, then joined in memory over a list
-/// that is a few dozen rows long - a single query with five correlated subqueries reads worse and buys
-/// nothing at this size.</para>
-/// </summary>
 public sealed class GetCategoryCoverageHandler(AppDbContext db) : IGetCategoryCoverageHandler
 {
-    /// <summary>Tender states that mean the market was actually asked. Draft, InternalReview and Approved
-    /// never reached a supplier; Cancelled withdrew the question. Both would count a tender that asked this
-    /// category for nothing.</summary>
     private static readonly RfqState[] ReachedTheMarket =
     [
         RfqState.Published, RfqState.SubmissionOpen, RfqState.SubmissionClosed, RfqState.UnderEvaluation,
@@ -47,8 +60,6 @@ public sealed class GetCategoryCoverageHandler(AppDbContext db) : IGetCategoryCo
             .Select(g => new { Code = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Code, x => x.Count, ct);
 
-        // Approved AND Active. The two numbers differ exactly when a supplier has been suspended, and a
-        // category whose only supplier is suspended reads as covered until both are on the row.
         var activeByCategory = await db.CategoryLinks.AsNoTracking()
             .Where(l => db.Suppliers.Any(s => s.Id == l.SupplierId
                                               && s.OnboardingState == SupplierOnboardingState.Approved
@@ -63,7 +74,6 @@ public sealed class GetCategoryCoverageHandler(AppDbContext db) : IGetCategoryCo
             .Select(g => new { Code = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Code, x => x.Count, ct);
 
-        // DISTINCT tenders per category: an RFQ with four catering lines asked the catering market once.
         var tenderPairs = await db.RfqItems.AsNoTracking()
             .Where(i => db.Rfqs.Any(r => r.Id == i.RfqId && ReachedTheMarket.Contains(r.State)))
             .Select(i => new { i.CategoryCode, i.RfqId })
@@ -98,8 +108,6 @@ public sealed class GetCategoryCoverageHandler(AppDbContext db) : IGetCategoryCo
         return new CategoryCoverageOverviewDto(
             rows,
             rows.Count(r => r.ActiveSuppliers == 0),
-            // MSP-54's list is flat and says so in its own doc comment. Reported rather than presented as a
-            // tree, because a hierarchy nobody has decided is not one a screen may invent.
             CategoriesAreFlat: true);
     }
 }

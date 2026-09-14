@@ -1,14 +1,17 @@
-using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Domain.Suppliers;
+// The one place that says which child collections a supplier read has to load.
+//
+// Every collection the read model reads must be included, or it silently under-reports: empty addresses or
+// categories even when the data exists.
+//
+// That happened once already with representatives. A missing include made the missing-fields list claim the
+// primary contact's phone number was absent. One shared extension point so it cannot happen again field by
+// field.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
-/// <summary>
-/// Every child collection SupplierDtoMapper.ToDto reads must be included, or the DTO silently
-/// under-reports (empty Addresses/CategoryLinks/etc even when data exists) - this bit us once
-/// already for Representatives (missing .Include caused GetMissingProfileFields to falsely show
-/// primaryContactPhone as missing). One shared extension point so it can't happen again per-field.
-/// </summary>
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public static class SupplierQueryExtensions
 {
     public static IQueryable<Supplier> IncludeProfile(this IQueryable<Supplier> query) =>

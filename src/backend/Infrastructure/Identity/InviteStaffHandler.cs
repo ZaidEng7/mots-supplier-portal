@@ -1,3 +1,23 @@
+// A system administrator invites a new member of ministry staff by email and role.
+//
+// It mirrors the supplier-side team invitation exactly: an unusable random password, the email treated as
+// already confirmed because the invitation proved control of the inbox, the role assigned immediately, and the
+// real password deferred to acceptance through the same opaque single-use token. The link never carries a user
+// identifier.
+//
+// The token is minted inside the job rather than passed to it, so it never sits in the job store.
+//
+//
+// THE SUPPLIER ROLES ARE DELIBERATELY NOT INVITABLE HERE
+//
+// Those accounts come from a supplier's own self-registration or their team invitation, both of which also
+// stamp the company onto the account.
+//
+// An account made through this handler never gets a company, so mixing the two role families would produce a
+// staff account holding a supplier-only role and scoped to no supplier at all.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Hangfire;
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Application.Auth;
@@ -6,20 +26,6 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Email;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>
-/// Task #28/FR-ADM-001: system_admin invites a new staff account by email + role. Mirrors
-/// InviteSupplierUserHandler exactly - unusable random password, EmailConfirmed=true, role
-/// assigned immediately, real password deferred to AcceptStaffInviteHandler via the same opaque
-/// SecurityToken scheme (never a userId in the invite link).
-///
-/// <para>Deliberately excludes supplier_admin/supplier_user from the invitable role set: those
-/// accounts come from supplier self-registration or the supplier-side team invite
-/// (InviteSupplierUserHandler), which also stamp SupplierId - an account made through THIS handler
-/// never gets a SupplierId, so mixing the two role families here would produce a staff account
-/// that is also (incorrectly) scoped to no supplier while holding a supplier-only role.</para>
-/// </summary>
 public sealed class InviteStaffHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
@@ -44,8 +50,6 @@ public sealed class InviteStaffHandler(
             return new InviteStaffResult.InvalidRole();
         }
 
-        // Unusable random password - the account only becomes usable once the invite is accepted
-        // and a real password is set via AcceptStaffInviteHandler.
         var creation = await InviteUserCreation.CreateInvitedUserAsync(
             userManager, command.Email, command.FullName, supplierId: null, organizationId: command.OrganizationId);
         if (!creation.Succeeded)
@@ -56,7 +60,6 @@ public sealed class InviteStaffHandler(
         var user = creation.User!;
         await userManager.AddToRoleAsync(user, command.Role);
 
-        // Token minted inside the job (MSP-89 pattern) - see EmailJobs's own doc comment.
         backgroundJobs.Enqueue<EmailJobs>(job => job.SendStaffInviteEmailAsync(user.Id, CancellationToken.None));
 
         await auditLogger.LogAsync("AppUser", user.Id, "staff_invited", scope.UserId, toState: command.Role, ct: ct);

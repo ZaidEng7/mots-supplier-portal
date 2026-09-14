@@ -1,3 +1,105 @@
+// The database context: the sets, the identity table names, and the concurrency and timestamp machinery.
+//
+// The entity configurations live in their own folder and are applied from the assembly, so this file holds the
+// behaviour rather than the mappings.
+//
+//
+// THE STALE-VERSION CHECK IS APPLIED ONCE HERE, NOT IN EVERY HANDLER
+//
+// The mapper only enforces optimistic concurrency if something sets the ORIGINAL value of the version property to
+// what the CALLER believed it was. Without that it compares the row against the copy it just read, which always
+// matches, which is the guard an earlier review called decoration.
+//
+// Two handlers did it by hand. The other forty-odd aggregate writes did not, so every one of them was silently
+// last-write-wins.
+//
+// The expected value lands in the update's condition while the current value is left alone and advanced by the
+// bump, so the statement reads "set the version to current plus one where the version is the expected one". A stale
+// caller matches no row, which surfaces as the concurrency failure the pipeline turns into a precondition-failed
+// answer.
+//
+// It applies to TOUCHED roots rather than modified ones. It used to look only for a modified root, which meant a
+// request that changed a child stamped nothing: the root was still unchanged at that point, because the bump
+// happens inside the save. A correct precondition on any child-write route was therefore ignored.
+//
+// And it applies only when exactly ONE versioned root is being written. A request touching two would otherwise have
+// one caller-supplied version stamped onto both, which is worse than no guard, because it would fail the write that
+// was never contended. That case does not arise today and is asserted by a test rather than assumed.
+//
+//
+// TOUCHED ROOTS ARE KEYED ON THE TRACKED ENTITY, BY REFERENCE, NOT ON ITS WRAPPER
+//
+// The mapper hands out a fresh wrapper each time you ask, so a set of wrappers does not de-duplicate. The same
+// supplier arrives once as a modified root and again as the owner of a changed child, and the set held both.
+//
+// That made the count two, which made the guard bail on its exactly-one precondition and apply NO guard, so a
+// stale precondition was accepted and the write went through. Latent until a later change, because before it no
+// child-write route declared a precondition, so no request reached here with both.
+//
+// The bump had the same problem in a quieter form: two wrappers meant the version advanced by two.
+//
+//
+// THE VERSION IS ADVANCED BY THE APPLICATION, INCLUDING FOR A CHILD-ONLY WRITE
+//
+// It used to be the database's own row identifier, which moves only when the root ROW is written. A child insert
+// marks the CHILD as new and leaves the root unchanged, so no update was emitted against the root, its version
+// never advanced, and the guard found nothing to stamp.
+//
+// The result: on any route that only touches children, a correct precondition was silently ignored and two callers
+// editing different children of one aggregate both won.
+//
+// Marking an otherwise-unchanged root as modified is what makes the guard fire.
+//
+// A changed entity is attributed to its root by walking its foreign keys ONE hop to a principal that is a versioned
+// root and is already tracked in this same context. Every aggregate in this codebase is one level deep, and a
+// grandchild would need the walk to recurse; rather than write a general graph walk for a shape that does not
+// exist, it stops at one hop and exposes the count of what it could not attribute so the assumption is checkable
+// from a test instead of hoped about.
+//
+// Only local principals count. One that is not already tracked is not being written in this unit of work, so there
+// is nothing to bump and nothing to guard, and loading it here would turn a save into a query.
+//
+// An ADDED root is skipped: it has no prior version to guard or advance, and forcing it modified made the mapper
+// emit an update against a row that did not exist yet, which is how registration started failing.
+//
+// A DELETED root is skipped too, and must be. Forcing it modified turns the delete into an update, so the row
+// survives and the caller is told it was removed. Found when reverting an override brought the row back after every
+// delete. A deleted row has no next version to advance while it still WANTS the guard, which is why it stays in the
+// touched set and is skipped only at the bump.
+//
+//
+// THE TWO TIMESTAMPS ARE STAMPED ALONGSIDE THE BUMP
+//
+// A root that records when it last changed is stamped in the same block that advances its version. The two facts
+// describe one event, and writing them apart is how they come to disagree. Roots that do not declare it are
+// untouched, so this costs nothing until one does.
+//
+// The state timestamp is stamped only when the state property ACTUALLY changed. A handler that re-assigns the same
+// state has not moved anything, and stamping it would make a queue report a fresh arrival for a row that has been
+// waiting a fortnight. The mapper knows the original value, so this asks rather than assumes.
+//
+// A newly added aggregate is stamped too: it has just entered its first state, and an absent value there would mean
+// unknown, which is reserved for rows that predate the column.
+//
+// The state property's name is the aggregate's own declaration, read through the model rather than hard-coded, so a
+// second aggregate whose state lives under a different name needs no change in this file.
+//
+//
+// ALL FOUR SAVE OVERLOADS ARE COVERED, AND THAT WAS A REAL HOLE
+//
+// The mapper's public surface has four ways in, synchronous and asynchronous, each with and without the
+// accept-changes flag, and the two convenience forms delegate to the other two.
+//
+// A caller using the synchronous form, or the flag overload, would have skipped the bump entirely: the write would
+// land and the version would not move, which is precisely the defect this machinery exists to close. A concurrency
+// scheme that applies on three paths out of four is worse than none, because it looks like it works.
+//
+// The bulk update and delete statements still bypass this by design, because they issue SQL without a change
+// tracker. Nothing in this codebase uses them to mutate an aggregate a precondition guards; they are used for test
+// setup and for the cleanup jobs.
+
+namespace MotsSupplierPortal.Infrastructure.Persistence;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -13,8 +115,6 @@ using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
-
-namespace MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
@@ -40,19 +140,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DocumentExpiryReminder> DocumentExpiryReminders => Set<DocumentExpiryReminder>();
     public DbSet<SupplierReviewAnnotation> SupplierReviewAnnotations => Set<SupplierReviewAnnotation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-    /// <summary>BRULE-016: which categories a document type is required for. Written by the admin surface and
-    /// read by RequiredDocumentTypeResolver since D-59.</summary>
     public DbSet<Domain.ReferenceData.DocumentTypeCategory> DocumentTypeCategories => Set<Domain.ReferenceData.DocumentTypeCategory>();
 
-    /// <summary>T-076: administrator rewordings of the transactional emails.</summary>
     public DbSet<Domain.Configuration.EmailTemplateOverride> EmailTemplateOverrides => Set<Domain.Configuration.EmailTemplateOverride>();
 
-    /// <summary>SCR-716: administrator rewordings of shipped interface strings.</summary>
     public DbSet<Domain.Configuration.UiStringOverride> UiStringOverrides => Set<Domain.Configuration.UiStringOverride>();
     public DbSet<Notification> Notifications => Set<Notification>();
 
-    /// <summary>SCR-901/D-60: the notification types a user has switched off. A row means "do not deliver";
-    /// no row means deliver - see NotificationPreference for why absence is the safe direction.</summary>
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<Domain.Configuration.SupplierFieldConfig> SupplierFieldConfigs => Set<Domain.Configuration.SupplierFieldConfig>();
     public DbSet<Domain.Configuration.SystemSetting> SystemSettings => Set<Domain.Configuration.SystemSetting>();
@@ -84,55 +178,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Award> Awards => Set<Award>();
     public DbSet<Approval> Approvals => Set<Approval>();
 
-    /// <summary>
-    /// §8.1's stale-version check, applied once here rather than in every handler.
-    ///
-    /// <para>EF only enforces optimistic concurrency if something sets the ORIGINAL value of the
-    /// version property to what the CALLER believed it was. Without that it compares the row against
-    /// the copy it just read, which always matches - the guard MSP-65 described as "decoration".
-    /// Two handlers did it by hand; the other forty-odd aggregate writes did not, so every one of
-    /// them was silently last-write-wins.</para>
-    ///
-    /// <para>Applied only when exactly ONE versioned root is being modified. A request that touches
-    /// two would otherwise have one caller-supplied version stamped onto both, which is worse than
-    /// no guard: it would fail the write that was never contended. That case does not arise today
-    /// and is asserted by a test rather than assumed.</para>
-    /// </summary>
     public void ApplyExpectedVersion(uint expected)
     {
-        // T-030: TOUCHED, not Modified. This used to look only for a Modified root, which meant a
-        // request that changed a child stamped nothing - the root was still Unchanged at this point,
-        // because the bump happens inside SaveChangesAsync. A correct If-Match on any child-write
-        // route was therefore ignored, which is the defect T-030 records.
         var roots = TouchedVersionedRoots();
 
         if (roots.Count != 1) return;
 
-        // OriginalValue is what lands in the UPDATE's WHERE clause. CurrentValue is left alone here
-        // and advanced by the bump, so the statement reads
-        // SET RowVersion = current + 1 WHERE RowVersion = expected - and a stale caller matches no
-        // row, which surfaces as the DbUpdateConcurrencyException §8.1 turns into a 412.
         roots[0].Property(nameof(IVersionedAggregate.RowVersion)).OriginalValue = expected;
     }
 
-    /// <summary>
-    /// Every versioned root this change set writes, whether directly or through a child. One place,
-    /// because ApplyExpectedVersion's "exactly one" precondition and the bump have to agree on what
-    /// counts as touched - if they disagree, a request either guards a root it does not advance or
-    /// advances one it does not guard.
-    /// </summary>
     private List<EntityEntry> TouchedVersionedRoots()
     {
-        // Keyed on the tracked ENTITY, with reference equality - not on EntityEntry.
-        //
-        // EF hands out a fresh EntityEntry wrapper each time you ask, so a HashSet<EntityEntry> does not
-        // deduplicate: the same Supplier arrives once as a Modified root and again as the principal of a
-        // changed child, and the set holds both. That made roots.Count == 2, which made
-        // ApplyExpectedVersion bail on its "exactly one root" precondition and apply NO guard - so a stale
-        // If-Match was accepted and the write went through. Latent until T-030 split (3), because before
-        // it no child-write route declared If-Match, so no request reached here with both.
-        //
-        // The bump had the same problem in a quieter form: two wrappers meant the version advanced by two.
         var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
         var roots = new List<EntityEntry>();
 
@@ -140,7 +196,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             if (seen.Add(entry.Entity)) roots.Add(entry);
         }
-
 
         foreach (var entry in ChangeTracker.Entries().ToList())
         {
@@ -151,60 +206,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
             if (entry.Entity is IVersionedAggregate)
             {
-                // An Added root has no prior version to guard or advance - it starts at the default.
                 if (entry.State != EntityState.Added) Add(entry);
                 continue;
             }
 
-            // Attributed to its root - unless that root is itself being INSERTED. A brand-new
-            // aggregate saved together with its children has no prior version to guard and no row to
-            // update; forcing it Modified made EF emit an UPDATE against a row that did not exist
-            // yet, which is how registration started answering 500.
             if (PrincipalRootOf(entry) is { State: not EntityState.Added } principal) Add(principal);
         }
 
         return [.. roots];
     }
 
-    /// <summary>How many versioned roots the current change set would write. Exposed so a test can
-    /// assert the "exactly one" precondition above rather than trusting it.</summary>
     public int ModifiedVersionedRootCount() =>
         ChangeTracker.Entries().Count(e => e.State == EntityState.Modified && e.Entity is IVersionedAggregate);
 
-    /// <summary>
-    /// T-030/D-15: advances every versioned root this change set touches, including the ones touched
-    /// only through a CHILD.
-    ///
-    /// <para><b>The defect this closes.</b> The version used to be Postgres <c>xmin</c>, which moves
-    /// only when the root ROW is written. A child insert marks the CHILD <c>Added</c> and leaves the
-    /// root <c>Unchanged</c>, so no UPDATE was emitted against the root, its xmin never advanced, and
-    /// <c>ApplyExpectedVersion</c> - which only looked at <c>Modified</c> roots - found nothing to
-    /// stamp. The result: on any route that only touches children, a correct <c>If-Match</c> was
-    /// silently ignored and two callers editing different children of one aggregate both won.</para>
-    ///
-    /// <para><b>One level, deliberately.</b> A changed entity is attributed to a root by walking its
-    /// foreign keys to a principal that is a versioned root and is tracked in this same context. Every
-    /// aggregate in this codebase is one level deep - Rfq/RfqItem, Supplier/Address,
-    /// Proposal/ProposalItem - and a grandchild would need the walk to recurse. Rather than write a
-    /// general graph walk for a shape that does not exist, this stops at one hop and
-    /// <c>UnattributedChildCount</c> makes the assumption checkable from a test instead of hoping.</para>
-    ///
-    /// <para>Marking an otherwise-unchanged root <c>Modified</c> is what makes the guard fire: EF then
-    /// emits <c>UPDATE … WHERE RowVersion = @original</c>, and a stale caller gets zero rows affected
-    /// and a <c>DbUpdateConcurrencyException</c>, which the pipeline already turns into §8.1's 412.</para>
-    /// </summary>
-    /// <summary>
-    /// T-031: stamps <c>StateChangedAt</c> on every tracked aggregate whose state property actually
-    /// changed in this unit of work.
-    ///
-    /// <para><b>Actually changed</b> is the whole of it. A handler that re-assigns the same state -
-    /// re-submitting an already-submitted proposal, a no-op transition guarded elsewhere - has not
-    /// moved anything, and stamping it would make a queue report a fresh arrival for a row that has
-    /// been waiting a fortnight. EF knows the original value, so this asks rather than assumes.</para>
-    ///
-    /// <para>An ADDED aggregate is stamped too: it has just entered its first state, and a null there
-    /// would mean "unknown", which is reserved for rows that predate the column.</para>
-    /// </summary>
     private void StampStateChanges()
     {
         var now = DateTimeOffset.UtcNow;
@@ -214,9 +228,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             if (entry.Entity is not IStateTimestamped) continue;
             if (entry.State is not (EntityState.Added or EntityState.Modified)) continue;
 
-            // The property name is the aggregate's own declaration - see IStateTimestamped - read
-            // through the model rather than hard-coded here, so a second aggregate whose state lives
-            // under a different name needs no change in this file.
             var stateName = (string)entry.Metadata.ClrType
                 .GetProperty(nameof(IStateTimestamped.StatePropertyName))!
                 .GetValue(null)!;
@@ -234,21 +245,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         foreach (var root in TouchedVersionedRoots())
         {
-            // A DELETED root is not bumped, and must not be: forcing State = Modified on it turns the
-            // DELETE into an UPDATE, so the row survives and the caller is told it was removed. Found
-            // by T-061's revert - the override row came back after every delete. A deleted row has no
-            // next version to advance, while it still WANTS the guard ApplyExpectedVersion put on it,
-            // which is why Deleted stays in TouchedVersionedRoots and is skipped only here.
             if (root.State is EntityState.Deleted) continue;
 
             root.State = EntityState.Modified;
             var property = root.Property(nameof(IVersionedAggregate.RowVersion));
             property.CurrentValue = unchecked((uint)property.CurrentValue! + 1);
 
-            // T-003. A root that records when it last changed is stamped HERE, in the same statement
-            // block that advances its version - the two facts describe one event, and writing them
-            // apart is how they come to disagree. Roots that do not declare ILastModified are
-            // untouched, so this costs nothing until one does.
             if (root.Entity is ILastModified)
             {
                 root.Property(nameof(ILastModified.UpdatedAt)).CurrentValue = DateTimeOffset.UtcNow;
@@ -256,8 +258,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         }
     }
 
-    /// <summary>The tracked versioned root this entity hangs off, or null when it is not a child of
-    /// one. Null is the ordinary answer for a reference-data row or an aggregate with no version.</summary>
     private EntityEntry? PrincipalRootOf(EntityEntry entry)
     {
         foreach (var foreignKey in entry.Metadata.GetForeignKeys())
@@ -272,9 +272,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                 .ToArray();
             if (keyValues.Any(v => v is null)) continue;
 
-            // Local only. A principal that is not already tracked is not being written in this unit of
-            // work, so there is nothing to bump and nothing to guard - and loading it here to bump it
-            // would turn a save into a query.
             var principal = ChangeTracker.Entries()
                 .FirstOrDefault(candidate =>
                     candidate.Entity is IVersionedAggregate
@@ -289,11 +286,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         return null;
     }
 
-    /// <summary>
-    /// Changed entities that are neither a versioned root nor attributable to one. Exposed so a test
-    /// can assert what the one-hop walk above cannot see, rather than leaving the limitation as a
-    /// comment nobody checks.
-    /// </summary>
     public IReadOnlyList<string> UnattributedChildTypes() =>
         [.. ChangeTracker.Entries()
             .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
@@ -302,22 +294,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             .Distinct()
             .Order()];
 
-    /// <summary>
-    /// T-030: the bump runs here, on the overloads every other entry point funnels into.
-    ///
-    /// <para><b>Overriding <c>SaveChangesAsync(CancellationToken)</c> alone was not enough, and that
-    /// was a real hole rather than a style point.</b> EF's public surface has four ways in - sync and
-    /// async, each with and without <c>acceptAllChangesOnSuccess</c> - and the two convenience forms
-    /// delegate to these two. A caller using <c>SaveChanges()</c> synchronously, or the
-    /// <c>acceptAllChangesOnSuccess</c> overload, would have skipped the version bump entirely: the
-    /// write would land and the aggregate's version would not move, which is precisely the defect
-    /// T-030 exists to close. A concurrency scheme that applies on three paths out of four is worse
-    /// than none, because it looks like it works.</para>
-    ///
-    /// <para><c>ExecuteUpdateAsync</c> and <c>ExecuteDeleteAsync</c> still bypass this by design -
-    /// they issue SQL without a change tracker. Nothing in this codebase uses them to mutate an
-    /// aggregate that an <c>If-Match</c> guards; they are used for test setup and for the GC jobs.</para>
-    /// </summary>
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         StampStateChanges();
@@ -337,55 +313,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<ReferenceCodeCounter>(entity =>
-        {
-            entity.ToTable("reference_code_counter", "supplier");
-            // The prefix is the natural key; there is no surrogate id because a second row for the
-            // same prefix would be a second, competing allocator.
-            entity.HasKey(c => c.Prefix);
-            entity.Property(c => c.Prefix).HasMaxLength(30);
-            entity.Property(c => c.LastValue).IsRequired();
-        });
-
-        modelBuilder.Entity<Currency>(entity =>
-        {
-            entity.ToTable("currencies", "reference");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Code).HasMaxLength(3).IsRequired();
-            entity.HasIndex(c => c.Code).IsUnique();
-            entity.Property(c => c.NameAr).HasMaxLength(100).IsRequired();
-            entity.Property(c => c.NameEn).HasMaxLength(100).IsRequired();
-
-            entity.HasData(
-                new Currency { Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), Code = "SYP", NameAr = "ليرة سورية", NameEn = "Syrian Pound" },
-                new Currency { Id = Guid.Parse("00000000-0000-0000-0000-000000000002"), Code = "USD", NameAr = "دولار أمريكي", NameEn = "US Dollar" }
-            );
-        });
-
-        modelBuilder.Entity<AppUser>(entity =>
-        {
-            entity.ToTable("app_user", "identity", t =>
-            {
-                // Task #7/Stage B: SupplierId XOR OrganizationId XOR neither (AppUser.cs's own
-                // doc comment, previously convention-only). "Neither" (platform admin) stays
-                // allowed - this is NAND (at most one set), not strict XOR. Every existing row
-                // has OrganizationId = null today (re-verified against real local data before
-                // writing this, not trusted from Stage A's report: 42 users, 0 with
-                // OrganizationId, 39 with SupplierId, 3 with neither), so this is a clean
-                // additive constraint with nothing to reconcile.
-                t.HasCheckConstraint("CK_app_user_supplier_xor_organization", "\"SupplierId\" IS NULL OR \"OrganizationId\" IS NULL");
-            });
-            entity.Property(u => u.FullName).HasMaxLength(200).IsRequired();
-            entity.HasIndex(u => u.SupplierId);
-            entity.HasIndex(u => u.OrganizationId);
-            entity.HasIndex(u => u.OrgUnitId);
-            // SetNull, not Cascade/Restrict: deleting an Organization is not yet a real flow
-            // (Stage C+), but when it becomes one, a back-office user losing their org
-            // assignment is the right default - not being silently deleted along with the
-            // Organization row.
-            entity.HasOne<Organization>().WithMany().HasForeignKey(u => u.OrganizationId).OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne<OrgUnit>().WithMany().HasForeignKey(u => u.OrgUnitId).OnDelete(DeleteBehavior.SetNull);
-        });
         modelBuilder.Entity<IdentityRole<Guid>>().ToTable("role", "identity");
         modelBuilder.Entity<IdentityUserRole<Guid>>().ToTable("user_role", "identity");
         modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("user_claim", "identity");
@@ -393,981 +320,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claim", "identity");
         modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("user_token", "identity");
 
-        modelBuilder.Entity<Supplier>(entity =>
-        {
-            entity.ToTable("supplier", "supplier");
-            // ── EPIC-20 full-text search ──────────────────────────────────────────────────────
-            // A STORED GENERATED column, not a trigger. Postgres computes it on write from the columns
-            // it names, so there is no trigger to keep in step with a rename and no way for the index to
-            // drift from the row - which is the failure mode of every hand-maintained search column.
-            //
-            // 'simple' for both languages, and this is the decision the sizing flagged rather than a
-            // shortcut: Postgres ships no Arabic dictionary, so no configuration stems Arabic correctly.
-            // 'simple' lower-cases and splits on non-word characters and does not stem, so "contracts"
-            // will not match "contract". Using 'english' on the English column and 'simple' on the Arabic
-            // one would make the two halves of one search behave differently for no stated reason;
-            // picking one honest behaviour and saying so beats half-stemming. Adding an Arabic dictionary
-            // (hunspell, or a thesaurus) is a decision for whoever owns the database, and it is a change
-            // to this expression rather than to the schema.
-            //
-            // The reference code is IN the vector because "find RFQ-2026-000123" is the most common thing
-            // anyone types into a search box on a system like this - and the regexp_replace is what makes
-            // that actually work. Postgres's parser treats "RFQ-2026-000006" as 'rfq', '-2026', '-000006':
-            // it reads the hyphenated numeric parts as SIGNED INTEGERS and keeps the sign in the lexeme. A
-            // query built by splitting the same string on non-alphanumerics produces 'rfq', '2026',
-            // '000006', which match nothing. Caught by an integration test against a real code shape after
-            // the feature worked perfectly against the letter-suffixed demo codes - RFQ-DEMO-0006 tokenises
-            // differently and hid it entirely.
-            //
-            // Collapsing every non-alphanumeric run to a space before tokenising means the stored side and
-            // SearchHandler.Tokenise follow ONE rule. That is the property worth having: the alternative is
-            // two tokenisers that agree on most inputs.
-            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
-                .HasComputedColumnSql(
-                    "to_tsvector('simple', regexp_replace(coalesce(\"DisplayNameAr\",'') || ' ' || coalesce(\"DisplayNameEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
-                    stored: true);
-            entity.HasIndex("SearchVector").HasMethod("GIN");
-            entity.HasKey(s => s.Id);
-            entity.Property(s => s.ReferenceCode).HasMaxLength(30).IsRequired();
-            entity.HasIndex(s => s.ReferenceCode).IsUnique();
-            entity.Property(s => s.DisplayNameAr).HasMaxLength(200).IsRequired();
-            entity.Property(s => s.DisplayNameEn).HasMaxLength(200).IsRequired();
-            entity.Property(s => s.Description).HasMaxLength(2000);
-            entity.Property(s => s.Website).HasMaxLength(300);
-            entity.Property(s => s.LogoStorageKey).HasMaxLength(500);
-            entity.Property(s => s.SupplierGroup).HasMaxLength(100);
-            entity.Property(s => s.CurrencyCode).HasMaxLength(3);
-            entity.Property(s => s.ExternalId).HasMaxLength(100);
-            entity.Property(s => s.SyncStatus).HasConversion<string>().HasMaxLength(20);
-            entity.Property(s => s.TermsAcceptedVersion).HasMaxLength(20);
-            entity.Property(s => s.OnboardingState).HasConversion<string>().HasMaxLength(30);
-            entity.Property(s => s.LifecycleState).HasConversion<string>().HasMaxLength(30);
-            entity.Property(s => s.RowVersion).IsAppManagedVersion();
-            entity.HasIndex(s => s.OnboardingState);
-            entity.HasMany(s => s.Representatives).WithOne().HasForeignKey(r => r.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(s => s.Addresses).WithOne().HasForeignKey(a => a.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(s => s.Contacts).WithOne().HasForeignKey(c => c.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(s => s.Branches).WithOne().HasForeignKey(b => b.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(s => s.BankAccounts).WithOne().HasForeignKey(b => b.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(s => s.CategoryLinks).WithOne().HasForeignKey(l => l.SupplierId).OnDelete(DeleteBehavior.Cascade);
-
-            entity.OwnsOne(s => s.LegalInfo, legal =>
-            {
-                // No explicit ToTable() here: owned types default to the owner's table already.
-                // Calling ToTable() with the SAME name turns this into an explicit table-splitting
-                // fragment, which makes EF emit a second UPDATE against this row (checked against
-                // the same xmin concurrency token) whenever the Supplier aggregate is saved together
-                // with an unrelated child-collection change (e.g. AddAddress/AddContact) - the second
-                // UPDATE then finds the row's xmin already bumped by the first and throws
-                // DbUpdateConcurrencyException with 0 rows affected.
-                legal.Property(l => l.LegalNameAr).HasColumnName("LegalNameAr").HasMaxLength(200);
-                legal.Property(l => l.LegalNameEn).HasColumnName("LegalNameEn").HasMaxLength(200);
-                legal.Property(l => l.RegistrationNumber).HasColumnName("RegistrationNumber").HasMaxLength(100);
-                legal.Property(l => l.TaxId).HasColumnName("TaxId").HasMaxLength(100);
-                legal.Property(l => l.SupplierType).HasColumnName("SupplierType").HasConversion<string>().HasMaxLength(20);
-                legal.Property(l => l.EstablishedOn).HasColumnName("EstablishedOn");
-            });
-            entity.Navigation(s => s.LegalInfo).IsRequired(false);
-        });
-
-        modelBuilder.Entity<Representative>(entity =>
-        {
-            entity.ToTable("representative", "supplier");
-            entity.HasKey(r => r.Id);
-            entity.Property(r => r.FullName).HasMaxLength(200).IsRequired();
-            entity.Property(r => r.Email).HasMaxLength(320).IsRequired();
-            entity.HasIndex(r => r.SupplierId).HasFilter("\"IsPrimary\" = true").IsUnique();
-        });
-
-        modelBuilder.Entity<Address>(entity =>
-        {
-            entity.ToTable("address", "supplier");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.Kind).HasConversion<string>().HasMaxLength(20);
-            entity.Property(a => a.Line1).HasMaxLength(300).IsRequired();
-            entity.Property(a => a.Line2).HasMaxLength(300);
-            entity.Property(a => a.City).HasMaxLength(100).IsRequired();
-            entity.Property(a => a.RegionCode).HasMaxLength(20).IsRequired();
-            entity.Property(a => a.Country).HasMaxLength(100).IsRequired();
-            entity.Property(a => a.PostalCode).HasMaxLength(20);
-            entity.HasIndex(a => a.SupplierId);
-        });
-
-        modelBuilder.Entity<Contact>(entity =>
-        {
-            entity.ToTable("contact", "supplier");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.FullName).HasMaxLength(200).IsRequired();
-            entity.Property(c => c.Email).HasMaxLength(320).IsRequired();
-            entity.HasIndex(c => c.SupplierId);
-        });
-
-        modelBuilder.Entity<Branch>(entity =>
-        {
-            entity.ToTable("branch", "supplier");
-            entity.HasKey(b => b.Id);
-            entity.Property(b => b.NameAr).HasMaxLength(200).IsRequired();
-            entity.Property(b => b.NameEn).HasMaxLength(200).IsRequired();
-            entity.HasIndex(b => b.SupplierId);
-        });
-
-        modelBuilder.Entity<BankAccount>(entity =>
-        {
-            entity.ToTable("bank_account", "supplier");
-            entity.HasKey(b => b.Id);
-            entity.Property(b => b.AccountHolderName).HasMaxLength(200).IsRequired();
-            entity.Property(b => b.BankName).HasMaxLength(200).IsRequired();
-            entity.Property(b => b.BranchName).HasMaxLength(200);
-            entity.Property(b => b.EncryptedAccountNumber).IsRequired();
-            entity.Property(b => b.MaskedAccountNumber).HasMaxLength(50).IsRequired();
-            entity.Property(b => b.SwiftBic).HasMaxLength(20);
-            entity.Property(b => b.CurrencyCode).HasMaxLength(3).IsRequired();
-            entity.HasIndex(b => b.SupplierId);
-        });
-
-        modelBuilder.Entity<CategoryLink>(entity =>
-        {
-            entity.ToTable("category_link", "supplier");
-            entity.HasKey(l => l.Id);
-            entity.Property(l => l.CategoryCode).HasMaxLength(50).IsRequired();
-            entity.HasIndex(l => new { l.SupplierId, l.CategoryCode }).IsUnique();
-        });
-
-        // Task #7/Stage A: data model only - see Organization.cs's own doc comment. No FK from
-        // AppUser or Supplier into these tables yet (Stage B/C).
-        modelBuilder.Entity<Organization>(entity =>
-        {
-            entity.ToTable("organization", "organization");
-            entity.HasKey(o => o.Id);
-            // T-055: the buying body's public code, ORG-2026-000001. Unique, like every other
-            // reference code in this schema.
-            entity.Property(o => o.ReferenceCode).HasMaxLength(30).IsRequired();
-            entity.HasIndex(o => o.ReferenceCode).IsUnique();
-            entity.Property(o => o.LegalNameAr).HasMaxLength(200).IsRequired();
-            entity.Property(o => o.LegalNameEn).HasMaxLength(200).IsRequired();
-            entity.Property(o => o.OrganizationType).HasConversion<string>().HasMaxLength(20);
-            entity.Property(o => o.ContactEmail).HasMaxLength(320);
-            entity.Property(o => o.ContactPhone).HasMaxLength(30);
-            entity.Property(o => o.ExternalId).HasMaxLength(100);
-            entity.Property(o => o.SyncStatus).HasConversion<string>().HasMaxLength(20);
-            entity.HasMany(o => o.OrgUnits).WithOne().HasForeignKey(u => u.OrganizationId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<OrgUnit>(entity =>
-        {
-            entity.ToTable("org_unit", "organization");
-            entity.HasKey(u => u.Id);
-            entity.Property(u => u.Name).HasMaxLength(200).IsRequired();
-            entity.HasIndex(u => u.OrganizationId);
-            // Self-nesting tree (§5.2): a unit's parent must be another unit in the same
-            // Organization, never a unit belonging elsewhere - restricted to that same FK target
-            // rather than a bare unconstrained Guid, and Restrict (not Cascade) so deleting a
-            // parent unit cannot silently cascade-delete its children.
-            entity.HasOne<OrgUnit>().WithMany().HasForeignKey(u => u.ParentOrgUnitId).OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<SupplierOrgLink>(entity =>
-        {
-            entity.ToTable("supplier_org_link", "organization");
-            entity.HasKey(l => l.Id);
-            entity.HasIndex(l => new { l.SupplierId, l.OrganizationId }).IsUnique();
-            entity.HasOne<Supplier>().WithMany().HasForeignKey(l => l.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne<Organization>().WithMany().HasForeignKey(l => l.OrganizationId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Domain.ReferenceData.Region>(entity =>
-        {
-            entity.ToTable("region", "reference");
-            entity.HasKey(r => r.Id);
-            entity.Property(r => r.Code).HasMaxLength(20).IsRequired();
-            entity.HasIndex(r => r.Code).IsUnique();
-            entity.Property(r => r.NameAr).HasMaxLength(100).IsRequired();
-            entity.Property(r => r.NameEn).HasMaxLength(100).IsRequired();
-
-            entity.HasData(
-                new Domain.ReferenceData.Region { Id = Guid.Parse("00000000-0000-0000-0000-000000000201"), Code = "DIM", NameAr = "دمشق", NameEn = "Damascus" },
-                new Domain.ReferenceData.Region { Id = Guid.Parse("00000000-0000-0000-0000-000000000202"), Code = "ALP", NameAr = "حلب", NameEn = "Aleppo" },
-                new Domain.ReferenceData.Region { Id = Guid.Parse("00000000-0000-0000-0000-000000000203"), Code = "LAT", NameAr = "اللاذقية", NameEn = "Latakia" },
-                new Domain.ReferenceData.Region { Id = Guid.Parse("00000000-0000-0000-0000-000000000204"), Code = "HOM", NameAr = "حمص", NameEn = "Homs" }
-            );
-        });
-
-        modelBuilder.Entity<Domain.ReferenceData.Category>(entity =>
-        {
-            entity.ToTable("category", "reference");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Code).HasMaxLength(50).IsRequired();
-            entity.HasIndex(c => c.Code).IsUnique();
-            entity.Property(c => c.NameAr).HasMaxLength(150).IsRequired();
-            entity.Property(c => c.NameEn).HasMaxLength(150).IsRequired();
-
-            // MSP-54 [ASSUMPTION]: minimal flat interim list, seeded from Discovery's known
-            // MOTS supplier categories - superseded by EPIC-21's real buyer Category tree later.
-            entity.HasData(
-                new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000301"), Code = "accommodation", NameAr = "الإقامة والفنادق", NameEn = "Accommodation & Hotels" },
-                new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000302"), Code = "catering", NameAr = "التموين والضيافة", NameEn = "Catering & Hospitality" },
-                new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000303"), Code = "transport", NameAr = "النقل والمواصلات", NameEn = "Transport" },
-                new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000304"), Code = "tour_operations", NameAr = "تنظيم الرحلات السياحية", NameEn = "Tour Operations" },
-                new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000305"), Code = "events", NameAr = "تنظيم الفعاليات", NameEn = "Events & Conferences" },
-                new Domain.ReferenceData.Category { Id = Guid.Parse("00000000-0000-0000-0000-000000000306"), Code = "maintenance", NameAr = "الصيانة والخدمات الفنية", NameEn = "Maintenance & Technical Services" }
-            );
-        });
-
-        modelBuilder.Entity<Domain.ReferenceData.UnitOfMeasure>(entity =>
-        {
-            entity.ToTable("unit_of_measure", "reference");
-            entity.HasKey(u => u.Id);
-            entity.Property(u => u.Code).HasMaxLength(50).IsRequired();
-            entity.HasIndex(u => u.Code).IsUnique();
-            entity.Property(u => u.NameAr).HasMaxLength(150).IsRequired();
-            entity.Property(u => u.NameEn).HasMaxLength(150).IsRequired();
-
-            // FEAT-06.1 [ASSUMPTION]: minimal interim list matching the hospitality/tourism sector
-            // Category.cs already seeds (accommodation, catering, transport, tours, events).
-            entity.HasData(
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000501"), Code = "night", NameAr = "ليلة", NameEn = "Night" },
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000502"), Code = "person", NameAr = "شخص", NameEn = "Person" },
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000503"), Code = "trip", NameAr = "رحلة", NameEn = "Trip" },
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000504"), Code = "hour", NameAr = "ساعة", NameEn = "Hour" },
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000505"), Code = "day", NameAr = "يوم", NameEn = "Day" },
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000506"), Code = "unit", NameAr = "وحدة", NameEn = "Unit" },
-                new Domain.ReferenceData.UnitOfMeasure { Id = Guid.Parse("00000000-0000-0000-0000-000000000507"), Code = "event", NameAr = "فعالية", NameEn = "Event" }
-            );
-        });
-
-        modelBuilder.Entity<Domain.ReferenceData.Incoterm>(entity =>
-        {
-            entity.ToTable("incoterm", "reference");
-            entity.HasKey(i => i.Id);
-            // Three, like Currency and unlike the other three tables: the standard's codes are three
-            // letters, and a column that accepts fifty invites a free-text value back in through the
-            // admin surface.
-            entity.Property(i => i.Code).HasMaxLength(3).IsRequired();
-            entity.HasIndex(i => i.Code).IsUnique();
-            entity.Property(i => i.NameAr).HasMaxLength(150).IsRequired();
-            entity.Property(i => i.NameEn).HasMaxLength(150).IsRequired();
-
-            // T-072/FR-ADM-004. Incoterms 2020, all eleven, in the standard's own order: the seven
-            // for any mode of transport, then the four for sea and inland waterway. The English name
-            // is the ICC's; the Arabic is the term as Syrian tender documents write it, with the code
-            // kept in the name because that is how a bidder reads it on paper.
-            entity.HasData(
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000601"), Code = "EXW", NameAr = "تسليم المصنع", NameEn = "Ex Works" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000602"), Code = "FCA", NameAr = "تسليم الناقل", NameEn = "Free Carrier" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000603"), Code = "CPT", NameAr = "النقل مدفوع حتى", NameEn = "Carriage Paid To" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000604"), Code = "CIP", NameAr = "النقل والتأمين مدفوعان حتى", NameEn = "Carriage and Insurance Paid To" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000605"), Code = "DAP", NameAr = "التسليم في المكان", NameEn = "Delivered at Place" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000606"), Code = "DPU", NameAr = "التسليم في المكان بعد التفريغ", NameEn = "Delivered at Place Unloaded" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000607"), Code = "DDP", NameAr = "التسليم خالص الرسوم", NameEn = "Delivered Duty Paid" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000608"), Code = "FAS", NameAr = "التسليم بجانب السفينة", NameEn = "Free Alongside Ship" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-000000000609"), Code = "FOB", NameAr = "التسليم على ظهر السفينة", NameEn = "Free on Board" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-00000000060A"), Code = "CFR", NameAr = "التكلفة وأجرة الشحن", NameEn = "Cost and Freight" },
-                new Domain.ReferenceData.Incoterm { Id = Guid.Parse("00000000-0000-0000-0000-00000000060B"), Code = "CIF", NameAr = "التكلفة والتأمين وأجرة الشحن", NameEn = "Cost, Insurance and Freight" }
-            );
-        });
-
-        modelBuilder.Entity<Offering>(entity =>
-        {
-            entity.ToTable("offering", "supplier");
-            // EPIC-20. NOT a replacement for the ILIKE pair in SearchBuyerOfferingsHandler, deliberately:
-            // that endpoint's callers get substring matching today ("ater" finds "Catering") and a tsquery
-            // prefix does not, so swapping it would narrow a shipped behaviour without anyone asking. This
-            // vector serves the cross-entity search; the catalogue keeps its own semantics until someone
-            // decides they should change.
-            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
-                .HasComputedColumnSql(
-                    "to_tsvector('simple', regexp_replace(coalesce(\"NameAr\",'') || ' ' || coalesce(\"NameEn\",'') || ' ' || coalesce(\"Description\",''), '[^[:alnum:]]+', ' ', 'g'))",
-                    stored: true);
-            entity.HasIndex("SearchVector").HasMethod("GIN");
-            entity.Property(o => o.RowVersion).IsAppManagedVersion();
-            entity.HasKey(o => o.Id);
-            entity.Property(o => o.NameAr).HasMaxLength(200).IsRequired();
-            entity.Property(o => o.NameEn).HasMaxLength(200).IsRequired();
-            entity.Property(o => o.Description).HasMaxLength(2000);
-            entity.Property(o => o.CategoryCode).HasMaxLength(50).IsRequired();
-            entity.Property(o => o.UnitOfMeasureCode).HasMaxLength(50).IsRequired();
-            entity.Property(o => o.PriceAmount).HasPrecision(18, 2);
-            entity.Property(o => o.CurrencyCode).HasMaxLength(10);
-            entity.Property(o => o.AttributesJson).HasColumnType("jsonb");
-            entity.HasIndex(o => o.SupplierId);
-        });
-
-        modelBuilder.Entity<Domain.Idempotency.IdempotencyRecord>(entity =>
-        {
-            entity.ToTable("idempotency_record", "ops");
-            entity.HasKey(r => r.Id);
-            entity.Property(r => r.Key).HasMaxLength(200).IsRequired();
-            entity.Property(r => r.RequestFingerprint).HasMaxLength(64).IsRequired();
-            // TEXT, not jsonb. §8.2.3 requires the stored response to be "replayed verbatim", and
-            // jsonb normalises: it reorders keys and re-spaces the document, so a replay came back
-            // byte-different from the original even though the data was identical. A client comparing
-            // responses, or hashing one, would see two different answers to the same request.
-            entity.Property(r => r.ResponseBody).HasColumnType("text");
-
-            // The UNIQUE constraint is the reservation. Two concurrent retries of the same submission
-            // both try to insert, and Postgres lets exactly one through - the loser gets a duplicate-key
-            // violation, which is how the second click is refused without a lock or a read-then-write
-            // race. Scoped by UserId so a client-generated key cannot collide across callers.
-            entity.HasIndex(r => new { r.UserId, r.Key }).IsUnique();
-
-            // The GC job scans by expiry.
-            entity.HasIndex(r => r.ExpiresAt);
-        });
-
-        // SCR-716. Same shape and the same reasoning as notification_template below: an absent row means
-        // the shipped string, so nothing is seeded and a fresh database behaves exactly as the bundle does.
-        // BRULE-016's join table, read since D-59 by RequiredDocumentTypeResolver.
-        modelBuilder.Entity<Domain.ReferenceData.DocumentTypeCategory>(entity =>
-        {
-            entity.ToTable("document_type_category", "reference");
-            entity.HasKey(l => l.Id);
-            entity.Property(l => l.CategoryCode).HasMaxLength(50).IsRequired();
-            // One link per (type, category). A duplicate would double-count nothing today and would
-            // double-count a requirement the day the derivation is switched on.
-            entity.HasIndex(l => new { l.DocumentTypeId, l.CategoryCode }).IsUnique();
-            // Cascade from the document type, because a link to a type that no longer exists is not a
-            // historical record of anything - unlike the reference CODES themselves, which D-28 keeps.
-            entity.HasOne<Domain.ReferenceData.DocumentType>()
-                .WithMany()
-                .HasForeignKey(l => l.DocumentTypeId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // T-076. Same shape and reasoning as ui_string_override below: absent means the shipped copy.
-        modelBuilder.Entity<Domain.Configuration.EmailTemplateOverride>(entity =>
-        {
-            entity.ToTable("email_template_override", "ops");
-            entity.Property(o => o.RowVersion).IsAppManagedVersion();
-            entity.HasKey(o => o.Id);
-            entity.Property(o => o.Key).HasMaxLength(100).IsRequired();
-            entity.Property(o => o.SubjectAr).HasMaxLength(300).IsRequired();
-            entity.Property(o => o.SubjectEn).HasMaxLength(300).IsRequired();
-            // 4000: these are HTML bodies, and the shipped ones are already 200-400 characters before an
-            // administrator adds a paragraph of their own.
-            entity.Property(o => o.BodyAr).HasMaxLength(4000).IsRequired();
-            entity.Property(o => o.BodyEn).HasMaxLength(4000).IsRequired();
-            entity.HasIndex(o => o.Key).IsUnique();
-        });
-
-        modelBuilder.Entity<Domain.Configuration.UiStringOverride>(entity =>
-        {
-            entity.ToTable("ui_string_override", "ops");
-            entity.Property(o => o.RowVersion).IsAppManagedVersion();
-            entity.HasKey(o => o.Id);
-            // 200 is generous for a dotted i18n path; the longest in the bundle today is under 60.
-            entity.Property(o => o.Key).HasMaxLength(200).IsRequired();
-            entity.Property(o => o.Language).HasMaxLength(8).IsRequired();
-            // 2000, because an override replaces a whole sentence in some places - SCR-726's read-only
-            // explanation is over 300 characters - and truncating a rewording is worse than allowing a
-            // long one.
-            entity.Property(o => o.Value).HasMaxLength(2000).IsRequired();
-            // Per key PER LANGUAGE: rewording an English label is not rewording the Arabic one.
-            entity.HasIndex(o => new { o.Key, o.Language }).IsUnique();
-        });
-
-        modelBuilder.Entity<Domain.Notifications.NotificationTemplate>(entity =>
-        {
-            entity.ToTable("notification_template", "ops");
-            entity.Property(t => t.RowVersion).IsAppManagedVersion();
-            entity.HasKey(t => t.Id);
-            entity.Property(t => t.Type).HasMaxLength(100).IsRequired();
-            entity.Property(t => t.TitleAr).HasMaxLength(300).IsRequired();
-            entity.Property(t => t.TitleEn).HasMaxLength(300).IsRequired();
-            entity.Property(t => t.BodyAr).HasMaxLength(1000).IsRequired();
-            entity.Property(t => t.BodyEn).HasMaxLength(1000).IsRequired();
-            entity.HasIndex(t => t.Type).IsUnique();
-
-            // NOT seeded, for the same reason system_setting is not: an absent row means the shipped
-            // catalogue is in force, and no deployment's wording changes until somebody changes it.
-        });
-
-        modelBuilder.Entity<Domain.Configuration.SystemSetting>(entity =>
-        {
-            entity.ToTable("system_setting", "ops");
-            entity.Property(s => s.RowVersion).IsAppManagedVersion();
-            entity.HasKey(s => s.Id);
-            entity.Property(s => s.Key).HasMaxLength(100).IsRequired();
-            entity.Property(s => s.Value).HasMaxLength(500).IsRequired();
-            entity.HasIndex(s => s.Key).IsUnique();
-
-            // NOT seeded, deliberately. An absent row means "nobody has decided", and every consumer
-            // falls back to configuration and then to the definition's default - so an environment
-            // that never opens the settings screen behaves exactly as it did before this table
-            // existed. Seeding the defaults would erase that distinction and turn "unset" into "an
-            // administrator chose 30", which is the fact the audit trail is supposed to carry.
-        });
-
-        modelBuilder.Entity<Domain.Configuration.SupplierFieldConfig>(entity =>
-        {
-            entity.ToTable("supplier_field_config", "ops");
-            entity.Property(c => c.RowVersion).IsAppManagedVersion();
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Category).HasMaxLength(50).IsRequired();
-            entity.Property(c => c.FieldCode).HasMaxLength(50).IsRequired();
-            entity.HasIndex(c => new { c.Category, c.FieldCode }).IsUnique();
-
-            // FEAT-04.9/FEAT-04.2 [ASSUMPTION 2026-08-27]: seeded to reproduce exactly the
-            // previously-hardcoded behavior - editable via admin endpoints thereafter.
-            entity.HasData(
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000401"), Category = Domain.Configuration.FieldConfigCategory.ComplianceRetrigger, FieldCode = "legalInfo", IsEnabled = true },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000402"), Category = Domain.Configuration.FieldConfigCategory.ComplianceRetrigger, FieldCode = "bankAccount", IsEnabled = true },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000403"), Category = Domain.Configuration.FieldConfigCategory.ComplianceRetrigger, FieldCode = "categoryLink", IsEnabled = true },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000411"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "legalNameAr", IsEnabled = true },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000412"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "legalNameEn", IsEnabled = true },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000413"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "registrationNumber", IsEnabled = false },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000414"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "taxId", IsEnabled = false },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000415"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "supplierType", IsEnabled = false },
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000416"), Category = Domain.Configuration.FieldConfigCategory.LegalInfoRequired, FieldCode = "establishedOn", IsEnabled = false },
-                // D-6/BRULE-087: the Ministry's commercial-visibility flag, seeded OFF. BRULE-087
-                // names aggregate-only as the default and tags the question itself as
-                // [REQUIRES BUSINESS CONFIRMATION], so MOT Legal's answer flips this row.
-                new Domain.Configuration.SupplierFieldConfig { Id = Guid.Parse("00000000-0000-0000-0000-000000000421"), Category = Domain.Configuration.FieldConfigCategory.GovernanceVisibility, FieldCode = "commercialValues", IsEnabled = false }
-            );
-        });
-
-        modelBuilder.Entity<RefreshToken>(entity =>
-        {
-            entity.ToTable("user_session", "identity");
-            entity.HasKey(t => t.Id);
-            entity.Property(t => t.TokenHash).HasMaxLength(200).IsRequired();
-            entity.HasIndex(t => t.UserId);
-            entity.HasIndex(t => t.FamilyId);
-        });
-
-        modelBuilder.Entity<SecurityToken>(entity =>
-        {
-            entity.ToTable("security_token", "identity");
-            entity.HasKey(t => t.Id);
-            entity.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();
-            entity.Property(t => t.Purpose).HasConversion<string>().HasMaxLength(30);
-            entity.HasIndex(t => t.TokenHash).IsUnique();
-            entity.HasIndex(t => t.UserId);
-        });
-
-        modelBuilder.Entity<AuditLog>(entity =>
-        {
-            entity.ToTable("audit_log", "ops");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.ActorKind).HasConversion<string>().HasMaxLength(20);
-            entity.Property(a => a.AggregateType).HasMaxLength(100).IsRequired();
-            entity.Property(a => a.Action).HasMaxLength(100).IsRequired();
-            entity.Property(a => a.Changes).HasColumnType("jsonb");
-            entity.HasIndex(a => new { a.AggregateType, a.AggregateId, a.OccurredAt });
-            entity.HasIndex(a => new { a.ActorUserId, a.OccurredAt });
-            entity.HasIndex(a => a.CorrelationId);
-            // Supports the keyset scan on the own-trail read (MSP-66). Without an index matching the
-            // (OccurredAt, Id) sort, keyset paging still returns correct rows but degrades at depth
-            // exactly like the OFFSET it replaced - the cost it exists to avoid.
-            entity.HasIndex(a => new { a.OccurredAt, a.Id });
-            // MSP-75/FR-AUD-004: the entity, actor, and date-range filters above were already
-            // covered by the three indexes above this one - checked before assuming a gap existed,
-            // per the earlier audit finding's own claim that the indexes "exist, unused". Action was
-            // the one dimension with no matching index; an action-only or action+date filter on this
-            // table would otherwise be a full scan of a table that grows forever by design.
-            entity.HasIndex(a => new { a.Action, a.OccurredAt });
-        });
-
-        modelBuilder.Entity<Domain.ReferenceData.DocumentType>(entity =>
-        {
-            entity.ToTable("document_type", "reference");
-            entity.HasKey(d => d.Id);
-            entity.Property(d => d.Code).HasMaxLength(50).IsRequired();
-            entity.HasIndex(d => d.Code).IsUnique();
-            entity.Property(d => d.NameAr).HasMaxLength(200).IsRequired();
-            entity.Property(d => d.NameEn).HasMaxLength(200).IsRequired();
-
-            // Generic types only - no invented Syrian-specific document rules (FR-REG-006 pattern).
-            //
-            // IsAwardCritical is D-58's ruling, and it belongs HERE rather than in a data migration. It was
-            // a migration first (20260908115449, folded into the squash), and that only worked while the
-            // migration history was replayed from the beginning: a squashed baseline seeds this table from
-            // the model, so a flag that lived only in an UpdateData step would have come back false and
-            // BRULE-023 would have gone back to suspending nobody. The seeded value is the product's
-            // answer; SCR-710 is for a buying body that needs a different one.
-            entity.HasData(
-                new Domain.ReferenceData.DocumentType
-                {
-                    Id = Guid.Parse("00000000-0000-0000-0000-000000000101"),
-                    Code = "commercial_registration",
-                    NameAr = "السجل التجاري",
-                    NameEn = "Commercial Registration",
-                    IsRequired = true,
-                    ExpiryTracked = false,
-                    // An expired commercial register means the entity is no longer registered to trade.
-                    IsAwardCritical = true,
-                },
-                new Domain.ReferenceData.DocumentType
-                {
-                    Id = Guid.Parse("00000000-0000-0000-0000-000000000102"),
-                    Code = "tax_certificate",
-                    NameAr = "الشهادة الضريبية",
-                    NameEn = "Tax Certificate",
-                    IsRequired = true,
-                    ExpiryTracked = true,
-                    // An expired tax card means the company cannot lawfully be paid.
-                    IsAwardCritical = true,
-                },
-                new Domain.ReferenceData.DocumentType
-                {
-                    Id = Guid.Parse("00000000-0000-0000-0000-000000000103"),
-                    Code = "chamber_membership",
-                    NameAr = "عضوية الغرفة التجارية",
-                    NameEn = "Chamber of Commerce Membership",
-                    IsRequired = false,
-                    ExpiryTracked = true,
-                }
-            );
-        });
-
-        modelBuilder.Entity<SupplierDocument>(entity =>
-        {
-            entity.ToTable("supplier_document", "supplier");
-            // T-010: the public identifier. Unique in the DATABASE, not merely in the generator - the
-            // generator is atomic (MSP-81) but a unique index is what makes a collision impossible rather
-            // than unlikely, and it is what every other reference code in this schema already has.
-            entity.Property(d => d.ReferenceCode).HasMaxLength(30).IsRequired();
-            entity.HasIndex(d => d.ReferenceCode).IsUnique();
-            entity.HasKey(d => d.Id);
-            entity.Property(d => d.State).HasConversion<string>().HasMaxLength(20);
-            entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();
-            entity.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();
-            entity.Property(d => d.ContentType).HasMaxLength(150).IsRequired();
-            entity.Property(d => d.RejectReason).HasMaxLength(1000);
-            entity.HasIndex(d => new { d.SupplierId, d.DocumentTypeId, d.IsLatestVersion });
-            entity.HasOne<Supplier>().WithMany().HasForeignKey(d => d.SupplierId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne<Domain.ReferenceData.DocumentType>().WithMany().HasForeignKey(d => d.DocumentTypeId).OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<DocumentExpiryReminder>(entity =>
-        {
-            entity.ToTable("document_expiry_reminder", "supplier");
-            entity.HasKey(r => r.Id);
-
-            // The unique index IS the de-duplication rule. Checking in C# and inserting afterwards
-            // leaves a window between the read and the write, and this job can legitimately run
-            // concurrently with itself (a retry overlapping a scheduled run). A duplicate insert
-            // must fail at the database, not merely be unlikely.
-            entity.HasIndex(r => new { r.SupplierDocumentId, r.DocumentVersion, r.ThresholdDays })
-                .IsUnique();
-
-            entity.HasOne<SupplierDocument>().WithMany()
-                .HasForeignKey(r => r.SupplierDocumentId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<SupplierReviewAnnotation>(entity =>
-        {
-            entity.ToTable("supplier_review_annotation", "supplier");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.Reason).HasMaxLength(2000).IsRequired();
-            entity.Property(a => a.FlaggedProfileFields).HasColumnType("text[]");
-            entity.Property(a => a.FlaggedDocumentTypeIds).HasColumnType("uuid[]");
-            entity.HasIndex(a => new { a.SupplierId, a.ResolvedAt });
-        });
-
-        // EPIC-15/T3-14. DATABASE-MODEL.md §2.7 specifies this table in full; it is transcribed
-        // rather than designed, including the two things that carry the guarantees:
-        //   U(dedupe_key)              - the idempotency guarantee, so the same event delivered
-        //                                twice produces one row rather than two
-        //   IX(recipient_user_id, read_at) - the bell's own query (unread for this user), which is
-        //                                on every page of the app for every authenticated persona
-        modelBuilder.Entity<NotificationPreference>(entity =>
-        {
-            entity.ToTable("notification_preference", "shared");
-            entity.HasKey(p => p.Id);
-            entity.Property(p => p.NotificationType).HasMaxLength(200).IsRequired();
-
-            // One row per (user, type). A duplicate would mute the same type twice, which changes nothing -
-            // and that is exactly why it must be refused here rather than tidied up later: a set the user
-            // sends twice has to be idempotent at the database, not in whichever handler happens to write it.
-            entity.HasIndex(p => new { p.UserId, p.NotificationType }).IsUnique();
-
-            entity.HasOne<AppUser>().WithMany()
-                .HasForeignKey(p => p.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Notification>(entity =>
-        {
-            entity.ToTable("notification", "shared");
-            entity.HasKey(n => n.Id);
-            entity.Property(n => n.Type).HasMaxLength(200).IsRequired();
-            entity.Property(n => n.Channel).HasConversion<string>().HasMaxLength(20);
-            entity.Property(n => n.DeliveryStatus).HasConversion<string>().HasMaxLength(20);
-            entity.Property(n => n.TitleAr).HasMaxLength(300).IsRequired();
-            entity.Property(n => n.TitleEn).HasMaxLength(300).IsRequired();
-            entity.Property(n => n.BodyAr).HasMaxLength(2000).IsRequired();
-            entity.Property(n => n.BodyEn).HasMaxLength(2000).IsRequired();
-            entity.Property(n => n.DataJson).HasColumnName("data").HasColumnType("jsonb").IsRequired();
-            entity.Property(n => n.DedupeKey).HasMaxLength(400).IsRequired();
-
-            entity.HasIndex(n => n.DedupeKey).IsUnique();
-            entity.HasIndex(n => new { n.RecipientUserId, n.ReadAt });
-
-            entity.HasOne<AppUser>().WithMany()
-                .HasForeignKey(n => n.RecipientUserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // xmin, as every other versioned aggregate maps it (§8.1).
-            entity.Property(n => n.RowVersion).IsAppManagedVersion();
-        });
-
-        modelBuilder.Entity<OutboxMessage>(entity =>
-        {
-            entity.ToTable("outbox_message", "ops");
-            entity.HasKey(o => o.Id);
-            entity.Property(o => o.Type).HasMaxLength(200).IsRequired();
-            entity.Property(o => o.PayloadJson).HasColumnType("jsonb").IsRequired();
-            entity.Property(o => o.SyncStatus).HasConversion<string>().HasMaxLength(20);
-            entity.HasIndex(o => o.SyncStatus);
-        });
-
-        // FEAT-11.1, pulled forward for EPIC-07 (docs/architecture/DATABASE-MODEL.md §2.5,
-        // schema "evaluation").
-        modelBuilder.Entity<EvaluationTemplate>(entity =>
-        {
-            entity.ToTable("evaluation_template", "evaluation");
-            entity.HasKey(t => t.Id);
-            entity.Property(t => t.NameAr).HasMaxLength(200).IsRequired();
-            entity.Property(t => t.NameEn).HasMaxLength(200).IsRequired();
-            entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
-            entity.Property(t => t.RowVersion).IsAppManagedVersion();
-            // One version-row per (FamilyId, Version) - see EvaluationTemplate.cs's own doc
-            // comment on why each version is its own row rather than one row mutating in place.
-            entity.HasIndex(t => new { t.FamilyId, t.Version }).IsUnique();
-            entity.HasMany(t => t.Criteria).WithOne().HasForeignKey(c => c.EvaluationTemplateId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Criterion>(entity =>
-        {
-            entity.ToTable("criterion", "evaluation");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.NameAr).HasMaxLength(200).IsRequired();
-            entity.Property(c => c.NameEn).HasMaxLength(200).IsRequired();
-            entity.Property(c => c.Dimension).HasConversion<string>().HasMaxLength(20);
-            entity.Property(c => c.ScoringType).HasConversion<string>().HasMaxLength(20);
-            entity.Property(c => c.Weight).HasPrecision(5, 2);
-            entity.Property(c => c.MaxScore).HasPrecision(6, 2);
-            entity.Property(c => c.Threshold).HasPrecision(6, 2);
-            entity.Property(c => c.GuidanceAr).HasMaxLength(1000);
-            entity.Property(c => c.GuidanceEn).HasMaxLength(1000);
-            entity.HasIndex(c => c.EvaluationTemplateId);
-        });
-
-        // FEAT-07.1..07.10 (docs/architecture/DATABASE-MODEL.md §2.3, schema "rfq").
-        modelBuilder.Entity<Rfq>(entity =>
-        {
-            entity.ToTable("rfq", "rfq");
-            // EPIC-20; see the Supplier entity for why generated and why 'simple'.
-            entity.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
-                .HasComputedColumnSql(
-                    "to_tsvector('simple', regexp_replace(coalesce(\"TitleAr\",'') || ' ' || coalesce(\"TitleEn\",'') || ' ' || coalesce(\"ReferenceCode\",''), '[^[:alnum:]]+', ' ', 'g'))",
-                    stored: true);
-            entity.HasIndex("SearchVector").HasMethod("GIN");
-            entity.HasKey(r => r.Id);
-            entity.Property(r => r.ReferenceCode).HasMaxLength(30).IsRequired();
-            entity.HasIndex(r => r.ReferenceCode).IsUnique();
-            entity.Property(r => r.TitleAr).HasMaxLength(300).IsRequired();
-            entity.Property(r => r.TitleEn).HasMaxLength(300).IsRequired();
-            entity.Property(r => r.DescriptionAr).HasMaxLength(4000);
-            entity.Property(r => r.DescriptionEn).HasMaxLength(4000);
-            entity.Property(r => r.CurrencyCode).HasMaxLength(3).IsRequired();
-            entity.Property(r => r.State).HasConversion<string>().HasMaxLength(20);
-            entity.Property(r => r.EvaluationTemplateSnapshotJson).HasColumnType("jsonb");
-            entity.Property(r => r.CancelReason).HasMaxLength(2000);
-            entity.Property(r => r.RowVersion).IsAppManagedVersion();
-            entity.HasIndex(r => new { r.OrganizationId, r.State });
-            entity.HasIndex(r => r.State);
-            // A-7: "Awaiting my action" and the buyer list's mine/unassigned filter both query on
-            // this beside the organization, which is already the first clause of every dashboard
-            // query - so the composite, not a bare index on the owner.
-            entity.HasIndex(r => new { r.OrganizationId, r.OwnerUserId });
-            entity.HasMany(r => r.Items).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(r => r.Requirements).WithOne().HasForeignKey(q => q.RfqId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(r => r.Attachments).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(r => r.Approvals).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(r => r.Invitations).WithOne().HasForeignKey(i => i.RfqId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(r => r.Clarifications).WithOne().HasForeignKey(c => c.RfqId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(r => r.Addenda).WithOne().HasForeignKey(a => a.RfqId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<RfqItem>(entity =>
-        {
-            entity.ToTable("rfq_item", "rfq");
-            entity.HasKey(i => i.Id);
-            entity.Property(i => i.TitleAr).HasMaxLength(300).IsRequired();
-            entity.Property(i => i.TitleEn).HasMaxLength(300).IsRequired();
-            entity.Property(i => i.SpecificationAr).HasMaxLength(2000);
-            entity.Property(i => i.SpecificationEn).HasMaxLength(2000);
-            entity.Property(i => i.CategoryCode).HasMaxLength(50).IsRequired();
-            entity.Property(i => i.Quantity).HasPrecision(18, 4);
-            entity.Property(i => i.UnitOfMeasureCode).HasMaxLength(50).IsRequired();
-            entity.HasIndex(i => new { i.RfqId, i.LineNo }).IsUnique();
-        });
-
-        modelBuilder.Entity<Requirement>(entity =>
-        {
-            entity.ToTable("requirement", "rfq");
-            entity.HasKey(q => q.Id);
-            entity.Property(q => q.TextAr).HasMaxLength(2000).IsRequired();
-            entity.Property(q => q.TextEn).HasMaxLength(2000).IsRequired();
-            entity.Property(q => q.DocumentTypeCode).HasMaxLength(50);
-            // A-2: stored as a STRING, matching ProposalDocument.Envelope. The scaffolder defaulted this
-            // to an integer, which would have put the same enum in the database two different ways -
-            // readable one place and an opaque ordinal the other, and any reordering of the enum members
-            // would silently re-interpret every existing row on this side only.
-            entity.Property(q => q.ExpectedEnvelope).HasConversion<string>().HasMaxLength(20);
-            entity.HasIndex(q => q.RfqId);
-        });
-
-        modelBuilder.Entity<RfqAttachment>(entity =>
-        {
-            entity.ToTable("rfq_attachment", "rfq");
-            entity.Property(a => a.ScanState).HasConversion<string>().HasMaxLength(20);
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.StorageKey).HasMaxLength(500).IsRequired();
-            entity.Property(a => a.OriginalFileName).HasMaxLength(300).IsRequired();
-            entity.Property(a => a.ContentType).HasMaxLength(150).IsRequired();
-            entity.Property(a => a.Caption).HasMaxLength(500);
-            entity.HasIndex(a => a.RfqId);
-        });
-
-        // OQ-004 interim (RfqApproval.cs's own doc comment): an ordered, growing array of review
-        // passes, not a scalar approver field.
-        modelBuilder.Entity<RfqApproval>(entity =>
-        {
-            entity.ToTable("rfq_approval", "rfq");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
-            entity.Property(a => a.Comment).HasMaxLength(2000);
-            entity.HasIndex(a => new { a.RfqId, a.StepNo }).IsUnique();
-        });
-
-        // FEAT-08.1/DATABASE-MODEL.md §2.4: unique(rfq_id, supplier_id) is DB-enforced, "never
-        // left to app-only checks" per that doc's own note - Rfq.InviteSupplier's app-level
-        // duplicate check is a fast-fail UX nicety, not the actual invariant guarantee.
-        modelBuilder.Entity<Invitation>(entity =>
-        {
-            entity.ToTable("invitation", "rfq");
-            entity.HasKey(i => i.Id);
-            entity.Property(i => i.Status).HasConversion<string>().HasMaxLength(20);
-            entity.Property(i => i.DeclineReason).HasMaxLength(2000);
-            entity.HasIndex(i => new { i.RfqId, i.SupplierId }).IsUnique();
-            entity.HasIndex(i => i.SupplierId);
-        });
-
-        // FEAT-10.1..10.3/DOMAIN-MODEL.md §5.4: Question is required at construction; Answer starts
-        // null until AnswerClarification sets it (see Clarification.cs's own doc comment on why
-        // AskedBySupplierId is always stored and only ever hidden at the DTO layer).
-        modelBuilder.Entity<Clarification>(entity =>
-        {
-            entity.ToTable("clarification", "rfq");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.Question).HasMaxLength(4000).IsRequired();
-            entity.Property(c => c.Answer).HasMaxLength(4000);
-            entity.Property(c => c.Visibility).HasConversion<string>().HasMaxLength(20);
-            entity.HasIndex(c => c.RfqId);
-            entity.HasIndex(c => c.AskedBySupplierId);
-        });
-
-        // FEAT-10.4/BRULE-038: additive record, never mutates the RFQ's original content - see
-        // Addendum.cs's own doc comment.
-        modelBuilder.Entity<Addendum>(entity =>
-        {
-            entity.ToTable("addendum", "rfq");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.TitleAr).HasMaxLength(300).IsRequired();
-            entity.Property(a => a.TitleEn).HasMaxLength(300).IsRequired();
-            entity.Property(a => a.DescriptionAr).HasMaxLength(4000).IsRequired();
-            entity.Property(a => a.DescriptionEn).HasMaxLength(4000).IsRequired();
-            entity.HasIndex(a => a.RfqId);
-        });
-
-        // FEAT-09.1..09.6/DOMAIN-MODEL.md §5.5: Proposal is its own aggregate root (schema
-        // "proposal"), not an Rfq child - DOMAIN-MODEL.md's own "Aggregate: Proposal.ProposalState".
-        // unique(rfq_id, supplier_id) is the real uniqueness guarantee (Proposal.Create's own
-        // handler-level idempotent-start check is a fast-fail UX nicety on top of it, same pattern
-        // as Invitation's own duplicate-invite check).
-        modelBuilder.Entity<Proposal>(entity =>
-        {
-            entity.ToTable("proposal", "proposal");
-            entity.HasKey(p => p.Id);
-            entity.Property(p => p.ReferenceCode).HasMaxLength(30).IsRequired();
-            entity.HasIndex(p => p.ReferenceCode).IsUnique();
-            entity.Property(p => p.State).HasConversion<string>().HasMaxLength(30);
-            entity.Property(p => p.CurrencyCode).HasMaxLength(3);
-            entity.Property(p => p.PaymentTerms).HasMaxLength(500);
-            entity.Property(p => p.IncotermCode).HasMaxLength(10);
-            entity.Property(p => p.DeliveryTermsAr).HasMaxLength(1000);
-            entity.Property(p => p.DeliveryTermsEn).HasMaxLength(1000);
-            entity.Property(p => p.Warranty).HasMaxLength(500);
-            entity.Property(p => p.NarrativeAr).HasMaxLength(4000);
-            entity.Property(p => p.NarrativeEn).HasMaxLength(4000);
-            entity.Property(p => p.WithdrawReason).HasMaxLength(2000);
-            // T-064: same bound, same kind of value - a supplier's free text explaining a transition.
-            entity.Property(p => p.DeclineReason).HasMaxLength(2000);
-            // Same bound as WithdrawReason - both are a person's free text explaining a transition.
-            entity.Property(p => p.ClarificationReason).HasMaxLength(2000);
-            entity.Property(p => p.RowVersion).IsAppManagedVersion();
-            // Unique per (rfq, supplier) among proposals that are NOT withdrawn.
-            //
-            // The unfiltered version made BUSINESS-PROCESSES.md §4.1's re-entry impossible at the
-            // database level: "re-submission allowed while window open (new draft)" needs a second
-            // row, and the index refused one. Narrowed rather than dropped - the rule being enforced
-            // is "one LIVE proposal per supplier per RFQ", which is what uniqueness was always for;
-            // a withdrawn proposal is a historical record, not a current bid, and any number of them
-            // can accumulate if a supplier withdraws repeatedly within the window.
-            entity.HasIndex(p => new { p.RfqId, p.SupplierId })
-                .IsUnique()
-                // The column name is QUOTED. This project maps to PascalCase columns, and an
-                // unquoted `state` folds to lowercase in Postgres and does not exist - the first
-                // version of this filter failed every migration with 42703.
-                //
-                // A-9 added Lapsed and Cancelled, and both belong in this exclusion for the same
-                // reason Withdrawn does: they are historical records rather than current bids. A
-                // supplier whose draft LAPSED on RFQ-1 must be able to bid again if that RFQ reopens
-                // its window, and one whose proposal was CANCELLED with the RFQ must not be blocked
-                // from a re-tender. Leaving them in would have made the index refuse the second row
-                // and surface as a 500 on a perfectly legitimate submission - which is exactly how
-                // the unfiltered version of this index failed the first time.
-                .HasFilter("\"State\" NOT IN ('Withdrawn', 'Lapsed', 'Cancelled')");
-            entity.HasIndex(p => new { p.SupplierId, p.State });
-            entity.HasIndex(p => new { p.RfqId, p.State });
-            entity.HasMany(p => p.Items).WithOne().HasForeignKey(i => i.ProposalId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(p => p.Documents).WithOne().HasForeignKey(d => d.ProposalId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(p => p.RequirementAnswers).WithOne().HasForeignKey(a => a.ProposalId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // FEAT-09.1/FR-PRP-002: the two-envelope FINANCIAL table - deliberately its own table so a
-        // query can omit it entirely rather than filtering a shared row (see ProposalItem.cs's own
-        // doc comment). LineTotal is a computed property, not a column - never persisted.
-        modelBuilder.Entity<ProposalItem>(entity =>
-        {
-            entity.ToTable("proposal_item", "proposal");
-            entity.HasKey(i => i.Id);
-            entity.Property(i => i.Quantity).HasPrecision(18, 4);
-            entity.Property(i => i.UnitPrice).HasPrecision(18, 4);
-            entity.Property(i => i.Discount).HasPrecision(18, 4);
-            entity.Property(i => i.NotesAr).HasMaxLength(2000);
-            entity.Property(i => i.NotesEn).HasMaxLength(2000);
-            entity.Ignore(i => i.LineTotal);
-            entity.HasIndex(i => new { i.ProposalId, i.RfqItemId }).IsUnique();
-        });
-
-        modelBuilder.Entity<ProposalDocument>(entity =>
-        {
-            entity.ToTable("proposal_document", "proposal");
-            entity.Property(a => a.ScanState).HasConversion<string>().HasMaxLength(20);
-            entity.Property(d => d.Envelope).HasConversion<string>().HasMaxLength(20);
-            entity.HasKey(d => d.Id);
-            entity.Property(d => d.StorageKey).HasMaxLength(500).IsRequired();
-            entity.Property(d => d.OriginalFileName).HasMaxLength(300).IsRequired();
-            entity.Property(d => d.ContentType).HasMaxLength(150).IsRequired();
-            entity.Property(d => d.Caption).HasMaxLength(500);
-            entity.HasIndex(d => d.ProposalId);
-        });
-
-        modelBuilder.Entity<RequirementAnswer>(entity =>
-        {
-            entity.ToTable("requirement_answer", "proposal");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.AnswerAr).HasMaxLength(4000).IsRequired();
-            entity.Property(a => a.AnswerEn).HasMaxLength(4000).IsRequired();
-            entity.HasIndex(a => new { a.ProposalId, a.RequirementId }).IsUnique();
-        });
-
-        // EPIC-11/DOMAIN-MODEL.md §5.7: Evaluation is its own aggregate root (schema "evaluation"),
-        // bound to RfqId - same "own bounded context, referenced by id" shape as Proposal. One
-        // Evaluation per Rfq (unique index on RfqId).
-        modelBuilder.Entity<MotsSupplierPortal.Domain.Evaluation.Evaluation>(entity =>
-        {
-            entity.ToTable("evaluation", "evaluation");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.State).HasConversion<string>().HasMaxLength(20);
-            entity.Property(e => e.RowVersion).IsAppManagedVersion();
-            entity.HasIndex(e => e.RfqId).IsUnique();
-            entity.HasMany(e => e.Criteria).WithOne().HasForeignKey(c => c.EvaluationId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(e => e.Assignments).WithOne().HasForeignKey(a => a.EvaluationId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(e => e.Scores).WithOne().HasForeignKey(s => s.EvaluationId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(e => e.Results).WithOne().HasForeignKey(r => r.EvaluationId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<EvaluationCriterionSnapshot>(entity =>
-        {
-            entity.ToTable("evaluation_criterion_snapshot", "evaluation");
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.NameAr).HasMaxLength(200).IsRequired();
-            entity.Property(c => c.NameEn).HasMaxLength(200).IsRequired();
-            entity.Property(c => c.Dimension).HasConversion<string>().HasMaxLength(20);
-            entity.Property(c => c.ScoringType).HasConversion<string>().HasMaxLength(20);
-            entity.Property(c => c.Weight).HasPrecision(5, 2);
-            entity.Property(c => c.MaxScore).HasPrecision(6, 2);
-            entity.Property(c => c.Threshold).HasPrecision(6, 2);
-            // SCR-501. The same 1000 as Criterion.Guidance on the template this is copied from: a shorter
-            // column here would truncate an instruction the author was allowed to write.
-            entity.Property(c => c.GuidanceAr).HasMaxLength(1000);
-            entity.Property(c => c.GuidanceEn).HasMaxLength(1000);
-            entity.Ignore(c => c.IsFinancial);
-            entity.HasIndex(c => c.EvaluationId);
-        });
-
-        modelBuilder.Entity<EvaluationAssignment>(entity =>
-        {
-            entity.ToTable("evaluation_assignment", "evaluation");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.RecusalReason).HasMaxLength(2000);
-            entity.Ignore(a => a.IsActive);
-            entity.HasIndex(a => new { a.EvaluationId, a.EvaluatorUserId }).IsUnique();
-        });
-
-        // FEAT-11.3/DATABASE-MODEL.md §2.6: unique(EvaluationId, EvaluatorUserId, ProposalId,
-        // CriterionId) is the DB-enforced guarantee behind blind independent scoring (OQ-005/
-        // BRULE-058) - one row per evaluator per proposal per criterion, never shared.
-        modelBuilder.Entity<EvaluatorScore>(entity =>
-        {
-            entity.ToTable("evaluator_score", "evaluation");
-            entity.HasKey(s => s.Id);
-            entity.Property(s => s.RawScore).HasPrecision(6, 2);
-            entity.Property(s => s.CommentAr).HasMaxLength(2000);
-            entity.Property(s => s.CommentEn).HasMaxLength(2000);
-            entity.HasIndex(s => new { s.EvaluationId, s.EvaluatorUserId, s.ProposalId, s.CriterionId }).IsUnique();
-            entity.HasIndex(s => new { s.EvaluationId, s.EvaluatorUserId });
-        });
-
-        modelBuilder.Entity<ConsolidatedResult>(entity =>
-        {
-            entity.ToTable("consolidated_result", "evaluation");
-            entity.HasKey(r => r.Id);
-            entity.Property(r => r.TechnicalWeightedScore).HasPrecision(8, 2);
-            entity.Property(r => r.FinancialWeightedScore).HasPrecision(8, 2);
-            entity.Property(r => r.WeightedTotal).HasPrecision(8, 2);
-            entity.HasIndex(r => new { r.EvaluationId, r.ProposalId }).IsUnique();
-        });
-
-        // EPIC-14/DOMAIN-MODEL.md §5.8: Award is its own aggregate root (schema "award"), bound to
-        // RfqId - same "own bounded context, referenced by id" shape as Proposal/Evaluation. One
-        // Award per Rfq (unique index on RfqId).
-        modelBuilder.Entity<Award>(entity =>
-        {
-            entity.ToTable("award", "award");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.State).HasConversion<string>().HasMaxLength(20);
-            entity.Property(a => a.JustificationAr).HasMaxLength(4000).IsRequired();
-            entity.Property(a => a.JustificationEn).HasMaxLength(4000).IsRequired();
-            entity.Property(a => a.ComparisonSnapshotJson).HasColumnType("jsonb");
-            entity.Property(a => a.ErpSyncStatus).HasConversion<string>().HasMaxLength(20);
-            entity.Property(a => a.ExternalPurchaseOrderRef).HasMaxLength(100);
-            entity.Property(a => a.RowVersion).IsAppManagedVersion();
-            entity.HasIndex(a => a.RfqId).IsUnique();
-            entity.HasMany(a => a.Approvals).WithOne().HasForeignKey(p => p.AwardId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Approval>(entity =>
-        {
-            entity.ToTable("approval", "award");
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
-            entity.Property(a => a.Comment).HasMaxLength(2000);
-            entity.HasIndex(a => new { a.AwardId, a.StepNo });
-        });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 }

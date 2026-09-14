@@ -1,3 +1,25 @@
+// Suspending, reactivating and deactivating an approved supplier.
+//
+// The transitions themselves live on the supplier. This handler owns saving them, recording them, and the
+// part the rule requires that the domain cannot reach: taking away the supplier's users' access when the
+// company is deactivated.
+//
+// A refused transition comes back as a typed result carrying the domain's own message, so the caller learns
+// why rather than being told no.
+//
+//
+// REVOKING ACCESS NEEDS BOTH HALVES
+//
+// Neither is sufficient on its own. Marking the accounts inactive stops a new sign-in and stops a refresh,
+// because both paths check it. But a live refresh-token family is a credential still sitting in a browser,
+// so the families are ended as well, matching what disabling a single user already does.
+//
+// Setting the supplier's state alone would look identical in the database and leave every one of its users
+// able to keep working. That is why the tests assert an actual failed sign-in and an actual failed refresh
+// rather than inspecting the state column.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -6,13 +28,6 @@ using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>
-/// FR-ONB-009 post-approval lifecycle (MSP-63). The transitions themselves live on the aggregate;
-/// this handler owns persistence, auditing, and the part BRULE-008 requires that the domain cannot
-/// reach: revoking the supplier's users' access on deactivation.
-/// </summary>
 public sealed class SupplierLifecycleHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,
@@ -50,8 +65,6 @@ public sealed class SupplierLifecycleHandler(
         }
         catch (DomainException ex)
         {
-            // NFR-CMP-003 / BRULE-097: surfaced as a typed result carrying the domain's own message,
-            // so the caller learns why the transition was refused rather than being told "no".
             return new SupplierLifecycleResult.Invalid(ex.Message);
         }
 
@@ -73,18 +86,6 @@ public sealed class SupplierLifecycleHandler(
         return new SupplierLifecycleResult.Success(supplier.LifecycleState.ToString());
     }
 
-    /// <summary>
-    /// BRULE-008: a deactivated supplier's logins are revoked.
-    ///
-    /// Both halves are necessary and neither is sufficient. IsActive=false stops a NEW login
-    /// (LoginHandler checks it) and stops a refresh (RefreshTokenHandler checks it too), but a
-    /// refresh-token family left alive is a credential still sitting in a browser - so the families
-    /// are killed as well, matching what DisableSupplierUserHandler already does for a single user.
-    ///
-    /// Setting the supplier's state alone would look identical in the database and leave every one
-    /// of its users able to keep working. That is why the tests assert an actual failed login and
-    /// an actual failed refresh rather than inspecting the state column.
-    /// </summary>
     private async Task RevokeSupplierUsersAsync(Guid supplierId, CancellationToken ct)
     {
         var users = await userManager.Users.Where(u => u.SupplierId == supplierId).ToListAsync(ct);

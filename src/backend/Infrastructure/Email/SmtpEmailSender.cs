@@ -1,3 +1,28 @@
+// The real mail transport.
+//
+// Durability and retry are unchanged and are not this class's job: the framework already retries a job whose
+// method throws. So this sender's only responsibility is to deliver, and to throw on failure rather than swallow
+// it, so a transient outage produces a retry instead of a silently lost email.
+//
+//
+// A FAILURE MUST NOT CARRY THE RECIPIENT INTO THE LOGS
+//
+// A mail server's rejection text commonly embeds the address it rejected. That is exactly what the privacy rule
+// exists to keep out of the log stream, and the logging stand-in never had a failure path to worry about at all.
+//
+// So a failure is caught, logged with only the user identifier and the subject, and rethrown as a dedicated
+// exception that carries neither the address nor the body.
+//
+// Inside the catch, the exception OBJECT is never passed to the logger: doing so logs its message, and the
+// formatter includes it. Only the exception's type name is logged, as a plain string.
+//
+// The dedicated exception also deliberately does not wrap the original as an inner exception, because the
+// language's default formatting includes an inner exception's message wherever this one is logged. Only the
+// failing type's name is kept. The framework retries on it like any other thrown exception, and the original is
+// still fully logged, with the same redaction, at the catch site for anyone who needs the underlying error.
+
+namespace MotsSupplierPortal.Infrastructure.Email;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MailKit.Net.Smtp;
@@ -5,23 +30,6 @@ using MailKit.Security;
 using MimeKit;
 using MotsSupplierPortal.Application.Common;
 
-namespace MotsSupplierPortal.Infrastructure.Email;
-
-/// <summary>
-/// Task #35: real transport for EPIC-15/FR-NOT-003's "durable background job with retry" half.
-/// The durability/retry itself is unchanged - Hangfire already retries a job whose method throws
-/// (see EmailJobs's Enqueue call sites), so this sender's only job is to actually deliver and to
-/// throw on failure rather than swallow it, so a transient SMTP outage produces a retry instead of
-/// a silently lost email.
-///
-/// <para>MSP-61/MSP-93/BRULE-091, extended to a real failure path that LoggingEmailSender never
-/// had: on send failure this never lets the raw SMTP exception (whose message commonly embeds the
-/// recipient address, e.g. "550 mailbox unavailable: user@example.com") propagate or get logged.
-/// It's caught, logged with userId/subject only (never toEmail, never htmlBody), and rethrown as a
-/// new <see cref="EmailDeliveryException"/> carrying none of that - so a PII-bearing message
-/// cannot land in Serilog output or Hangfire's own job-failure storage, which keeps this session's
-/// same guarantee for a channel that previously had no failure mode to worry about at all.</para>
-/// </summary>
 public sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpEmailSender> logger) : IEmailSender
 {
     public async Task SendAsync(Guid userId, string toEmail, string subject, string htmlBody, CancellationToken ct = default)
@@ -50,10 +58,6 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpE
         }
         catch (Exception ex)
         {
-            // Never `logger.LogError(ex, ...)` here: passing the exception OBJECT logs its Message
-            // (and Serilog's default formatter includes it), and an SMTP rejection's own error text
-            // frequently echoes the recipient address back - exactly what MSP-61 exists to keep out
-            // of the log stream. Only the exception's type name is logged, as a plain string arg.
             logger.LogError(
                 "Email delivery failed for user {UserId} | template {EmailSubject} | {ExceptionType}",
                 userId, subject, ex.GetType().Name);
@@ -62,14 +66,6 @@ public sealed class SmtpEmailSender(IOptions<SmtpOptions> options, ILogger<SmtpE
     }
 }
 
-/// <summary>Carries no recipient address or body - see SmtpEmailSender's MSP-61 note. Deliberately
-/// does not wrap the original exception as `InnerException`: MailKit/SMTP exceptions can carry the
-/// recipient address inside their own Message (e.g. an SMTP server's rejection text echoing it
-/// back), and .NET's default exception formatting includes the inner exception's Message wherever
-/// this one is logged - so only the failing exception's TYPE NAME is kept, in this message, never
-/// its Message or the original object. Hangfire retries on this like any other thrown exception
-/// from a job method; the original exception is still fully logged (with the same redaction) at
-/// the SmtpEmailSender catch site above, for anyone who needs the underlying SMTP error to debug.</summary>
 public sealed class EmailDeliveryException(Guid userId, string subject, Exception inner)
     : Exception($"Email delivery failed for user {userId}, template \"{subject}\" ({inner.GetType().Name}).")
 {

@@ -1,8 +1,19 @@
+// Accepting an invitation: the part both the staff flow and the supplier flow share.
+//
+// The opaque single-use token is consumed by purpose and is the only lookup key. The link never carries a user
+// identifier.
+//
+// The real password is then set through the identity framework's own reset flow, with a token generated and
+// consumed internally.
+//
+// Only the purpose and each caller's own result shape differ between the two flows. Everything else was a
+// byte-for-byte duplicate before this was extracted.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
-
-namespace MotsSupplierPortal.Infrastructure.Identity;
 
 public enum AcceptInviteOutcome
 {
@@ -13,14 +24,6 @@ public enum AcceptInviteOutcome
 
 public sealed record AcceptInviteCoreResult(AcceptInviteOutcome Outcome, IReadOnlyList<string> Errors);
 
-/// <summary>
-/// Shared by AcceptSupplierUserInviteHandler and AcceptStaffInviteHandler (and any future invite
-/// flow that follows the same shape): consume an opaque SecurityToken by purpose - the sole
-/// lookup key, never a userId in the URL (SECURITY-ARCHITECTURE.md 1.6/1.7) - then set the real
-/// password via ASP.NET Core Identity's own reset-token flow. Only the SecurityTokenPurpose and
-/// each caller's own result-type wrapping differ between the two flows; everything else was a
-/// byte-for-byte duplicate before this extraction.
-/// </summary>
 public static class InviteAcceptance
 {
     public static async Task<AcceptInviteCoreResult> AcceptAsync(

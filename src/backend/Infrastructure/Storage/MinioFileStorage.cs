@@ -1,21 +1,50 @@
+// File storage against the object store.
+//
+// Local development and production both point at an object store rather than a separate local-disk
+// implementation, because the store is already the provisioned development storage.
+//
+//
+// IT USES THE GENERAL S3 CLIENT RATHER THAN THE STORE'S OWN
+//
+// The store's own client was tried first, in two versions, and silently "succeeded" on an upload against this
+// server version: an empty checksum, and a subsequent metadata read showing zero bytes. The object never landed.
+//
+// The general client round-trips correctly, verified with a real metadata request, and is the far more widely used
+// and mature client for talking to stores of this kind, including this one.
+//
+//
+// THE READINESS PROBE IS READ-ONLY
+//
+// Deliberately not the bucket-ensuring call, which CREATES the bucket when it is absent.
+//
+// A readiness probe an orchestrator polls every few seconds must never have a side effect. It answers whether the
+// endpoint is reachable and responding, and nothing more.
+//
+//
+// A READ RETURNS THE LIVE NETWORK STREAM
+//
+// Its only caller already streams into the scanner in small chunks, and copying the whole object into memory here
+// first defeated that entirely, holding the full file on the heap before handing it to a scanner that never needed
+// more than a few kilobytes at a time.
+//
+// Returning the response's stream directly disposes the response correctly, because the client wires stream
+// disposal to it, and never materialises the file in memory on this path at all.
+//
+//
+// A SIGNED LINK ALWAYS DOWNLOADS AND NEVER RENDERS INLINE
+//
+// And the filename in that header is built to the standard rather than interpolated. The name is whatever the
+// uploader typed, and a raw quote or a line break in it is header injection; the header builder's own explanation
+// covers the defect and why an ASCII-only escape would have been a regression against every Arabic filename in
+// this product.
+
+namespace MotsSupplierPortal.Infrastructure.Storage;
+
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Common;
 
-namespace MotsSupplierPortal.Infrastructure.Storage;
-
-/// <summary>
-/// S3-compatible file storage against the MinIO container (docs/architecture foundational §2's
-/// IFileStorage; local dev and prod both point at an S3-compatible endpoint rather than a
-/// separate local-disk implementation, since MinIO is already the provisioned dev storage).
-///
-/// Uses AWSSDK.S3 rather than the official MinIO .NET SDK: the MinIO SDK (both 6.0.4 and 7.0.0)
-/// was tried first and silently "succeeds" on PutObject against this MinIO server version
-/// (empty ETag, and StatObject afterward shows 0 bytes - the object never actually lands).
-/// AWSSDK.S3 round-trips correctly (real ETag, verified via a genuine HEAD request) and is the
-/// far more widely-used, mature client for talking to S3-compatible stores including MinIO.
-/// </summary>
 public sealed class MinioFileStorage : IFileStorage
 {
     private readonly IAmazonS3 _client;
@@ -47,11 +76,6 @@ public sealed class MinioFileStorage : IFileStorage
         }
     }
 
-    /// <summary>Task #16: read-only reachability probe for the readiness health check
-    /// (ObjectStorageHealthCheck) - deliberately NOT EnsureBucketExistsAsync, which mutates
-    /// (creates the bucket) on a 404. A readiness probe an orchestrator polls every few seconds
-    /// must never have a side effect; it answers "is the endpoint reachable and responding",
-    /// nothing more.</summary>
     public async Task PingAsync(CancellationToken ct) => await _client.GetBucketLocationAsync(_bucket, ct);
 
     public async Task SaveAsync(string key, Stream content, string contentType, CancellationToken ct)
@@ -66,13 +90,6 @@ public sealed class MinioFileStorage : IFileStorage
         }, ct);
     }
 
-    // MSP-84/NFR-PERF-008: the only caller is DocumentScanJob, which already streams into ClamAV
-    // in 8KB chunks (ClamAvScanner.cs) - copying the whole object into a MemoryStream here first
-    // defeated that entirely, holding the full file in managed heap before ever handing it to a
-    // scanner that never needed more than 8KB at a time. GetObjectResponse.ResponseStream is
-    // itself a live network stream over the S3/MinIO connection; returning it directly disposes
-    // the response correctly (AWS SDK wires stream disposal to the response) and never
-    // materializes the file in memory at all on this path.
     public async Task<Stream> OpenReadAsync(string key, CancellationToken ct)
     {
         var response = await _client.GetObjectAsync(_bucket, key, ct);
@@ -98,7 +115,6 @@ public sealed class MinioFileStorage : IFileStorage
 
     public Task<string> GetSignedDownloadUrlAsync(string key, TimeSpan expiry, string downloadFileName, CancellationToken ct)
     {
-        // attachment disposition (docs/security §4.1): never served inline from the app origin.
         var url = _client.GetPreSignedURL(new GetPreSignedUrlRequest
         {
             BucketName = _bucket,
@@ -107,10 +123,6 @@ public sealed class MinioFileStorage : IFileStorage
             Protocol = _useSsl ? Protocol.HTTPS : Protocol.HTTP,
             ResponseHeaderOverrides = new ResponseHeaderOverrides
             {
-                // RFC 6266, not interpolation. The file name is whatever the uploader typed, and a
-                // raw quote or CRLF in it is header injection - see ContentDisposition for the
-                // defect and for why an ASCII-only escape would have been a regression against every
-                // Arabic file name in this product.
                 ContentDisposition = ContentDisposition.Attachment(downloadFileName),
             },
         });

@@ -1,3 +1,12 @@
+// A supplier administrator disables one of their colleagues' accounts.
+//
+// Disabling revokes access immediately: the account is marked inactive AND every live refresh-token family
+// is ended, so a session already open cannot keep working.
+//
+// The same pattern a password change uses to end other sessions.
+
+namespace MotsSupplierPortal.Infrastructure.Suppliers;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
@@ -5,11 +14,6 @@ using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Suppliers;
-
-/// <summary>FEAT-04.8/MSP-55 AC3: disabling immediately revokes access - IsActive=false AND every
-/// active refresh-token family killed, so a live session can't keep working after disable (same
-/// pattern as ResetPasswordHandler's session revocation on password change).</summary>
 public sealed class DisableSupplierUserHandler(AppDbContext db, UserManager<AppUser> userManager, IScopeContext scope, IAuditLogger auditLogger) : IDisableSupplierUserHandler
 {
     public async Task<DisableSupplierUserResult> HandleAsync(DisableSupplierUserCommand command, CancellationToken ct)

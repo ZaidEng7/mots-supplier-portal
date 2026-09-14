@@ -1,30 +1,38 @@
+// Seeding each role's default permissions at startup, without ever undoing an administrator's edit.
+//
+// The shipped map is the source. The sets are administrator-editable afterwards.
+//
+//
+// EACH PERMISSION IS MARKED, NOT EACH ROLE, AND THAT IS A CORRECTION
+//
+// It used to write one marker per role and skip the whole role on every later start. That made the defaults a
+// one-time snapshot: adding a permission to a role in code had no effect on any environment whose roles
+// already existed.
+//
+// Found when a new dashboard gave the ministry viewer its first permission. The tests passed against a fresh
+// database and failed against a reused one, and the same divergence would have shipped as "the ministry
+// dashboard is forbidden in production and works locally".
+//
+//
+// THE MARKER IS WHAT KEEPS A REMOVAL INTACT
+//
+// A permission whose marker exists has been offered once. If it is absent from the role now, somebody took it
+// away deliberately, and re-adding it would overrule them.
+//
+// A permission with no marker has never been offered, so it is new in code and gets added.
+//
+// A deployment seeded under the old per-role marker has no per-permission markers at all. Everything it
+// currently HOLDS is treated as already offered, so the pass adds only what is genuinely new and does not
+// resurrect anything an administrator removed before now.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>
-/// Seeds default persona roles on startup (STORY-01.7.1 AC3). <c>Roles.DefaultPermissions</c> is the
-/// source; the sets are admin-editable afterwards, and this must never undo an edit.
-///
-/// <para><b>Marked PER PERMISSION, not per role, and that is a correction.</b> It used to write one
-/// <c>perms:seeded</c> claim per role and skip the whole role on every later start. That made the
-/// defaults a one-time snapshot: adding a permission to a role in code had no effect on any
-/// environment whose roles already existed. Found when EPIC-18 gave <c>ministry_viewer</c> its first
-/// permission - the tests passed against a fresh database and failed against a reused one, and the
-/// same divergence would have shipped as "the Ministry dashboard 403s in production and works
-/// locally". See DECISIONS-TAKEN.md D-30.</para>
-///
-/// <para>The per-permission marker is what keeps an admin's REMOVAL intact. A permission whose marker
-/// exists has been offered once; if it is absent from the role now, someone took it away deliberately
-/// and re-adding it would overrule them. A permission with no marker has never been offered, so it is
-/// new in code and gets added.</para>
-/// </summary>
 public static class RoleSeeder
 {
-    /// <summary>The old per-role marker. Still recognised, so an existing deployment's roles are not
-    /// re-offered every permission they have ever had - see MigrateLegacyMarker.</summary>
     private const string LegacyRoleMarkerClaimType = "perms:seeded";
 
     private const string PermissionMarkerClaimType = "perms:offered";
@@ -46,9 +54,6 @@ public static class RoleSeeder
                 .Select(c => c.Value)
                 .ToHashSet(StringComparer.Ordinal);
 
-            // A deployment seeded under the old per-role marker has no per-permission markers at all.
-            // Treat everything it currently HOLDS as already offered, so this pass adds only what is
-            // genuinely new in code and does not resurrect anything an admin removed before now.
             if (alreadyOffered.Count == 0 && claims.Any(c => c.Type == LegacyRoleMarkerClaimType))
             {
                 foreach (var legacyPermission in claims.Where(c => c.Type == "perms").Select(c => c.Value))

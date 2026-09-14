@@ -1,0 +1,45 @@
+// A supplier answers one of the tender's written requirements.
+//
+// The new answer is added to the tracked set explicitly. A child created on a tracked aggregate's collection
+// is not necessarily discovered, and a silently unsaved answer surfaces much later as "all mandatory
+// requirements must be answered" at submission.
+
+namespace MotsSupplierPortal.Infrastructure.Proposals;
+
+using MotsSupplierPortal.Infrastructure.Notifications;
+using MotsSupplierPortal.Domain.Notifications;
+using Hangfire;
+using Microsoft.EntityFrameworkCore;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Proposals;
+using MotsSupplierPortal.Domain.Proposals;
+using MotsSupplierPortal.Domain.Rfqs;
+using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Email;
+using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Registrations;
+using MotsSupplierPortal.Infrastructure.Rfqs;
+
+public sealed class AnswerRequirementHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IAnswerRequirementHandler
+{
+    public async Task<ProposalResult> HandleAsync(AnswerRequirementCommand command, CancellationToken ct)
+    {
+        var loaded = await ProposalLoader.LoadByProposalCodeAsync(db, scope, command.ProposalReferenceCode, ct);
+        if (loaded?.Proposal is null) return new ProposalResult.NotFoundOrNotInvited();
+        var (rfq, proposal) = loaded.Value;
+
+        try
+        {
+            proposal!.AnswerRequirement(command.RequirementId, command.AnswerAr, command.AnswerEn);
+        }
+        catch (DomainException ex)
+        {
+            return new ProposalResult.InvalidState(ex.Message, proposal!.State);
+        }
+
+        db.RequirementAnswers.Add(proposal.RequirementAnswers.First(a => a.RequirementId == command.RequirementId));
+        await auditLogger.LogAsync("Proposal", proposal.Id, "proposal_requirement_answered", scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);
+        await db.SaveChangesAsync(ct);
+        return new ProposalResult.Success(ProposalDtoMapper.ToDto(proposal, rfq.ReferenceCode));
+    }
+}

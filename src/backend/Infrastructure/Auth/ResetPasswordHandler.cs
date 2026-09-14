@@ -1,3 +1,16 @@
+// Setting a new password from a reset link.
+//
+// The opaque single-use token from the link is the only lookup key. Once it resolves a user, a fresh framework
+// reset token is generated and consumed internally to perform the actual change.
+//
+// Every existing session is invalidated on success. Resetting a password must not leave old sessions alive,
+// because the person holding one may be who the reset is protecting against.
+//
+// A token error from the framework is reported as an invalid link rather than as a weak password, so the caller
+// is told which of the two actually happened.
+
+namespace MotsSupplierPortal.Infrastructure.Auth;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
@@ -5,14 +18,6 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-namespace MotsSupplierPortal.Infrastructure.Auth;
-
-/// <summary>
-/// FR-IAM-005: on success, all existing sessions (refresh token families) are invalidated -
-/// resetting a password must not leave old sessions alive. The opaque reset-link token
-/// (SecurityTokenService) is the sole lookup key; once it resolves a user, a fresh Identity
-/// reset token is generated and consumed internally to perform the actual password change.
-/// </summary>
 public sealed class ResetPasswordHandler(
     AppDbContext db,
     UserManager<AppUser> userManager,

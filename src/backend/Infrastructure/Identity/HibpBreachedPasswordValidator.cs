@@ -1,3 +1,48 @@
+// Refusing passwords that are known to have appeared in a public breach.
+//
+// It uses the public breach service's anonymised range lookup, so only the first five characters of a hash
+// ever leave the server, never the password.
+//
+// It can be switched off in configuration, which is what keeps the test suite hermetic and free of an external
+// network dependency.
+//
+//
+// IT FAILS OPEN
+//
+// A timeout, or the service being unreachable, logs a warning and admits the password.
+//
+// A breach check that could block registration and password reset outright would turn an external dependency
+// into a single point of failure for a control that is security-adjacent rather than critical.
+//
+//
+// THE HASH IS THE PROTOCOL'S, NOT A CHOICE, AND MUST NOT BE "UPGRADED"
+//
+// A static analyser flags the older hash algorithm as security-sensitive. That is a false positive here, and
+// this paragraph, rather than a marking in the analyser's own dashboard, is the record of why.
+//
+// The remote lookup IS an anonymity scheme keyed on that algorithm: the client sends the first five hex
+// characters of the digest and receives every known-breached suffix sharing that prefix. The algorithm is
+// fixed by the remote service, and there is no variant of the endpoint keyed on a newer one to migrate to.
+//
+// Nothing here depends on the algorithm resisting collisions or inversion. It does not store or verify a
+// password, because storage is the identity framework's own key-derivation hasher and nothing in this solution
+// overrides it; this is the only call site of the older algorithm in the codebase. It is not used for
+// authentication, signing or integrity. The digest is never persisted and never leaves this method except as
+// those first five characters, which by design match many millions of unrelated passwords.
+//
+// A collision would, at worst, let a breached password through, which is the same outcome as the fail-open path
+// that is already the accepted behaviour.
+//
+// Do NOT "fix" this by switching to a newer hash. It would compile, pass every test, and silently disable the
+// control: the service would return suffixes of the old digest that can never match a new one, so every
+// password would validate as clean. That is a security check reporting success while doing nothing, which is
+// the failure mode this codebase keeps finding.
+//
+// The hashing step is extracted so a test can pin it against the service's own published example, which is
+// what makes such a substitution fail loudly instead.
+
+namespace MotsSupplierPortal.Infrastructure.Identity;
+
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
@@ -5,17 +50,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MotsSupplierPortal.Domain.Identity;
 
-namespace MotsSupplierPortal.Infrastructure.Identity;
-
-/// <summary>
-/// SECURITY-ARCHITECTURE.md §1.4/FR-IAM-003 (Must-have): rejects known-breached passwords via the
-/// HIBP k-anonymity range API - only a 5-char SHA-1 prefix ever leaves the server, never the
-/// password itself. Fails OPEN on any network/HTTP error (timeout, HIBP unreachable): a breach
-/// check that can block registration/reset outright would turn an external dependency into a
-/// single point of failure for a security-adjacent but non-critical control - logged as a warning
-/// instead. Disable entirely via config ("Password:BreachCheckEnabled": false) - used by the
-/// integration test fixture to keep CI hermetic (no external network dependency in tests).
-/// </summary>
 public sealed class HibpBreachedPasswordValidator(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
@@ -27,11 +61,6 @@ public sealed class HibpBreachedPasswordValidator(
         Description = "This password has appeared in a known data breach. Please choose a different one.",
     };
 
-    /// <summary>
-    /// Splits the SHA-1 digest into the 5-character prefix sent to HIBP and the suffix compared
-    /// locally. Extracted so the algorithm can be pinned by test - see the S4790 note in
-    /// ValidateAsync for why it must stay SHA-1.
-    /// </summary>
     public static (string Prefix, string Suffix) HashForRangeQuery(string password)
     {
         var digest = Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(password)));
@@ -47,30 +76,6 @@ public sealed class HibpBreachedPasswordValidator(
 
         try
         {
-            // csharpsquid:S4790 ("using a weak hashing algorithm is security-sensitive") is a FALSE
-            // POSITIVE here, and this comment - not the marking in SonarCloud - is the record of why.
-            //
-            // SHA-1 is mandated by the protocol, not chosen. The HIBP range API is a k-anonymity
-            // scheme keyed on SHA-1: the client sends the first 5 hex characters of the SHA-1 digest
-            // and gets back every known-breached suffix sharing that prefix. The algorithm is fixed
-            // by the remote service. There is no SHA-256 variant of this endpoint to migrate to.
-            //
-            // Nothing here depends on SHA-1 being collision-resistant or preimage-resistant:
-            //   - It is not used to store or verify a password. Storage is ASP.NET Core Identity's
-            //     default PBKDF2 hasher; no IPasswordHasher is overridden anywhere in this solution,
-            //     and this is the only SHA-1 call site in the codebase.
-            //   - It is not used for authentication, signing, or integrity.
-            //   - The digest is never persisted and never leaves this method except as its first
-            //     5 characters, which by design match many millions of unrelated passwords.
-            // A SHA-1 collision would, at worst, cause a breached password to be missed - the same
-            // outcome as the fail-open path below, which is already the accepted behaviour.
-            //
-            // Do NOT "fix" this by switching to SHA-256. It would compile, pass every test, and
-            // silently disable the control: the API would return SHA-1 suffixes that can never match
-            // a SHA-256 one, so every password would validate as clean. That is a security check
-            // that reports success while doing nothing - the failure mode this codebase keeps
-            // finding. HashForRangeQuery below is pinned by a test against HIBP's own published
-            // vector so that substitution fails loudly instead.
             var (prefix, suffix) = HashForRangeQuery(password);
 
             var client = httpClientFactory.CreateClient(nameof(HibpBreachedPasswordValidator));

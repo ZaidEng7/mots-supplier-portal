@@ -1,9 +1,15 @@
-using System.Security.Cryptography;
-using System.Text;
+// Generating opaque tokens, and hashing them for storage.
+//
+// Refresh tokens and single-use links are stored hashed and never in plain text, so a stolen database yields
+// nothing that can be presented.
+//
+// The generated form is URL-safe, because these values travel in links and cookies.
 
 namespace MotsSupplierPortal.Infrastructure.Auth;
 
-/// <summary>Refresh tokens are stored hashed, never in plaintext (STORY-01.1.1 DoD).</summary>
+using System.Security.Cryptography;
+using System.Text;
+
 public static class TokenHasher
 {
     public static string GenerateOpaqueToken()
