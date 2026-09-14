@@ -1,13 +1,18 @@
+// The four skeleton shapes, each in the screen that names it.
+//
+// SkeletonList is SCR-120 and SCR-400's "loading: SkeletonList for KPI tiles + lists". SkeletonTable is SCR-432's
+// "loading: skeleton matrix", with frozen inline-start row headers and horizontal scroll, and a second story gives it
+// more proposal columns than fit, because the frozen first column is what stays put while the rest scroll.
+// SkeletonGrid is SCR-600's "loading: SkeletonGrid for tiles + charts".
+//
+// The dark stories render inside .theme-dark - the same class tokens.css defines the dark palette on. No existing
+// story in this folder had a dark variant, so this wrapper is the first of its kind here, and it is deliberately
+// local rather than a global decorator so it does not change how every other story renders.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ReactNode } from 'react'
 import { Skeleton, SkeletonGrid, SkeletonList, SkeletonTable } from './Skeleton'
 
-/**
- * Dark stories render inside `.theme-dark` - the same class `tokens.css:117` defines the dark
- * palette on. No existing story in this folder had a dark variant, so this wrapper is the first of
- * its kind here; it is deliberately local rather than a global decorator so it does not change how
- * every other story renders.
- */
 function Surface({ dark, children }: { dark?: boolean; children: ReactNode }) {
   return (
     <div
@@ -43,7 +48,6 @@ export const BarDark: Story = {
   ),
 }
 
-/** SCR-120 / SCR-400: "*Loading:* `SkeletonList` for KPI tiles + lists". */
 export const ListLight: Story = {
   render: () => (
     <Surface>
@@ -68,7 +72,6 @@ export const ListThreeRows: Story = {
   ),
 }
 
-/** SCR-432: "*Loading:* skeleton matrix" - frozen inline-start row headers, horizontal scroll. */
 export const TableLight: Story = {
   render: () => (
     <Surface>
@@ -85,7 +88,6 @@ export const TableDark: Story = {
   ),
 }
 
-/** More proposal columns than fit: the frozen first column is what stays put while the rest scroll. */
 export const TableManyColumns: Story = {
   render: () => (
     <Surface>
@@ -94,7 +96,6 @@ export const TableManyColumns: Story = {
   ),
 }
 
-/** SCR-600: "*Loading:* `SkeletonGrid` for tiles + charts". */
 export const GridLight: Story = {
   render: () => (
     <Surface>

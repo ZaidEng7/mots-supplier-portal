@@ -1,3 +1,23 @@
+// The text input primitive: token-driven border and focus states, and an invalid state for form errors.
+//
+// Disabled and read-only are RENDERED, not merely set. This component paints its own background and colour as inline
+// styles, and an inline style beats the user agent's own disabled rendering - so before this, `disabled` changed
+// nothing a person could see. The onboarding wizard sets disabled on every field once an application is submitted,
+// in OnboardingPage.tsx, which meant a form that looked editable and silently refused input. DESIGN-SYSTEM.md §6.2
+// lists both states as required, and --color-text-disabled had been defined in both themes since the token layer was
+// written, with no consumer.
+//
+// The two states say different things and look different accordingly. Disabled is "not for you, not now" - sunken
+// fill, muted text, a not-allowed cursor. Read-only is "this is the value, it is simply not editable here" - no fill,
+// no border, per §6.2's "read-only (no border, muted)". The surface helper names all three once: a disabled field is
+// sunken, a read-only one has no surface of its own because it is text that happens to sit in a form, and an editable
+// one is a surface you can type into.
+//
+// The resting border is a custom property so the stylesheet can raise it on hover - an inline style beats a class,
+// which is why this component had no hover state for its whole life - and focus returns to the resting border for
+// whichever state the field is in, because a read-only field that grew a border on focus and kept it would read as
+// editable afterwards.
+
 import { forwardRef } from 'react'
 import type { InputHTMLAttributes } from 'react'
 
@@ -5,26 +25,6 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   invalid?: boolean
 }
 
-/**
- * Text input primitive — token-driven border/focus states, invalid state for form errors.
- *
- * <p><b>Disabled and read-only are rendered, not merely set.</b> This component paints its own
- * background and colour as inline styles, and an inline style beats the user agent's own disabled
- * rendering — so before this, `disabled` changed nothing a person could see. The onboarding wizard sets
- * `disabled` on every field once an application is submitted (`OnboardingPage.tsx`), which meant a form
- * that looked editable and silently refused input. DESIGN-SYSTEM.md §6.2 lists both states as required
- * and `--color-text-disabled` had been defined in both themes since the token layer was written, with no
- * consumer.</p>
- *
- * <p>The two states say different things and look different accordingly: <b>disabled</b> is "not for you,
- * not now" — sunken fill, muted text, a not-allowed cursor; <b>read-only</b> is "this is the value, it is
- * simply not editable here" — no fill, no border, per §6.2's "read-only (no border, muted)".</p>
- */
-/**
- * The field's own surface. Three states, named once: a disabled field is sunken, a read-only one has no
- * surface of its own because it is text that happens to sit in a form, and an editable one is a surface
- * you can type into.
- */
 function backgroundFor(disabled: boolean | undefined, readOnly: boolean | undefined): string {
   if (disabled) return 'var(--color-bg-sunken)'
   if (readOnly) return 'transparent'
@@ -45,8 +45,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       readOnly={readOnly}
       className={`msp-input w-full rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none transition-colors duration-[var(--motion-fast)] ease-[var(--ease-out)] ${disabled ? 'cursor-not-allowed' : ''} ${className}`}
       style={{
-        // The resting border is a custom property so the stylesheet can raise it on hover: an inline
-        // style beats a class, which is why this component had no hover state for its whole life.
         ['--input-border' as string]: readOnly && !disabled ? 'transparent' : borderColor,
         backgroundColor: backgroundFor(disabled, readOnly),
         color: disabled ? 'var(--color-text-disabled)' : 'var(--color-text-primary)',
@@ -62,8 +60,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       }}
       onBlur={(e) => {
         e.currentTarget.style.boxShadow = 'none'
-        // Back to the resting border for whichever state this field is in - a read-only field that
-        // grew a border on focus and kept it would read as editable afterwards.
         e.currentTarget.style.setProperty('--input-border', readOnly && !disabled ? 'transparent' : borderColor)
         onBlur?.(e)
       }}

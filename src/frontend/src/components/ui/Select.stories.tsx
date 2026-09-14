@@ -1,3 +1,7 @@
+// Select, with a real option set, so the trigger, the popper and the highlighted option can be seen in one place -
+// including the disabled state, which the component did not have until a submitted application was found still
+// offering three working comboboxes.
+
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { ComponentProps } from 'react'

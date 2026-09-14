@@ -1,3 +1,6 @@
+// Badge, one story per tone, so the six are seen beside each other rather than one at a time on the screen that
+// happens to use them.
+
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Badge } from './Badge'
 

@@ -1,3 +1,29 @@
+// Two things: the rail, and the icon weight inside it.
+//
+// THE RAIL replaced a wrapping row of up to thirty-one identically-coloured links with no grouping and no marker for
+// the page you were on. These are the three things that row could not do.
+//
+// It marks exactly one row as the page, and marks the section a deeper path belongs to. The denominator: aria-current on
+// every row, or on none, satisfies a test that only asks whether the current row can be found - and both are the flat
+// row again, which marked nothing at all - so one test marks nothing when the path is a destination the rail does not
+// hold. /back-office/review is a prefix of /back-office/review/suppliers, which is what `exact` is for, and a sibling
+// that merely starts with the same characters is not a child.
+//
+// Every group gets its own named landmark. §D3 settled this: a screen-reader user jumps between the named groups the
+// same way a sighted reader jumps between the headings, and one landmark holding every row is the flat list with a
+// border.
+//
+// A row the account has no permission for is hidden and a group left empty is dropped - rendered as nothing rather than
+// as a heading over nothing.
+//
+// The foot shows who is signed in, by the only name the token actually carries, and says nothing when nobody is.
+//
+// THE ICONS are drawn on a 24-unit artboard and the templates they copy were drawn on a 16-unit one, so a fixed stroke
+// width would have thinned every icon as it grew. These tests are that conversion: the stroke is solved so the line
+// lands at the same width whatever the size, and the second is revert-to-red - a fixed stroke width is exactly what
+// this replaces, and it does NOT hold. The glyph is hidden from a screen reader, because every one of them sits beside
+// its own word.
+
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen, within } from '@testing-library/react'
@@ -28,10 +54,6 @@ const GROUPS: NavGroup[] = [
 const EVERYTHING = { can: () => true, inABuyingBody: true }
 const NOTHING = { can: () => false, inABuyingBody: false }
 
-/**
- * The rail replaced a wrapping row of up to thirty-one identically-coloured links with no grouping and
- * no marker for the page you were on. These are the three things that row could not do.
- */
 describe('the sidebar says where you can go and where you are', () => {
   it('marks exactly one row as the page, and marks the section a deeper path belongs to', () => {
     render(<NavGroups groups={GROUPS} context={EVERYTHING} pathname="/back-office/rfqs/RFQ-2026-000001/award" />)
@@ -41,29 +63,21 @@ describe('the sidebar says where you can go and where you are', () => {
     expect(current[0]).toHaveTextContent('rfq.title')
   })
 
-  /**
-   * The denominator. `aria-current` on every row, or on none, satisfies a test that only asks whether
-   * the current row can be found - and both are the flat row again, which marked nothing at all.
-   */
   it('marks nothing when the path is a destination the rail does not hold', () => {
     render(<NavGroups groups={GROUPS} context={EVERYTHING} pathname="/back-office/nowhere" />)
 
     expect(screen.getAllByRole('link').filter((a) => a.hasAttribute('aria-current'))).toEqual([])
   })
 
-  /** `/back-office/review` is a prefix of `/back-office/review/suppliers`, which is what `exact` is for. */
   it('does not light a row whose path merely prefixes another', () => {
     expect(isCurrent({ to: '/back-office/review', labelKey: 'x', icon: List, exact: true }, '/back-office/review/suppliers')).toBe(false)
     expect(isCurrent({ to: '/back-office/rfqs', labelKey: 'x', icon: List }, '/back-office/rfqs/RFQ-1')).toBe(true)
-    // And a sibling that merely starts with the same characters is not a child.
     expect(isCurrent({ to: '/back-office/review', labelKey: 'x', icon: List }, '/back-office/review-dashboard')).toBe(false)
   })
 
   it('gives every group its own named landmark', () => {
     render(<NavGroups groups={GROUPS} context={EVERYTHING} pathname="/back-office/dashboard" />)
 
-    // §D3 settled this: a screen-reader user jumps between the named groups the same way a sighted
-    // reader jumps between the headings. One landmark holding every row is the flat list with a border.
     expect(screen.getByRole('navigation', { name: 'nav.groupTenders' })).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'nav.groupOverview' })).toBeInTheDocument()
   })
@@ -101,10 +115,6 @@ describe('the sidebar says where you can go and where you are', () => {
   })
 })
 
-/**
- * The glyphs are drawn on a 24-unit artboard and the templates they copy were drawn on a 16-unit one,
- * so a fixed stroke width would have thinned every icon as it grew. This is that conversion.
- */
 describe('icons keep one weight at every size', () => {
   it('solves the stroke so the line lands at the same width whatever the size', () => {
     for (const size of [15, 18, 24, 32]) {
@@ -113,7 +123,6 @@ describe('icons keep one weight at every size', () => {
   })
 
   it('the conversion can fail', () => {
-    // Revert-to-red: a fixed stroke width is exactly what this replaces, and it does NOT hold.
     const fixed = 2
     expect(fixed * (15 / 24)).not.toBeCloseTo(fixed * (32 / 24), 2)
   })

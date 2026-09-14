@@ -1,14 +1,21 @@
+// What a hover readout says.
+//
+// Tested here rather than through a rendered chart, because recharts calls its formatter from inside hover machinery
+// that needs real element geometry and jsdom reports none - so three inline copies of this rule sat in the two chart
+// components with nothing able to reach them. tests/e2e/charts.spec.ts proves the tooltip appears and is legible in a
+// browser; this proves what it writes.
+//
+// A row writes the figure the way the caller writes figures, then names it. A non-numeric value passes through as its
+// own text rather than as NaN: a tooltip can sit on any series and recharts types the value as unknown, so coercing
+// would put the word "NaN" on screen, which is worse than the value it was hiding. And a figure the caller chose to
+// keep is not rounded.
+//
+// On a stacked pair, the row names the segment the pointer is actually over, and still writes the figure the way the
+// caller writes figures.
+
 import { describe, expect, it } from 'vitest'
 import { segmentTooltipRow, tooltipRow } from './chartTooltip'
 
-/**
- * What a hover readout says.
- *
- * <p>Tested here rather than through a rendered chart because recharts calls its formatter from inside
- * hover machinery that needs real element geometry, and jsdom reports none - so three inline copies of
- * this rule sat in the two chart components with nothing able to reach them. tests/e2e/charts.spec.ts
- * proves the tooltip appears and is legible in a browser; this proves what it writes.</p>
- */
 describe('a tooltip row', () => {
   it('writes the figure the way the caller writes figures, then names it', () => {
     const row = tooltipRow((value) => `${value.toLocaleString('en-GB')} SYP`, 'Awarded value')
@@ -17,8 +24,6 @@ describe('a tooltip row', () => {
   })
 
   it('passes a non-numeric value through as its own text rather than as NaN', () => {
-    // A tooltip can sit on any series, and recharts types the value as unknown. Coercing would put
-    // the word "NaN" on screen, which is worse than the value it was hiding.
     const row = tooltipRow((value) => value.toFixed(2), 'Value')
 
     expect(row('withheld')).toEqual(['withheld', 'Value'])

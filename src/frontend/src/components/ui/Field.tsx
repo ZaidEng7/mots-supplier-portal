@@ -1,3 +1,14 @@
+// The label, input slot, and error and hint wiring, so every form control gets consistent accessibility
+// association.
+//
+// The required marker is not only the asterisk. The asterisk was already there and is visual noise on its own; what
+// was missing is the fact it stands for - nothing in this component told assistive technology the field was
+// required, so a screen-reader user met the requirement for the first time as a validation error after submitting.
+// aria-required is that fact, said once, in the place a reader is already listening.
+//
+// The hint uses --color-text-secondary rather than --color-text-muted, because muted fails WCAG AA at caption size -
+// 3.83:1 against the 4.5:1 required for small text - while secondary clears AA at 5.99:1.
+
 import { useId } from 'react'
 import type { ReactNode } from 'react'
 import * as Label from '@radix-ui/react-label'
@@ -10,7 +21,6 @@ interface FieldProps {
   children: (inputProps: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean; 'aria-required'?: boolean }) => ReactNode
 }
 
-/** Label + input-slot + error/hint wiring so every form control gets consistent a11y association. */
 export function Field({ label, error, hint, required, children }: FieldProps) {
   const id = useId()
   const errorId = error ? `${id}-error` : undefined
@@ -25,13 +35,6 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
         style={{ color: 'var(--color-text-secondary)' }}
       >
         {label}
-        {/*
-          The asterisk is aria-hidden and stays that way - a screen reader announcing "asterisk" is
-          noise. What was missing is the fact it stands for: nothing in this component told assistive
-          technology the field was required, so a screen-reader user met the requirement for the first
-          time as a validation error after submitting. `aria-required` below is that fact, said once, in
-          the place a reader is already listening.
-        */}
         {required ? (
           <span aria-hidden="true" style={{ color: 'var(--color-danger-fg)' }}>
             {' '}
@@ -46,8 +49,6 @@ export function Field({ label, error, hint, required, children }: FieldProps) {
         'aria-required': required || undefined,
       })}
       {hint && !error ? (
-        // --color-text-muted fails WCAG AA at caption size (3.83:1 vs the 4.5:1 required for
-        // small text) - use --color-text-secondary here, which clears AA at 5.99:1.
         <p id={hintId} className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
           {hint}
         </p>

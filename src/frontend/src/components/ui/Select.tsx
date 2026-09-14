@@ -1,3 +1,30 @@
+// The accessible select, built on Radix: keyboard navigation, typeahead and screen-reader semantics for free.
+//
+// Radix's placeholder text is visual only and does not contribute an accessible name, so the trigger needs an
+// explicit aria-label - falling back to the placeholder when no Field label wraps it.
+//
+// `disabled` refuses the control and says so. That prop did not exist, which is why a submitted onboarding
+// application still offered three working comboboxes - entity type, currency and country code - on a form whose Save
+// buttons had been removed: a person could change them and had nothing to commit them with. The trigger gets the
+// same two-state treatment as Input, for the same reason - it paints itself, so the browser's own disabled rendering
+// never shows through.
+//
+// An empty change is ignored. Radix's hidden native <select>, mounted for form and autofill semantics, can emit a
+// spurious "" change once while the Portal content is still mounting, which would otherwise clobber a just-restored
+// controlled value - and none of our option sets include a blank value to legitimately select.
+//
+// THE POPPER's z-index is explicit. This Portal renders independently of any ancestor Dialog's own Portal, so
+// without it the popper has no stacking-context guarantee against the Dialog: it rendered correctly positioned but
+// visually behind the overlay, silently swallowing every click. It uses --z-popover (600), deliberately ABOVE
+// --z-modal (500) rather than the --z-dropdown slot §4.5 would suggest, because a select inside a dialog is the case
+// that produced that defect and the dropdown layer sits below the dialog it would have to open over. msp-pop carries
+// a 120ms scale-and-fade, in src/index.css - the shortest animation in the product, because this is the one an
+// officer opens dozens of times a day.
+//
+// msp-option paints the highlight from data-highlighted, which Radix sets for the pointer AND for the arrow keys.
+// The inline pointer handlers this replaces painted only the pointer case, so moving through a filter with the
+// keyboard highlighted nothing - and the outline that would otherwise have shown it is removed a line above.
+
 import * as RadixSelect from '@radix-ui/react-select'
 import { Check, ChevronDown } from 'lucide-react'
 
@@ -12,27 +39,13 @@ interface SelectProps {
   onValueChange: (value: string) => void
   options: SelectOption[]
   placeholder?: string
-  /**
-   * Refuses the control and says so.
-   *
-   * <p>This prop did not exist, which is why a submitted onboarding application still offered three
-   * working comboboxes — entity type, currency and country code — on a form whose Save buttons had been
-   * removed. A person could change them and had nothing to commit them with.</p>
-   */
   disabled?: boolean
   'aria-describedby'?: string
   'aria-invalid'?: boolean
 }
 
-/** Accessible select built on Radix — keyboard nav, typeahead, and screen-reader semantics for free.
- * Radix's placeholder text is visual only and does not contribute an accessible name, so the
- * trigger needs an explicit aria-label (falls back to the placeholder when no Field label wraps it). */
 export function Select({ id, value, onValueChange, options, placeholder, disabled = false, ...aria }: SelectProps) {
   return (
-    // Radix's hidden native <select> (mounted for form/autofill semantics) can emit a spurious
-    // "" change once while the Portal content is still mounting, which would otherwise clobber a
-    // just-restored controlled value - ignore empty emissions since none of our option sets
-    // include a blank value to legitimately select.
     <RadixSelect.Root value={value} onValueChange={(v) => v && onValueChange(v)} disabled={disabled}>
       <RadixSelect.Trigger
         id={id}
@@ -40,8 +53,6 @@ export function Select({ id, value, onValueChange, options, placeholder, disable
         {...aria}
         className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2 text-[length:var(--text-body)] outline-none ${disabled ? 'cursor-not-allowed' : ''}`}
         style={{
-          // Same two-state treatment as Input, for the same reason: this trigger paints itself, so the
-          // browser's own disabled rendering never shows through.
           backgroundColor: disabled ? 'var(--color-bg-sunken)' : 'var(--color-bg-surface)',
           color: disabled ? 'var(--color-text-disabled)' : 'var(--color-text-primary)',
           border: '1px solid var(--color-border-input)',
@@ -54,16 +65,6 @@ export function Select({ id, value, onValueChange, options, placeholder, disable
       </RadixSelect.Trigger>
       <RadixSelect.Portal>
         <RadixSelect.Content
-          // Explicit z-index: this Portal renders independently of any ancestor Dialog's own
-          // Portal, so without this the popper has no stacking-context guarantee against the
-          // Dialog - it rendered correctly positioned but visually behind the overlay, silently
-          // swallowing every click.
-          //
-          // --z-popover (600), deliberately ABOVE --z-modal (500) rather than the --z-dropdown slot
-          // §4.5 would suggest: a select inside a dialog is the case that produced that defect, and
-          // the dropdown layer sits below the dialog it would have to open over.
-          // `msp-pop` carries a 120ms scale-and-fade (src/index.css) - the shortest animation in the
-          // product, because this is the one an officer opens dozens of times a day.
           className="msp-pop overflow-hidden rounded-[var(--radius-md)]"
           style={{
             backgroundColor: 'var(--color-bg-surface)',
@@ -77,10 +78,6 @@ export function Select({ id, value, onValueChange, options, placeholder, disable
               <RadixSelect.Item
                 key={opt.value}
                 value={opt.value}
-                // msp-option paints the highlight from `data-highlighted`, which Radix sets for the
-                // pointer AND for the arrow keys. The inline pointer handlers this replaces painted
-                // only the pointer case, so moving through a filter with the keyboard highlighted
-                // nothing - the outline that would otherwise have shown it is removed on the line above.
                 className="msp-option flex cursor-pointer items-center justify-between rounded px-2 py-2 text-[length:var(--text-body)] outline-none data-[highlighted]:outline-none"
                 style={{ color: 'var(--color-text-primary)' }}
               >
