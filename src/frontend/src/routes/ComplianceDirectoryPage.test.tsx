@@ -1,11 +1,29 @@
+// SCR-307. The list that did not exist: the review queue holds undecided applications only, so an approved supplier whose
+// certificate expired afterwards appeared nowhere, and the reviewer's only route to them was to type the reference code
+// into the address bar.
+//
+// The harness deliberately has no router, and this page links each row to the application - so Link becomes a plain
+// anchor, the same treatment every other test of a page that links uses, and the route it points at is still assertable
+// without pulling the whole route tree into the test.
+//
+// Expired and expiring documents are counted separately rather than summed, which is the distinction the screen exists to
+// preserve: expiring is a prompt, expired is a bar, and one combined number would not tell a reviewer whether this
+// supplier can currently hold a contract. A supplier with nothing outstanding is called healthy rather than shown three
+// zeroes.
+//
+// Each row links to the application, which was the missing route - F-6's other half, where a decided case dropped out of
+// every list so the reviewer who wanted to look at their own decision had the address bar and nothing else.
+//
+// The document-health filter asks the SERVER rather than narrowing the page it already has.
+//
+// And a supplier with no lifecycle state yet renders an em dash: SupplierLifecycleState.None has no §7.1 row, so there is
+// no label to render, and a chip reading "None" would be the product inventing a status the document does not define.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { mockFetch, renderPage, type RecordedRequest } from '../test/renderPage'
 
-// The harness deliberately has no router (see renderPage's own note), and this page links each row to
-// the application. Same treatment as every other test of a page that links: Link becomes a plain anchor,
-// so the route it points at is still assertable without pulling the whole route tree into the test.
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
   return { ...actual, Link: 'a' }
@@ -13,11 +31,6 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { ComplianceDirectoryPage } = await import('./ComplianceDirectoryPage')
 
-/**
- * SCR-307. The list that did not exist: the review queue holds undecided applications only, so an approved
- * supplier whose certificate expired afterwards appeared nowhere, and the reviewer's only route to them was
- * to type the reference code into the address bar.
- */
 
 const COMPLIANCE = '/api/v1/review/suppliers'
 
@@ -46,8 +59,6 @@ afterEach(() => restore?.())
 
 describe('ComplianceDirectoryPage', () => {
   it('counts expired and expiring documents separately rather than summing them', async () => {
-    // The distinction the screen exists to preserve: expiring is a prompt, expired is a bar, and one
-    // combined number would not tell a reviewer whether this supplier can currently hold a contract.
     restore = mockFetch({ [COMPLIANCE]: envelope([EXPIRED, HEALTHY]) })
 
     renderPage(<ComplianceDirectoryPage />)
@@ -68,8 +79,6 @@ describe('ComplianceDirectoryPage', () => {
   })
 
   it('links each row to the application, which was the missing route', async () => {
-    // F-6's other half. A decided case dropped out of every list, so the reviewer who wanted to look at
-    // their own decision had the address bar and nothing else.
     restore = mockFetch({ [COMPLIANCE]: envelope([EXPIRED]) })
 
     renderPage(<ComplianceDirectoryPage />)
@@ -93,8 +102,6 @@ describe('ComplianceDirectoryPage', () => {
   })
 
   it('renders an em dash for a supplier with no lifecycle state yet', async () => {
-    // SupplierLifecycleState.None has no §7.1 row, so there is no label to render - and a chip reading
-    // "None" would be the product inventing a status the document does not define.
     restore = mockFetch({ [COMPLIANCE]: envelope([{ ...HEALTHY, onboardingState: 'Submitted', lifecycleState: 'None' }]) })
 
     renderPage(<ComplianceDirectoryPage />)

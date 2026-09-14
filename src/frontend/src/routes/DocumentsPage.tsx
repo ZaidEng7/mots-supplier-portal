@@ -1,3 +1,34 @@
+// SCR-130's documents centre (P0), SCR-131's upload and replace, SCR-132's detail and history, and SCR-133's expiring
+// alerts - at /documents, for supplier_admin and supplier_user.
+//
+// The gap. Documents were reachable only through the onboarding wizard's upload step. An approved supplier with an
+// expiring certificate had no page that said so, and no way to see why a document had been rejected two versions ago.
+//
+// SCR-133 is a FILTER on this page rather than a second route: "needs attention" is a view of the same list, and a separate
+// screen would be a second place for the definition of "expiring" to live. It is shown only when there IS something to
+// attend to, because a permanent "0 need attention" is chrome. A type needs attention when its latest version is missing,
+// rejected, expiring or expired - derived from the state the daily job already maintains rather than recomputing expiry,
+// because two places deciding "is this expiring" would eventually disagree and this would be the one nobody checks.
+//
+// THE EXPIRY GUARD is per row, because the table shows every document type at once and a page-level message would not say
+// which. It refuses the upload here rather than at the server, because the server's refusal was INVISIBLE: choosing a file
+// for a type that records an expiry, with the date still empty, sent the upload, took a 400 saying "This document type
+// requires an expiry date", and left the row exactly as it was. Nothing on screen changed, so the supplier's own reading
+// was that the button did not work. Found walking onboarding as a new supplier.
+//
+// After an upload the profile is RE-READ, for the same reason as the onboarding page: the upload moved the supplier's row
+// version and answered with a document, so the profile has to be re-read for the next guarded write to have a version to
+// assert.
+//
+// The download is FETCHED rather than linked, because the URL needs the Authorization header and a plain anchor would
+// arrive unauthenticated - the same treatment the audit export already gets.
+//
+// SCR-132's rejection reason sits on the row it belongs to, and its history is a PANEL rather than a route, for the same
+// reason SCR-431 is: a supplier checking one type's history has not left the documents centre. That panel uses a plain
+// useQuery described in the structural shape the card reads, and its isError keeps the "|| !history.data" it always had,
+// because a 200 with no body is a failed load rather than an empty history - and an empty history is a real answer, and a
+// different one from "no such type".
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,28 +40,12 @@ import {
   DocumentApiError, type DocumentTypeStatus,
 } from '../api/documents'
 
-/** A document type is "needing attention" when its latest version is missing, rejected, expiring or
- * expired. Derived from the state the daily job already maintains rather than recomputing expiry —
- * two places deciding "is this expiring" would eventually disagree, and this would be the one nobody
- * checks. */
 function needsAttention(row: DocumentTypeStatus): boolean {
   const state = row.latestDocument?.state
   if (!row.latestDocument) return row.isRequired
   return state === 'Rejected' || state === 'Expired' || state === 'ExpiringSoon' || state === 'ScanRejected'
 }
 
-/**
- * SCR-130 documents centre (**P0**), SCR-131 upload/replace, SCR-132 detail and history, SCR-133
- * expiring alerts — `/documents`, `supplier_admin` and `supplier_user`.
- *
- * <p><b>The gap.</b> Documents were reachable only through the onboarding wizard's upload step. An
- * approved supplier with an expiring certificate had no page that said so, and no way to see why a
- * document had been rejected two versions ago.</p>
- *
- * <p>SCR-133 is a FILTER on this page rather than a second route: "needs attention" is a view of the
- * same list, and a separate screen would be a second place for the definition of "expiring" to
- * live.</p>
- */
 export function DocumentsPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -40,8 +55,6 @@ export function DocumentsPage() {
   const [attentionOnly, setAttentionOnly] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [expiry, setExpiry] = useState<Record<string, string>>({})
-  // Which rows were asked to upload before their expiry date was filled in. Kept per row, because
-  // the table shows every document type at once and a page-level message would not say which.
   const [expiryMissing, setExpiryMissing] = useState<Record<string, boolean>>({})
 
   const profile = useQuery({ queryKey: ['supplier-profile'], queryFn: getOwnSupplier })
@@ -65,9 +78,6 @@ export function DocumentsPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['own-documents'] })
       void queryClient.invalidateQueries({ queryKey: ['document-history'] })
-      // Same reason as the onboarding page: the upload moved the supplier's row version and
-      // answered with a document, so the profile has to be re-read for the next guarded write to
-      // have a version to assert.
       void queryClient.invalidateQueries({ queryKey: ['supplier-profile'] })
       notify({ kind: 'success', title: t('documents.uploaded') })
     },
@@ -79,8 +89,6 @@ export function DocumentsPage() {
 
   const download = async (documentId: string) => {
     try {
-      // Fetched, not linked: the URL needs the Authorization header, so a plain anchor would arrive
-      // unauthenticated. Same treatment the audit export already gets.
       const url = await getDocumentDownloadUrl(documentId)
       window.open(url, '_blank', 'noopener')
     } catch {
@@ -107,8 +115,6 @@ export function DocumentsPage() {
         <PageHeading title={t('documents.title')} subtitle={t('documents.subtitle')} />
       </div>
 
-      {/* SCR-133. Shown only when there IS something to attend to - a permanent "0 need attention"
-          banner is chrome nobody reads. */}
       {attention.length > 0 ? (
         <Card title={t('documents.attentionTitle')}>
           <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
@@ -179,12 +185,6 @@ export function DocumentsPage() {
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           if (!file) return
-                          // Refused here rather than at the server, because the server's refusal was
-                          // invisible: choosing a file for a type that records an expiry, with the
-                          // date still empty, sent the upload, took a 400 saying "This document type
-                          // requires an expiry date", and left the row exactly as it was. Nothing on
-                          // screen changed, so the supplier's own reading was that the button did
-                          // not work. Found walking onboarding as a new supplier.
                           if (row.expiryTracked && !expiry[row.documentTypeId]) {
                             setExpiryMissing((prev) => ({ ...prev, [row.documentTypeId]: true }))
                             e.target.value = ''
@@ -214,7 +214,6 @@ export function DocumentsPage() {
                     </Button>
                   </div>
 
-                  {/* SCR-132's rejection reason, on the row it belongs to. */}
                   {row.latestDocument?.rejectReason ? (
                     <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
                       {row.latestDocument.rejectReason}
@@ -227,16 +226,11 @@ export function DocumentsPage() {
         </Table>
       </Card>
 
-      {/* SCR-132. A panel rather than a route, for the same reason SCR-431 is: a supplier checking
-          why a document was rejected is comparing it to the current one. */}
       {expanded ? (
         <ListCard
           title={t('documents.historyTitle')}
           action={<Button size="sm" variant="ghost" onClick={() => setExpanded(null)}>{t('documents.close')}</Button>}
-          // A plain `useQuery`, described in the structural shape the card reads. `isError` keeps the
-          // `|| !history.data` it always had: a 200 with no body is a failed load, not an empty history.
           query={{ ...history, isPending: history.isLoading, isError: history.isError || !history.data }}
-          // A real answer, and a different one from "no such type".
           isEmpty={(history.data ?? []).length === 0}
           labels={{ loading: t('common.loading'), error: t('documents.errors.historyFailed'), empty: t('documents.noHistory') }}
           skeleton="list"

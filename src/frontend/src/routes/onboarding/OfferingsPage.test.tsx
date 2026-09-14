@@ -1,3 +1,21 @@
+// The onboarding step where a supplier declares what they supply. The rule worth pinning is that the checkboxes go
+// READ-ONLY outside the editable onboarding states: a supplier under review who can still change their categories is
+// changing the basis on which they are being reviewed, and Approved is the same argument after the fact.
+//
+// Every category shows with the linked ones checked. Linking a category that was not linked and unlinking one that was
+// both work - a link is a POST carrying the code in the body, an unlink a DELETE carrying it in the path.
+//
+// The page warns when the profile is incomplete for want of a category. With no categories configured it SAYS so rather
+// than rendering an empty list: a reference table nobody has populated is an administrator's problem, and a supplier
+// staring at blank space cannot tell it from a broken page.
+//
+// D-66's two halves close the file. A refused toggle says so instead of failing silently - the checkbox wrote, did not
+// re-tick, and said nothing, on the one screen whose completion gates the whole application, reported twice from the
+// walkthrough and still open until now. And a successful toggle RE-READS the profile rather than trusting the response
+// alone, so the tick cannot depend on this particular response having carried the categories collection.
+//
+// The last test is the retryable failure rather than an empty category list.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -26,11 +44,6 @@ const CATEGORIES = [
   { code: 'logistics', nameEn: 'Logistics', nameAr: 'خدمات لوجستية' },
 ]
 
-/**
- * The onboarding step where a supplier declares what they supply. The rule worth pinning is that the
- * checkboxes go READ-ONLY outside the editable onboarding states: a supplier under review who can
- * still change their categories is changing the basis on which they are being reviewed.
- */
 describe('OfferingsPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -57,8 +70,6 @@ describe('OfferingsPage', () => {
 
   it.each(['UnderReview', 'Approved', 'Rejected'])(
     'refuses editing in %s', async (onboardingState) => {
-      // A supplier under review who can still change their categories is changing the basis on which
-      // they are being reviewed. Approved is the same argument after the fact.
       restore = mockFetch({ '/api/v1/suppliers/me': profile({ onboardingState }), '/api/v1/reference/categories': CATEGORIES })
 
       renderPage(<OfferingsPage />)
@@ -82,7 +93,6 @@ describe('OfferingsPage', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /catering|تموين/i }))
 
     const writes = recorded.filter((r) => r.method !== 'GET')
-    // A link is a POST carrying the code in the body; an unlink is a DELETE carrying it in the path.
     const post = writes.find((r) => r.method === 'POST')
     expect(JSON.parse(post!.body)).toEqual({ categoryCode: 'logistics' })
     expect(writes.some((r) => r.method === 'DELETE' && r.url.endsWith('/category-links/catering'))).toBe(true)
@@ -100,8 +110,6 @@ describe('OfferingsPage', () => {
   })
 
   it('says so when no categories are configured, rather than rendering an empty list', async () => {
-    // A reference table nobody has populated is an administrator's problem, and a supplier staring
-    // at blank space cannot tell it from a broken page.
     restore = mockFetch({ '/api/v1/suppliers/me': profile({ categories: [] }), '/api/v1/reference/categories': [] })
 
     renderPage(<OfferingsPage />)
@@ -110,8 +118,6 @@ describe('OfferingsPage', () => {
   })
 
   it('says so when a toggle is refused, instead of failing silently', async () => {
-    // D-66. The checkbox wrote, did not re-tick, and said nothing - on the one screen whose completion
-    // gates the whole application. Reported twice from the walkthrough and still open until now.
     restore = mockFetch({
       '/api/v1/suppliers/me': profile({ categories: [] }),
       '/api/v1/reference/categories': CATEGORIES,
@@ -126,8 +132,6 @@ describe('OfferingsPage', () => {
   })
 
   it('re-reads the profile after a successful toggle rather than trusting the response alone', async () => {
-    // The other half of D-66: the tick now comes from a re-read, so it cannot depend on this particular
-    // response having carried the categories collection.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({
       '/api/v1/suppliers/me': profile({ categories: [] }),

@@ -1,3 +1,18 @@
+// FEAT-08.6 and FR-INV-006: only RFQs this supplier holds a real Invitation to are ever returned - the backend list
+// endpoint is itself invitation-scoped rather than filtered client-side.
+//
+// It pages with useInfiniteQuery. API-ARCHITECTURE.md §6.1 names RFQs a cursor-default, infinite-scroll collection, and
+// a page-one-only fetch would silently hide every invitation past the 20th, with no error and no empty state - which is
+// the failure the backend's keyset paging exists to avoid. Same shape as ReviewQueuePage and TeamPage;
+// SCREEN-SPECIFICATIONS.md §5's SCR-140 describes the table and is silent on the paging control, so this follows the
+// codebase's existing convention rather than inventing a pager the spec never named.
+//
+// T2-32: loading and empty are distinct states. Before this, `rfqsQuery.data ?? []` meant an invited supplier was told
+// "no RFQs" for the whole duration of the fetch - and permanently on a fetch failure - because a pending query and a
+// genuinely empty list rendered the same copy. UX-PRINCIPLES.md §DoD: "All states designed: empty, loading (skeleton),
+// error, success". The card, those four states and the next page are one component now; this screen supplies the table
+// and the words.
+
 import { useTranslation } from 'react-i18next'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -5,18 +20,10 @@ import {ListCard, PageHeading, StatusChip, Table, TableBody, TableCell, TableHea
 import { nextPageParam } from '../api/listEnvelope'
 import { listInvitedRfqs } from '../api/supplierRfqs'
 
-/** FEAT-08.6/FR-INV-006: only RFQs this supplier holds a real Invitation to are ever returned -
- * the backend list endpoint is itself invitation-scoped, not filtered client-side. */
 export function SupplierRfqListPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
 
-  // API-ARCHITECTURE.md §6.1 names RFQs a cursor-default, infinite-scroll collection. A
-  // page-one-only fetch would silently hide every invitation past the 20th - no error, no empty
-  // state - which is the failure the backend's keyset paging exists to avoid. Same
-  // useInfiniteQuery + "Load more" shape as ReviewQueuePage/TeamPage; SCREEN-SPECIFICATIONS.md
-  // §5 (SCR-140) describes the table but is silent on the paging control, so this follows the
-  // codebase's existing convention rather than inventing a pager the spec never named.
   const rfqsQuery = useInfiniteQuery({
     queryKey: ['supplier-rfqs'],
     queryFn: ({ pageParam }) => listInvitedRfqs(pageParam),
@@ -31,12 +38,6 @@ export function SupplierRfqListPage() {
         <PageHeading title={t('supplierRfq.title')} subtitle={t('supplierRfq.subtitle')} />
       </div>
 
-      {/* T2-32: loading and empty are distinct states. Before this, `rfqsQuery.data ?? []` meant
-          an invited supplier was told "no RFQs" for the whole duration of the fetch - and
-          permanently on a fetch failure - because a pending query and a genuinely empty list
-          rendered the same copy. UX-PRINCIPLES.md §DoD: "All states designed: empty, loading
-          (skeleton), error, success". The card, those four states and the next page are one
-          component now; this screen supplies the table and the words. */}
       <ListCard
         title={t('supplierRfq.listTitle')}
         query={rfqsQuery}

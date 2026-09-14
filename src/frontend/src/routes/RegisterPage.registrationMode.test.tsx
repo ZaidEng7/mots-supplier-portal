@@ -1,3 +1,12 @@
+// FR-REG-002 and T-060. The server refuses a closed registration either way; this is the message.
+//
+// A closed registration replaces the form with an explanation, because a form that cannot be submitted must not be on
+// screen. The control is that the form renders when registration is open, which is also the requirement's own default.
+//
+// The third test is deliberate: the form renders when the settings read FAILS. The setting defaults to open, and a
+// settings endpoint that is briefly unavailable must not look like a closed ministry - the failure mode that silences the
+// front door is worse than the one that shows a form the server would refuse.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import { mockFetch, renderPage } from '../test/renderPage'
@@ -9,7 +18,6 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { RegisterPage } = await import('./RegisterPage')
 
-/** FR-REG-002/T-060. The server refuses a closed registration either way; this is the message. */
 describe('RegisterPage registration mode', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -23,12 +31,10 @@ describe('RegisterPage registration mode', () => {
 
     expect(await screen.findByText('Registration is closed')).toBeInTheDocument()
     expect(screen.getByText(/Contact the Ministry/)).toBeInTheDocument()
-    // A form that cannot be submitted must not be on screen.
     expect(screen.queryByLabelText(/Email/i)).not.toBeInTheDocument()
   })
 
   it('renders the form when registration is open', async () => {
-    // The control, and the requirement's own default.
     restore = mockFetch({
       '/api/v1/reference/settings': { 'registration.mode': 'open', 'proposals.defaultCurrencyCode': 'SYP' },
     })
@@ -40,9 +46,6 @@ describe('RegisterPage registration mode', () => {
   })
 
   it('renders the form when the settings read FAILS', async () => {
-    // Deliberate: the setting defaults to open, and a settings endpoint that is briefly unavailable
-    // must not look like a closed ministry. The failure mode that silences the front door is worse
-    // than the one that shows a form the server would refuse.
     restore = mockFetch({ '/api/v1/reference/settings': { __status: 500 } })
 
     renderPage(<RegisterPage />)

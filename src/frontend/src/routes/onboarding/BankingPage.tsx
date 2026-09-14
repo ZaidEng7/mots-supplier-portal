@@ -1,3 +1,18 @@
+// The onboarding step for a supplier's bank accounts, including the audited reveal.
+//
+// Editing is gated on the onboarding state, the same as the other wizard steps: while an application is with a reviewer
+// these forms are read-only.
+//
+// The account number is required only when ADDING, not when editing, and that is enforced by hand rather than through a
+// conditional zod resolver - a dynamically-typed resolver confuses react-hook-form's inferred FieldValues type across the
+// two branches.
+//
+// The default-account cell says three different things: the account that IS the default says so, one that could become it
+// offers the control, and a read-only view of a non-default account has nothing to add.
+//
+// A failed profile read is its own branch. The wizard step cannot be filled in from a profile that failed to load, and the
+// form would otherwise render as though the supplier simply had none.
+
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -28,9 +43,6 @@ const bankSchema = z.object({
 })
 type BankFormValues = z.infer<typeof bankSchema>
 
-// zod doesn't need branch-based conditional required-ness here: the account number is required
-// only when adding (not editing), enforced manually below rather than via a dynamically-typed
-// resolver (which confuses react-hook-form's inferred FieldValues type across the two branches).
 
 function BankAccountDialog({
   open,
@@ -208,8 +220,6 @@ export function BankingPage() {
   if (profileQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
-  // The wizard step cannot be filled in from a profile that failed to load, and the
-  // form below would otherwise render as though the supplier simply had none.
   if (profileQuery.isError) return <QueryError error={profileQuery.error} onRetry={() => void profileQuery.refetch()} />
 
 
@@ -252,8 +262,6 @@ export function BankingPage() {
                   </TableCell>
                   <TableCell>{a.currencyCode}</TableCell>
                   <TableCell>
-                    {/* The account that IS the default says so; one that could become it offers the
-                        control; a read-only view of a non-default account has nothing to add. */}
                     {a.isDefault ? (
                       <Badge tone="brand">{t('banking.isDefault')}</Badge>
                     ) : null}

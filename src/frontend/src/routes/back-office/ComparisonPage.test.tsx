@@ -1,3 +1,32 @@
+// FEAT-12.4 and FR-CMP-004: the blindness and two-envelope gate, proven against the UI's OWN rendered data rather than just
+// "the component renders". A fixture with evaluationState pre-Consolidated and every proposal's items and criterion scores
+// explicitly null must never render a price or score cell, and a fixture with a disqualified proposal at Consolidated or
+// later must show that one proposal's price cells as absent while a qualified sibling's are shown.
+//
+// Empty shows the no-proposals message.
+//
+// PRE-CONSOLIDATION it renders requirement fulfilment but no price, grand total or score cell for any proposal. Every
+// commercial cell must read "Not visible" - not a price, not a blank, not a zero. There is no evaluation group at all, and
+// that assertion is scoped OUTSIDE the tab strip, which carries an "Evaluation" link on every tender screen and is not what
+// it is about. Requirement fulfilment IS shown, because only pricing and scores are gated.
+//
+// CONSOLIDATED: a qualified proposal shows pricing and scores and a disqualified sibling shows neither. The figures go
+// through the shared formatter now, so the currency travels with the figure instead of being a bare toFixed(2) beside a code -
+// SYP carries no minor units in ICU, hence "SYP 50". The disqualified proposal's weighted total is a DASH, never a fabricated
+// number. The evaluation group is asserted, not the tab of the same name.
+//
+// A-1 and BRULE-069: a rank from an UNRESOLVED TIE is marked and a resolution with a reason is offered. The award flow
+// refuses rank 1 while that marker is set, so the officer has to be able to see the tie and break it here - and must say why,
+// because a tie broken with no stated basis is exactly what the system refused to do. The control is disabled until a reason
+// is typed, which is the guard checked in the direction that refuses. And with nothing tied there is no panel: that test
+// asserts the rank row to prove the consolidated section rendered at all, which is what makes the absence meaningful rather
+// than vacuous.
+//
+// The last test is B-1 and SCR-433: a buyer can ask a bidder to clarify, with a mandatory reason. POST
+// /proposals/{code}/request-clarification has existed since T-051, is permissioned, and nothing called it - the same shape as
+// T-067, where the rule permits the action and no surface reaches it, so a buyer had to use the API by hand. It is disabled
+// until there is a question, because a clarification request with nothing in it is not one.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -43,11 +72,6 @@ function comparisonFixture(overrides: Partial<Comparison> = {}): Comparison {
   }
 }
 
-/** FEAT-12.4/FR-CMP-004: the blindness/two-envelope gate proven against the UI's OWN rendered data,
- * not just "the component renders" - a fixture with evaluationState pre-Consolidated and every
- * proposal's items/criterionScores explicitly null must never render a price or score cell, and a
- * fixture with a disqualified proposal at Consolidated+ must show that one proposal's price cells
- * as absent while a qualified sibling's are shown. */
 describe('ComparisonPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -69,17 +93,13 @@ describe('ComparisonPage', () => {
     expect(screen.getByText('Supplier A')).toBeInTheDocument()
     expect(screen.getByText('Supplier B')).toBeInTheDocument()
 
-    // Every commercial cell must read "Not visible" - not a price, not a blank, not a zero.
     const notVisibleCells = screen.getAllByText('Not visible')
     expect(notVisibleCells.length).toBeGreaterThanOrEqual(2) // unit price row x 2 proposals
 
-    // No evaluation group at all pre-consolidation. Scoped outside the tab strip, which carries an
-    // "Evaluation" link on every tender screen and is not what this asserts.
     const outsideTabs = (text: string) => screen.queryAllByText(text).filter((el) => !el.closest('nav'))
     expect(outsideTabs('Evaluation')).toEqual([])
     expect(screen.queryByText('Weighted total')).not.toBeInTheDocument()
 
-    // Requirement fulfilment IS shown (not gated - only pricing/scores are).
     expect(screen.getByText('Met')).toBeInTheDocument()
     expect(screen.getByText('Not met')).toBeInTheDocument()
   })
@@ -113,7 +133,6 @@ describe('ComparisonPage', () => {
 
     renderPage(<ComparisonPage />)
 
-    // The evaluation group, not the tab of the same name.
     await screen.findByText('Weighted total')
     expect(screen.queryAllByText('Evaluation').filter((el) => !el.closest('nav'))).toHaveLength(1)
 
@@ -123,21 +142,15 @@ describe('ComparisonPage', () => {
     expect(within(qualificationRow).getByText('Not qualified')).toBeInTheDocument()
 
     const grandTotalRow = rows.find((r) => within(r).queryByText('Grand total'))!
-    // Formatted through the shared formatter now, so the currency travels with the figure instead of
-    // being a bare toFixed(2) beside a code. SYP carries no minor units in ICU, hence "SYP 50".
     expect(within(grandTotalRow).getByText(/SYP\s*50/)).toBeInTheDocument()
     expect(within(grandTotalRow).getByText('Not visible')).toBeInTheDocument()
 
     const weightedTotalRow = rows.find((r) => within(r).queryByText('Weighted total'))!
     expect(within(weightedTotalRow).getByText(/110\.00/)).toBeInTheDocument()
-    // The disqualified proposal's weighted total cell is a dash, never a fabricated number.
     expect(within(weightedTotalRow).getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('marks a rank that came from an unresolved tie and offers a resolution with a reason', async () => {
-    // A-1/BRULE-069. The award flow refuses rank 1 while this marker is set, so the officer has to be
-    // able to see the tie and break it here - and must say why, because a tie broken with no stated
-    // basis is exactly what the system refused to do.
     const calls: { url: string; method: string; body: string }[] = []
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/comparison': comparisonFixture({
@@ -173,7 +186,6 @@ describe('ComparisonPage', () => {
 
     const reason = screen.getByLabelText('Reason for choosing PRP-2026-000001')
     const buttons = screen.getAllByRole('button', { name: 'Confirm the order' })
-    // Disabled until a reason is typed - the guard checked in the direction that refuses.
     expect(buttons[0]).toBeDisabled()
 
     await userEvent.type(reason, 'Prior delivery record.')
@@ -186,22 +198,16 @@ describe('ComparisonPage', () => {
   })
 
   it('shows no tie panel when nothing is tied', async () => {
-    // The control.
     restore = mockFetch({ '/api/v1/rfqs/RFQ-2026-000001/comparison': comparisonFixture({ evaluationState: 'Consolidated' }) })
 
     renderPage(<ComparisonPage />)
 
-    // The rank row proves the consolidated section rendered at all, which is what makes the absence
-    // of the tie panel meaningful rather than vacuous.
     expect(await screen.findByText('Rank')).toBeInTheDocument()
     expect(screen.queryByText('A tie in the ranking needs a decision')).not.toBeInTheDocument()
     expect(screen.queryByText('Unresolved tie')).not.toBeInTheDocument()
   })
 
   it('lets a buyer ask a bidder to clarify, with a mandatory reason', async () => {
-    // B-1/SCR-433. POST /proposals/{code}/request-clarification has existed since T-051, is permissioned,
-    // and nothing called it - the same shape as T-067: the rule permits the action and no surface reaches
-    // it. A buyer had to use the API by hand.
     const calls: { url: string; method: string; body: string }[] = []
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/comparison': comparisonFixture({ evaluationState: 'Consolidated' }),
@@ -211,7 +217,6 @@ describe('ComparisonPage', () => {
     renderPage(<ComparisonPage />)
 
     const reason = await screen.findByLabelText('What to clarify for PRP-2026-000001')
-    // Disabled until there is a question - a clarification request with nothing in it is not one.
     expect(screen.getAllByRole('button', { name: 'Request clarification' })[0]).toBeDisabled()
 
     await userEvent.type(reason, 'The delivery schedule contradicts item 3.')

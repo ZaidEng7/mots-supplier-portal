@@ -1,3 +1,12 @@
+// FEAT-06.3, FR-OFF-004 and FR-SRCH-001: procurement staff searching offerings across all suppliers for RFQ invitation
+// candidates.
+//
+// Results are already lifecycle-filtered server-side (FEAT-06.4), so this page trusts the API's Active-only guarantee rather
+// than re-deriving it client-side.
+//
+// The search box had a caption reading "Search by name..." - the placeholder, said twice, and attached to nothing.
+// SearchField gives it a real <label for> and keeps the placeholder as the example it always was.
+
 import { formatCurrency } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,9 +16,6 @@ import { searchBuyerOfferings } from '../../api/offerings'
 import { fetchCategories } from '../../api/reference'
 import { localisedName } from '../../lib/localised'
 
-/** FEAT-06.3/FR-OFF-004/FR-SRCH-001: procurement staff searching offerings across all suppliers
- * for RFQ invitation candidates. Results are already lifecycle-filtered server-side (FEAT-06.4) -
- * this page trusts the API's Active-only guarantee rather than re-deriving it client-side. */
 export function OfferingSearchPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -45,9 +51,6 @@ export function OfferingSearchPage() {
             options={[{ value: 'all', label: t('offeringSearch.filterAll') }, ...categories.map((c) => ({ value: c.code, label: isArabic ? c.nameAr : c.nameEn }))]}
           />
         </FilterField>
-        {/* The search box had a caption reading "Search by name…" - the placeholder, said twice, and
-            attached to nothing. `SearchField` gives it a real `<label for>` and keeps the placeholder
-            as the example it always was. */}
         <SearchField
           id="offering-search"
           label={t('offeringSearch.filterSearch')}

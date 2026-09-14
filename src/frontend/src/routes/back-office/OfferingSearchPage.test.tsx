@@ -1,13 +1,19 @@
+// FEAT-06.3 and FR-OFF-004: procurement staff's buyer-facing offering search, which had zero coverage before this, since the
+// endpoint and this page are new for EPIC-06's discoverability requirement. The lifecycle-gating and row-scoping itself is
+// proven server-side in OfferingBuyerSearchTests.cs; this covers the page actually rendering what the endpoint returns,
+// attributes included.
+//
+// The offerings render with their attributes and supplier name, an empty result shows the empty state, and a failure shows a
+// retryable error rather than an empty screen. That last one asserts two halves nothing did before: that the error branch
+// RENDERS, and that the control inside it does anything - asyncStateCoverage proves the branch exists in the source, and a
+// retry button wired to nothing looks identical to one that works.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../../test/renderPage'
 
 const { OfferingSearchPage } = await import('./OfferingSearchPage')
 
-/** FEAT-06.3/FR-OFF-004: procurement staff's buyer-facing offering search - zero coverage before
- * this, since the endpoint (and this page) are new for EPIC-06's discoverability requirement. The
- * lifecycle-gating and row-scoping itself is proven server-side in OfferingBuyerSearchTests.cs;
- * this covers the page actually rendering what the endpoint returns, attributes included. */
 describe('OfferingSearchPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -47,9 +53,6 @@ describe('OfferingSearchPage', () => {
   })
 
   it('shows a retryable failure rather than an empty screen', async () => {
-    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
-    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
-    // button wired to nothing looks identical to one that works.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({ '/api/v1/offerings/search': { __status: 500 }, '/api/v1/reference/categories': [] }, recorded)
 

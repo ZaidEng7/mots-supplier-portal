@@ -1,3 +1,35 @@
+// The onboarding review queue.
+//
+// FEAT-03.6 and FR-ONB-012 carry an [ASSUMPTION]: no SLA window is defined anywhere in the product docs - BACKLOG.md's
+// STORY-03.6.1 only says "shows age/SLA", with no numbers - so 48h "at risk" and 120h, five business days, "overdue" is a
+// reasonable default for a compliance review queue rather than a confirmed business requirement. Revisit once Product or
+// Procurement sets a real window, the same as ASSUMPTIONS.md's other interim defaults, such as ASM-010's
+// registration-mode default.
+//
+// THE STATE FILTER lists the three states the queue serves by default, then the two it does not. F-6: a decided
+// application dropped out of every list the moment it was decided, and no other list carried it - so a reviewer wanting to
+// look back at their own decision had to type the supplier's reference code into the address bar. The detail screen was
+// reachable; nothing pointed at it.
+//
+// MSP-84: the queue is a table applications are inserted into continuously, so a page-one-only fetch would silently hide
+// everything after the first 50, with no error, no empty state and nothing visibly wrong. useInfiniteQuery and the Load
+// more button are the consumer half of the keyset-paged backend; loading page one and stopping there would recreate
+// exactly that bug.
+//
+// THE AGEING TILES are the comp's queue tiles, on the screen where the queue is worked rather than on a ministry reporting
+// page. The ageing was already here, one badge per row, so "how far behind am I" meant reading every row and counting -
+// which is the question a reviewer opens this screen with. The three buckets come from the same ageTone every row's own
+// badge uses, so a tile and the rows it counts can never disagree about what "at risk" means. They are counted from the
+// rows that are LOADED, because the endpoint returns a page and no per-threshold aggregate, and that is said out loud when
+// there are more: three confident numbers describing the first page of a long queue would be worse than no numbers, and
+// quietly so.
+//
+// Before ListState owned the body, a failed queue fetch rendered "nothing waiting for you" - the one thing a reviewer must
+// not be told wrongly, because they act on it by going away.
+//
+// A-5's review target is a TARGET, rendered as a plain date: no tone, no badge, no "overdue", because the ministry has not
+// stated a commitment and the product must not imply one.
+
 import { useState } from 'react'
 import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
@@ -10,11 +42,6 @@ import { listReviewQueue, claimReviewItem, unassignReviewItem, type ReviewQueueI
 import { useAuthStore } from '../lib/authStore'
 import { invalidateQuietly } from '../lib/queryClient'
 
-/** FEAT-03.6/FR-ONB-012 [ASSUMPTION]: no SLA window is defined anywhere in the product docs
- * (BACKLOG.md's STORY-03.6.1 only says "shows age/SLA", no numbers) - 48h "at risk" / 120h
- * (5 business days) "overdue" is a reasonable default for a compliance review queue, not a
- * confirmed business requirement. Revisit once Product/Procurement actually sets a real window,
- * same as ASSUMPTIONS.md's other interim defaults (e.g. ASM-010's registration-mode default). */
 export const AT_RISK_HOURS = 48
 export const OVERDUE_HOURS = 120
 
@@ -30,11 +57,6 @@ export function formatAge(hours: number, isArabic: boolean): string {
   return isArabic ? `${Math.max(0, Math.floor(hours))} ساعة` : `${Math.max(0, Math.floor(hours))}h`
 }
 
-// The three the queue serves by default, then the two it does not.
-//
-// F-6: a decided application dropped out of every list the moment it was decided, and no other list
-// carried it - so a reviewer wanting to look back at their own decision had to type the supplier's
-// reference code into the address bar. The detail screen was reachable; nothing pointed at it.
 const STATE_OPTIONS = ['Submitted', 'UnderReview', 'InfoRequested', 'Approved', 'Rejected']
 
 export function ReviewQueuePage() {
@@ -51,10 +73,6 @@ export function ReviewQueuePage() {
     assignedTo: assigneeFilter === 'all' ? null : assigneeFilter,
   }
 
-  // MSP-84: the queue is a table applications are inserted into continuously - a page-one-only
-  // fetch would silently hide everything after the first 50, no error, no empty state, nothing
-  // visibly wrong. useInfiniteQuery + the Load more button below is the consumer half of the
-  // keyset-paged backend; loading page one and stopping there would recreate exactly that bug.
   const queueQuery = useInfiniteQuery({
     queryKey: ['review-queue', filters.state, filters.assignedTo],
     queryFn: ({ pageParam }) => listReviewQueue(pageParam, filters),
@@ -63,10 +81,6 @@ export function ReviewQueuePage() {
   })
   const items = queueQuery.data?.pages.flatMap((p) => p.data) ?? []
 
-  /**
-   * The three buckets, from the same `ageTone` every row's own badge uses - so a tile and the rows it
-   * counts can never disagree about what "at risk" means.
-   */
   const ageingTiles = (['success', 'warning', 'danger'] as const).map((tone) => ({
     key: tone,
     count: items.filter((item) => ageTone((Date.now() - new Date(item.enteredQueueAt).getTime()) / 3_600_000) === tone).length,
@@ -101,15 +115,6 @@ export function ReviewQueuePage() {
     <div className="flex flex-col gap-6">
       <PageHeading title={t('review.queue')} />
 
-      {/*
-        The comp's queue tiles, on the screen where the queue is worked rather than on a ministry
-        reporting page. The ageing was already here, one badge per row, so "how far behind am I" meant
-        reading every row and counting - which is the question a reviewer opens this screen with.
-
-        Counted from the rows that are loaded, because the endpoint returns a page and no per-threshold
-        aggregate. That is said out loud when there are more: three confident numbers describing the
-        first page of a long queue would be worse than no numbers, and quietly so.
-      */}
       {items.length > 0 ? (
         <div className="flex flex-col gap-2">
           <ThresholdTiles label={t('review.ageing.label')} tiles={ageingTiles} />
@@ -145,8 +150,6 @@ export function ReviewQueuePage() {
         </FilterField>
       </FilterBar>
 
-      {/* Before ListState owned this, a failed queue fetch rendered "nothing waiting for you" - the one
-          thing a reviewer must not be told wrongly, because they act on it by going away. */}
       <ListState
         isPending={queueQuery.isLoading}
         isError={queueQuery.isError}
@@ -190,8 +193,6 @@ export function ReviewQueuePage() {
                 <TableCell>
                   <Badge tone={ageTone(ageHours)}>{formatAge(ageHours, isArabic)}</Badge>
                 </TableCell>
-                {/* A-5: a TARGET, rendered as a plain date. No tone, no badge, no "overdue" - the
-                    ministry has not stated a commitment, so the product must not imply one. */}
                 <TableCell>
                   {item.reviewTargetAt ? formatDateTime(item.reviewTargetAt, isArabic ? 'ar' : 'en-GB') : '—'}
                 </TableCell>

@@ -1,3 +1,40 @@
+// SCR-710, SCR-711 and SCR-712 at /back-office/reference, for system_admin, P1 (FR-ADM-004).
+//
+// T-034 and T-059 landed the whole admin write surface in batch 9 and no screen consumed it, so adding a document type still
+// meant a request by hand. Three inventory rows, one screen: the operations are identical across the five tables and only
+// DocumentType carries extra flags, so five near-identical pages would be five places for the next change to miss - which
+// is the same argument the single handler behind them already makes.
+//
+// NO DELETE, AND THE CODE IS NOT EDITABLE. Both are D-28: every one of these tables is referenced BY CODE from live rows
+// with no cascade, so deleting a Category a published RFQ points at would leave that RFQ describing nothing, and renaming a
+// code would silently change what a historical award was for. Deactivation hides a code from new selections and leaves every
+// existing row readable. That is stated on the screen, because an administrator who cannot find a delete button deserves to
+// know it is absent on purpose - and the code itself renders as text rather than an input, being the foreign key in every
+// live row.
+//
+// THE REFUSALS. A duplicate code is one this screen can word itself; an invalid reference item is one only the server can
+// explain, so its own message wins; everything else falls back to the caller's wording. They are written as statements rather
+// than a chain, because the middle case defers to the SERVER's wording. The server names the rule that was broken - a
+// duplicate code, or one longer than the column allows, since Currency.Code is 3 by ISO and the others 50, and a too-long
+// code used to answer 500 from Postgres - and showing "invalid" instead would leave an administrator guessing which.
+//
+// WHERE a refusal is shown depends on whether it has a field to point at: a rejected NEW code belongs beside the code input,
+// and a rejected rename or deactivation has no input of its own, so it goes to the toast. Doing both put the same sentence on
+// screen twice.
+//
+// AN OMITTED FLAG MEANS UNCHANGED, not false: an administrator fixing an Arabic typo must not silently clear a document
+// type's requiredness. BRULE-023's flag write sends the names unchanged alongside it, because the update contract takes the
+// whole row and an omitted name would be read as a rename to empty. It is offered only where the flag exists, since a null
+// means "this table has no such flag".
+//
+// BRULE-016's LINK SETS are fetched only on the document-types table: these links exist for no other table, and a request
+// that could only ever return the same rows on four of five tabs is a request not worth making. The line beside them says
+// what a link DOES rather than that it does nothing, because BRULE-016 has been live since D-59.
+//
+// BRULE-023's consequence is stated once and near the control rather than in a tooltip.
+//
+// The card is OUTSIDE the state rather than inside it, because loading used to render a bare skeleton with no card around it.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -9,24 +46,6 @@ import {
   type ReferenceItem, type ReferenceTable,
 } from '../../api/referenceAdmin'
 
-/**
- * SCR-710 / SCR-711 / SCR-712, `/back-office/reference`, `system_admin`, P1 (FR-ADM-004).
- *
- * <p>T-034/T-059 landed the whole admin write surface in batch 9 and no screen consumed it, so adding a
- * document type still meant a request by hand. Three inventory rows, one screen: the operations are
- * identical across the five tables and only DocumentType carries extra flags — five near-identical pages
- * would be five places for the next change to miss, which is the same argument the single handler behind
- * them already makes.</p>
- *
- * <p><b>No delete, and the code is not editable.</b> Both are D-28: every one of these tables is
- * referenced BY CODE from live rows with no cascade, so deleting a Category a published RFQ points at
- * would leave that RFQ describing nothing, and renaming a code would silently change what a historical
- * award was for. Deactivation hides a code from new selections and leaves every existing row readable.</p>
- */
-/**
- * A duplicate code is a refusal this screen can word itself. An invalid reference item is one only the
- * server can explain, so its own message wins. Everything else falls back to the caller's wording.
- */
 function messageFor(code: string | undefined, raised: unknown, fallback: string, duplicateText: string): string {
   if (code === 'DUPLICATE_RESOURCE') return duplicateText
   if (code === 'INVALID_REFERENCE_ITEM' && raised instanceof SupplierApiError) return raised.message
@@ -51,18 +70,8 @@ export function ReferenceDataPage() {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['reference-admin', table] })
 
-  // The server names the rule that was broken - a duplicate code, or one longer than the column allows
-  // (Currency.Code is 3 by ISO, the others 50, and a too-long code used to answer 500 from Postgres).
-  // Showing "invalid" instead would leave an administrator guessing which.
-  //
-  // Where it is shown depends on whether the failure has a field to point at: a rejected NEW code
-  // belongs beside the code input, and a rejected rename or deactivation has no input of its own,
-  // so it goes to the toast. Doing both put the same sentence on screen twice.
   const onError = (raised: unknown, fallback: string, surface: 'field' | 'toast') => {
     const code = raised instanceof SupplierApiError ? (raised.code ?? '') : ''
-    // Two distinct refusals, each with its own answer, and everything else falling back. Written as
-    // statements rather than a chain because the middle case defers to the SERVER's wording - the
-    // reference item is invalid for a reason only the server knows.
     const message = messageFor(code, raised, fallback, t('referenceAdmin.errors.duplicateCode'))
     if (surface === 'field') setError(message)
     else notify({ kind: 'danger', title: message })
@@ -88,8 +97,6 @@ export function ReferenceDataPage() {
     mutationFn: ({ item, nameAr, nameEn }: { item: ReferenceItem; nameAr: string; nameEn: string }) =>
       updateReferenceItem(table, item.code, {
         nameAr, nameEn,
-        // Omitted means unchanged, not false: an administrator fixing an Arabic typo must not silently
-        // clear a document type's requiredness.
         isRequired: item.isRequired, expiryTracked: item.expiryTracked,
         isAwardCritical: item.isAwardCritical,
       }),
@@ -97,16 +104,6 @@ export function ReferenceDataPage() {
     onError: (raised) => onError(raised, t('referenceAdmin.errors.updateFailed'), 'toast'),
   })
 
-  /**
-   * BRULE-023. Sends the names unchanged alongside the flag, because the update contract takes the whole row
-   * and an omitted name would be read as a rename to empty.
-   */
-  /**
-   * BRULE-016. The link sets, and the categories to choose from.
-   *
-   * <p>Only fetched on the document-types table: these links exist for no other table, and a request that
-   * could only ever return the same rows on four of five tabs is a request not worth making.</p>
-   */
   const linksQuery = useQuery({
     queryKey: ['document-type-categories'],
     queryFn: getDocumentTypeCategories,
@@ -181,16 +178,11 @@ export function ReferenceDataPage() {
             {t('referenceAdmin.add')}
           </Button>
         </div>
-        {/* Stated on the screen, because an administrator who cannot find a delete button deserves to know
-            it is absent on purpose rather than missing. */}
         <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('referenceAdmin.noDeleteNotice')}
         </p>
       </Card>
 
-      {/* The card is outside the state, not inside it. Loading used to render a bare skeleton with no
-          card around it and failure rendered a DIFFERENT card with a different title, so the screen
-          changed shape three times on its way to showing a table. */}
       <ListCard
         title={t(`adminOverview.tables.${table}`)}
         query={{ ...itemsQuery, isPending: itemsQuery.isLoading }}
@@ -215,7 +207,6 @@ export function ReferenceDataPage() {
                   const dirty = draft.ar !== item.nameAr || draft.en !== item.nameEn
                   return (
                     <TableRow key={item.code}>
-                      {/* The code is text, not an input: it is the foreign key in every live row. */}
                       <TableCell><code>{item.code}</code></TableCell>
                       <TableCell>
                         <div className="flex flex-wrap items-end gap-2">
@@ -238,11 +229,6 @@ export function ReferenceDataPage() {
                         {item.isRequired === true ? (
                           <span className="ms-2"><Badge tone="info">{t('referenceAdmin.required')}</Badge></span>
                         ) : null}
-                        {/*
-                          BRULE-016. The links, per document type, with what they now mean said out loud
-                          beneath the table. Chips rather than a multi-select: the set is three categories
-                          today and a select would hide which ones are on without opening it.
-                        */}
                         {table === 'document-types' ? (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {(categoriesQuery.data ?? []).map((category) => {
@@ -268,10 +254,6 @@ export function ReferenceDataPage() {
                             })}
                           </div>
                         ) : null}
-                        {/* BRULE-023, visible for the first time. The rule - expiry of an award-critical
-                            document suspends the supplier - has been live and unable to fire since the column
-                            was added, because no type sets the flag and no screen could set it. Shown in the
-                            danger tone because that is what it does. */}
                         {item.isAwardCritical === true ? (
                           <span className="ms-2"><Badge tone="danger">{t('referenceAdmin.awardCritical')}</Badge></span>
                         ) : null}
@@ -285,13 +267,6 @@ export function ReferenceDataPage() {
                           >
                             {t('referenceAdmin.save')}
                           </Button>
-                          {/* Offered only where the flag exists. A null means "this table has no such flag",
-                              and a toggle on a currency would be a control that writes nothing.
-
-                              No confirmation dialog, deliberately: this write does not suspend anybody by
-                              itself. It changes which FUTURE expiries will, and the expiry job is what acts -
-                              so the consequence is explained beside the table rather than dressed up as a
-                              destructive action. */}
                           {item.isAwardCritical !== null ? (
                             <Button
                               size="sm"
@@ -320,18 +295,12 @@ export function ReferenceDataPage() {
               </TableBody>
           </Table>
       </ListCard>
-      {/* BRULE-023's consequence, stated once and near the control rather than in a tooltip: this is the
-          only flag on this screen whose effect is to suspend a live supplier, and it fires from a scheduled
-          job days or months later, which is exactly when nobody remembers setting it. */}
       {table === 'document-types' ? (
         <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('referenceAdmin.awardCriticalExplained')}
         </p>
       ) : null}
 
-      {/* BRULE-016 is live since D-59, so this line says what a link DOES rather than that it does nothing.
-          The two facts an administrator cannot infer from the chips: a type with no links is required of
-          everyone, and a change here reaches suppliers who are already approved. */}
       {table === 'document-types' ? (
         <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('referenceAdmin.categoryLinksExplained')}

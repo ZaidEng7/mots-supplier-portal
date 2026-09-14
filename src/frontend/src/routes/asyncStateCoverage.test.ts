@@ -1,29 +1,33 @@
+// Sweep: a screen that fetches must be able to say "we could not load this".
+//
+// The defect this closes. Eighteen route components distinguished loading from empty and stopped there. React Query
+// does not throw to the router's error boundary unless a query opts in, and none do, so a failed fetch left `data`
+// undefined and the page rendered its EMPTY state: "you have no invitations", "nothing waiting for you", "no
+// recommendation yet". Every one of those is a statement about the world that the product had not checked - the same
+// class of error D-66 got right on the Ministry screens, where a withheld value renders as withheld rather than as
+// zero.
+//
+// What this checks and what it cannot. It reads source, so it proves a branch EXISTS, not that its copy is right or
+// that it renders. ReviewQueuePage.test.tsx and SupplierRfqListPage.test.tsx render the failure for real and assert the
+// reader is told the truth; this sweep is what stops the nineteenth screen shipping without either. A screen passes
+// either by handling the failure itself or by handing the whole state machine to a component that does - ListCard and
+// ListState take the failure copy as a prop and render it in place.
+//
+// The exemptions are screens that fetch and deliberately have no error branch of their own, each with the reason, typed
+// out by hand: a pattern-matched exemption lets the next instance join it silently. Each is checked to still name a page
+// that exists, still fetch, and still say why.
+//
+// The denominator comes before the rule, because an empty list would make every assertion vacuous. And the last test is
+// the control: a matcher that answered true for everything would keep this green forever, which is the failure this
+// repository has now found in five other sweeps.
+
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-/**
- * Sweep: a screen that fetches must be able to say "we could not load this".
- *
- * <p><b>The defect this closes.</b> Eighteen route components distinguished loading from empty and
- * stopped there. React Query does not throw to the router's error boundary unless a query opts in, and
- * none do, so a failed fetch left `data` undefined and the page rendered its EMPTY state: "you have no
- * invitations", "nothing waiting for you", "no recommendation yet". Every one of those is a statement
- * about the world that the product had not checked - the same class of error D-66 got right on the
- * Ministry screens, where a withheld value renders as withheld rather than as zero.</p>
- *
- * <p><b>What this checks and what it cannot.</b> It reads source, so it proves a branch EXISTS, not that
- * its copy is right or that it renders. `ReviewQueuePage.test.tsx` and `SupplierRfqListPage.test.tsx`
- * render the failure for real and assert the reader is told the truth; this sweep is what stops the
- * nineteenth screen shipping without either.</p>
- */
 
 const ROUTES = resolve(process.cwd(), 'src/routes')
 
-/**
- * Screens that fetch but deliberately have no error branch of their own, each with the reason. Typed out
- * by hand: a pattern-matched exemption lets the next instance join it silently.
- */
 const NO_ERROR_BRANCH_NEEDED: Record<string, string> = {
   'AboutPage.tsx':
     'The version read is decoration on a page whose real content is static text. A failed fetch leaves '
@@ -68,7 +72,6 @@ const FETCHING_PAGES = pageFiles().filter((f) => {
 
 describe('async state coverage', () => {
   it('the sweep reads the routes, not a handful of them', () => {
-    // The denominator, before the rule: an empty list would make every assertion below vacuous.
     expect(FETCHING_PAGES.length).toBeGreaterThan(40)
   })
 
@@ -76,8 +79,6 @@ describe('async state coverage', () => {
     const silent = FETCHING_PAGES.filter((file) => {
       if (file in NO_ERROR_BRANCH_NEEDED) return false
       const source = readFileSync(join(ROUTES, file), 'utf8')
-      // Either the screen handles it itself, or it hands the whole state machine to a component that
-      // does - ListCard and ListState take the failure copy as a prop and render it in place.
       return !/isError|<QueryError|<ListCard|<ListState/.test(source)
     })
 
@@ -93,8 +94,6 @@ describe('async state coverage', () => {
   })
 
   it('the check can fail', () => {
-    // The control. A matcher that answered true for everything would keep this green forever, which is
-    // the failure this repository has now found in five other sweeps.
     const silentPage = "const q = useQuery({}); return q.data.length === 0 ? <p>empty</p> : <Table />"
     const handledPage = "const q = useQuery({}); if (q.isError) return <QueryError />"
     const delegatedPage = "const q = useInfiniteQuery({}); return <ListCard query={q} labels={labels} />"

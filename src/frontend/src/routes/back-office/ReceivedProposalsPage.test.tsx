@@ -1,3 +1,24 @@
+// SCR-430 and SCR-431. Everything on this screen turns on the disclosure tier, and the tier is the SERVER's answer - nothing
+// here decides what to hide. What these tests pin is that each tier is EXPLAINED rather than rendered as an absence, because a
+// blank cell reads to a buyer as either a broken screen or a bid with no price, and both are worse than the truth.
+//
+// The sealed tier shows as a state WITH A COUNT rather than as an empty list: the count is what makes it unambiguous, because
+// "no proposals" would be false and saying nothing would read as a broken query - both available failure modes here.
+//
+// A withheld total is LABELLED instead of left blank, and its control is the same cell on the same page at a different tier -
+// so a passing "withheld" assertion cannot be the page simply never rendering totals.
+//
+// "Still loading" is distinguished from "nobody bid": falling through to "no proposals were submitted" while the query settles
+// states something false about a live tender, and it is exactly what a screen with a broken query looks like.
+//
+// One bid opens BESIDE the list rather than navigating away, and the list is still there - two occurrences of the code is the
+// assertion, one in the row and one in the panel heading.
+//
+// The detail's own tier is RE-READ from the detail response rather than inherited from the list: they are separate
+// authorisation answers, and a proposal can be readable while its prices are not.
+//
+// The last test offers a retry when the list cannot be read.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -27,19 +48,11 @@ function row(overrides: Record<string, unknown> = {}) {
 
 const LIST = '/api/v1/rfqs/RFQ-2026-000006/received-proposals'
 
-/**
- * SCR-430/431. Everything on this screen turns on the disclosure tier, and the tier is the SERVER's
- * answer - nothing here decides what to hide. What these tests pin is that each tier is EXPLAINED
- * rather than rendered as an absence, because a blank cell reads to a buyer as either a broken
- * screen or a bid with no price, and both are worse than the truth.
- */
 describe('ReceivedProposalsPage (SCR-430)', () => {
   let restore: () => void
   afterEach(() => restore?.())
 
   it('shows the sealed tier as a state with a count, not as an empty list', async () => {
-    // The count is what makes this unambiguous: "no proposals" would be false, and saying nothing
-    // would read as a broken query. Both are available failure modes here.
     restore = mockFetch({ [LIST]: { visibility: 'Sealed', submittedCount: 3, proposals: [] } })
 
     renderPage(<ReceivedProposalsPage />)
@@ -60,8 +73,6 @@ describe('ReceivedProposalsPage (SCR-430)', () => {
   })
 
   it('shows commercial figures once the tier allows them', async () => {
-    // The control for the test above: the same cell, the same page, a different tier - so a passing
-    // "withheld" assertion cannot be the page simply never rendering totals.
     restore = mockFetch({
       [LIST]: { visibility: 'Commercial', submittedCount: 1, proposals: [row()] },
     })
@@ -72,8 +83,6 @@ describe('ReceivedProposalsPage (SCR-430)', () => {
   })
 
   it('distinguishes "still loading" from "nobody bid"', async () => {
-    // Falling through to "no proposals were submitted" while the query settles states something
-    // false about a live tender, and it is exactly what a screen with a broken query looks like.
     restore = mockFetch({ [LIST]: { visibility: 'Commercial', submittedCount: 0, proposals: [] } })
 
     const { container } = renderPage(<ReceivedProposalsPage />)
@@ -103,14 +112,10 @@ describe('ReceivedProposalsPage (SCR-430)', () => {
     expect(await screen.findByText('We propose a phased rollout.')).toBeInTheDocument()
     expect(screen.getByText('30 days')).toBeInTheDocument()
     expect(screen.getByText('Daily meals')).toBeInTheDocument()
-    // The list is still there: this is a panel beside it, not a route. Two occurrences of the code
-    // is the assertion - one in the row, one in the panel heading.
     expect(screen.getAllByText('PRP-2026-000001')).toHaveLength(2)
   })
 
   it('withholds the detail total when the detail says the tier is not commercial', async () => {
-    // The tier is re-read from the DETAIL response, not inherited from the list. They are separate
-    // authorisation answers and a proposal can be readable while its prices are not.
     restore = mockFetch({
       [LIST]: { visibility: 'Technical', submittedCount: 1, proposals: [row({ totalValue: null })] },
       [`${LIST}/p-1`]: {

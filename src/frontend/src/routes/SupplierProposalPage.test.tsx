@@ -1,3 +1,46 @@
+// FEAT-09.1 through 09.6. OQ-009's two-envelope note applies: this page is the owning supplier's own view, the one place
+// both envelopes render together, since it is their own bid.
+//
+// With no proposal yet the page offers Start. That test makes getProposal 404 through a custom fetch override, because
+// mockFetch always returns 200, and the proposal is discovered at /rfqs/{rfqCode}/proposals per §12-A/C2 - which is also
+// why every mutation in these tests addresses the proposal by its OWN code.
+//
+// A 412 opens SCR-151's reconcile dialog rather than a toast: "Concurrency conflict: Dialog 'This proposal changed in
+// another tab/user' -> reload/merge", which §8.1 delivers as 412 ETAG_MISMATCH.
+//
+// The Save price button is disabled until a price is entered. A blank input used to be coerced to 0 and sent, which
+// recorded a free bid before §7.2's rule and produces an unexplained 422 after it.
+//
+// In Draft: the RFQ item shows for pricing and saving a price toasts, answering a requirement toasts, and submitting
+// toasts.
+//
+// Once Submitted the pricing and answer inputs are gone - state-gated editing - and withdraw is available. The fixture
+// proposal has no currency yet, so the line total renders as a bare amount. Withdrawn is terminal, per Proposal.cs, and
+// this control used to be an inline field beside a `ghost` button - the LOWEST-emphasis variant in the system - with
+// nothing anywhere saying the action could not be taken back. It opens a dialog that says so, and the dialog has to say
+// the bid really is gone for good. It must NOT say the supplier is out of the tender, because they are not: that dialog
+// read "You cannot re-enter this tender" while ProposalHandlers.cs treats a withdrawn proposal as the absence of one and
+// creates a new draft - the code's own note records that a supplier who withdrew to correct a price could once never bid
+// again, which is the bug that guard exists to stop, and the words were never corrected with it. A Rams audit found the
+// pair still disagreeing.
+//
+// Closing the withdraw dialog withdraws nothing, and the proposal is still there: a dialog that can be dismissed by
+// accident and still fires is worse than no dialog, because it looks like a safeguard. Once Withdrawn the action is
+// hidden.
+//
+// T-064's DECLINE control appears on an AwardOffered proposal and not on a Draft one. An AwardOffered proposal the supplier
+// cannot act on is the T-067 defect shape again: a state the product can reach and the persona it concerns has no control
+// for. It is disabled until a reason is given, because the server requires one and the UI must not invite a request it
+// will refuse. The Draft case is the control that the block is state-gated rather than always rendered, and it awaits a
+// control the Draft state definitely renders first, so the absence assertion runs against a loaded page rather than a
+// skeleton - which is how the first version of it passed for the wrong reason.
+//
+// A-2 both ways. The supplier can tag the envelope, defaulting to commercial: the knowledge of what a file contains sits
+// with whoever attaches it, and Commercial is the default because a mis-tag then under-serves the evaluator rather than
+// leaking a price into the technical envelope, which is the direction that fails closed. And the screen tells the supplier
+// which envelope the buyer EXPECTS for a requirement - A-2's other half, because the supplier had a picker and nothing to
+// tag against.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -30,18 +73,14 @@ function proposalFixture(state: string, overrides: Record<string, unknown> = {})
   }
 }
 
-/** FEAT-09.1..09.6: OQ-009 two-envelope note - this page is the owning supplier's own view, the
- * one place both envelopes render together, since it is their own bid. */
 describe('SupplierProposalPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
 
   it('shows a Start proposal button when no proposal exists yet', async () => {
-    // getProposal 404s via a custom fetch override since mockFetch always returns 200.
     const original = globalThis.fetch
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      // §12-A/C2: the proposal is discovered at /rfqs/{rfqCode}/proposals now.
       if (url.endsWith('/proposals')) return new Response(null, { status: 404 })
       if (url.includes('/api/v1/rfqs/RFQ-2026-000001')) return new Response(JSON.stringify(RFQ_FIXTURE), { status: 200 })
       throw new Error(`No mock declared for ${url}`)
@@ -55,8 +94,6 @@ describe('SupplierProposalPage', () => {
 
 
   it('a 412 opens the SCR-151 reconcile dialog rather than a toast', async () => {
-    // SCR-151: "*Concurrency conflict:* Dialog 'This proposal changed in another tab/user' →
-    // reload/merge". §8.1 delivers that case as 412 ETAG_MISMATCH.
     const original = globalThis.fetch
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -86,8 +123,6 @@ describe('SupplierProposalPage', () => {
   })
 
   it('the Save price button is disabled until a price is entered', async () => {
-    // A blank input used to be coerced to 0 and sent, which recorded a free bid before §7.2's rule
-    // and produces an unexplained 422 after it.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
@@ -106,7 +141,6 @@ describe('SupplierProposalPage', () => {
   it('Draft: shows the RFQ item for pricing, and saving a price shows a success toast', async () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
-      // §12-A/C2: mutations address the proposal by its own code.
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
       '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
@@ -123,7 +157,6 @@ describe('SupplierProposalPage', () => {
   it('Draft: answering a requirement shows a success toast', async () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
-      // §12-A/C2: mutations address the proposal by its own code.
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
       '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
@@ -140,7 +173,6 @@ describe('SupplierProposalPage', () => {
   it('Draft: submitting shows a success toast', async () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
-      // §12-A/C2: mutations address the proposal by its own code.
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
       '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
@@ -157,29 +189,18 @@ describe('SupplierProposalPage', () => {
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Submitted', {
         items: [{ id: 'pi-1', rfqItemId: 'item-1', quantity: 5, unitPrice: 10, discount: null, lineTotal: 50, leadTimeDays: null, notesAr: null, notesEn: null }],
       }),
-      // §12-A/C2: mutations address the proposal by its own code.
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
       '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
 
     renderPage(<SupplierProposalPage />)
 
-    // The fixture proposal has no currency yet, so the line total renders as a bare amount.
     expect(await screen.findByText('50')).toBeInTheDocument()
     expect(screen.queryByLabelText('Unit price - Widget')).not.toBeInTheDocument()
-    // Withdrawn is terminal (Proposal.cs:553-555) and this control used to be an inline field beside a
-    // `ghost` button - the LOWEST-emphasis variant in the system - with nothing anywhere saying the
-    // action could not be taken back. It now opens a dialog that says so.
     await userEvent.click(screen.getByRole('button', { name: 'Withdraw proposal' }))
 
     const dialog = await screen.findByRole('dialog')
-    // The bid really is gone for good, so the dialog has to say that.
     expect(within(dialog).getByText(/cannot be restored/i)).toBeInTheDocument()
-    // And it must NOT say the supplier is out of the tender, because they are not. This dialog read
-    // "You cannot re-enter this tender" while ProposalHandlers.cs:139 treats a withdrawn proposal as
-    // the absence of one and creates a new draft - the code's own comment records that a supplier who
-    // withdrew to correct a price could once never bid again, which is the bug that guard exists to
-    // stop. The words were never corrected with it. A Rams audit found the pair still disagreeing.
     expect(within(dialog).queryByText(/cannot re-enter/i)).toBeNull()
     expect(within(dialog).getByText(/start a new bid/i)).toBeInTheDocument()
 
@@ -202,8 +223,6 @@ describe('SupplierProposalPage', () => {
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
-    // The proposal is still there. A dialog that can be dismissed by accident and still fires is worse
-    // than no dialog, because it looks like a safeguard.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByText('Proposal withdrawn')).not.toBeInTheDocument()
   })
@@ -211,7 +230,6 @@ describe('SupplierProposalPage', () => {
   it('Withdrawn: withdraw action is hidden', async () => {
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Withdrawn'),
-      // §12-A/C2: mutations address the proposal by its own code.
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
       '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
     })
@@ -223,8 +241,6 @@ describe('SupplierProposalPage', () => {
   })
 
   it('offers a decline control on an AwardOffered proposal, and none on a Draft one', async () => {
-    // T-064: an AwardOffered proposal the supplier cannot act on is the T-067 defect shape again -
-    // a state the product can reach and the persona it concerns has no control for.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('AwardOffered'),
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('AwardOffered'),
@@ -235,13 +251,10 @@ describe('SupplierProposalPage', () => {
 
     expect(await screen.findByText('Award offer')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Decline the award' })).toBeInTheDocument()
-    // Disabled until a reason is given - the server requires one, so the UI must not invite a
-    // request it will refuse.
     expect(screen.getByRole('button', { name: 'Decline the award' })).toBeDisabled()
   })
 
   it('shows no decline control on a Draft proposal', async () => {
-    // The control for the test above: the block is state-gated, not always rendered.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001/proposals': proposalFixture('Draft'),
       '/api/v1/proposals/PRP-2026-000001': proposalFixture('Draft'),
@@ -250,17 +263,11 @@ describe('SupplierProposalPage', () => {
 
     renderPage(<SupplierProposalPage />)
 
-    // Awaited on a control the Draft state definitely renders, so the absence assertion below runs
-    // against a loaded page rather than a skeleton - which is how the first version of this passed
-    // for the wrong reason.
     expect(await screen.findByRole('button', { name: 'Save price' })).toBeInTheDocument()
     expect(screen.queryByText('Award offer')).not.toBeInTheDocument()
   })
 
   it('lets the supplier tag the envelope, defaulting to commercial', async () => {
-    // A-2. The knowledge of what a file contains sits with whoever attaches it, and Commercial is the
-    // default because a mis-tag then under-serves the evaluator rather than leaking a price into the
-    // technical envelope - the direction that fails closed.
     const calls: { url: string; method: string; body: string }[] = []
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001': RFQ_FIXTURE,
@@ -270,14 +277,12 @@ describe('SupplierProposalPage', () => {
 
     renderPage(<SupplierProposalPage />)
 
-    // The picker exists and Commercial is what it starts on.
     const picker = await screen.findByLabelText('Envelope')
     expect(picker).toBeInTheDocument()
     expect(screen.getByText('Commercial envelope')).toBeInTheDocument()
   })
 
   it('tells the supplier which envelope the buyer expects for a requirement', async () => {
-    // A-2's other half: the supplier had a picker and nothing to tag against.
     restore = mockFetch({
       '/api/v1/rfqs/RFQ-2026-000001': {
         ...RFQ_FIXTURE,

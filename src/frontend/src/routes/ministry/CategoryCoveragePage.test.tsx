@@ -1,13 +1,24 @@
+// SCR-604. The screen exists to show the categories the market is NOT serving, so these tests are mostly about the empty
+// rows: a coverage list that quietly omitted them would look complete and answer a different question.
+//
+// It leads with the number of categories nobody can currently serve. A category with no suppliers is listed and flagged
+// instead of left out. A category whose suppliers are all suspended is flagged too - approved 2, active 0: the pool exists
+// on paper and cannot bid today, and a screen carrying only the first number would show it as covered. That test reads the
+// two numbers from the CELLS rather than by text, because "2" appears twice on the fixture, as approved suppliers and as
+// tenders - which is the whole reason the columns are separate.
+//
+// A category that was tendered and never awarded is flagged as well.
+//
+// The screen SAYS the list is flat rather than drawing a hierarchy nobody has decided: SCR-604's inventory row says
+// "category tree" and MSP-54's list is flat by design, so the screen reports that instead of inventing the tree.
+//
+// The last test offers a retry when the read fails, rather than an empty table.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import { mockFetch, renderPage } from '../../test/renderPage'
 import { CategoryCoveragePage } from './CategoryCoveragePage'
 
-/**
- * SCR-604. The screen exists to show the categories the market is NOT serving, so the tests are mostly
- * about the empty rows: a coverage list that quietly omitted them would look complete and answer a
- * different question.
- */
 
 const COVERAGE = '/api/v1/ministry/categories'
 
@@ -57,15 +68,11 @@ describe('CategoryCoveragePage', () => {
   })
 
   it('flags a category whose suppliers are all suspended, which one number would hide', async () => {
-    // approvedSuppliers 2, activeSuppliers 0: the pool exists on paper and cannot bid today. A screen
-    // carrying only the first number would show this category as covered.
     restore = mockFetch({ [COVERAGE]: body({ categories: [SUSPENDED_ONLY], categoriesWithNoActiveSupplier: 1 }) })
 
     renderPage(<CategoryCoveragePage />)
 
     expect(await screen.findByText('Transport')).toBeInTheDocument()
-    // The two numbers on the row, read from the cells rather than by text: "2" appears twice on this
-    // fixture (approved suppliers and tenders), which is the whole reason the columns are separate.
     const cells = screen.getAllByRole('cell').map((cell) => cell.textContent)
     expect(cells[1]).toBe('2')
     expect(cells[2]).toBe('0')
@@ -81,8 +88,6 @@ describe('CategoryCoveragePage', () => {
   })
 
   it('says the list is flat rather than drawing a hierarchy nobody has decided', async () => {
-    // SCR-604's inventory row says "category tree"; MSP-54's list is flat by design. The screen reports
-    // that instead of inventing the tree.
     restore = mockFetch({ [COVERAGE]: body() })
 
     renderPage(<CategoryCoveragePage />)

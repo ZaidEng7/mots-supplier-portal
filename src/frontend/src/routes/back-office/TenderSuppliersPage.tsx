@@ -1,3 +1,18 @@
+// Who was asked to bid, and what they asked back.
+//
+// Why this is its own screen. Invitations and clarifications answer one question - how is this tender going with the people it
+// was sent to - and the workspace filed them halfway down a column that started with line items and ended with a cancel
+// button. The comp gives them a tab, with the invited count on it, so the question is answered before the tab is opened.
+//
+// Nothing here changed except where it lives.
+//
+// THE HEAD is the tender's identity, said the same way on all six of its views. This screen already named the tender and its
+// code; what it did not carry was who owns it or when bidding closes, which the tender's own view has always shown. One
+// record, one head.
+//
+// A-4: NO PUBLISH CHECKBOX. Answering broadcasts to every invitee with the asker anonymised, so the officer is TOLD that
+// rather than asked it - an option whose only fair setting is "yes" is not a choice.
+
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -16,16 +31,6 @@ import {
 import { TenderTabs } from './rfq/TenderTabs'
 import { TenderHeader } from './rfq/TenderHeader'
 
-/**
- * Who was asked to bid, and what they asked back.
- *
- * <p><b>Why this is its own screen.</b> Invitations and clarifications answer one question - how is
- * this tender going with the people it was sent to - and the workspace filed them halfway down a column
- * that started with line items and ended with a cancel button. The comp gives them a tab, with the
- * invited count on it, so the question is answered before the tab is opened.</p>
- *
- * <p>Nothing here changed except where it lives.</p>
- */
 export function TenderSuppliersPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
   const { t, i18n } = useTranslation()
@@ -86,9 +91,6 @@ export function TenderSuppliersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The tender's identity, said the same way on all six of its views. This screen already named
-          the tender and its code; what it did not carry was who owns it or when bidding closes, which
-          the tender's own view has always shown. One record, one head. */}
       <TenderHeader referenceCode={referenceCode} />
       <TenderTabs referenceCode={referenceCode} />
 
@@ -161,9 +163,6 @@ export function TenderSuppliersPage() {
                           <p className="w-full text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                             {t('rfq.clarifications.broadcastNotice')}
                           </p>
-                          {/* A-4: no publish checkbox. Answering broadcasts to every invitee with the
-                              asker anonymised, so the officer is told that rather than asked it - an
-                              option whose only fair setting is "yes" is not a choice. */}
                           <Button size="sm" isLoading={answerMutation.isPending} disabled={!draft.text}
                             onClick={() => answerMutation.mutate({ clarificationId: c.id, answer: draft.text })}>
                             {t('rfq.clarifications.answer')}

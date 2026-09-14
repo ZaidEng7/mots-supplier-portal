@@ -1,3 +1,24 @@
+// SCR-606, under D-66 - the screen the disclosure decision is actually about.
+//
+// These tests exist as much to RECORD what is shown as to check that it renders: a named bidder and its total, on a tender
+// still open for submissions. If a later change narrows that, they fail and somebody has to decide deliberately rather than
+// discover it.
+//
+// Each bidder shows by name with its value, on a tender still open - D-66's scope asserted rather than described: live
+// tenders included, per-bidder values shown. The fixture's tender is SubmissionOpen, which is the state in which a bid value
+// is most sensitive.
+//
+// The tender is read-only, because a ministry viewer holds no write permission at all.
+//
+// With the policy flag off the values are WITHHELD and the screen says so - not zeroes, and not a blank: "policy withholds
+// this" and "they bid nothing" are different facts, and a screen that rendered 0 would be asserting the second. The bidder
+// is still named, because the flag governs the money rather than who took part.
+//
+// "Not awarded yet" is distinguished from "withheld": both render as an absence of a number and they mean opposite things -
+// one is the tender's state, the other is policy.
+//
+// And the page says so when the tender cannot be loaded.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { mockFetch, renderPage } from '../../test/renderPage'
@@ -9,13 +30,6 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { MinistryRfqDetailPage } = await import('./MinistryRfqDetailPage')
 
-/**
- * SCR-606, under D-66 — the screen the disclosure decision is actually about.
- *
- * <p>These tests exist as much to RECORD what is shown as to check that it renders: a named bidder and its
- * total, on a tender still open for submissions. If a later change narrows that, these fail and somebody has
- * to decide deliberately rather than discover it.</p>
- */
 
 const DETAIL = '/api/v1/ministry/rfqs/RFQ-2026-000001'
 
@@ -51,14 +65,12 @@ afterEach(() => restore?.())
 
 describe('MinistryRfqDetailPage', () => {
   it('shows each bidder by name with its value, on a tender still open', async () => {
-    // D-66's scope, asserted rather than described: live tenders included, per-bidder values shown.
     restore = mockFetch({ [DETAIL]: detail() })
 
     renderPage(<MinistryRfqDetailPage referenceCode="RFQ-2026-000001" />)
 
     expect(await screen.findByText('Al-Sham Trading')).toBeInTheDocument()
     expect(screen.getByText('Barada Supplies')).toBeInTheDocument()
-    // The tender is SubmissionOpen in this fixture - the state in which a bid value is most sensitive.
     expect(screen.getByText('Open for submissions')).toBeInTheDocument()
   })
 
@@ -71,8 +83,6 @@ describe('MinistryRfqDetailPage', () => {
   })
 
   it('withholds the values and says so when the policy flag is off', async () => {
-    // Not zeroes, and not a blank: "policy withholds this" and "they bid nothing" are different facts, and a
-    // screen that rendered 0 would be asserting the second.
     restore = mockFetch({
       [DETAIL]: detail({
         commercialValuesVisible: false,
@@ -84,13 +94,10 @@ describe('MinistryRfqDetailPage', () => {
 
     expect(await screen.findByText(/withheld by disclosure policy/i)).toBeInTheDocument()
     expect(screen.getAllByText('Withheld').length).toBeGreaterThan(0)
-    // The bidder is still named: the flag governs the money, not who took part.
     expect(screen.getByText('Al-Sham Trading')).toBeInTheDocument()
   })
 
   it('distinguishes "not awarded yet" from "withheld"', async () => {
-    // Both render as an absence of a number, and they mean opposite things - one is the tender's state, the
-    // other is policy.
     restore = mockFetch({ [DETAIL]: detail() })
 
     renderPage(<MinistryRfqDetailPage referenceCode="RFQ-2026-000001" />)

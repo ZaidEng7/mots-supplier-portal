@@ -1,3 +1,34 @@
+// FEAT-12.1 through 12.6 and FR-CMP-001 through 006: the comparison matrix.
+//
+// NO CURRENCY NORMALIZATION anywhere on this page. OQ-007's recorded interim decision - "amounts shown in entered currency;
+// no FX engine" - is what this build follows, rather than FEAT-12.3's own "normalize to a display currency" language, which
+// OQ-007 already overrides the same way EPIC-10 built against OQ-008 over FEAT-10.2. Each proposal's totals render in its own
+// currency code, full stop.
+//
+// LOWEST WINS for a price line and for the grand total. The domain never documents a different direction for any line -
+// BUSINESS-RULES.md's own procurement-lowest-price convention - so this is the ONE direction rather than a hardcoded
+// assumption applied blindly to unrelated metrics; score and rank use their own, opposite direction.
+//
+// A failed fetch is its own branch: without it the screen renders its empty state and tells the reader there is nothing here.
+//
+// THE TABLE is three groups in order - Commercial, Requirements, and Evaluation, the last only once the evaluation is
+// Consolidated or later.
+//
+// The heading is the TENDER rather than the view, because the strip below already says this is the comparison. The bid count
+// moved to its own line rather than into the subtitle, which now carries the tender's code and its owner like every other
+// view of it, and the strip is the way back, as on every other tab.
+//
+// A-1: A RANK THAT CAME FROM A TIE no rule broke is marked, because acting on it as though it were decided is the thing that
+// gets challenged. The tie is surfaced HERE because this is where the officer sees the ranking, and the award flow refuses to
+// offer rank 1 until someone has resolved it. A reason is mandatory: a tie broken with no stated basis is exactly what the
+// system refused to do, so a person must not do it either.
+//
+// B-1 and SCR-433: ASK A BIDDER TO CLARIFY. The endpoint has existed since T-051 and nothing called it. It is placed here
+// because the comparison is where a buyer is looking at the bids and notices what is missing - and §4.1's transition is
+// UnderReview to ClarificationRequested, which is where these proposals are. A reason is mandatory there too: the endpoint
+// reuses WithdrawProposalRequest's validator, and a clarification request with no stated question is not one. Its mutation
+// sits with the other hooks rather than beside the panel it drives, because hooks come before the early returns below (A-1).
+
 import { formatCurrency, formatNumber } from '../../lib/datetime'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -10,10 +41,6 @@ import { getComparison, resolveEvaluationTie } from '../../api/comparison'
 import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
 
-/** Lowest wins for a price line/grand total; the domain never documents a different direction for
- * any line (BUSINESS-RULES.md's own procurement-lowest-price convention) - this is the ONE
- * direction, not a hardcoded assumption applied blindly to unrelated metrics (score/rank use their
- * own, opposite direction below). */
 function lowestValueIds<T>(rows: readonly T[], getSupplierId: (row: T) => string, getValue: (row: T) => number | null): Set<string> {
   const withValues = rows.map((r) => ({ id: getSupplierId(r), value: getValue(r) })).filter((r) => r.value !== null) as { id: string; value: number }[]
   if (withValues.length === 0) return new Set()
@@ -28,11 +55,6 @@ function highestValueIds<T>(rows: readonly T[], getSupplierId: (row: T) => strin
   return new Set(withValues.filter((r) => r.value === max).map((r) => r.id))
 }
 
-/** FEAT-12.1..12.6/FR-CMP-001..006. No currency normalization anywhere in this page - OQ-007's
- * recorded interim decision ("amounts shown in entered currency; no FX engine") is what this build
- * follows, not FEAT-12.3's own "normalize to a display currency" language, which OQ-007 already
- * overrides the same way EPIC-10 built against OQ-008 over FEAT-10.2. Each proposal's totals render
- * in its own CurrencyCode, full stop. */
 export function ComparisonPage() {
   const { referenceCode } = useParams({ from: '/back-office/rfqs/$referenceCode/comparison' })
   const { t, i18n } = useTranslation()
@@ -46,12 +68,6 @@ export function ComparisonPage() {
   const comparisonQuery = useQuery({ queryKey: ['comparison', referenceCode], queryFn: () => getComparison(referenceCode) })
   const comparison = comparisonQuery.data ?? null
 
-  // A-1: hooks before the early returns below, which is why this sits here rather than beside the
-  // panel it drives.
-  // B-1/SCR-433: ask a bidder to clarify. The endpoint has existed since T-051 and nothing called it.
-  // Placed here because the comparison is where a buyer is looking at the bids and notices what is
-  // missing - and §4.1's transition is UnderReview -> ClarificationRequested, which is where these
-  // proposals are.
   const [clarifyReasons, setClarifyReasons] = useState<Record<string, string>>({})
   const clarifyMutation = useMutation({
     mutationFn: ({ proposalCode, reason }: { proposalCode: string; reason: string }) =>
@@ -77,8 +93,6 @@ export function ComparisonPage() {
   if (comparisonQuery.isLoading) {
     return <SkeletonTable label={t('common.loading')} />
   }
-  // A failed fetch is not an empty result: without this the screen below renders its
-  // empty state and tells the reader there is nothing here.
   if (comparisonQuery.isError) return <QueryError error={comparisonQuery.error} onRetry={() => void comparisonQuery.refetch()} />
 
   if (!comparison) {
@@ -118,9 +132,6 @@ export function ComparisonPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        {/* The tender, not the view: the strip below already says this is the comparison. The bid
-            count moved to its own line rather than into the subtitle, which now carries the tender's
-            code and its owner like every other view of it. */}
         <TenderHeader referenceCode={referenceCode} />
         <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('comparison.proposalCount', { count: proposals.length })}
@@ -132,7 +143,6 @@ export function ComparisonPage() {
         ) : null}
       </div>
 
-      {/* The way back, as on every other tab of a tender. */}
       <TenderTabs referenceCode={referenceCode} />
 
       <Table caption={t('comparison.title')} maxHeight="70vh">
@@ -150,7 +160,6 @@ export function ComparisonPage() {
           ))}
         </TableHead>
         <TableBody>
-          {/* Group 1: Commercial */}
           <TableRow>
             <TableCell sticky className="font-[var(--fw-semibold)]">
               {t('comparison.groups.commercial')}
@@ -204,7 +213,6 @@ export function ComparisonPage() {
             {proposals.map((p) => <TableCell key={p.supplierId}>{p.validityEnd ?? '—'}</TableCell>)}
           </TableRow>
 
-          {/* Group 2: Requirements */}
           <TableRow>
             <TableCell sticky className="font-[var(--fw-semibold)]">{t('comparison.groups.requirements')}</TableCell>
             {proposals.map((p) => <TableCell key={p.supplierId}>{''}</TableCell>)}
@@ -225,7 +233,6 @@ export function ComparisonPage() {
             </TableRow>
           ))}
 
-          {/* Group 3: Evaluation - only once Consolidated+ */}
           {consolidatedOrLater ? (
             <>
               <TableRow>
@@ -280,8 +287,6 @@ export function ComparisonPage() {
                 {proposals.map((p) => (
                   <TableCell key={p.supplierId}>
                     {p.rank ?? '—'}
-                    {/* A-1: a rank that came from a tie no rule broke is marked, because acting on it
-                        as though it were decided is the thing that gets challenged. */}
                     {p.tieUnresolved ? (
                       <span className="ms-2"><Badge tone="warning">{t('comparison.tieUnresolved')}</Badge></span>
                     ) : null}
@@ -293,15 +298,6 @@ export function ComparisonPage() {
         </TableBody>
       </Table>
 
-      {/*
-        A-1: the tie is surfaced HERE because this is where the officer sees the ranking, and the award
-        flow refuses to offer rank 1 until someone has resolved it. A reason is mandatory - a tie broken
-        with no stated basis is exactly what the system refused to do, so a person must not do it either.
-      */}
-      {/*
-        B-1/SCR-433. A reason is mandatory - the endpoint reuses WithdrawProposalRequest's validator, and a
-        clarification request with no stated question is not one.
-      */}
       <div className="mt-6 rounded-[var(--radius-md)] p-4" style={{ border: '1px solid var(--color-border)' }}>
         <p className="font-[var(--fw-semibold)]">{t('comparison.clarifyTitle')}</p>
         <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.clarifyBody')}</p>

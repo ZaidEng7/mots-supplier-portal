@@ -1,3 +1,55 @@
+// SCR-902's account screen, and the three cards under it: the password change, MFA and sessions, and the supplier's own
+// audit trail.
+//
+// THE ACCOUNT ITSELF is a name and an interface language. Both were fixed at registration with no screen to change
+// either, so a user whose name was mistyped by whoever invited them was stuck with it, and a user who wanted the other
+// language had only the header toggle, which resets on the next sign-in because nothing stored the choice.
+//
+// Email is displayed and not editable. Changing it means re-verifying it, and no document here defines that flow -
+// SCREEN-INVENTORY.md's own row for SCR-902 lists "Name, language, numerals, contact" and not email. It is shown anyway,
+// because "which address do my notifications go to" is a question this screen should answer.
+//
+// Numerals are derived, not chosen. The inventory row asks for a numerals preference; lib/datetime.ts records the
+// decision that numerals follow the locale - Arabic renders ٠-٩, English 0-9 - so that a price and a deadline on one
+// screen cannot disagree. A second control here would be a second source of truth for the same formatting, so the screen
+// states the rule instead. Logged as an open question rather than decided quietly.
+//
+// The server's values are the initial ones and the local state only exists once the user types: seeding state from the
+// query in an effect would fight the query on every refetch. The saved language takes effect IMMEDIATELY, because without
+// that the user saves "English", the request succeeds, and the page they are looking at stays Arabic until they sign in
+// again - which reads as the save having failed.
+//
+// The language control is the shared Select. It was a bare select hand-styling that control's surface, and with the wrong
+// border: it drew --color-border, which is the separator, where an input's edge answers to SC 1.4.11 and the shared
+// control draws --color-border-input for exactly that reason.
+//
+// THE PASSWORD CARD is SCR-903, and it is first on the screen for a reason: until now a signed-in user had no way to
+// change their own password, the only path being to sign out and use the forgotten-password email, which is a recovery
+// flow doing routine work. It sits above MFA because it is the more ordinary of the two.
+//
+// The server's refusals are shown against the FIELD they are about - a wrong current password is a mistake somebody can
+// correct by retyping, and rendering it as a page-level failure would leave them guessing which of the three boxes was
+// wrong. The confirmation match is checked here rather than on the server, which never sees that field, because a
+// mismatch is a typing mistake rather than a rule about passwords. And the consequence is said before it happens rather
+// than discovered afterwards: the change signs out every other device.
+//
+// SESSIONS page with useInfiniteQuery. MSP-84: sessions are bounded per person, but real pagination is scoped for all
+// four client-facing lists, and loading page one and stopping would silently hide the rest. The count is guarded on
+// hasNextPage against under-counting, because more sessions may exist beyond what is loaded even if only the current one
+// has been fetched so far.
+//
+// THE AUDIT TRAIL is B-1 and FR-AUD-003's. GET /suppliers/me/audit and its CSV export have existed since EPIC-01 and
+// nothing called either - a compliance affordance that shipped unreachable. It is here rather than on its own route
+// because it is the supplier's own record of their own account, which is what this screen is; a separate page would be one
+// more route for one table.
+//
+// It is gated on the caller actually BEING a supplier. SCR-902 made this screen reachable by every authenticated persona
+// and GET /suppliers/me/audit is supplier-scoped, so a procurement officer opening it would meet a failed panel on an
+// otherwise working page, which reads as a defect rather than as a section that does not apply to them.
+//
+// Each row shows the action's own TOKEN rather than a translated label: §7 has no table for audit actions, and inventing
+// one here would put a second vocabulary beside the one the trail records.
+
 import { useState } from 'react'
 import { nextPageParam } from '../api/listEnvelope'
 import { useTranslation } from 'react-i18next'
@@ -17,24 +69,6 @@ import {
   type EnrollMfaResponse,
 } from '../api/settings'
 
-/**
- * SCR-902 — the account itself: name and interface language.
- *
- * <p>Both were fixed at registration with no screen to change either, so a user whose name was
- * mistyped by whoever invited them was stuck with it, and a user who wanted the other language had
- * only the header toggle, which resets on the next sign-in because nothing stored the choice.</p>
- *
- * <p><b>Email is displayed and not editable.</b> Changing it means re-verifying it, and no document
- * here defines that flow - SCREEN-INVENTORY.md's own row for SCR-902 lists "Name, language, numerals,
- * contact" and not email. Shown anyway, because "which address do my notifications go to" is a
- * question this screen should answer.</p>
- *
- * <p><b>Numerals are derived, not chosen.</b> The inventory row asks for a numerals preference;
- * lib/datetime.ts's own doc records the decision that numerals follow the locale - Arabic renders
- * ٠-٩, English 0-9 - so that a price and a deadline on one screen cannot disagree. A second control
- * here would be a second source of truth for the same formatting, so the screen states the rule
- * instead. Logged as an open question rather than decided quietly.</p>
- */
 function AccountSection() {
   const { t, i18n } = useTranslation()
   const { notify } = useToast()
@@ -44,8 +78,6 @@ function AccountSection() {
   const [fullName, setFullName] = useState<string | null>(null)
   const [language, setLanguage] = useState<string | null>(null)
 
-  // The server's values are the initial ones, and the local state only exists once the user types.
-  // Seeding state from the query in an effect would fight the query on every refetch.
   const nameValue = fullName ?? accountQuery.data?.fullName ?? ''
   const languageValue = language ?? accountQuery.data?.language ?? 'ar'
 
@@ -55,9 +87,6 @@ function AccountSection() {
       invalidateQuietly(queryClient, { queryKey: ['account'] })
       setFullName(null)
       setLanguage(null)
-      // The saved language takes effect immediately. Without this the user saves "English", the
-      // request succeeds, and the page they are looking at stays Arabic until they sign in again -
-      // which reads as the save having failed.
       if (i18n.language !== account.language) void i18n.changeLanguage(account.language)
       notify({ kind: 'success', title: t('account.saved') })
     },
@@ -79,9 +108,6 @@ function AccountSection() {
         {(p) => <Input {...p} value={nameValue} onChange={(e) => setFullName(e.target.value)} />}
       </Field>
 
-      {/* A bare select hand-styling the shared control's surface, and with the wrong border: this drew
-          --color-border, which is the separator, where an input's edge answers to SC 1.4.11 and the
-          shared control draws --color-border-input for exactly that reason. */}
       <Field label={t('account.fields.language')}>
         {(p) => (
           <Select
@@ -124,17 +150,6 @@ function AccountSection() {
   )
 }
 
-/**
- * SCR-903 — change password, and the reason it is the first card on this screen.
- *
- * <p>Until now a signed-in user had no way to change their own password: the only path was signing
- * out and using the forgotten-password email, which is a recovery flow doing routine work. It sits
- * above MFA because it is the more ordinary of the two.</p>
- *
- * <p>The server's refusals are shown against the field they are about — a wrong current password is
- * a mistake somebody can correct by retyping, and rendering it as a page-level failure would leave
- * them guessing which of the three boxes was wrong.</p>
- */
 function ChangePasswordSection() {
   const { t } = useTranslation()
   const { notify } = useToast()
@@ -144,8 +159,6 @@ function ChangePasswordSection() {
   const [currentError, setCurrentError] = useState<string | null>(null)
   const [nextError, setNextError] = useState<string | null>(null)
 
-  // Checked here, not on the server: the server never sees the confirmation field, because a
-  // mismatch is a typing mistake rather than a rule about passwords.
   const mismatch = confirm.length > 0 && next !== confirm
 
   const mutation = useMutation({
@@ -194,7 +207,6 @@ function ChangePasswordSection() {
           {t('settings.changePassword')}
         </Button>
       </form>
-      {/* Said before it happens, not discovered afterwards: the change signs out every other device. */}
       <p className="mt-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
         {t('settings.passwordRevokesOthers')}
       </p>
@@ -271,8 +283,6 @@ function SessionsSection() {
   const { t, i18n } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
-  // MSP-84: sessions are bounded per person, but real pagination is scoped for all four
-  // client-facing lists - loading page one and stopping would silently hide the rest.
   const sessionsQuery = useInfiniteQuery({
     queryKey: ['sessions'],
     queryFn: ({ pageParam }) => listSessions(pageParam),
@@ -337,8 +347,6 @@ function SessionsSection() {
         variant="secondary"
         isLoading={revokeAllMutation.isPending}
         onClick={() => revokeAllMutation.mutate()}
-        // hasNextPage guards against under-counting: more sessions may exist beyond what's
-        // loaded, even if only one (the current one) has been fetched so far.
         disabled={sessions.length <= 1 && !sessionsQuery.hasNextPage}
       >
         {t('settings.revokeAllOthers')}
@@ -369,18 +377,6 @@ export function SettingsPage() {
         <SessionsSection />
       </Card>
 
-      {/*
-        B-1/FR-AUD-003. `GET /suppliers/me/audit` and its CSV export have existed since EPIC-01 and
-        nothing called either - a compliance affordance that shipped unreachable. Here rather than on its
-        own route because it is the supplier's own record of their own account, which is what this screen
-        is; a separate page would be one more route for one table.
-      */}
-      {/*
-        Gated on the caller actually BEING a supplier. SCR-902 made this screen reachable by every
-        authenticated persona, and `GET /suppliers/me/audit` is supplier-scoped - a procurement officer
-        opening it would meet a failed panel on an otherwise working page, which reads as a defect
-        rather than as a section that does not apply to them.
-      */}
       {isSupplier ? (
         <Card title={t('settings.auditTitle')}>
           <AuditTrailSection />
@@ -423,8 +419,6 @@ function AuditTrailSection() {
         <ul className="flex flex-col gap-1">
           {entries.map((entry) => (
             <li key={entry.id} className="flex flex-wrap items-baseline justify-between gap-2">
-              {/* The action's own token, not a translated label: §7 has no table for audit actions, and
-                  inventing one here would put a second vocabulary beside the one the trail records. */}
               <span><code>{entry.action}</code></span>
               <span className="num text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {formatDateTime(entry.occurredAt, locale)}

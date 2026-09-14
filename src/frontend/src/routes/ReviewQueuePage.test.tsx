@@ -1,20 +1,32 @@
+// Three groups: the failure branch, the age badge, and F-6's state filter.
+//
+// THE FAILURE says the fetch failed instead of saying the queue is empty. The defect this pins: React Query does not
+// throw to the router's error boundary, so a failed fetch left `data` undefined and this screen rendered "nothing waiting
+// for you" - the one thing a reviewer must not be told wrongly, because they act on it by going away.
+//
+// THE AGE BADGE is FEAT-03.6 and FR-ONB-012's, and it had zero test coverage before this: the backend sourcing of
+// EnteredQueueAt is tested in ReviewQueuePaginationTests.cs, but the tone thresholds and the Arabic and English
+// formatting that turn hours into what a reviewer actually reads were not. The tone is success below the at-risk
+// threshold, warning at and above it and below overdue, and danger at and above overdue. The wording renders whole hours
+// below one day in both locales, renders zero hours as 0h or ٠ ساعة rather than a negative or NaN, clamps a negative
+// input from clock skew to zero rather than printing a negative age, and switches to whole days at 24h in both locales.
+//
+// THE STATE FILTER is F-6: a reviewer can reach an application they have already decided. The queue lists the three
+// states awaiting a decision, which is what it is for, and a decided application dropped out of it with no other list
+// carrying it - so the only route back to a decision a reviewer had made was typing the supplier's reference code into
+// the address bar. The test offers the decided states and labels the default as what it actually is.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch, expectRetryableFailure, type RecordedRequest } from '../test/renderPage'
 import { AT_RISK_HOURS, OVERDUE_HOURS, ReviewQueuePage, ageTone, formatAge } from './ReviewQueuePage'
 
-/** FEAT-03.6/FR-ONB-012: the age-badge logic had zero test coverage before this - the backend
- * sourcing (EnteredQueueAt) is tested in ReviewQueuePaginationTests.cs, but the tone thresholds
- * and the AR/EN formatting that turn hours into what a reviewer actually reads were not. */
 describe('ReviewQueuePage, when the queue cannot be loaded', () => {
   let restore: () => void
   afterEach(() => restore?.())
 
   it('says the fetch failed instead of saying the queue is empty', async () => {
-    // The defect this pins: React Query does not throw to the router's error boundary, so a failed
-    // fetch left `data` undefined and this screen rendered "nothing waiting for you" - the one thing a
-    // reviewer must not be told wrongly, because they act on it by going away.
     restore = mockFetch({ '/api/v1/review/queue': { __status: 500 } })
 
     renderPage(<ReviewQueuePage />)
@@ -65,13 +77,6 @@ describe('formatAge', () => {
 })
 
 
-/**
- * F-6: a reviewer can reach an application they have already decided.
- *
- * <p>The queue lists the three states awaiting a decision, which is what it is for. A decided
- * application dropped out of it and no other list carried it, so the only route back to a decision a
- * reviewer had made was typing the supplier's reference code into the address bar.</p>
- */
 describe('ReviewQueuePage state filter', () => {
   let restore: (() => void) | undefined
   afterEach(() => restore?.())
@@ -87,14 +92,10 @@ describe('ReviewQueuePage state filter', () => {
 
     expect(await screen.findByRole('option', { name: 'Approved' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Rejected' })).toBeInTheDocument()
-    // The default option said "All" and meant "the three that need a decision", which is not all.
     expect(screen.getByRole('option', { name: 'Awaiting a decision' })).toBeInTheDocument()
   })
 
   it('shows a retryable failure rather than an empty screen', async () => {
-    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
-    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
-    // button wired to nothing looks identical to one that works.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({ '/api/v1/review/queue': { __status: 500 } }, recorded)
 

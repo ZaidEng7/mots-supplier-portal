@@ -1,3 +1,15 @@
+// SCR-150 at /proposals, for supplier_admin and supplier_user, P0.
+//
+// The gap. A supplier could reach a proposal only through the RFQ containing it, so "what have I bid on" had no answer
+// short of opening every invitation in turn.
+//
+// Each row links back into the proposal workspace on its own RFQ. SCR-154's read, SCR-155's revise, SCR-156's withdraw
+// and SCR-157's award response all already live there, and duplicating any of them here would be a second way to act on
+// one aggregate. This is the missing index, not a second workspace.
+//
+// A supplier sees their OWN price at every state: the two-envelope seal is about what the BUYER may see, not about
+// hiding a supplier's bid from themselves.
+
 import { useTranslation } from 'react-i18next'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -5,17 +17,6 @@ import {Badge, Button, Card, PageHeading, SkeletonTable, StatusChip, Table, Tabl
 import { formatDateTime, formatNumber } from '../lib/datetime'
 import { listMyProposals } from '../api/proposals'
 
-/**
- * SCR-150, `/proposals`, `supplier_admin` and `supplier_user`, **P0**.
- *
- * <p><b>The gap.</b> A supplier could reach a proposal only through the RFQ containing it, so
- * "what have I bid on" had no answer short of opening every invitation in turn.</p>
- *
- * <p>Each row links back into the proposal workspace on its own RFQ — SCR-154's read, SCR-155's
- * revise, SCR-156's withdraw and SCR-157's award response all already live there, and duplicating
- * any of them here would be a second way to act on one aggregate. This is the missing index, not a
- * second workspace.</p>
- */
 export function MyProposalsPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -66,13 +67,10 @@ export function MyProposalsPage() {
                   <TableCell><code>{p.proposalCode}</code></TableCell>
                   <TableCell><StatusChip machine="proposal" value={p.state} /></TableCell>
                   <TableCell>{p.submissionDeadline ? formatDateTime(p.submissionDeadline, locale) : '—'}</TableCell>
-                  {/* A supplier sees their OWN price at every state - the two-envelope seal is about
-                      what the BUYER may see, not about hiding a supplier's bid from themselves. */}
                   <TableCell>
                     {p.totalValue === null ? '—' : `${formatNumber(p.totalValue, locale)} ${p.currencyCode ?? ''}`}
                   </TableCell>
                   <TableCell>
-                    {/* Back into the workspace that already owns every action on this proposal. */}
                     <Link to="/rfqs/$referenceCode/proposal" params={{ referenceCode: p.rfqCode }}>
                       <Button size="sm" variant="ghost">
                         {p.state === 'Draft' ? t('myProposals.continue') : t('myProposals.open')}

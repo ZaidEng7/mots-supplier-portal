@@ -1,3 +1,28 @@
+// The comp's Suppliers tab: who was asked to bid, and what they asked back.
+//
+// Every test here moved from the workspace's own file unchanged except for the component it renders. The invitation and
+// clarification behaviour did not change; only the screen it lives on did.
+//
+// Draft shows suggested candidates and inviting one toasts. Existing invitations list with supplier name and status. An
+// unanswered clarification shows an answer form, and answering toasts. A privately-answered clarification shows a Publish
+// button, and clicking it toasts.
+//
+// AN ANSWER THAT ALREADY WENT TO EVERYONE shows NO Publish button, and that is the half the design audit's §C2.3 assumed was
+// missing. It read the guard - answer and visibility === 'PrivateToAsker' - noticed that answering now sets both fields at
+// once, and concluded the control describes a state the domain cannot produce.
+//
+// What it describes is a LEGACY state. A-4 made answering publish to every invitee, on the ground that equal information to all
+// bidders is the fundamental fairness principle in tendering, and it kept the visibility enum and this route on purpose: a
+// deployment that answered privately before A-4 still holds those rows, and dropping the route would leave those threads
+// permanently unshareable. The backend has the matching integration test. So the control is correct, and this test pins the
+// part that was only ever true by inspection: it never appears on a clarification answered under A-4. The thread renders, so a
+// missing button is a decision rather than an empty screen.
+//
+// The last test is A-4 stated on the screen: the officer is TOLD the answer broadcasts instead of being asked whether it
+// should. The answer form used to carry a "publish immediately" checkbox defaulting to off, so the fair outcome depended on
+// the officer ticking a box - and equal information to all bidders is not an option, so the box is gone and the form says what
+// will happen.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -18,12 +43,6 @@ const { TenderSuppliersPage } = await import('./TenderSuppliersPage')
 
 const REFERENCE_ROUTES = TENDER_ROUTES
 
-/**
- * The comp's Suppliers tab: who was asked to bid, and what they asked back.
- *
- * <p>Every test here moved from  unchanged except for the component it renders.
- * The invitation and clarification behaviour did not change; only the screen it lives on did.</p>
- */
 describe('TenderSuppliersPage', () => {
   let restore: (() => void) | undefined
   afterEach(() => { restore?.(); restore = undefined })
@@ -98,18 +117,6 @@ describe('TenderSuppliersPage', () => {
   })
 
   it('does NOT show the Publish button for an answer that already went to everyone', async () => {
-    // The other half of the test above, and the one the design audit's §C2.3 assumed was missing. It
-    // read the guard - `answer && visibility === 'PrivateToAsker'` - noticed that answering now sets
-    // both fields at once, and concluded the control describes a state the domain cannot produce.
-    //
-    // What it describes is a LEGACY state. A-4 (DECISIONS-TAKEN.md:441) made answering publish to every
-    // invitee, on the ground that equal information to all bidders is the fundamental fairness principle
-    // in tendering, and it kept the visibility enum and this route on purpose: a deployment that
-    // answered privately before A-4 still holds those rows, and dropping the route would leave those
-    // threads permanently unshareable. The backend has the matching integration test.
-    //
-    // So the control is correct, and this pins the part that was only ever true by inspection: it never
-    // appears on a clarification answered under A-4.
     restore = mockFetch({
       ...REFERENCE_ROUTES,
       '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Published', {
@@ -121,15 +128,11 @@ describe('TenderSuppliersPage', () => {
 
     renderPage(<TenderSuppliersPage />)
 
-    // The thread renders, so a missing button is a decision rather than an empty screen.
     expect(await screen.findByText(/Asker Co: Q\?/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Publish to all' })).not.toBeInTheDocument()
   })
 
   it('tells the officer the answer broadcasts instead of asking whether it should', async () => {
-    // A-4. The answer form used to carry a "publish immediately" checkbox defaulting to off, so the
-    // fair outcome depended on the officer ticking a box. Equal information to all bidders is not an
-    // option, so the box is gone and the form says what will happen.
     restore = mockFetch({
       ...REFERENCE_ROUTES,
       '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('SubmissionOpen', {
@@ -143,7 +146,6 @@ describe('TenderSuppliersPage', () => {
 
     renderPage(<TenderSuppliersPage />)
 
-    // The question renders alongside the asker's name in one paragraph, hence the partial match.
     expect(await screen.findByText(/Which incoterm\?/)).toBeInTheDocument()
     expect(screen.getByText(/goes to every invited supplier/)).toBeInTheDocument()
     expect(screen.queryByText('Publish immediately')).not.toBeInTheDocument()

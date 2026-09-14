@@ -1,3 +1,19 @@
+// T-077 with SCR-701 and SCR-702. system_admin could invite an account and then never see it again - so one created in error
+// could not be removed, which is the half of this that is a security gap.
+//
+// Accounts list with the facts that make a row actionable: MFA enrolment and live sessions, because a deactivation that left
+// sessions alive would only stop the NEXT sign-in, so the count is on the row rather than implied.
+//
+// An account deactivates and a deactivated one reactivates - a deactivated row offering the opposite action is the control
+// that proves the button is bound to the row's state rather than fixed. The second factor resets.
+//
+// The platform's refusal to remove its LAST administrator is named. That fixture uses the wire shape the SERVER sends -
+// ProblemDetailsMiddleware turns the handler's `error` token into §7's SCREAMING_SNAKE code - because a fixture carrying the
+// lower-case token would test a response the API never produces. The refusal is a thing to understand rather than to retry, so
+// it is named rather than reported as a generic failure.
+//
+// And a failed list offers a retry instead of a blank page.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -29,8 +45,6 @@ const page = (accounts: Record<string, unknown>[]) => ({
   pagination: { hasMore: false, nextCursor: null },
 })
 
-/** T-077/SCR-701/702. `system_admin` could invite an account and then never see it again - so one created
- * in error could not be removed, which is the half of this that is a security gap. */
 describe('StaffPage accounts', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -47,8 +61,6 @@ describe('StaffPage accounts', () => {
 
     expect(await screen.findByText('A Reviewer')).toBeInTheDocument()
     expect(screen.getByText('admin@ministry.example')).toBeInTheDocument()
-    // MFA enrolment and live sessions: a deactivation that left sessions alive would only stop the NEXT
-    // sign-in, so the count is on the row rather than implied.
     expect(screen.getByText('Two-factor enrolled')).toBeInTheDocument()
     expect(screen.getByText('Active sessions: 2')).toBeInTheDocument()
   })
@@ -62,8 +74,6 @@ describe('StaffPage accounts', () => {
 
     renderPage(<StaffPage />)
 
-    // A deactivated row offers the opposite action - the control that proves the button is bound to the
-    // row's state rather than fixed.
     expect(await screen.findByText('Deactivated')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Reactivate' }))
 
@@ -87,9 +97,6 @@ describe('StaffPage accounts', () => {
   it('says why when the platform refuses to remove its last administrator', async () => {
     restore = mockFetch({
       '/api/v1/staff': page([account({ role: 'system_admin' })]),
-      // The wire shape the SERVER sends: ProblemDetailsMiddleware turns the handler's `error` token into
-      // §7's SCREAMING_SNAKE code. A fixture carrying the lower-case token would test a response the API
-      // never produces.
       '/api/v1/staff/u-1/deactivate': { __status: 422, code: 'WOULD_LOCK_OUT_ADMINISTRATION' },
     })
 
@@ -97,8 +104,6 @@ describe('StaffPage accounts', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Deactivate' }))
 
-    // The refusal is a thing to understand, not to retry, so it is named rather than reported as a
-    // generic failure.
     expect(await screen.findByText('The last active system administrator cannot be deactivated.')).toBeInTheDocument()
   })
 

@@ -1,3 +1,46 @@
+// SCR-721, 722, 723, 725 and 726. This is an operator's "is the system moving?" screen, so what these tests pin is the set of
+// places where a number on it could be TRUE and still mislead - a next-run time while schedules are off, a Synced column
+// produced by a stub, a retry offered where the domain would refuse it. The base fixture has every card loaded and healthy,
+// so each test overrides only the one thing it is about.
+//
+// THE JOBS CARD lists the recurring jobs with their schedule and last state. It warns ONCE, above the table, when recurring
+// jobs are switched off globally: with schedules off every nextExecution on the screen is a lie, and repeating a warning six
+// times trains the reader to skip it. That test waits on the warning by its own TEXT rather than by role, because
+// SkeletonTable is also a live region and findAllByRole would resolve against the loading skeletons and count them instead.
+//
+// A job Hangfire is not holding is flagged, and no run is offered for it: the row that matters most is the one with the least
+// data on it, because a job that vanished from the registration is invisible in any count of jobs that ran. A registered job
+// triggers on request.
+//
+// THE OUTBOX CARD shows counts INCLUDING the zeroes: "Failed: 0" and a count that failed to load must not look alike, which
+// is why the server sends every status rather than only the non-empty ones. The ERP card renders its own Failed: 0, hence
+// the all-matches query. Replay is offered only for a Failed message, because replaying a Pending one duplicates queued work
+// and replaying a Sent one sends an integration event twice, when the outbox exists to make delivery exactly-once - the
+// server refuses both and the button must not pretend otherwise. The payload stays behind a toggle: it is the thing an
+// operator needs before deciding to replay, and the thing that would make every row unreadable if it were always shown.
+//
+// THE ERP CARD says the column is a stand-in when no transport is configured, because EPIC-23's adapter has not landed and a
+// column of Synced without that line is an instrument asserting something untrue. Its retry is offered only for a Failed
+// sync, per §6.1, so the button follows the domain rather than offering an action the aggregate would refuse - and it goes
+// through the AWARD endpoint rather than an admin one, because §6.1's guard lives there and a second admin path would be a
+// second copy of that guard to keep in step.
+//
+// THE SECURITY CARD reports a composition policy of LENGTH ONLY rather than four blank checkboxes: no forced digit, case or
+// symbol is NIST 800-63B followed on purpose, and a reader who does not know that would file an empty cell as a weakness. The
+// posture is read from what ENFORCES it.
+//
+// THE STORAGE CARD surfaces an unreachable scanner rather than leaving it in a count: a red chip there explains every failing
+// upload in the building, and a backlog that never drains is the failure the card exists to show.
+//
+// FIVE INDEPENDENT QUERIES, and one card may fail without taking the others down: an operator whose outbox endpoint is broken
+// still needs the jobs table, and a single error boundary over the page would deny them that. With all five broken at once,
+// each card carries its OWN recovery - a single page-level error would make an operator reload to find out which endpoint is
+// actually down.
+//
+// The action confirmations close the file. A triggered run is confirmed, and a 404 NAMES the reason: from this endpoint it
+// means Hangfire does not hold the job rather than that the run failed, and those are different things for an operator - one
+// is a deployment problem, the other is a job problem. A queued replay is confirmed, and a refused one says so.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -36,7 +79,6 @@ const STORAGE_SETTINGS = {
   objectStorageReachable: true, virusScannerReachable: true, documentCount: 42, pendingScanCount: 0,
 }
 
-/** Every card loaded and healthy, so each test overrides only the one thing it is about. */
 function healthy(overrides: Record<string, unknown> = {}) {
   return {
     [JOBS]: jobs(),
@@ -48,12 +90,6 @@ function healthy(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/**
- * SCR-721/722/723/725/726. This is an operator's "is the system moving?" screen, so what these tests
- * pin is the set of places where a number on it could be TRUE and still mislead - a next-run time
- * while schedules are off, a Synced column produced by a stub, a retry offered where the domain would
- * refuse it.
- */
 describe('OperationsPage (SCR-721)', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -69,22 +105,16 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('warns once, above the table, when recurring jobs are switched off globally', async () => {
-    // With schedules off every nextExecution on the screen is a lie. Said once rather than per row,
-    // because repeating a warning six times trains the reader to skip it.
     restore = mockFetch(healthy({ [JOBS]: jobs({ recurringEnabled: false }) }))
 
     renderPage(<OperationsPage />)
 
-    // Waited on by its own text, not by role: SkeletonTable is also a live region, so findAllByRole
-    // would resolve against the loading skeletons and count them instead.
     await screen.findByText(/Scheduled jobs are disabled|الجدولة الدورية معطّلة/i)
     const warnings = screen.getAllByRole('status').filter((n) => /disabled|معطّلة/i.test(n.textContent ?? ''))
     expect(warnings).toHaveLength(1)
   })
 
   it('flags a job Hangfire is not holding, and refuses to offer a run for it', async () => {
-    // The row that matters most is the one with the least data on it: a job that vanished from the
-    // registration is invisible in any count of jobs that ran.
     restore = mockFetch(healthy({
       [JOBS]: jobs({ jobs: [{ id: 'document-expiry', cron: null, registered: false, lastExecution: null, lastState: null, nextExecution: null }] }),
     }))
@@ -106,23 +136,16 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('shows outbox counts including the zeroes', async () => {
-    // "Failed: 0" and a count that failed to load must not look alike, which is why the server sends
-    // every status rather than only the non-empty ones.
     restore = mockFetch(healthy({ [OUTBOX]: { counts: { Pending: 0, Sent: 12, Failed: 0 }, messages: [] } }))
 
     renderPage(<OperationsPage />)
 
     expect(await screen.findByText('Sent: 12')).toBeInTheDocument()
-    // The zero is the point: a status the server reports as empty and a count that failed to load
-    // must not look alike. (The ERP card renders its own Failed: 0, hence getAllByText.)
     expect(screen.getAllByText('Failed: 0').length).toBeGreaterThan(0)
     expect(screen.getByText('Pending: 0')).toBeInTheDocument()
   })
 
   it('offers replay only for a Failed message', async () => {
-    // Replaying a Pending message duplicates queued work and replaying a Sent one sends an integration
-    // event twice - the outbox exists to make delivery exactly-once. The server refuses both; the
-    // button must not pretend otherwise.
     restore = mockFetch(healthy({
       [OUTBOX]: {
         counts: { Failed: 1, Sent: 1 },
@@ -140,8 +163,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('keeps the payload behind a toggle', async () => {
-    // It is the thing an operator needs before deciding to replay, and the thing that would make
-    // every row unreadable if it were always shown.
     restore = mockFetch(healthy({
       [OUTBOX]: {
         counts: { Failed: 1 },
@@ -157,8 +178,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('says the ERP column is a stand-in when no transport is configured', async () => {
-    // EPIC-23's adapter has not landed, so a column of Synced without this line is an instrument
-    // asserting something untrue.
     restore = mockFetch(healthy({ [ERP]: { transportConfigured: false, counts: { Synced: 3 }, awards: [] } }))
 
     renderPage(<OperationsPage />)
@@ -167,8 +186,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('offers an ERP retry only for a Failed sync', async () => {
-    // §6.1: only a Failed sync retries. The button follows the domain rather than offering an action
-    // the aggregate would refuse.
     restore = mockFetch(healthy({
       [ERP]: {
         transportConfigured: true,
@@ -187,8 +204,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('reports a composition policy of length only, rather than four blank checkboxes', async () => {
-    // No forced digit, case or symbol is NIST 800-63B followed on purpose. A reader who does not know
-    // that would file an empty cell as a weakness.
     restore = mockFetch(healthy())
 
     renderPage(<OperationsPage />)
@@ -207,8 +222,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('surfaces an unreachable scanner rather than leaving it in a count', async () => {
-    // A red chip here explains every failing upload in the building; a backlog that never drains is
-    // the failure this card exists to show.
     restore = mockFetch(healthy({
       [STORAGE]: { ...STORAGE_SETTINGS, virusScannerReachable: false, pendingScanCount: 214 },
     }))
@@ -219,8 +232,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('lets one card fail without taking the others down', async () => {
-    // Five independent queries. An operator whose outbox endpoint is broken still needs the jobs
-    // table, and a single error boundary over the page would deny them that.
     restore = mockFetch(healthy({ [OUTBOX]: { __status: 500 } }))
 
     renderPage(<OperationsPage />)
@@ -230,8 +241,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('confirms a triggered run, and names the reason when the job is not registered', async () => {
-    // 404 from this endpoint means Hangfire does not hold the job - not that the run failed. Those are
-    // different things for an operator: one is a deployment problem, the other is a job problem.
     restore = mockFetch({
       ...healthy(),
       '/api/v1/admin/jobs/document-expiry/trigger': { __status: 404 },
@@ -278,8 +287,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('retries an ERP sync through the award endpoint, not an admin one', async () => {
-    // §6.1's guard that only a Failed sync retries lives on the award endpoint. A second admin path
-    // would be a second copy of that guard to keep in step.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({
       ...healthy({
@@ -299,8 +306,6 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('offers a retry on each card that failed, independently', async () => {
-    // All five queries broken at once. The point is that each card carries its own recovery: a single
-    // page-level error would make an operator reload to find out which endpoint is actually down.
     restore = mockFetch({
       [JOBS]: { __status: 500 }, [OUTBOX]: { __status: 500 }, [ERP]: { __status: 500 },
       [SECURITY]: { __status: 500 }, [STORAGE]: { __status: 500 },

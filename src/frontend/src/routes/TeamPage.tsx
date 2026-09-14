@@ -1,3 +1,13 @@
+// SCR-160's equivalent, per FEAT-04.8 and MSP-55: SCREEN-INVENTORY.md has no settings or team route scaffolded yet, so
+// this lands at /team under the supplier shell, matching the SCR-160 route the inventory names - "/team",
+// supplier_admin, invite and manage delegated supplier_users.
+//
+// MSP-84: real pagination needs a real walking consumer. Loading page one and stopping would silently hide the rest of
+// the team with no error, no empty state, and nothing visibly wrong.
+//
+// A failed fetch is not an empty result: without that branch the screen renders its empty state and tells the reader
+// there is nothing here.
+
 import { useState } from 'react'
 import { nextPageParam } from '../api/listEnvelope'
 import { useForm } from 'react-hook-form'
@@ -17,17 +27,12 @@ const inviteSchema = z.object({
 })
 type InviteFormValues = z.infer<typeof inviteSchema>
 
-/** SCR-160-equivalent (FEAT-04.8/MSP-55): SCREEN-INVENTORY.md doesn't have a settings/team route
- * scaffolded yet, so this lands at /team under the supplier shell, matching the SCR-160 route the
- * inventory names ("/team", supplier_admin, invite/manage delegated supplier_users). */
 export function TeamPage() {
   const { t } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const [inviteOpen, setInviteOpen] = useState(false)
 
-  // MSP-84: real pagination needs a real walking consumer - loading page one and stopping would
-  // silently hide the rest of the team with no error, no empty state, nothing visibly wrong.
   const teamQuery = useInfiniteQuery({
     queryKey: ['team'],
     queryFn: ({ pageParam }) => listTeam(pageParam),
@@ -68,8 +73,6 @@ export function TeamPage() {
   if (teamQuery.isLoading) {
     return <SkeletonList label={t('common.loading')} />
   }
-  // A failed fetch is not an empty result: without this the screen below renders its
-  // empty state and tells the reader there is nothing here.
   if (teamQuery.isError) return <QueryError error={teamQuery.error} onRetry={() => void teamQuery.refetch()} />
 
 

@@ -1,3 +1,13 @@
+// Regression test for a real bug: this page used to derive its permission checklist from the union of what roles already had,
+// rather than the backend's full Permissions.All catalogue - so a permission not yet granted to any role, offering.search
+// right after it was added to the catalogue but before any role held it, was invisible here and could only ever be granted
+// via a direct DB write.
+//
+// It reuses that exact scenario: a roles response where no role's own permission list contains offering.search, but
+// allPermissions does. The permission shows and can be granted through the real UI.
+//
+// The second test renders an UNMAPPED permission by its raw key rather than hiding it.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,12 +15,6 @@ import { renderPage, mockFetch } from '../../test/renderPage'
 
 const { RolesPage } = await import('./RolesPage')
 
-/** Regression test for a real bug: this page used to derive its permission checklist from the
- * union of what roles already had (roles.flatMap(r => r.permissions)), not the backend's full
- * Permissions.All catalog - so a permission not yet granted to any role (e.g. offering.search,
- * right after it was added to the catalog but before any role held it) was invisible here and
- * could only ever be granted via a direct DB write. Reuses that exact scenario: a roles response
- * where no role's own permission list contains offering.search, but allPermissions does. */
 describe('RolesPage', () => {
   let restore: () => void
   afterEach(() => restore?.())

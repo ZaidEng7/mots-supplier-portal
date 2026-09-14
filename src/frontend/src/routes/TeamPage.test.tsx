@@ -1,3 +1,9 @@
+// Task #19: the invite and disable mutations' onSuccess handlers were the source of two of the eight
+// no-floating-promises findings this ticket fixed - queryClient.invalidateQueries called unawaited, now routed through
+// invalidateQuietly. Both call sites sat inside onSuccess callbacks nothing exercised, and Sonar's new-code coverage
+// ratchet flagged exactly that gap. These drive a real invite and a real disable through the page, so the callback and
+// the invalidateQuietly call inside it actually run.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,13 +11,6 @@ import { renderPage, mockFetch, listPage } from '../test/renderPage'
 
 const { TeamPage } = await import('./TeamPage')
 
-/**
- * Task #19: the invite/disable mutations' onSuccess handlers were the source of two of the eight
- * no-floating-promises findings this ticket fixed (queryClient.invalidateQueries called unawaited,
- * now routed through invalidateQuietly). Both call sites sat inside onSuccess callbacks nothing
- * exercised - Sonar's new-code coverage ratchet flagged exactly that gap. This drives a real
- * invite through the page so the callback, and the invalidateQuietly call inside it, actually run.
- */
 describe('TeamPage invite flow', () => {
   let restore: () => void
   afterEach(() => restore?.())

@@ -1,3 +1,29 @@
+// T-077 with SCR-701 and SCR-702, both P0 and both previously absent - along with the endpoints behind them. An administrator
+// could invite an account and then never see it again, so an account created in error could not be removed at all.
+//
+// ONE TABLE rather than a list plus a detail page: everything SCR-702 lists as its content - role, activation, MFA reset - is
+// a single action on a single row, and a second screen to reach three buttons would be a second screen to keep in step.
+//
+// THE INVITABLE ROLES deliberately exclude supplier_admin and supplier_user (Task #28): those accounts come from supplier
+// registration or the supplier-side team invite rather than this staff-only flow. The list mirrors InviteStaffHandler's own
+// InvitableRoles set exactly.
+//
+// THE BUYING BODY is optional, and that is a decision rather than laxity. Two roles have none on purpose: ministry_viewer,
+// because BRULE-086 grants the Ministry cross-organization access and pinning it to one body would be a narrower grant
+// wearing the same name, and system_admin, which administers the platform rather than procuring through it. The others need
+// one - BRULE-029 scopes every tender query by it - and the hint under the field says so rather than the form guessing on the
+// administrator's behalf. Only ACTIVE bodies are offerable, and the list is the same one the Organizations screen manages: a
+// second source would let this picker offer a body that screen had retired.
+//
+// THE REFUSALS are branched on §7's machine-stable CODE rather than on the human message, which is what §7 tells clients to do
+// - a match on wording would break the day the wording changed. Two are worth naming: acting on your own account, and the last
+// administrator. Both are things an administrator has to understand rather than retry. It is a LOOKUP rather than a ternary
+// chain, because each server code maps to one message and the next code to be added is a row instead of another level of
+// nesting.
+//
+// Each row carries both facts that make it actionable: whether the second factor is enrolled, and how many sessions are live -
+// because a deactivation that left sessions alive would only stop the NEXT sign-in.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,20 +38,8 @@ import {
 import { SupplierApiError } from '../../api/supplier'
 import { listOrganizations } from '../../api/organizations'
 
-// Task #28: deliberately excludes supplier_admin/supplier_user - those accounts come from
-// supplier registration or the supplier-side team invite, not this staff-only flow. Mirrors
-// InviteStaffHandler's own InvitableRoles set exactly.
 const STAFF_ROLES = ['onboarding_reviewer', 'procurement_officer', 'procurement_manager', 'evaluator', 'ministry_viewer', 'system_admin'] as const
 
-/**
- * `organizationId` is optional, and that is a decision rather than laxity.
- *
- * Two roles have no buying body on purpose: `ministry_viewer`, because BRULE-086 grants the Ministry
- * cross-organization access and pinning it to one body would be a narrower grant wearing the same
- * name, and `system_admin`, which administers the platform rather than procuring through it. The
- * others need one - BRULE-029 scopes every tender query by it - and the hint under the field says so
- * rather than the form guessing on the administrator's behalf.
- */
 const inviteSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(1),
@@ -47,8 +61,6 @@ function InviteStaffDialog({ open, onOpenChange }: { open: boolean; onOpenChange
   } = useForm<InviteFormValues>({ resolver: zodResolver(inviteSchema), defaultValues: { role: 'onboarding_reviewer' } })
   const role = watch('role')
   const organizationId = watch('organizationId')
-  // Only the active bodies are offerable, and the list is the same one the Organizations screen
-  // manages - a second source would let this picker offer a body that screen had retired.
   const organizationsQuery = useQuery({ queryKey: ['organizations'], queryFn: listOrganizations })
 
   const inviteMutation = useMutation({
@@ -126,15 +138,6 @@ export function StaffPage() {
         <p style={{ color: 'var(--color-text-secondary)' }}>{t('staff.hint')}</p>
       </Card>
 
-      {/*
-        T-077/SCR-701 and SCR-702, both P0 and both previously absent - along with the endpoints behind
-        them. An administrator could invite an account and then never see it again, so an account created
-        in error could not be removed at all.
-
-        One table rather than a list plus a detail page: everything SCR-702 lists as its content - role,
-        activation, MFA reset - is a single action on a single row, and a second screen to reach three
-        buttons would be a second screen to keep in step.
-      */}
       <StaffAccounts />
 
       <InviteStaffDialog open={dialogOpen} onOpenChange={setDialogOpen} />
@@ -150,14 +153,7 @@ function StaffAccounts() {
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['staff'] })
   const onError = (error: unknown, fallback: string) => {
-    // Branched on §7's machine-stable CODE, not on the human message - which is what §7 tells clients to
-    // do, and a match on wording would break the day the wording changed.
-    //
-    // The two refusals worth naming: acting on your own account, and the last administrator. Both are
-    // things an administrator has to understand rather than retry.
     const code = error instanceof SupplierApiError ? (error.code ?? '') : ''
-    // A lookup rather than a ternary chain: each server code maps to one message, and the next code
-    // to be added is a row instead of another level of nesting.
     const messages: Record<string, string> = {
       CANNOT_ACT_ON_OWN_ACCOUNT: t('staff.errors.cannotActOnSelf'),
       WOULD_LOCK_OUT_ADMINISTRATION: t('staff.errors.wouldLockOutAdministration'),
@@ -227,9 +223,6 @@ function StaffAccounts() {
                     <Badge tone={account.isActive ? 'success' : 'neutral'}>
                       {account.isActive ? t('staff.active') : t('staff.inactive')}
                     </Badge>
-                    {/* Both facts that make a row actionable: whether the second factor is enrolled, and
-                        how many sessions are live - a deactivation that left sessions alive would only
-                        stop the next sign-in. */}
                     {account.mfaEnabled ? <Badge tone="info">{t('staff.mfaOn')}</Badge> : null}
                     {account.activeSessionCount > 0 ? (
                       <Badge tone="neutral">{t('staff.sessions', { count: account.activeSessionCount })}</Badge>

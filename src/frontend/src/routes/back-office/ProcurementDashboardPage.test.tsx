@@ -1,3 +1,16 @@
+// SCR-400. §10's five KPI tiles render.
+//
+// The pipeline board labels states from the CATALOGUE, never the raw enum: T3-36 made Shortlisting reachable, so it is a real
+// column now rather than a permanently empty one - and it must read as a label rather than as the enum member "Shortlisting".
+//
+// The approvals card appears only when the SERVER says the caller may approve, with the control that it does render when the
+// flag is set - so the absence is the flag rather than a missing element.
+//
+// Empty shows §10's own empty state rather than a bare board.
+//
+// And counts render in Eastern Arabic numerals under Arabic (R-1): a KPI reading "14" beside a date reading «٣٠ أغسطس» is the
+// exact inconsistency the ruling was made to prevent.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import i18n from '../../i18n/config'
@@ -44,8 +57,6 @@ describe('ProcurementDashboardPage (SCR-400)', () => {
   })
 
   it('the pipeline board labels states from the catalogue, never the raw enum', async () => {
-    // T3-36 made Shortlisting reachable, so it is a real column now rather than a permanently empty
-    // one - and it must read as a label, not as "Shortlisting" the enum member.
     restore = mockFetch({ '/api/v1/procurement/dashboard': dashboard() })
 
     renderPage(<ProcurementDashboardPage />)
@@ -67,8 +78,6 @@ describe('ProcurementDashboardPage (SCR-400)', () => {
 
     renderPage(<ProcurementDashboardPage />)
 
-    // The control: with the flag set it does render, so the absence above is the flag and not a
-    // missing element.
     expect(await screen.findAllByText('Open approval queues')).not.toHaveLength(0)
   })
 
@@ -83,8 +92,6 @@ describe('ProcurementDashboardPage (SCR-400)', () => {
   })
 
   it('counts render in Eastern Arabic numerals under Arabic', async () => {
-    // R-1. A KPI reading "14" beside a date reading «٣٠ أغسطس» is the exact inconsistency the ruling
-    // was made to prevent.
     const restoreFetch = mockFetch({ '/api/v1/procurement/dashboard': dashboard() })
     await i18n.changeLanguage('ar')
     restore = () => { restoreFetch(); void i18n.changeLanguage('en') }

@@ -1,3 +1,45 @@
+// SCR-120, the supplier dashboard. The fixture has no decided bids unless a test says otherwise, which is the state a new
+// supplier is in (T-039).
+//
+// §1's four KPI tiles, the invitation and the proposal all render. The invitation status renders as a LABEL rather than
+// the raw enum: InvitationStatus had no §7 table, so this chip used to fall back to the wire value, and the whole point of
+// Phase 0 is that "Responding" is now a label in both languages.
+//
+// NOT-YET-APPROVED replaces the dashboard rather than showing zeroes, per §1's "dashboard replaced by onboarding progress
+// banner linking to SCR-100": a supplier who is not yet eligible for any invitation must not read "Open invitations: 0"
+// as a verdict. An APPROVED supplier with no invitations gets the empty state rather than a blank list.
+//
+// THE ISOLATED FAILURE is §1's "per-widget ErrorPanel + retry (isolated failures don't blank the page)". It is the state
+// most easily built as a page-level error, which would pass a naive "shows an error" test while breaking the requirement -
+// so the assertion is that the OTHER widgets survived, and the three that must still be standing are named. The widget
+// renders the shared QueryError now, so the wording is common.loadFailed rather than a per-widget copy of the same
+// sentence; what the test is about is unchanged. The widget-level retry is asserted separately, because it is a different
+// code path from the whole-page one.
+//
+// The ERP-degraded banner is subtle and leaves the rest of the page unaffected. An action chip can be dismissed and only
+// that chip goes - the control being that dismissing one must not clear the strip.
+//
+// THE COMPLETENESS METER reports its numerator and denominator: §12.2 shows profileCompleteness and nothing produces it,
+// so the ratio is computed - and the screen shows what it counted rather than a bare percentage nobody can check. Counts
+// and the meter render Eastern Arabic numerals under Arabic.
+//
+// THE NEXT REQUIRED DOCUMENT is NAMED instead of shown as its code. Found by reading this dashboard as the supplier: the
+// caption said "Next required document: commercial_registration" - a database value, on the one line that tells them what
+// to do next. The control is a real case: a document type could be renamed or removed while a supplier's requirement still
+// points at it, and a blank caption would be worse than the code.
+//
+// A whole-page failure offers a retry.
+//
+// THE AWARD RESULTS include the ones the supplier lost. FEAT-16.3's acceptance is "award outcomes shown", and the
+// proposals panel deliberately excludes NotSelected - so before this widget a supplier who lost watched their bid vanish
+// from the screen they open first, with no outcome anywhere on it. With nothing decided the widget SAYS so rather than
+// hiding: an absent panel and an empty one say different things to a supplier waiting on a result, the first reading as
+// "this product does not tell you" and the second as "not yet".
+//
+// The last test is T-039's other branch: a bid that was never priced, with value and currency both absent. A bid can be
+// declined or rejected before anyone priced it, and "-" is the truth there while "SYP 0" is a number somebody would have
+// had to quote - so there is no currency string anywhere in the row, the amount being absent rather than zero.
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -41,7 +83,6 @@ function dashboard(overrides: Record<string, unknown> = {}) {
       nextRequiredDocumentNameAr: 'السجل التجاري', nextRequiredDocumentNameEn: 'Commercial Registration',
     },
     erpDegraded: false,
-    // T-039: no decided bids unless a test says otherwise, which is the state a new supplier is in.
     awards: [],
     ...overrides,
   }
@@ -68,8 +109,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('renders the invitation status as a label, not the raw enum', async () => {
-    // InvitationStatus had no §7 table, so this chip used to fall back to the wire value. The whole
-    // point of Phase 0 is that "Responding" is now a label in both languages.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard(),
       '/api/v1/notifications/unread-count': { count: 0 },
@@ -81,8 +120,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('not-yet-approved: replaces the dashboard rather than showing zeroes', async () => {
-    // §1: "dashboard replaced by onboarding progress banner linking to SCR-100". A supplier who is
-    // not yet eligible for any invitation must not read "Open invitations: 0" as a verdict.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard({ isApproved: false, onboardingState: 'UnderReview' }),
       '/api/v1/notifications/unread-count': { count: 0 },
@@ -110,9 +147,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('error is isolated per widget: the notification panel fails and everything else stands', async () => {
-    // §1: "per-widget ErrorPanel + retry (isolated failures don't blank the page)". This is the
-    // state most easily built as a page-level error, which would pass a naive "shows an error" test
-    // while breaking the requirement - so the assertion is that the OTHER widgets survived.
     const original = globalThis.fetch
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -124,16 +158,11 @@ describe('SupplierDashboardPage (SCR-120)', () => {
 
     renderPage(<SupplierDashboardPage />)
 
-    // The widget now renders the shared QueryError, so the wording is `common.loadFailed` rather than a
-    // per-widget copy of the same sentence. What this test is about is unchanged: the panel says it
-    // failed and the three below it still stand.
     expect(await screen.findByText('We could not load this. Try again.')).toBeInTheDocument()
 
-    // The three that must still be standing.
     expect(screen.getByText('Open invitations')).toBeInTheDocument()
     expect(screen.getAllByText('Catering RFQ')).not.toHaveLength(0)
     expect(screen.getByText(// The NAME now, not the code: that caption is the one line telling a supplier what to do next, and it
-      // was showing them a database value. This assertion used to encode the defect.
       'Next required document: Commercial Registration')).toBeInTheDocument()
   })
 
@@ -163,13 +192,10 @@ describe('SupplierDashboardPage (SCR-120)', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Dismiss' })[0])
 
     expect(screen.queryByText('Documents expiring (2)')).not.toBeInTheDocument()
-    // The control: dismissing one chip must not clear the strip.
     expect(screen.getByText('Invitations closing soon (1)')).toBeInTheDocument()
   })
 
   it('the completeness meter reports its numerator and denominator', async () => {
-    // §12.2 shows profileCompleteness and nothing produces it, so the ratio is computed - and the
-    // screen shows what it counted rather than a bare percentage nobody can check.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard(),
       '/api/v1/notifications/unread-count': { count: 0 },
@@ -196,8 +222,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('names the next required document instead of showing its code', async () => {
-    // Found by reading this dashboard as the supplier: the caption said "Next required document:
-    // commercial_registration". A database value, on the one line that tells them what to do next.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard({
         profileHealth: {
@@ -219,8 +243,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('falls back to the code when the reference row is gone', async () => {
-    // The control, and a real case: a document type could be renamed or removed while a supplier's
-    // requirement still points at it. A blank caption would be worse than the code.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard({
         profileHealth: {
@@ -253,8 +275,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('the isolated notifications failure offers its own retry', async () => {
-    // The widget-level case, which is a different code path from the whole-page one above: everything
-    // around it still renders, and the panel carries its own way out.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard(),
@@ -268,9 +288,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('shows award results, including the ones the supplier lost', async () => {
-    // FEAT-16.3's acceptance is "award outcomes shown", and the proposals panel above deliberately
-    // excludes NotSelected - so before this widget a supplier who lost watched their bid vanish from
-    // the screen they open first, with no outcome anywhere on it.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard({
         awards: [
@@ -297,8 +314,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('says so when nothing has been decided, rather than hiding the widget', async () => {
-    // An absent panel and an empty one say different things to a supplier waiting on a result: the
-    // first reads as "this product does not tell you", the second as "not yet".
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard(),
       '/api/v1/notifications/unread-count': { count: 0 },
@@ -310,9 +325,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
   })
 
   it('shows an outcome for a bid that was never priced, without inventing a zero', async () => {
-    // T-039's other branch: value and currency both absent. A bid can be declined or rejected before
-    // anyone priced it, and "—" is the truth there while "SYP 0" is a number somebody would have had
-    // to quote.
     restore = mockFetch({
       '/api/v1/suppliers/me/dashboard': dashboard({
         awards: [{
@@ -327,7 +339,6 @@ describe('SupplierDashboardPage (SCR-120)', () => {
     renderPage(<SupplierDashboardPage />)
 
     expect(await screen.findByText('Unpriced bid')).toBeInTheDocument()
-    // No currency string anywhere in the row - the amount is absent rather than zero.
     expect(screen.queryByText(/SYP/)).not.toBeInTheDocument()
   })
 })

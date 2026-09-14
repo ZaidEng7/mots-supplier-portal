@@ -1,3 +1,16 @@
+// B-1. The fourth screen an email link lands on, and the only one that acts on ARRIVAL rather than on a submit - so a
+// failure here is silent unless the page says something. Nothing tested it.
+//
+// It verifies on arrival and says so. When the server refuses the token - expired or already used - it says the link is
+// invalid and offers a new one, and the offer is the important half: a dead end here means the user has no way to get a
+// working link, and the account cannot leave Draft without one.
+//
+// It does not post at all when the link carries no token.
+//
+// A resend is answered the same way whether or not the account exists, on the same reasoning as the registration and
+// forgot-password responses: the confirmation must not tell a stranger whether an address is registered. That test makes
+// the verification itself fail, so the resend control is on screen.
+
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,10 +24,6 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { VerifyEmailPage } = await import('./VerifyEmailPage')
 
-/**
- * B-1. The fourth screen an email link lands on, and the only one that acts on ARRIVAL rather than on a
- * submit - so a failure here is silent unless the page says something. Nothing tested it.
- */
 describe('VerifyEmailPage', () => {
   const original = globalThis.fetch
   afterEach(() => { globalThis.fetch = original; searchToken = 'a-token' })
@@ -34,8 +43,6 @@ describe('VerifyEmailPage', () => {
   })
 
   it('says the link is invalid when the server refuses it, and offers a new one', async () => {
-    // An expired or already-used token. The important half is the offer: a dead end here means the user
-    // has no way to get a working link, and the account cannot leave Draft without one.
     globalThis.fetch = (async () =>
       new Response('{}', { status: 400, headers: { 'Content-Type': 'application/json' } })) as typeof fetch
 
@@ -57,11 +64,8 @@ describe('VerifyEmailPage', () => {
   })
 
   it('answers a resend the same way whether or not the account exists', async () => {
-    // Enumeration-safe, the same reasoning as the registration and forgot-password responses: the
-    // confirmation must not tell a stranger whether an address is registered.
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      // The verification itself fails, so the resend control is on screen.
       return new Response('{}', { status: url.includes('verify-email') ? 400 : 200 })
     }) as typeof fetch
 

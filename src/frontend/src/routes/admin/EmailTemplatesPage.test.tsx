@@ -1,3 +1,28 @@
+// T-076. The failure this screen exists to prevent is silent: an email that loses {verifyUrl} locks the recipient out of the
+// account they are creating, and nothing in the system can tell, because the send succeeded and the body was valid. So the
+// required tokens are shown, and a refusal names which ones.
+//
+// The required tokens show per template. A template reads as shipped wording until it is overridden, and revert is offered
+// only where there is something to revert TO: on a shipped row it would answer 404, and calling it "revert" would imply the
+// shipped words were themselves a change. Once an override is in force, revert appears and the override is shown as what is
+// live.
+//
+// The editor is PRE-FILLED with the copy in force rather than an empty form, because an empty editor would make every edit a
+// rewrite from scratch - which is how a token gets dropped.
+//
+// A REFUSAL NAMES THE TOKENS rather than saying only that a save failed: "a token is missing" is not something an
+// administrator can act on, and which token is. The other half of that guard is an UNKNOWN token - a typo of a real one is a
+// placeholder the payload cannot fill, so it reaches the recipient verbatim, and naming it is the difference between a
+// fixable save and a second attempt at the same mistake.
+//
+// A save sends BOTH languages of subject and body every time: a PUT carrying only the edited one would silently blank the
+// other.
+//
+// A failed list offers a retry. The shipped wording is restored on request, and a refused restore says so.
+//
+// The last two are the editor's own lifecycle: a successful save LEAVES the editor and clears the refusal, because an editor
+// left open after a save reads as a save that did not take - and cancel abandons an edit without writing.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -21,11 +46,6 @@ function template(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/**
- * T-076. The failure this screen exists to prevent is silent: an email that loses {verifyUrl} locks the
- * recipient out of the account they are creating, and nothing in the system can tell, because the send
- * succeeded and the body was valid. So the required tokens are shown, and a refusal names which ones.
- */
 describe('EmailTemplatesPage (T-076)', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -45,8 +65,6 @@ describe('EmailTemplatesPage (T-076)', () => {
     renderPage(<EmailTemplatesPage />)
 
     expect(await screen.findByText(/shipped|الأصلي/i)).toBeInTheDocument()
-    // Revert is offered only where there is something to revert TO: on a shipped row it would answer
-    // 404, and calling it "revert" would imply the shipped words were themselves a change.
     expect(screen.queryByRole('button', { name: /restore original|استعادة الأصلي/i })).not.toBeInTheDocument()
   })
 
@@ -65,7 +83,6 @@ describe('EmailTemplatesPage (T-076)', () => {
   })
 
   it('pre-fills the editor with the copy in force rather than an empty form', async () => {
-    // An empty editor would make every edit a rewrite from scratch, which is how a token gets dropped.
     restore = mockFetch({ [LIST]: [template()] })
 
     renderPage(<EmailTemplatesPage />)
@@ -87,7 +104,6 @@ describe('EmailTemplatesPage (T-076)', () => {
     await userEvent.click(await screen.findByRole('button', { name: /^edit|تعديل/i }))
     await userEvent.click(screen.getByRole('button', { name: /^save|حفظ/i }))
 
-    // "A token is missing" is not something an administrator can act on; which token is.
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('verifyUrl')
   })
@@ -105,7 +121,6 @@ describe('EmailTemplatesPage (T-076)', () => {
 
     const put = recorded.find((r) => r.method === 'PUT')
     expect(put).toBeDefined()
-    // Both languages every time: a PUT carrying only the edited one would silently blank the other.
     expect(JSON.parse(put!.body)).toEqual({
       subjectAr: 'دعوة للتسجيل', subjectEn: 'Invitation to register',
       bodyAr: 'مرحبًا {supplierName}، افتح {verifyUrl}', bodyEn: 'Hello {supplierName}, open {verifyUrl}',
@@ -149,9 +164,6 @@ describe('EmailTemplatesPage (T-076)', () => {
   })
 
   it('names an unknown token as well as a missing one', async () => {
-    // The other half of the guard: a typo of a real token is a placeholder the payload cannot fill, so
-    // it reaches the recipient verbatim. Naming it is the difference between a fixable save and a
-    // second attempt at the same mistake.
     restore = mockFetch({
       [LIST]: [template()],
       '/api/v1/admin/email-templates/supplier.invitation': {
@@ -179,7 +191,6 @@ describe('EmailTemplatesPage (T-076)', () => {
     await userEvent.click(screen.getByRole('button', { name: /^save|حفظ/i }))
 
     await screen.findByText(/saved|حُفظت/i)
-    // Back to the read view: an editor left open after a save reads as a save that did not take.
     expect(screen.queryByRole('button', { name: /^save|حفظ/i })).not.toBeInTheDocument()
   })
 

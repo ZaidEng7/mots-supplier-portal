@@ -1,3 +1,117 @@
+// FEAT-07.1 through 07.10: the RFQ workspace - the tender itself, its attachments, its decisions and its evaluation.
+//
+// State-gated actions shown here are a UI convenience only, per this codebase's hide-never-gate rule: every action
+// re-enforces its own state guard server-side regardless of what this page shows. Three controls are the exception in the
+// other direction, hidden because nobody in this session could use them - and each was a live defect. The tender's own
+// APPROVE was rendered for an officer reading a tender in Internal review, offering an enabled button that answers 403 three
+// lines under a panel already telling them they do not hold the permission; rfq.approve belongs to the procurement manager
+// alone. FINALIZE and REOPEN are the manager's too - evaluation.finalize and evaluation.reopen are granted to
+// procurement_manager alone - and both were rendered for anyone who could see the evaluation panel. And "My evaluation"
+// belongs to an evaluator ASSIGNED to this tender and to nobody else: it was shown to whoever could see the panel, so a
+// procurement manager - who opens the evaluation, assigns the evaluators and consolidates their scores, but does not score -
+// was offered a scoring screen with nothing on it and no explanation. Asked directly: "if I cannot evaluate as a manager, why
+// is there an evaluate button for the manager?" Holding a permission is not the test there; being on the assignment list is.
+//
+// TWO READS ARE SKIPPED rather than their buttons hidden. The evaluator-candidates list exists only to feed the assign
+// control and sits behind evaluation.assign, so an officer opening this page would fetch a list they cannot act on and get a
+// 403 in the console for their trouble. The same applies to the assignee list for the pickers - A-7's, fetched for every
+// buyer viewing the RFQ rather than only when a picker opens, because both pickers need it and neither is behind a click that
+// could prefetch it in time.
+//
+// A-7's OWNERSHIP has two surfaces: the approver nomination on the submit-for-review action, and reassignment as its own
+// card, because it applies at every point in a tender's life rather than at one transition. Who is answerable stays on the
+// SCREEN rather than only in the audit trail, and it sits in the identity line beside the code, because that is the same kind
+// of fact. An empty approver selection means "named nobody", which the server reads as the manager pool - not a defect, see
+// Rfq.SubmitForReview on why there is no routing rule to fall back on.
+//
+// THE EVALUATION PANEL's visibility used to be two states, and that was a dead end. Consolidating advances the RFQ to
+// Shortlisting, the panel disappeared at that point taking FINALIZE with it, and recommending an award refuses until the
+// evaluation is finalized - "Cannot recommend an award: the evaluation has not been finalized". So a tender that had been
+// scored and consolidated could not be carried any further through the UI at all. Found by walking one: the award screen
+// offered a winner and the server refused, with the button that would have unblocked it on a panel no longer rendered. It now
+// shows for every state from SubmissionClosed onward that is not terminal - the evaluation still exists, its results are still
+// what the award is being decided from, and Reopen is still a legitimate action - with Cancelled and Completed excluded,
+// because nothing is left to do to an evaluation on either.
+//
+// Inside it, three states are said SEPARATELY: no evaluation with submissions closed means one can be opened, no evaluation
+// with submissions still open means it is not time yet, and an evaluation that exists is the panel. T-082's bid list is
+// reachable from SubmissionClosed onward, before the comparison matrix exists and without needing an opened evaluation. Those
+// three exits - the bids, the comparison and the award - are LINKS rather than buttons wrapped in hrefs, because they are the
+// three places a buyer moves between constantly and a bare href reloaded the whole application each time.
+//
+// THE ASSIGN CONTROL is a picker rather than a free-text GUID box. It was an Input asking a manager to type
+// 01a07461-fa48-7721-abe2-018baaa84d11, and the only staff list in the product needs admin.users.manage, which a
+// procurement_manager does not hold - so the step was unusable without database access. Found by walking the tender in the
+// browser. Each assignment shows the NAME with the id only as a fallback, so an assignment whose user row has gone is still
+// visible rather than blank.
+//
+// T-068: the results table shows §3's reference CODE with no fallback. It used to read "?? r.proposalId", so the screen where
+// a manager decides who wins a tender rendered a database GUID whenever the code was absent - which was on every response
+// from a handler that did not look codes up. The code is required on the wire now.
+//
+// SCR-414's ATTACHMENTS: the upload, remove and download endpoints have existed since EPIC-07 and nothing on any screen
+// called them, so the tender documents could only be attached through the API. Found by the per-screen sweep, batch 9 phase
+// 12a. A download URL is short-lived and issued per request (D-16), so it is fetched on the click rather than rendered into
+// the page where it would outlive its own validity. The file input is cleared after each pick, because otherwise a failed
+// upload cannot be retried without choosing a different file. Removal is Draft-only, like every other structural edit here:
+// an attachment a supplier has already been invited to read must not vanish.
+//
+// F-8, AND THE WARNING IS THE WHOLE FIX. Attachments are Draft-only by design: bidders price against what they downloaded,
+// and a file swapped underneath them is what that lock prevents. The ruling (D-56) is that an addendum announces a change and
+// does not carry a document, so there is NO route to correct a published tender's attachments - the tender has to be cancelled
+// and authored again. That is defensible and it is invisible: an officer attaching the wrong file has no way to know, at the
+// moment they attach it, that they are making a permanent decision. Saying so on the screen is what turns a trap into a rule.
+//
+// THE EARLY CLOSE carries the officer's own words rather than a constant. The aggregate refuses an early close without a
+// reason, because closing bidding before the advertised deadline is a decision bidders can challenge and the answer has to be
+// on the record - and this sent a fixed translated string, so every early close in the system carried the same sentence and
+// the audit trail said nothing about why, satisfying the rule while defeating it. It also uses the product's own dialog
+// rather than window.prompt: that rendered browser chrome in a product where every other reason field is themed and, the part
+// that mattered, said nothing at all when it was dismissed or filled with spaces while the copy promised the reason was
+// recorded.
+//
+// F-4's EDIT DETAILS: PUT /rfqs/{code} and updateRfqBasics both existed and nothing called either, so a tender created with
+// the wrong submission window - the easiest mistake on that form, both dates typed by hand - could only be recovered by
+// cancelling the tender and authoring it again. It is a DIALOG rather than an inline editor, because there are ten fields; the
+// line-item corrections are inline, because a correction is almost always one field on one row and the row is the context. Its
+// pickers carry a floor an hour out rather than "now": the domain refuses a submission window that has already started, and
+// this picker was offering times minutes away - long enough to choose, not long enough to finish the form - so a window set to
+// open in five minutes had lapsed by the time Submit was pressed and the refusal arrived on a different card from the control
+// that caused it. A floor on the control, not a replacement for the rule: the domain still checks, and a date typed rather than
+// picked still reaches it.
+//
+// A TENDER THAT FAILED TO LOAD is not a tender that does not exist, and one branch said "not found" for both.
+//
+// THE HEAD is PageHeading's own shape: a name, the line that identifies the record, the chips that say what state it is in,
+// and the actions. The page was passing all four as loose siblings instead, which is why the reference code was the heading and
+// the tender's own name was an afterthought appended to it - a tender is a thing with a name, and the code is how you find it
+// again. That band was written here first and is now TenderHeader, which the tender's other five views render too; it was the
+// only one of the six that named the tender rather than the tab.
+//
+// THE LAYOUT is one column on a narrow screen and two from the layout breakpoint up. The rail is FIRST in the DOM, so a screen
+// reader and a 320px viewport both meet "what happens next" before the body, and grid placement moves it to the inline-end side
+// on a wide one. That is why it is a grid rather than a flex row: source order and visual order are allowed to differ.
+//
+// THE RAIL is the comp's three cards, answering three different questions - what am I expected to do, how far along is this,
+// and how big is it. One card used to answer all three at once with a row of chips and a column of badges, and answered none of
+// them in a sentence. Its three answers are derived once rather than inside the JSX, and `permitted` already reflects both the
+// caller's permission claim and the domain precondition, resolved server-side, so nothing here re-derives who may do what.
+//
+// A BLOCKED TRANSITION still has to name itself. The panel this replaces rendered the label as a warning badge and the
+// server's reason as grey text beside it, and the reason is the useful half - but the label is what it is a reason ABOUT, so
+// both are kept and the label leads. A state that asks nothing of this reader says so in words instead.
+//
+// The stage tracker resolves its labels through the same key StatusChip does, so a stage and a state chip never disagree about
+// what a lifecycle stop is called. The rail's counts are all already on this page, and every one of them used to be found by
+// scrolling to its card and counting the rows - "Questions open" counts UNANSWERED clarifications rather than all of them,
+// because a question that has been answered is not something waiting on the buyer and a total would read as one that is.
+//
+// TWO HEADINGS WENT. There is no "The tender" heading, because the tab strip above says which view this is and a grey label
+// repeating the current tab is the kind of thing this pass exists to remove. The Decisions group keeps its heading, because it
+// names a set the tab does not - and that group is GUARDED, unlike the other three: both of its members are conditional, so
+// without the guard the screen renders the heading "Decisions" over nothing at all, a label describing an empty space. The
+// other three each hold at least one unconditional card and cannot be empty.
+
 import { useState } from 'react'
 import { useAuthStore } from '../../lib/authStore'
 import { useTranslation } from 'react-i18next'
@@ -26,10 +140,6 @@ import { TenderTabs } from './rfq/TenderTabs'
 import { TenderHeader } from './rfq/TenderHeader'
 import { apiErrorMessage } from '../../api/problem'
 
-/** FEAT-07.1..07.10: the RFQ workspace. State-gated actions shown here are a UI convenience only
- * (hide, never gate, per this codebase's own established rule) - every action re-enforces its own
- * state guard server-side regardless of what this page shows. */
-/** Where one lifecycle stop stands, as the three names the stepper draws. */
 function stepStateOf(stage: { isCurrent: boolean; isCompleted: boolean }): StepState {
   if (stage.isCurrent) return 'current'
   return stage.isCompleted ? 'done' : 'todo'
@@ -43,9 +153,6 @@ export function RfqDetailPage() {
   const { notify } = useToast()
   const queryClient = useQueryClient()
 
-  // A-7: the ownership controls. The approver nomination is on the submit-for-review action; the
-  // reassignment is its own card, because it applies at every point in a tender's life rather than
-  // at one transition.
   const [approverDraft, setApproverDraft] = useState('')
   const [itemTitleAr, setItemTitleAr] = useState('')
   const [itemTitleEn, setItemTitleEn] = useState('')
@@ -56,10 +163,6 @@ export function RfqDetailPage() {
   const [reqTextEn, setReqTextEn] = useState('')
   const [reqMandatory, setReqMandatory] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
-  // Which row is being corrected, and the values being typed into it. Null means "nobody is editing".
-  //
-  // An inline editor rather than a dialog: a correction is almost always one field on one row, and
-  // the row is the context. The tender's own fields get a dialog, because there are ten of them.
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   const [editItem, setEditItem] = useState({ titleAr: '', titleEn: '', categoryCode: '', unitOfMeasureCode: '', quantity: '1' })
   const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null)
@@ -68,29 +171,9 @@ export function RfqDetailPage() {
   const [details, setDetails] = useState({
     titleAr: '', titleEn: '', currencyCode: '', submissionOpensAt: '', submissionClosesAt: '',
   })
-  /**
-   * The page renders every transition and lets the SERVER refuse the ones this persona cannot take - which is
-   * the pattern here and a good one, because a permission list in the client is a second authority.
-   *
-   * This one is different: it gates a READ that exists only to feed the assign control. An officer opening this
-   * page would fetch a list they cannot act on and get a 403 in the console for their trouble, so the query is
-   * skipped rather than the button hidden.
-   */
-  // Same rule as the evaluation controls below, which already follow it: a control nobody in this
-  // session can use is not shown. The tender's own Approve button did not - an officer reading a
-  // tender in Internal review was offered an enabled Approve that answers 403, three lines under a
-  // panel already telling them they do not hold the permission for it. `rfq.approve` belongs to the
-  // procurement manager alone.
   const canApproveRfq = useAuthStore((state) => state.claims?.permissions.includes('rfq.approve') ?? false)
   const canAssignEvaluators = useAuthStore((state) => state.claims?.permissions.includes('evaluation.assign') ?? false)
-  // Who this session is, for the scoring link below: an evaluation is scored by the people ASSIGNED
-  // to it, so holding a permission is not enough to have a scoring screen of one's own.
   const currentUserId = useAuthStore((state) => state.claims?.userId)
-  // Finalize and reopen are the MANAGER's, not the officer's - evaluation.finalize and
-  // evaluation.reopen are granted to procurement_manager alone. Both buttons were rendered for
-  // anyone who could see the evaluation panel, so a procurement officer was shown an enabled
-  // Finalize that answered 403 every time. Same hide-never-gate rule as every other control here:
-  // the endpoint re-enforces the permission regardless of what these do.
   const canFinalizeEvaluation = useAuthStore((state) => state.claims?.permissions.includes('evaluation.finalize') ?? false)
   const canReopenEvaluation = useAuthStore((state) => state.claims?.permissions.includes('evaluation.reopen') ?? false)
 
@@ -105,20 +188,6 @@ export function RfqDetailPage() {
   const unitsQuery = useQuery({ queryKey: ['units-of-measure'], queryFn: fetchUnitsOfMeasure })
   const templatesQuery = useQuery({ queryKey: ['evaluation-templates'], queryFn: listEvaluationTemplates })
   const rfq = rfqQuery.data
-  /**
-   * Where the evaluation panel is shown - and it used to be two states, which was a dead end.
-   *
-   * <p>Consolidating advances the RFQ to Shortlisting. The panel disappeared at that point, taking FINALIZE
-   * with it - and recommending an award refuses until the evaluation is finalized ("Cannot recommend an award:
-   * the evaluation has not been finalized"). So a tender that had been scored and consolidated could not be
-   * carried any further through the UI at all. Found by walking one: the award screen offered a winner and the
-   * server refused, with the button that would have unblocked it on a panel no longer rendered.</p>
-   *
-   * <p>Every state from SubmissionClosed onward that is not terminal: the evaluation still exists, its results
-   * are still what the award is being decided from, and Reopen is still a legitimate action. Cancelled and
-   * Completed are excluded - nothing is left to do to an evaluation on either.</p>
-   */
-  // Submissions are closed, so there is something to evaluate and nothing still arriving.
   const canOpenEvaluation = rfq?.state === 'SubmissionClosed'
   const evaluationEligible = !!rfq && [
     'SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting',
@@ -130,11 +199,6 @@ export function RfqDetailPage() {
     enabled: evaluationEligible,
   })
 
-  /**
-   * Who this manager may assign. Fetched only when an evaluation can exist, and only for a caller who may
-   * assign - the endpoint is behind evaluation.assign, so an officer opening this page would get a 403 for a
-   * list they cannot act on.
-   */
   const evaluatorCandidatesQuery = useQuery({
     queryKey: ['evaluator-candidates', referenceCode],
     queryFn: () => listEvaluatorCandidates(referenceCode),
@@ -199,9 +263,6 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
   })
 
-  // SCR-414. The upload/remove/download endpoints have existed since EPIC-07 and nothing on any
-  // screen called them, so the tender documents could only be attached through the API. Found by the
-  // per-screen sweep (batch 9 phase 12a).
   const addAttachmentMutation = useMutation({
     mutationFn: (file: File) => addRfqAttachment(referenceCode, file),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.attachments.added') }) },
@@ -215,8 +276,6 @@ export function RfqDetailPage() {
   })
 
   const downloadAttachmentMutation = useMutation({
-    // Short-lived and issued per request (D-16), so the URL is fetched on the click rather than
-    // rendered into the page where it would outlive its own validity.
     mutationFn: (attachmentId: string) => getRfqAttachmentDownloadUrl(referenceCode, attachmentId),
     onSuccess: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.saveFailed')) }),
@@ -229,15 +288,11 @@ export function RfqDetailPage() {
   })
 
   const submitMutation = useMutation({
-    // Empty string means "named nobody", which the server reads as the manager pool - not a defect,
-    // see Rfq.SubmitForReview on why there is no routing rule to fall back on.
     mutationFn: () => submitRfqForReview(referenceCode, approverDraft || undefined),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('rfq.submitted') }); setApproverDraft('') },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
-  // A-7. Fetched for every buyer viewing the RFQ rather than only when a picker opens, because both
-  // pickers need it and neither is behind a click that could prefetch it in time.
   const assigneesQuery = useQuery({
     queryKey: ['rfq-assignees', referenceCode],
     queryFn: () => listRfqAssignees(referenceCode),
@@ -255,12 +310,6 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
-  // The officer's own words, not a constant.
-  //
-  // The aggregate refuses an early close without a reason, because closing bidding before the
-  // advertised deadline is a decision bidders can challenge and the answer has to be on the record.
-  // This sent a fixed translated string, so every early close in the system carried the same sentence
-  // and the audit trail said nothing about why - satisfying the rule while defeating it.
   const [closeOpen, setCloseOpen] = useState(false)
   const closeMutation = useMutation({
     mutationFn: (reason: string) => closeRfqSubmission(referenceCode, reason),
@@ -268,9 +317,6 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
-  // F-4: PUT /rfqs/{code} and updateRfqBasics both existed and nothing called either, so a tender
-  // created with the wrong submission window - the easiest mistake on that form, both dates typed by
-  // hand - could only be recovered by cancelling the tender and authoring it again.
   const detailsMutation = useMutation({
     mutationFn: () => updateRfqBasics(referenceCode, {
       titleAr: details.titleAr,
@@ -331,8 +377,6 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
   })
 
-  // A tender that failed to load is not a tender that does not exist, and the branch below says
-  // "not found" for both.
   if (rfqQuery.isError) return <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
 
   if (rfqQuery.isLoading || !rfq) {
@@ -344,30 +388,12 @@ export function RfqDetailPage() {
   const isApproved = rfq.state === 'Approved'
   const isSubmissionOpen = rfq.state === 'SubmissionOpen'
 
-  /**
-   * The rail's three answers, derived once rather than inside the JSX.
-   *
-   * <p>`permitted` already reflects both the caller's permission claim and the domain precondition,
-   * resolved server-side, so nothing here re-derives who may do what.</p>
-   */
   const workspace = workspaceQuery.data
   const permittedActions = workspace?.nextActions.filter((a) => a.permitted) ?? []
   const blockedActions = workspace?.nextActions.filter((a) => !a.permitted) ?? []
-  /** The label and the reason in the reader's own language, resolved once rather than at each use. */
   const inLanguage = (ar: string | null, en: string | null) => (isArabic ? ar : en)
-  /**
-   * What the rail says when nothing is blocked: nothing, when there is something the reader may do, and
-   * so in words when there is not. Named rather than nested inline, which is where it was unreadable.
-   */
   const nothingBlockedText = permittedActions.length > 0 ? null : t('workspace.noNextAction')
 
-  /**
-   * The counts the comp puts in the rail. Every one is already on this page, and every one of them
-   * used to be found by scrolling to its card and counting the rows.
-   *
-   * <p>"Questions open" counts unanswered clarifications rather than all of them: a question that has
-   * been answered is not something waiting on the buyer, and a total would read as one that is.</p>
-   */
   const glanceFacts = [
     { key: 'invited', label: t('workspace.facts.invited'), value: formatNumber(rfq.invitations.length, locale, 0) },
     { key: 'bids', label: t('workspace.facts.bids'), value: formatNumber(workspace?.submittedProposalCount ?? 0, locale, 0) },
@@ -378,34 +404,12 @@ export function RfqDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/*
-        The comp's band, and `PageHeading` already had its shape: a name, the line that identifies the
-        record, the chips that say what state it is in, and the actions. The page was passing all four
-        as loose siblings instead, which is why the reference code was the heading and the tender's own
-        name was an afterthought appended to it. A tender is a thing with a name; the code is how you
-        find it again.
-
-        A-7: who is answerable stays on the screen rather than only in the audit trail. It has moved
-        into the identity line, beside the code, because that is the same kind of fact.
-      */}
-      {/* This band was written here first and is now `TenderHeader`, which the tender's other five
-          views render too. It was the only one of the six that named the tender rather than the tab,
-          so the others were made to match it rather than the other way round. */}
       <TenderHeader
         referenceCode={referenceCode}
         actions={
           <>
           {isDraft ? (
             <div className="flex flex-wrap items-center gap-2">
-              {/* Optional by design: an empty selection submits to the manager pool, exactly as this
-                  transition behaved before A-7. The placeholder says so rather than reading as an
-                  unfilled required field.
-
-                  §C2.4: what the placeholder could not say is that the choice is committed by the
-                  button NEXT to it rather than by this control, so an officer could pick an approver,
-                  never press Submit, and reasonably believe they had nominated somebody. The hint is
-                  wired through aria-describedby rather than left as an adjacent paragraph, so it
-                  reaches a screen reader as part of the control. */}
               <Select
                 aria-label={t('rfq.ownership.nominateApprover')}
                 aria-describedby="rfq-approver-hint"
@@ -432,10 +436,6 @@ export function RfqDetailPage() {
           ) : null}
           {isSubmissionOpen ? (
             <>
-              {/* window.prompt rendered browser chrome in a product where every other reason field is
-                  themed, and - the part that mattered - it said nothing at all when it was dismissed or
-                  filled with spaces, while the copy promised the reason was recorded. The same dialog
-                  the rest of this product uses for a mandatory reason refuses an empty one visibly. */}
               <Button variant="secondary" onClick={() => setCloseOpen(true)}>
                 {t('rfq.closeSubmission')}
               </Button>
@@ -458,10 +458,6 @@ export function RfqDetailPage() {
 
       <TenderTabs referenceCode={referenceCode} />
 
-      {/* One column on a narrow screen, two from the layout breakpoint up. The rail is FIRST in the
-          DOM, so a screen reader and a 320px viewport both meet "what happens next" before the body,
-          and grid placement moves it to the inline-end side on a wide one. That is why this is a grid
-          rather than a flex row: source order and visual order are allowed to differ. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1">
           {workspace === undefined || workspace === null ? null : workspace.isCancelled ? (
@@ -470,12 +466,6 @@ export function RfqDetailPage() {
               </Card>
             ) : (
               <>
-                {/*
-                  The comp's three rail cards, and they answer three different questions: what am I
-                  expected to do, how far along is this, and how big is it. One card used to answer all
-                  three at once with a row of chips and a column of badges, and answered none of them
-                  in a sentence.
-                */}
                 <NextActionCard
                   title={t('workspace.next')}
                   action={permittedActions.length > 0 ? (
@@ -487,12 +477,6 @@ export function RfqDetailPage() {
                     </p>
                   ) : undefined}
                 >
-                  {/*
-                    A blocked transition still has to name itself. The panel this replaces rendered the
-                    label as a warning badge and the server's reason as grey text beside it, and the
-                    reason is the useful half - but the label is what it is a reason ABOUT, so both are
-                    kept and the label leads. A state that asks nothing of this reader says that instead.
-                  */}
                   {blockedActions.length > 0 ? (
                     <ul className="m-0 flex list-none flex-col gap-2 p-0">
                       {blockedActions.map((a) => (
@@ -519,8 +503,6 @@ export function RfqDetailPage() {
                     }}
                     steps={workspace.stages.map((stage) => ({
                       key: stage.key,
-                      // The same key StatusChip resolves, so a stage and a state chip never disagree
-                      // about what a lifecycle stop is called.
                       label: t(`status.rfq.${stage.key}`),
                       state: stepStateOf(stage),
                     }))}
@@ -536,9 +518,6 @@ export function RfqDetailPage() {
         </aside>
 
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
-          {/* No "The tender" heading any more: the tab strip above says which view this is, and a
-              grey label repeating the current tab is the kind of thing this pass exists to remove. The
-              Decisions group below keeps its heading, because it names a set the tab does not. */}
           <div className="flex flex-col gap-4">
           {isDraft ? (
             <Card title={t('rfq.details.title')}>
@@ -573,16 +552,6 @@ export function RfqDetailPage() {
                       <Input {...inputProps} value={details.currencyCode} onChange={(e) => setDetails((p) => ({ ...p, currencyCode: e.target.value }))} />
                     )}
                   </Field>
-                  {/*
-                    `min` on both, an hour out rather than "now". The domain refuses a submission window
-                    that has already started, and this picker was offering times minutes away - long
-                    enough to choose, not long enough to finish the form. A window set to open in five
-                    minutes had lapsed by the time Submit was pressed, and the refusal then arrived on a
-                    different card from the control that caused it.
-
-                    A floor on the control, not a replacement for the rule: the domain still checks, and
-                    a date typed rather than picked still reaches it.
-                  */}
                   <Field label={t('rfq.fields.submissionOpensAt')}>
                     {(inputProps) => (
                       <Input {...inputProps} type="datetime-local" min={earliestSubmissionInput()} value={details.submissionOpensAt}
@@ -750,18 +719,6 @@ export function RfqDetailPage() {
           </Card>
 
           <Card title={t('rfq.attachments.title')}>
-            {/*
-              * F-8, and the warning is the whole fix.
-              *
-              * Attachments are Draft-only by design: bidders price against what they downloaded, and a
-              * file swapped underneath them is what that lock prevents. The ruling (D-56) is that an
-              * addendum announces a change and does not carry a document, so there is NO route to correct
-              * a published tender's attachments - the tender has to be cancelled and authored again.
-              *
-              * That is defensible and it is invisible. An officer attaching the wrong file has no way to
-              * know, at the moment they attach it, that they are making a permanent decision. Saying so
-              * here is what turns a trap into a rule.
-              */}
             {isDraft ? (
               <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                 {t('rfq.attachments.permanentWarning')}
@@ -788,8 +745,6 @@ export function RfqDetailPage() {
                       >
                         {t('rfq.attachments.download')}
                       </Button>
-                      {/* Removal is Draft-only, like every other structural edit on this page: an
-                          attachment a supplier has already been invited to read must not vanish. */}
                       {isDraft ? (
                         <Button size="sm" variant="ghost" onClick={() => removeAttachmentMutation.mutate(attachment.id)}>
                           {t('rfq.remove')}
@@ -811,8 +766,6 @@ export function RfqDetailPage() {
                     onChange={(event) => {
                       const file = event.target.files?.[0]
                       if (file) addAttachmentMutation.mutate(file)
-                      // Cleared so re-picking the same file fires change again - otherwise a failed
-                      // upload cannot be retried without choosing a different file.
                       event.target.value = ''
                     }}
                   />
@@ -843,10 +796,6 @@ export function RfqDetailPage() {
           </div>
 
 
-          {/* Guarded, unlike the other three. Both of this group's members are conditional, so without
-              this the screen renders the heading "Decisions" over nothing at all - a label describing an
-              empty space, which is the failure this whole pass has been about. The other three each hold
-              at least one unconditional card and cannot be empty. */}
           {rfq.approvals.length > 0 || evaluationEligible ? (
           <section aria-labelledby="rfq-group-decisions" className="flex flex-col gap-4">
             <h2
@@ -880,11 +829,6 @@ export function RfqDetailPage() {
           {evaluationEligible ? (
             <Card title={t('evaluation.title')}>
               <div className="mb-4 flex gap-2">
-                {/* T-082: the bids themselves, readable from SubmissionClosed onward - before the
-                    comparison matrix exists and without needing an opened evaluation. */}
-                {/* Links, not buttons wrapped in hrefs. These are the buyer's exits to the bids, the
-                    comparison and the award - the three places they move between constantly - and a bare
-                    href reloaded the whole application each time. */}
                 <ButtonLink to="/back-office/rfqs/$referenceCode/proposals" params={{ referenceCode }}>
                   {t('receivedProposals.title')}
                 </ButtonLink>
@@ -897,9 +841,6 @@ export function RfqDetailPage() {
                   </ButtonLink>
                 ) : null}
               </div>
-              {/* Three states, said separately. No evaluation and submissions closed means one can be
-                  opened; no evaluation and submissions still open means it is not time yet; an
-                  evaluation that exists is the panel below. */}
               {!evaluation && canOpenEvaluation ? (
                 <Button isLoading={openEvaluationMutation.isPending} onClick={() => openEvaluationMutation.mutate()}>
                   {t('evaluation.open')}
@@ -912,15 +853,6 @@ export function RfqDetailPage() {
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between">
                     <StatusChip machine="evaluation" value={evaluation.state} />
-                    {/*
-                      "My evaluation" belongs to an evaluator ASSIGNED to this tender, and to nobody
-                      else. It was shown to whoever could see the panel, so a procurement manager -
-                      who opens the evaluation, assigns the evaluators and consolidates their scores,
-                      but does not score - was offered a scoring screen with nothing on it and no
-                      explanation. Asked directly: "if I cannot evaluate as a manager, why is there
-                      an evaluate button for the manager?" Holding a permission is not the test here;
-                      being on the assignment list is.
-                    */}
                     {evaluation.state !== 'NotStarted'
                       && evaluation.assignments.some((a) => a.evaluatorUserId === currentUserId && !a.recusedAt) ? (
                       <ButtonLink to="/back-office/rfqs/$referenceCode/my-evaluation" params={{ referenceCode }}>
@@ -970,8 +902,6 @@ export function RfqDetailPage() {
                         <TableBody>
                           {evaluation.assignments.map((a) => (
                             <TableRow key={a.evaluatorUserId}>
-                              {/* The name, with the id only as a fallback - an assignment whose user row has gone
-                                  should still be visible rather than blank. */}
                               <TableCell>{a.evaluatorName ?? a.evaluatorUserId}</TableCell>
                               <TableCell>{a.submittedAt ? formatDateTime(a.submittedAt, i18n.language) : '—'}</TableCell>
                               <TableCell>{a.recusedAt ? t('evaluation.recusedWithReason', { reason: a.recusalReason }) : '—'}</TableCell>
@@ -994,12 +924,6 @@ export function RfqDetailPage() {
 
                     {evaluation.state !== 'Finalized' && evaluation.state !== 'Consolidated' ? (
                       <div className="mt-4 flex flex-wrap items-end gap-2">
-                        {/*
-                          A picker, not a free-text GUID box. This was an Input asking a manager to type
-                          01a07461-fa48-7721-abe2-018baaa84d11, and the only staff list in the product needs
-                          admin.users.manage - which a procurement_manager does not hold. The assign step was
-                          unusable without database access; found by walking the tender in the browser.
-                        */}
                         <div className="min-w-[16rem]">
                           <Select
                             value={evaluatorUserId}
@@ -1045,12 +969,6 @@ export function RfqDetailPage() {
                           {[...evaluation.results].sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999)).map((r) => (
                             <TableRow key={r.proposalCode}>
                               <TableCell>{r.rank ?? '—'}</TableCell>
-                              {/* §3's reference code, with the internal id only as a fallback. This cell was the
-                                  GUID - on the screen where a tender is decided. */}
-                              {/* T-068: the code, with no fallback. This cell used to read `?? r.proposalId`, so the
-                                  screen where a manager decides who wins a tender rendered a database GUID
-                                  whenever the code was absent - which was on every response from a handler
-                                  that did not look codes up. The code is required on the wire now. */}
                               <TableCell>{r.proposalCode}</TableCell>
                               <TableCell>
                                 <Badge tone={r.technicallyQualified ? 'success' : 'danger'}>

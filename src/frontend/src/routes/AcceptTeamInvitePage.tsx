@@ -1,3 +1,6 @@
+// A supplier's colleague setting their password from an invitation token. The whole screen is AcceptInvitePageBase; this
+// file is the copy and the endpoint.
+
 import { useTranslation } from 'react-i18next'
 import { AcceptInvitePageBase } from '../components/AcceptInvitePageBase'
 import { acceptTeamInvite } from '../api/team'

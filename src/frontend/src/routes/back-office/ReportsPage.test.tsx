@@ -1,3 +1,37 @@
+// Two groups: the reports themselves, and the procurement report for a reader who belongs to no buying body.
+//
+// Both reports render with their counts. That test awaits a DATA value rather than the heading, because the card's title
+// renders during loading too - awaiting it waits for nothing and the assertions run against the skeleton, which is how the
+// first version of this test failed.
+//
+// AN UNMEASURED INTERVAL reads as not measured, never as zero: "no RFQ has reached award" and "award takes no time" are
+// different facts, and a zero in that cell asserts the second one. It is parenthesised per D-18, matching the exported
+// artefact's own marker for the same cell.
+//
+// The cycle-time COVERAGE FLOOR is stated rather than left invisible: the RFQs that moved before audit logging existed
+// contribute to nothing, and without that line a short history reads as a fast process. And the compliance counts are said to
+// be ministry-wide, because the registry has no organization.
+//
+// States are labelled from the CATALOGUE, never as the raw enum name, with the control that the raw key for a state whose
+// label differs from it must not be on the page - 'ExpiringSoon' is the enum member and the catalogue renders it as words.
+// Counts render in Eastern Arabic numerals under Arabic (R-1), controlled by the English assertion above, where the same
+// payload renders 41 as "41".
+//
+// LOADING shows a skeleton rather than a spinner, labelled with the SCREEN. It is queried synchronously, before the mocked
+// fetch resolves, because awaiting first would look at the loaded page and find no skeleton at all. And the label matters: a
+// skeleton announced as "Compliance report" is indistinguishable from the loaded card, to a screen reader and to this test -
+// that was the EPIC-16 mistake, and the first version here repeated it.
+//
+// THE SECOND GROUP is the procurement report scoped to one buying body, which two personas deliberately belong to none of.
+// The endpoint answers 404 for them, correctly - there is nothing in scope to return. It reached the screen as a thrown
+// error, so the card offered "The report could not be loaded" and a Try again that could never succeed, on every visit, for
+// the bootstrap administrator and the Ministry viewer. The compliance report below it is unscoped and loaded fine, and the
+// two side by side - one broken, one working - is what made a policy boundary read as a fault.
+//
+// So the scope is EXPLAINED instead of reported as a failure, and the retry is the part that mattered: a button that re-asks a
+// question this account cannot ask. Its control is that a real failure is still reported as one, with a retry that can work -
+// without which the change would pass just as well on a screen that had simply stopped reporting errors at all.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import i18n from '../../i18n/config'
@@ -55,22 +89,16 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
 
     renderPage(<ReportsPage />)
 
-    // Awaited on a DATA value, not on the heading. The card's title renders during loading too, so
-    // awaiting it waits for nothing and the assertions below run against the skeleton - which is
-    // how the first version of this test failed.
     expect(await screen.findByText('18.5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Procurement report' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Compliance report' })).toBeInTheDocument()
   })
 
   it('an interval nothing has completed reads as not measured, never as zero', async () => {
-    // "No RFQ has reached award" and "award takes no time" are different facts, and a zero in this
-    // cell asserts the second one.
     restore = mockFetch(routes)
 
     renderPage(<ReportsPage />)
 
-    // D-18: parenthesised, matching the exported artefact's own marker for the same cell.
     expect(await screen.findByText('(not measured)')).toBeInTheDocument()
 
     const row = screen.getByRole('row', { name: /Evaluation to award/ })
@@ -78,8 +106,6 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
   })
 
   it('states the cycle-time coverage floor rather than leaving the gap invisible', async () => {
-    // The RFQs that moved before audit logging existed contribute to nothing. Without this line a
-    // short history reads as a fast process.
     restore = mockFetch(routes)
 
     renderPage(<ReportsPage />)
@@ -103,13 +129,10 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
     renderPage(<ReportsPage />)
 
     expect(await screen.findByText('Published')).toBeInTheDocument()
-    // The control: the raw key for a state whose label DIFFERS from it must not be on the page.
-    // 'ExpiringSoon' is the enum member; the catalogue renders it as words.
     expect(screen.queryByText('ExpiringSoon')).not.toBeInTheDocument()
   })
 
   it('renders counts in Eastern Arabic numerals under Arabic', async () => {
-    // R-1. The control is the English assertion above: the same payload renders 41 as "41" there.
     restore = mockFetch(routes)
     await i18n.changeLanguage('ar')
 
@@ -124,27 +147,12 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
 
     renderPage(<ReportsPage />)
 
-    // Queried synchronously, before the mocked fetch resolves - awaiting first would look at the
-    // loaded page and find no skeleton at all.
-    //
-    // Labelled with the SCREEN rather than the card: a skeleton announced as "Compliance report" is
-    // indistinguishable from the loaded card, to a screen reader and to this test. That was the
-    // EPIC-16 mistake and the first version here repeated it.
     const loading = screen.getAllByRole('status')
     expect(loading.length).toBeGreaterThan(0)
     expect(loading.every((el) => el.textContent === 'Reports')).toBe(true)
   })
 })
 
-/**
- * The procurement report is scoped to one buying body; two personas deliberately belong to none.
- *
- * <p>The endpoint answers 404 for them, correctly - there is nothing in scope to return. It reached the
- * screen as a thrown error, so the card offered "The report could not be loaded" and a Try again that
- * could never succeed, on every visit, for the bootstrap administrator and the Ministry viewer. The
- * compliance report below it is unscoped and loaded fine, and the two side by side - one broken, one
- * working - is what made a policy boundary read as a fault.</p>
- */
 describe('the procurement report when the reader belongs to no buying body', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -159,13 +167,10 @@ describe('the procurement report when the reader belongs to no buying body', () 
 
     expect(await screen.findByText(/not attached to one/i)).toBeInTheDocument()
     expect(screen.queryByText('The report could not be loaded.')).toBeNull()
-    // The retry is the part that mattered: a button that re-asks a question this account cannot ask.
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
   })
 
   it('still reports a real failure as one, with a retry that can work', async () => {
-    // The control. Without this the change above would pass just as well on a screen that had simply
-    // stopped reporting errors at all.
     restore = mockFetch({
       '/api/v1/reports/procurement': { __status: 500 },
       '/api/v1/reports/compliance': compliance(),

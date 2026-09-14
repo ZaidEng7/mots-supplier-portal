@@ -1,3 +1,48 @@
+// SCR-130, 131, 132 and 133. The rule with the most room to go wrong here is needsAttention, because SCR-133 is a FILTER on
+// this page rather than a second screen - so the definition of "expiring" lives in exactly one place, and these are the
+// cases that pin it.
+//
+// The types list with their state, and an expiry-tracked one populates the date column rather than showing an em dash. A
+// REQUIRED type with nothing uploaded counts as needing attention; an OPTIONAL one does not, which is the control for it,
+// because without that "needs attention" could simply mean "not uploaded" and the banner would be permanent for every
+// supplier. An approved document does not count either. The filter narrows the table to those types and back again.
+//
+// A rejection reason shows on the row it belongs to, and the version history opens for one type on request - the reason
+// from two versions ago is the whole point of SCR-132, because it is not on the current row. A failed list offers a retry.
+//
+// THE UPLOAD sends a chosen file against its type with the expiry date entered beside it. That uses fireEvent.change rather
+// than userEvent.type, because a date input takes a value rather than keystrokes and typing into one silently leaves it
+// empty. The request body is FormData, which the harness records as empty, so what is asserted is that the write went to
+// the collection - the field names are the client's contract and are covered where that client is exercised.
+//
+// And the profile is RE-READ. The upload moves the SUPPLIER's row version and answers with a document, so nothing else
+// hands the client the aggregate's new version - and the next guarded write on the same screen is refused for want of one.
+// That is the defect a supplier met as "Could not record acceptance", with a page reload as the only way through.
+//
+// A REFUSED upload is reported in the server's own words. The refusals here are specific - an expiry date in the past, a
+// type the allow-list does not carry - and a generic "upload failed" would leave the supplier with nothing to act on. The
+// POST goes to the collection with the type id in the form body, so the list and the upload share one URL, which is why
+// that fixture keys by method: the row has to render before there is anything to click, and a single fixture cannot be
+// both an array and a refusal. The refusal uses `detail`, because that is where §7 puts the prose - RFC 9457's
+// "human-readable explanation of this occurrence" - and a fixture using `message` would make the test pass against a
+// client that reads the wrong field. The date is filled in first, as a supplier would, because this type records an expiry
+// and the screen now refuses the upload itself when that field is empty: what is under test there is the OTHER refusal,
+// the one only the server can make, so the local guard must be satisfied to reach it.
+//
+// THE LOCAL REFUSAL is the one the screen makes for itself, because the server's version of it was invisible. Choosing a
+// file for a type that records an expiry, with the date still empty, sent the upload, took a 400 saying "This document type
+// requires an expiry date", and changed nothing on screen - so the supplier's reading was that the control did not work.
+// Found walking onboarding as a new supplier, on the tax certificate.
+//
+// The control is labelled "replace" once a version exists, which is not cosmetic: "upload" on a type that already has an
+// approved document invites a supplier to think they are adding a second one, when the write supersedes what is there.
+//
+// THE DOWNLOAD URL is fetched rather than linked straight to, because it needs the Authorization header and a plain anchor
+// would arrive unauthenticated. window.open is stubbed, because jsdom does not implement it. A failure to obtain the URL
+// says so.
+//
+// The last test is the retryable failure rather than an empty document list.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -28,11 +73,6 @@ function version(overrides: Record<string, unknown> = {}) {
   }
 }
 
-/**
- * SCR-130/131/132/133. The rule with the most room to go wrong here is `needsAttention`, because
- * SCR-133 is a FILTER on this page rather than a second screen - so the definition of "expiring"
- * lives in exactly one place, and these are the cases that pin it.
- */
 describe('DocumentsPage (SCR-130)', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -46,7 +86,6 @@ describe('DocumentsPage (SCR-130)', () => {
     renderPage(<DocumentsPage />)
 
     expect(await screen.findByText('Commercial registration')).toBeInTheDocument()
-    // expiryTracked, so the date column is populated rather than an em dash.
     expect(screen.getByText(/2027/)).toBeInTheDocument()
   })
 
@@ -62,8 +101,6 @@ describe('DocumentsPage (SCR-130)', () => {
   })
 
   it('does not count an OPTIONAL type with nothing uploaded', async () => {
-    // The control for the case above: without this, "needs attention" could simply mean "not
-    // uploaded" and the banner would be permanent for every supplier.
     restore = mockFetch({
       '/api/v1/suppliers/me': PROFILE,
       '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: null, isRequired: false })],
@@ -151,7 +188,6 @@ describe('DocumentsPage (SCR-130)', () => {
     await userEvent.click(await screen.findByRole('button', { name: /^history|السجل/i }))
 
     expect(await screen.findByText('cr-v1.pdf')).toBeInTheDocument()
-    // The reason from two versions ago is the whole point of SCR-132: it is not on the current row.
     expect(screen.getByText('Wrong document')).toBeInTheDocument()
   })
 
@@ -175,8 +211,6 @@ describe('DocumentsPage (SCR-130)', () => {
 
     renderPage(<DocumentsPage />)
 
-    // fireEvent.change, not userEvent.type: a date input takes a value, not keystrokes, and typing
-    // into one silently leaves it empty.
     fireEvent.change(await screen.findByLabelText(/^expires|تاريخ الانتهاء/i), { target: { value: '2027-06-30' } })
     expect(screen.getByLabelText(/^expires|تاريخ الانتهاء/i)).toHaveValue('2027-06-30')
 
@@ -185,16 +219,9 @@ describe('DocumentsPage (SCR-130)', () => {
       new File(['scan'], 'cr.pdf', { type: 'application/pdf' }),
     )
 
-    // The request body is FormData, which the harness records as empty, so what is asserted is that
-    // the write went to the collection - the field names are the client's contract and are covered
-    // where that client is exercised.
     expect(recorded.some((r) => r.method === 'POST' && r.url.endsWith('/SUP-000001/documents'))).toBe(true)
     expect(await screen.findByText(/document uploaded|تم رفع/i)).toBeInTheDocument()
 
-    // And the profile is re-read. The upload moves the SUPPLIER's row version and answers with a
-    // document, so nothing else hands the client the aggregate's new version - and the next guarded
-    // write on the same screen is refused for want of one. That is the defect a supplier met as
-    // "Could not record acceptance", with a page reload as the only way through.
     await waitFor(() => {
       const reads = recorded.filter((r) => r.method === 'GET' && r.url.endsWith('/suppliers/me'))
       expect(reads.length).toBeGreaterThan(1)
@@ -202,19 +229,11 @@ describe('DocumentsPage (SCR-130)', () => {
   })
 
   it("reports why an upload was refused, in the server's own words", async () => {
-    // The refusals here are specific - an expiry date in the past, a type the allow-list does not
-    // carry - and a generic "upload failed" would leave the supplier with nothing to act on.
     restore = mockFetch({
       '/api/v1/suppliers/me': PROFILE,
-      // The POST goes to the collection, with the type id in the form body, so the list and the
-      // upload share one URL - hence __byMethod: the row has to render before there is anything to
-      // click, and a single fixture cannot be both an array and a refusal.
       '/api/v1/suppliers/SUP-000001/documents': {
         __byMethod: {
           GET: [docType({ latestDocument: null })],
-          // `detail`, because that is where §7 puts the prose - RFC 9457's "human-readable explanation
-          // of this occurrence". A fixture using `message` would make this test pass against a client
-          // that reads the wrong field.
           POST: { __status: 422, code: 'INVALID_EXPIRY', detail: 'The expiry date is in the past.' },
         },
       },
@@ -222,9 +241,6 @@ describe('DocumentsPage (SCR-130)', () => {
 
     renderPage(<DocumentsPage />)
 
-    // The date is filled in first, as a supplier would: this type records an expiry, and the screen
-    // now refuses the upload itself when that field is empty. What is under test here is the OTHER
-    // refusal - the one only the server can make - so the local guard must be satisfied to reach it.
     await userEvent.type(await screen.findByLabelText(/^expires$/i), '2020-01-01')
 
     await userEvent.upload(
@@ -235,14 +251,6 @@ describe('DocumentsPage (SCR-130)', () => {
     expect(await screen.findByText('The expiry date is in the past.')).toBeInTheDocument()
   })
 
-  /**
-   * The refusal the screen makes for itself, because the server's version of it was invisible.
-   *
-   * <p>Choosing a file for a type that records an expiry, with the date still empty, sent the upload,
-   * took a 400 saying "This document type requires an expiry date", and changed nothing on screen -
-   * so the supplier's reading was that the control did not work. Found walking onboarding as a new
-   * supplier, on the tax certificate.</p>
-   */
   it('will not send an upload for an expiry-tracked type until the date is filled in', async () => {
     const recorded: Parameters<typeof mockFetch>[1] = []
     restore = mockFetch({
@@ -262,8 +270,6 @@ describe('DocumentsPage (SCR-130)', () => {
   })
 
   it('labels the control "replace" once a version exists', async () => {
-    // Not cosmetic: "upload" on a type that already has an approved document invites a supplier to
-    // think they are adding a second one, when the write supersedes what is there.
     restore = mockFetch({
       '/api/v1/suppliers/me': PROFILE,
       '/api/v1/suppliers/SUP-000001/documents': [docType({ latestDocument: version() })],
@@ -276,8 +282,6 @@ describe('DocumentsPage (SCR-130)', () => {
   })
 
   it('fetches the download URL rather than linking straight to it', async () => {
-    // The URL needs the Authorization header, so a plain anchor would arrive unauthenticated. The
-    // window.open is stubbed because jsdom does not implement it.
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     restore = mockFetch({
       '/api/v1/suppliers/me': PROFILE,

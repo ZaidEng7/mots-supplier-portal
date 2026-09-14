@@ -1,3 +1,21 @@
+// FEAT-11.1 and FR-ADM-005, pulled forward for EPIC-07, whose evaluation-template binding needs a real, Active template to
+// exist.
+//
+// Weight-sum-must-equal-100 and immutable-once-referenced are both domain invariants, in EvaluationTemplate.cs, and this page
+// surfaces the exact refusal message the domain raises rather than re-deriving validation client-side.
+//
+// REMOVING A CRITERION from a Draft template: the route existed and nothing called it, so a criterion added with the wrong
+// dimension or weight could not be taken back - the total stayed wrong, activation refuses anything but 100, and the template
+// was stranded. The only way out was to create another one and leave the mistake in the list. Found while building a template
+// during a walkthrough. It is offered only while the template is Draft and unreferenced, which is the same condition the
+// criterion FORM already uses: an Active template's criteria are what past evaluations were scored against, and those must
+// not move.
+//
+// THE THREE WHOLE-TEMPLATE TRANSITIONS differ only in the call, the success wording and - for activate alone - which failure
+// message to use. They were three copies of the same seven lines, and adding a fourth for criterion removal made it four.
+// Written once, the shape is identical by construction rather than by three people remembering to keep it so. The factory is
+// named use... because it calls a hook: three unconditional calls, same order every render.
+
 import { formatNumber } from '../../lib/datetime'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,10 +31,6 @@ import {
 const DIMENSIONS: CriterionDimension[] = ['Technical', 'Commercial', 'Compliance', 'Delivery']
 const SCORING_TYPES: ScoringType[] = ['Numeric', 'Scale', 'Boolean', 'Formula']
 
-/** FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07 - EPIC-07's evaluation-template binding needs
- * a real, Active template to exist. Weight-sum-must-equal-100 and immutable-once-referenced are
- * both domain invariants (EvaluationTemplate.cs); this page surfaces the exact refusal message the
- * domain raises rather than re-deriving validation client-side. */
 const TEMPLATE_TONES = { Active: 'success', Archived: 'neutral', Draft: 'info' } as const
 
 export function EvaluationTemplatesPage() {
@@ -70,18 +84,6 @@ export function EvaluationTemplatesPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
   })
 
-  /**
-   * Removing a criterion from a Draft template.
-   *
-   * <p>The route existed and nothing called it, so a criterion added with the wrong dimension or
-   * weight could not be taken back: the total stayed wrong, activation refuses anything but 100, and
-   * the template was stranded. The only way out was to create another one and leave the mistake in
-   * the list. Found while building a template during a walkthrough.</p>
-   *
-   * <p>Offered only while the template is Draft and unreferenced, which is the same condition the
-   * criterion FORM below already uses - an Active template's criteria are what past evaluations were
-   * scored against, and those must not move.</p>
-   */
   const removeCriterionMutation = useMutation({
     mutationFn: ({ templateId, criterionId }: { templateId: string; criterionId: string }) =>
       removeCriterion(templateId, criterionId),
@@ -92,15 +94,6 @@ export function EvaluationTemplatesPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('evaluationTemplates.errors.saveFailed')) }),
   })
 
-  /**
-   * The three whole-template transitions, which differ only in the call, the success wording and -
-   * for activate alone - which failure message to use.
-   *
-   * <p>They were three copies of the same seven lines, and adding a fourth for criterion removal made
-   * it four. Written once here: the shape is identical by construction rather than by three people
-   * remembering to keep it so.</p>
-   */
-  // Named `use...` because it calls a hook: three unconditional calls, same order every render.
   const useTemplateAction = (
     call: (templateId: string) => Promise<unknown>,
     successKey: string,

@@ -1,3 +1,13 @@
+// SCR-401, manager approvals, at /procurement/approvals, P0. SCREEN-INVENTORY: "Queues: RFQ publish approvals + award
+// approvals".
+//
+// These are ROLE-AND-ORGANIZATION queues rather than personal ones, and the copy says so. Nothing resolves a single named
+// approver from the award.approve claim - the gap EPIC-15 reported - so "assigned to you" would be a claim the system cannot
+// make.
+//
+// Every row's link comes from the server alongside the row itself. PR #90's defect was a queue offering work its persona
+// could not open, and having one source for both is what lets a test follow exactly what the user would click.
+
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
@@ -9,18 +19,6 @@ import { SkeletonList } from '../../components/ui/Skeleton'
 import { formatDateTime } from '../../lib/datetime'
 import { PageHeading } from '../../components/ui/ListScreen'
 
-/**
- * SCR-401 — manager approvals. `/procurement/approvals`, P0.
- * SCREEN-INVENTORY: "Queues: RFQ publish approvals + award approvals".
- *
- * <p><b>These are role-and-organization queues, not personal ones</b>, and the copy says so. Nothing
- * resolves a single named approver from the `award.approve` claim - the gap EPIC-15 reported - so
- * "assigned to you" would be a claim the system cannot make.</p>
- *
- * <p>Every row's link comes from the server alongside the row itself. PR #90's defect was a queue
- * offering work its persona could not open, and having one source for both is what lets a test
- * follow exactly what the user would click.</p>
- */
 export function ApprovalQueuesPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')

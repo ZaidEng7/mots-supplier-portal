@@ -1,3 +1,21 @@
+// Task #7, Stage C: each mutation's onSuccess handler routes queryClient.invalidateQueries through invalidateQuietly, which
+// is Task #19's no-floating-promises fix - and a call site nothing exercises is exactly the coverage gap Sonar's new-code
+// ratchet flags, as TeamPage.test.tsx records for this same class of bug. These drive each of the three mutation flows -
+// create an Organization, add an OrgUnit, create a SupplierOrgLink - through a real user interaction, so the callback and the
+// invalidateQuietly call inside it actually run.
+//
+// The empty state shows with no Organizations. Creating one toasts.
+//
+// Adding an OrgUnit is asserted by the INPUT clearing rather than by the unit appearing: mockFetch is stateless - the same
+// static body answers every call to a matched URL - so a refetch after the mutation still returns the pre-mutation
+// organizations list, and the new unit cannot be asserted as "now visible" without a stateful mock. What IS real and worth
+// proving is that the onSuccess handler, which is what clears the name and calls invalidateQuietly, actually executed.
+//
+// Looking a supplier up and creating a link toasts.
+//
+// The last test reaches a failure state that cannot be reached by rendering the page: that query is disabled until somebody
+// actually looks a supplier up, so the test has to do what a user does first.
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -16,14 +34,6 @@ const ORG = {
   orgUnits: [],
 }
 
-/**
- * Task #7/Stage C: each mutation's onSuccess handler routes queryClient.invalidateQueries through
- * invalidateQuietly (Task #19's no-floating-promises fix) - a call site nothing exercised is
- * exactly the coverage gap Sonar's new-code ratchet flags, and TeamPage.test.tsx's own comment
- * records the same lesson for this exact class of bug. These tests drive each of the three
- * mutation flows (create Organization, add an OrgUnit, create a SupplierOrgLink) through a real
- * user interaction so the callback - and the invalidateQuietly call inside it - actually runs.
- */
 describe('OrganizationsPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -52,11 +62,6 @@ describe('OrganizationsPage', () => {
   })
 
   it('adding an OrgUnit clears the input once the mutation succeeds', async () => {
-    // mockFetch is stateless (renderPage.tsx: the same static body answers every call to a
-    // matched URL) - a refetch after the mutation still returns the pre-mutation organizations
-    // list, so the new unit cannot be asserted as "now visible" here without a stateful mock.
-    // What IS real and worth proving: the mutation's onSuccess handler - which is what runs
-    // setName('') and the invalidateQuietly call - actually executed.
     restore = mockFetch({
       '/api/v1/organizations/org-1/org-units': { ...ORG, orgUnits: [{ id: 'unit-1', organizationId: 'org-1', parentOrgUnitId: null, name: 'Procurement Committee' }] },
       '/api/v1/organizations': [ORG],
@@ -96,8 +101,6 @@ describe('OrganizationsPage', () => {
   })
 
   it('shows a retryable failure when a supplier lookup cannot load its links', async () => {
-    // This query is disabled until somebody actually looks a supplier up, so the failure state cannot
-    // be reached by rendering the page - the test has to do what a user does first.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({
       '/api/v1/organizations': [],

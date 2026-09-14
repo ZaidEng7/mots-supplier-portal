@@ -1,3 +1,12 @@
+// T-084. The page had no failure path at all: `await forgotPassword(...)` then `setSent(true)`, so a network failure or a
+// 500 rejected the promise, the `sent` panel never appeared, and the form sat there looking as though the click had not
+// registered. Someone locked out of their account would click again.
+//
+// The success message stays deliberately non-committal - "if that account exists" - because saying whether an address is
+// registered is user enumeration. The error is about the REQUEST rather than the account, so it does not weaken that:
+// any failure gets one message, since a 500 and a dead connection are the same thing to someone who wants their password
+// back, and distinguishing them here would tell an attacker which addresses make the server work harder.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,15 +18,6 @@ import { forgotPassword } from '../api/auth'
 const schema = z.object({ email: z.email() })
 type FormValues = z.infer<typeof schema>
 
-/**
- * T-084. The page had no failure path at all: `await forgotPassword(...)` then `setSent(true)`, so a
- * network failure or a 500 rejected the promise, the `sent` panel never appeared, and the form sat there
- * looking as though the click had not registered. Someone locked out of their account would click again.
- *
- * <p>The success message stays deliberately non-committal - "if that account exists" - because saying
- * whether an address is registered is user enumeration. The new error is about the REQUEST, not the
- * account, so it does not weaken that.</p>
- */
 export function ForgotPasswordPage() {
   const { t } = useTranslation()
   const [sent, setSent] = useState(false)
@@ -34,9 +34,6 @@ export function ForgotPasswordPage() {
       await forgotPassword(values.email)
       setSent(true)
     } catch {
-      // Any failure, one message. A 500 and a dead connection are the same thing to someone who wants
-      // their password back, and distinguishing them here would tell an attacker which addresses make the
-      // server work harder.
       setFailed(true)
     }
   }

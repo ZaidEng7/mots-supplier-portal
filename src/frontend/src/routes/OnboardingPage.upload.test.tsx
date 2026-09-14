@@ -1,3 +1,10 @@
+// Task #19: DocumentRow's uploadMutation.onSuccess - queryClient.invalidateQueries, now invalidateQuietly - was one of the
+// eight no-floating-promises findings. This drives a real upload through the page so the callback actually runs.
+//
+// The file input is found by its accept attribute rather than by a bare input[type=file] query: LogoUploader renders its
+// own hidden file input earlier in the DOM, and a query that grabbed that one instead would upload to the wrong, unmocked
+// endpoint and fail silently into uploadMutation's onError.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -21,11 +28,6 @@ const supplier = {
   representatives: [], addresses: [], contacts: [], branches: [], bankAccounts: [], categoryCodes: [],
 }
 
-/**
- * Task #19: DocumentRow's uploadMutation.onSuccess (queryClient.invalidateQueries, now
- * invalidateQuietly) was one of the eight no-floating-promises findings. Drives a real upload
- * through the page so the callback actually runs.
- */
 describe('OnboardingPage document upload flow', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -49,9 +51,6 @@ describe('OnboardingPage document upload flow', () => {
     const { container } = renderPage(<OnboardingPage />)
 
     await screen.findByText('commercial_registration')
-    // Scoped by accept attribute, not a bare input[type=file] query - LogoUploader renders its own
-    // hidden file input earlier in the DOM, and a query that grabbed that one instead would upload
-    // to the wrong (unmocked) endpoint and fail silently into uploadMutation's onError.
     const fileInput = container.querySelector('input[type="file"][accept*=".pdf"]') as HTMLInputElement
     const file = new File(['content'], 'registration.pdf', { type: 'application/pdf' })
 

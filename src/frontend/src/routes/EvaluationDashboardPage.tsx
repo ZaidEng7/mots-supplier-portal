@@ -1,3 +1,21 @@
+// SCR-500, the evaluator dashboard: /evaluation, P0, FR-DSH-004, backlog T3-02.
+//
+// This is the screen that makes EPIC-11 reachable. Evaluation scoring was complete and had no navigable path from
+// anywhere in the app: an evaluator could be assigned work and had no way to find it. Everything else on this screen is
+// secondary to the list existing at all.
+//
+// Sub-tabs are IA §4.3's own: "My Evaluations -> tabs Assigned · In Progress · Submitted". The server derives which tab
+// an assignment belongs in, so the tab a row appears under and the progress shown on it cannot disagree.
+//
+// The page's NAME comes first, then the card. This screen carried its title in a card header band, which renders at body
+// size, so it had no page heading at all.
+//
+// The empty state is UX-WRITING.md §4's own row for this persona - "Evaluator - nothing assigned | 'Nothing to
+// evaluate' | 'Proposals assigned to you for scoring will appear here.' | -" - transcribed, including the absent action.
+//
+// State labels come from the catalogue, never the raw enum name, and the date carries the timezone §6.2 requires,
+// because a date an evaluator can miss is a deadline.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -10,17 +28,6 @@ import { StatusChip } from '../components/ui/StatusChip'
 import { Button } from '../components/ui/Button'
 import { formatDeadline, formatNumber } from '../lib/datetime'
 
-/**
- * SCR-500 — the evaluator dashboard. `/evaluation`, P0, FR-DSH-004, backlog T3-02.
- *
- * <p><b>This is the screen that makes EPIC-11 reachable.</b> Evaluation scoring was complete and had
- * no navigable path from anywhere in the app: an evaluator could be assigned work and had no way to
- * find it. Everything else on this screen is secondary to the list existing at all.</p>
- *
- * <p>Sub-tabs are IA §4.3's own: "My Evaluations → tabs `Assigned · In Progress · Submitted`". The
- * server derives which tab an assignment belongs in, so the tab a row appears under and the progress
- * shown on it cannot disagree.</p>
- */
 export function EvaluationDashboardPage() {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
@@ -36,8 +43,6 @@ export function EvaluationDashboardPage() {
   const tabs: MyAssignmentTab[] = ['Assigned', 'InProgress', 'Submitted']
 
   return (
-    // The page's name, then the card. This screen carried its title in a card header band, which
-    // renders at body size, so it had no page heading at all.
     <div className="flex flex-col gap-6">
       <PageHeading title={t('evaluationDashboard.title')} />
       <Card>
@@ -66,9 +71,6 @@ export function EvaluationDashboardPage() {
       ) : null}
 
       {query.data?.length === 0 ? (
-        // UX-WRITING.md §4's own row for this persona: "Evaluator — nothing assigned |
-        // 'Nothing to evaluate' | 'Proposals assigned to you for scoring will appear here.' | —".
-        // Transcribed, including the absent action.
         <div className="py-8 text-center">
           <p className="font-[var(--fw-semibold)]">{t('evaluationDashboard.emptyTitle')}</p>
           <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluationDashboard.emptyBody')}</p>
@@ -84,7 +86,6 @@ export function EvaluationDashboardPage() {
               <span className="font-[var(--fw-semibold)]">
                 {isArabic ? assignment.rfqTitleAr : assignment.rfqTitleEn}
               </span>
-              {/* State labels come from the catalogue, never the raw enum name. */}
               <StatusChip machine="evaluation" value={assignment.evaluationState} />
             </div>
 
@@ -95,7 +96,6 @@ export function EvaluationDashboardPage() {
                 total: formatNumber(assignment.scoresExpected, locale, 0),
               })}</span>
 
-              {/* A date an evaluator can miss is a deadline, so it carries the timezone §6.2 requires. */}
               <span>
                 {assignment.evaluationTargetDate
                   ? t('evaluationDashboard.due', { date: formatDeadline(assignment.evaluationTargetDate, locale) })

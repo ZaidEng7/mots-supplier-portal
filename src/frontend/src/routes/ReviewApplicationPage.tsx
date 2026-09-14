@@ -1,3 +1,49 @@
+// The reviewer's screen for one onboarding application: the profile, the documents, the four decisions, and FR-ONB-009's
+// post-approval lifecycle.
+//
+// THE FLAGGED-FIELD CODES must match Domain/Suppliers/ProfileFieldCodes.cs exactly (MSP-77). The backend rejects unknown
+// codes, and these are what it enforces the supplier's edit restriction against. Previously this list and the supplier
+// screen's list were invented independently and overlapped on one entry, so flagging registrationNumber, say, unlocked
+// nothing for the supplier. They are the CODES rather than display fields - what the supplier is asked to correct - and
+// conflating the two lists is what crashed the profile grid.
+//
+// THE INFO-REQUEST REASON gets a real label. It was labelled by its placeholder alone, which disappears the moment a
+// reviewer starts typing - and this is the field that tells a supplier what to fix. Field gives it a label and the
+// described-by wiring, and the control stays a textarea, because three rows of prose is what it is for.
+//
+// A 409 from the server names which state is required, per NFR-CMP-003 and BRULE-097. It is surfaced rather than
+// swallowed: the UI hides inapplicable actions, but if one is somehow attempted the reviewer should see why it was
+// refused. The lifecycle actions are offered only where the domain would accept them, which MIRRORS the server's rules
+// rather than replacing them.
+//
+// Document transitions are nested under the owning supplier, per §12-A/C3 and §3, and this page's referenceCode IS that
+// supplier's code - the route param it is keyed on.
+//
+// "NOT FOUND" AND "WE COULD NOT LOAD IT" were one branch, and they are not the same answer: the first says this
+// application does not exist, the second says the reviewer should try again.
+//
+// Lifecycle is shown only once it has begun, because 'None' would be noise on an application that has not been approved
+// yet.
+//
+// THE PROFILE GRID reads its labels from profile.fields.* rather than onboarding.fields.*, because these are
+// PROFILE_DISPLAY_FIELDS - the model's own field names - and ProfilePage labels the identical list from that namespace.
+// Reading them from the wizard's namespace is what printed the raw key onboarding.fields.defaultCurrency on this screen:
+// the wizard calls that field currencyCode, so one of the five had no label in either language.
+//
+// LEGALINFO is Task #33 and MSP-77's. It is nullable on the DTO - a supplier who has not reached that step - and, when
+// present, an object, so rendering it directly is the exact crash MSP-77 fixed by deleting this section. Guarding on null
+// and reading every field through the null-safe reader, never the object itself, is what restores it safely. The narrowing
+// is held in a local const, because supplier.legalInfo's null-check does not survive into the .map() callback - TypeScript
+// cannot prove a member expression stays narrowed across a closure boundary, and a plain local variable's narrowing does.
+//
+// THE REASON DIALOG IS KEYED BY ACTION, so React REMOUNTS on each open. Without that the dialog keeps its previous reason:
+// opening Deactivate straight after a Suspend pre-fills the suspension's text, and a reviewer can commit it without
+// noticing. The reason IS the audit record under BRULE-096, so a stale one is a false record rather than a cosmetic
+// annoyance. Found by opening the page rather than by a test - which is part of why the page-test harness now exists.
+//
+// Reject uses the same dialog. It had a near-identical component of its own, and keeping both meant two copies of one
+// mandatory-reason form free to drift, which Sonar flagged as duplication.
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -20,10 +66,6 @@ import { lifecycleActionsFor } from './lifecycleActions'
 import { ReasonDialog } from '../components/ReasonDialog'
 import { formatDateTime } from '../lib/datetime'
 
-// MSP-77: must match Domain/Suppliers/ProfileFieldCodes.cs exactly - the backend now rejects
-// unknown codes, and these are the codes the server enforces the supplier's edit restriction
-// against. Previously this list and the supplier screen's list were invented independently and
-// overlapped on one entry, so flagging e.g. 'registrationNumber' unlocked nothing for the supplier.
 const PROFILE_FIELDS = [
   'description', 'website', 'supplierGroup', 'currencyCode', 'primaryContactPhone',
   'legalInfo', 'address', 'contact', 'representative', 'branch', 'bankAccount', 'categoryLink', 'logo',
@@ -56,10 +98,6 @@ function RequestInfoDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={t('review.requestInfo')}>
       <div className="flex flex-col gap-4">
-        {/* The reason was labelled by its placeholder alone, which disappears the moment a reviewer
-            starts typing - and this is the field that tells a supplier what to fix. Field gives it a
-            real label and the described-by wiring; the control stays a textarea because three rows of
-            prose is what it is for. */}
         <Field label={t('review.reason')}>
           {(p) => (
             <textarea
@@ -76,9 +114,6 @@ function RequestInfoDialog({
           <legend className="text-[length:var(--text-body-sm)] font-[var(--fw-medium)]" style={{ color: 'var(--color-text-secondary)' }}>
             {t('review.flagProfileFields')}
           </legend>
-          {/* The flagged-field CODES, not display fields - these are what the supplier is asked to
-              correct, and they must match ProfileFieldCodes.cs exactly (MSP-77). Conflating the two
-              lists is what crashed the profile grid below. */}
           {PROFILE_FIELDS.map((f) => (
             <label key={f} className="flex items-center gap-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-primary)' }}>
               <input type="checkbox" checked={fields.includes(f)} onChange={() => toggle(fields, setFields, f)} />
@@ -174,9 +209,6 @@ export function ReviewApplicationPage() {
       setLifecycleAction(null)
       notify({ kind: 'success', title: t('review.decisionSuccess') })
     },
-    // The server's 409 names which state is required (NFR-CMP-003/BRULE-097). Surfaced rather than
-    // swallowed: the UI hides inapplicable actions, but if one is somehow attempted the reviewer
-    // should see why it was refused.
     onError: (err) => notify({ kind: 'danger', title: t('review.lifecycleFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
   })
 
@@ -186,8 +218,6 @@ export function ReviewApplicationPage() {
   })
 
   const approveDocMutation = useMutation({
-    // §12-A/C3: document transitions are nested under the owning supplier (§3), and
-    // `referenceCode` here IS that supplier's code - the route param this page is keyed on.
     mutationFn: (id: string) => approveDocument(referenceCode, id),
     onSuccess: invalidate,
     onError: (err) => notify({ kind: 'danger', title: t('review.approveFailed'), description: err instanceof DocumentApiError ? err.message : undefined }),
@@ -200,8 +230,6 @@ export function ReviewApplicationPage() {
   })
 
   if (viewQuery.isLoading) return <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
-  // "Not found" and "we could not load it" were one branch, and they are not the same answer: the
-  // first says this application does not exist, the second says the reviewer should try again.
   if (viewQuery.isError) return <QueryError error={viewQuery.error} onRetry={() => void viewQuery.refetch()} />
   const view = viewQuery.data
   if (!view) return <p style={{ color: 'var(--color-text-secondary)' }}>{t('errors.notFound')}</p>
@@ -211,9 +239,6 @@ export function ReviewApplicationPage() {
   const canPickUp = state === 'Submitted' || state === 'Resubmitted'
   const canDecide = state === 'UnderReview'
 
-  // FR-ONB-009 lifecycle actions, offered only where the domain would accept them. This MIRRORS the
-  // server's rules; it does not replace them - the endpoints reject an illegal transition with 409
-  // regardless of what the UI shows.
   const lifecycle = supplier.lifecycleState
   const { canSuspend, canReactivate, canDeactivate } = lifecycleActionsFor(lifecycle)
 
@@ -228,8 +253,6 @@ export function ReviewApplicationPage() {
         </div>
         <div className="flex items-center gap-2">
           <StatusChip machine="onboarding" value={state} />
-          {/* Lifecycle is shown only once it has begun; 'None' would be noise on an application
-              that has not been approved yet. */}
           {lifecycle !== 'None' ? (
             <StatusChip machine="onboarding" value={lifecycle} />
           ) : null}
@@ -277,11 +300,6 @@ export function ReviewApplicationPage() {
           {PROFILE_DISPLAY_FIELDS.map((f) => (
             <div key={f}>
               <dt className="text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
-                {/* `profile.fields.*`, not `onboarding.fields.*`: these are PROFILE_DISPLAY_FIELDS, the
-                    model's own field names, and ProfilePage labels the identical list from that
-                    namespace. Reading them from the wizard's namespace is what printed the raw key
-                    `onboarding.fields.defaultCurrency` on this screen - the wizard calls that field
-                    `currencyCode`, so one of the five had no label in either language. */}
                 {t(`profile.fields.${f}`)}
               </dt>
               <dd style={{ color: 'var(--color-text-primary)' }}>{profileDisplayValue(supplier, f)}</dd>
@@ -291,14 +309,7 @@ export function ReviewApplicationPage() {
       </Card>
 
       <Card title={t('review.legalInfo')}>
-        {/* Task #33 / MSP-77: legalInfo is nullable on the DTO (a supplier who hasn't reached that
-            step yet) and, when present, is an object - rendering it directly is the exact crash
-            MSP-77 fixed by deleting this section. Guarding on null here and reading every field
-            through legalInfoValue (never `{supplier.legalInfo}` itself) is what restores it safely. */}
         {supplier.legalInfo ? (
-          // Narrowed into a local const: `supplier.legalInfo`'s null-check doesn't survive into
-          // the .map() callback below (TS can't prove a member expression stays narrowed across a
-          // closure boundary) - a plain local variable's narrowing does.
           (() => {
             const legalInfo = supplier.legalInfo
             return (
@@ -453,11 +464,6 @@ export function ReviewApplicationPage() {
         </Card>
       ) : null}
 
-      {/* Keyed by action so React REMOUNTS on each open. Without this the dialog keeps its previous
-          reason: opening Deactivate straight after a Suspend pre-fills the suspension's text, and a
-          reviewer can commit it without noticing. The reason IS the audit record (BRULE-096), so a
-          stale one is a false record, not a cosmetic annoyance. Found by opening the page, not by a
-          test - which is part of why the page-test harness now exists. */}
       <ReasonDialog
         key={lifecycleAction ?? 'none'}
         open={lifecycleAction !== null}
@@ -470,9 +476,6 @@ export function ReviewApplicationPage() {
         onSubmit={(reason) => lifecycleAction && lifecycleMutation.mutate({ action: lifecycleAction, reason })}
       />
 
-      {/* Reject uses the same dialog. It had a near-identical component of its own; keeping both
-          meant two copies of one mandatory-reason form free to drift, which Sonar flagged as
-          duplication. */}
       <ReasonDialog
         key="reject"
         open={rejectOpen}

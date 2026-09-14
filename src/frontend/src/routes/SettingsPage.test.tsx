@@ -1,3 +1,46 @@
+// Three groups: the session controls, the account read and write, and SCR-903's password change.
+//
+// SCR-902 mounted this page for every authenticated persona, and the activity-trail card is supplier-scoped - it reads
+// GET /suppliers/me/audit, which a procurement officer cannot. So the card renders only when the caller's claims carry a
+// supplierId, and a test that wants to see it has to say who is signed in. The fixture said nothing before, which was a
+// fixture claiming a supplier's screen while presenting nobody's session. Every test here performs SCR-902's read.
+//
+// THE SESSION FLOW is Task #19's: revokeMutation's onSuccess - queryClient.invalidateQueries, now invalidateQuietly - was
+// one of the eight no-floating-promises findings, so these drive a real revoke through the page and the callback actually
+// runs, matching the coverage gap Sonar's new-code ratchet flagged. The revoke-all test seeds two sessions, because the
+// "Sign out of all other devices" button is disabled when there is at most one: the guard reasons that a lone visible
+// session could still be undercounting a page not yet fetched, but with none loaded there is nothing else TO revoke.
+//
+// THE ACTIVITY TRAIL is B-1 and FR-AUD-003's. The list AND its export have existed since EPIC-01 and nothing called
+// either - a compliance affordance that shipped unreachable, found by the phase 12a sweep. The action shows its own token
+// rather than a translated label, because §7 has no table for audit actions and inventing one would put a second
+// vocabulary beside the one the trail records. The export is FETCHED and handed to the browser rather than linked: it
+// needs the Authorization header, so a plain anchor would arrive unauthenticated and answer 401 - which is why an export
+// that existed was never reachable from a screen. And the trail is HIDDEN from a staff persona, which is the guard both
+// ways: it reads /suppliers/me/audit, which a procurement officer cannot, so the card has to be absent rather than
+// present-and-failing.
+//
+// THE ACCOUNT saves a new name and language, and the interface follows. No save is offered until something actually
+// changes, which is the control for that: the button exists and is refused, so a green save is the edit reaching the
+// server rather than the button being clickable at all times.
+//
+// SCR-903's PASSWORD CHANGE is worth testing rather than clicking because its whole value is WHICH field an error lands
+// on: the server distinguishes a wrong current password from a new one that is unchanged or too weak, and a screen that
+// funnelled all three into one toast would send the person to re-type the wrong box.
+//
+// It refuses to submit until both new-password boxes agree, and refuses a new password shorter than the stated minimum -
+// the hint says twelve, and a form that says twelve and submits eleven makes the server the only thing enforcing a rule
+// the screen already claimed. Once valid it submits both passwords. INCORRECT_CURRENT_PASSWORD lands on the
+// current-password field; the two complaints about the NEW password land on that one, and both used to be
+// indistinguishable from a wrong current password if they arrived as a toast.
+//
+// The form is CLEARED after a successful change: three password boxes left populated after a success read as "it did not
+// work", and the second attempt would then fail on INCORRECT_CURRENT_PASSWORD because the old one is now wrong.
+//
+// The last test asserts two halves nothing did before: that the error branch RENDERS, and that the control inside it does
+// anything. asyncStateCoverage proves the branch exists in the source; a retry button wired to nothing looks identical to
+// one that works.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -6,14 +49,6 @@ import { renderPage, mockFetch, listPage, type RecordedRequest, expectRetryableF
 const { SettingsPage } = await import('./SettingsPage')
 const { useAuthStore } = await import('../lib/authStore')
 
-/**
- * SCR-902 mounted this page for every authenticated persona, and the activity-trail card is
- * supplier-scoped - it reads `GET /suppliers/me/audit`, which a procurement officer cannot. So the
- * card now renders only when the caller's claims carry a supplierId, and a test that wants to see it
- * has to say who is signed in. The fixture said nothing before, which was a fixture claiming a
- * supplier's screen while presenting nobody's session.
- */
-/** SCR-902's read, which every test on this page now performs. */
 const account = { '/api/v1/auth/me': { fullName: 'Layla Haddad', email: 'supplier@example.test', language: 'en', languageChosen: true } }
 
 function signInAsSupplier() {
@@ -24,11 +59,6 @@ function signInAsSupplier() {
   })
 }
 
-/**
- * Task #19: revokeMutation's onSuccess (queryClient.invalidateQueries, now invalidateQuietly) was
- * one of the eight no-floating-promises findings. Drives a real revoke through the page so the
- * callback actually runs, matching the coverage gap Sonar's new-code ratchet flagged.
- */
 describe('SettingsPage session revoke flow', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -52,9 +82,6 @@ describe('SettingsPage session revoke flow', () => {
     restore = mockFetch({
       ...account,
       '/api/v1/auth/sessions/revoke-all': { revokedCount: 2 },
-      // Two sessions: the "Sign out of all other devices" button is disabled when there is at
-      // most one (the guard reasons that a lone visible session could still be undercounting a
-      // page not yet fetched, but with none loaded there is nothing else TO revoke).
       '/api/v1/auth/sessions': listPage([
         { familyId: 'family-1', ip: '1.2.3.4', userAgent: 'Other Device', createdAt: new Date().toISOString(), expiresAt: new Date().toISOString(), isCurrent: false },
         { familyId: 'family-2', ip: '5.6.7.8', userAgent: 'This Device', createdAt: new Date().toISOString(), expiresAt: new Date().toISOString(), isCurrent: true },
@@ -70,8 +97,6 @@ describe('SettingsPage session revoke flow', () => {
 
   it('shows the supplier their own activity trail and offers the CSV', async () => {
     signInAsSupplier()
-    // B-1/FR-AUD-003. The list AND its export have existed since EPIC-01 and nothing called either - a
-    // compliance affordance that shipped unreachable, found by the phase 12a sweep.
     const created = vi.fn()
     const clicked = vi.fn()
     const originalCreate = URL.createObjectURL
@@ -99,15 +124,10 @@ describe('SettingsPage session revoke flow', () => {
     renderPage(<SettingsPage />)
 
     expect(await screen.findByText('My account activity')).toBeInTheDocument()
-    // The action's own token, not a translated label: §7 has no table for audit actions, and inventing
-    // one would put a second vocabulary beside the one the trail records.
     expect(await screen.findByText('supplier_submitted')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Download the trail (CSV)' }))
 
-    // Fetched and handed to the browser rather than linked: the export needs the Authorization header, so
-    // a plain anchor would arrive unauthenticated and answer 401 - which is why an export that existed
-    // was never reachable from a screen.
     await vi.waitFor(() => expect(created).toHaveBeenCalled())
     expect(clicked).toHaveBeenCalled()
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:trail')
@@ -140,15 +160,11 @@ describe('SettingsPage session revoke flow', () => {
 
     renderPage(<SettingsPage />)
 
-    // The control for the test above: the button exists and is refused, so a green save there is the
-    // edit reaching the server rather than the button being clickable at all times.
     await screen.findByLabelText(/Full name/)
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('hides the supplier-only activity trail from a staff persona', async () => {
-    // Guard both ways. The trail reads `/suppliers/me/audit`, which a procurement officer cannot, so
-    // the card has to be absent rather than present-and-failing.
     useAuthStore.setState({
       accessToken: 'test',
       status: 'authenticated',
@@ -163,12 +179,6 @@ describe('SettingsPage session revoke flow', () => {
   })
 })
 
-/**
- * SCR-903. The reason this section is worth testing rather than clicking is that its whole value is
- * WHICH field an error lands on: the server distinguishes a wrong current password from a new one
- * that is unchanged or too weak, and a screen that funnelled all three into one toast would send the
- * person to re-type the wrong box.
- */
 describe('SettingsPage change password (SCR-903)', () => {
   let restore: () => void
   afterEach(() => restore?.())
@@ -194,8 +204,6 @@ describe('SettingsPage change password (SCR-903)', () => {
   })
 
   it('refuses a new password shorter than the stated minimum', async () => {
-    // The hint says twelve; a form that says twelve and submits eleven makes the server the only
-    // thing enforcing a rule the screen already claimed.
     signInAsSupplier()
     restore = mockFetch({ ...account, ...sessions })
 
@@ -237,8 +245,6 @@ describe('SettingsPage change password (SCR-903)', () => {
     ['PASSWORD_UNCHANGED', /same|نفس/i],
     ['WEAK_PASSWORD', /weak|ضعيف|requirement/i],
   ])('puts %s on the new-password field', async (code, expected) => {
-    // Both are complaints about the NEW password, and both used to be indistinguishable from a
-    // wrong current password if they arrived as a toast.
     signInAsSupplier()
     restore = mockFetch({ ...account, ...sessions, [CHANGE]: { __status: 400, code } })
 
@@ -251,8 +257,6 @@ describe('SettingsPage change password (SCR-903)', () => {
   })
 
   it('clears the form after a successful change', async () => {
-    // Three password boxes left populated after a success read as "it did not work", and the second
-    // attempt would then fail on INCORRECT_CURRENT_PASSWORD because the old one is now wrong.
     signInAsSupplier()
     restore = mockFetch({ ...account, ...sessions, [CHANGE]: {} })
 
@@ -266,9 +270,6 @@ describe('SettingsPage change password (SCR-903)', () => {
   })
 
   it('shows a retryable failure rather than an empty screen', async () => {
-    // Two halves that nothing asserted before: that the error branch RENDERS, and that the control
-    // inside it does anything. `asyncStateCoverage` proves the branch exists in the source; a retry
-    // button wired to nothing looks identical to one that works.
     const recorded: RecordedRequest[] = []
     restore = mockFetch({ '/api/v1/auth/me': { __status: 500 } }, recorded)
 

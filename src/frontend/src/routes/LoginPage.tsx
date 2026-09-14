@@ -1,3 +1,51 @@
+// The front door.
+//
+// THE FAILURE CODE is §7's machine-stable one. This read body.error and could never match:
+// ProblemDetailsMiddleware conforms every error response and turns the handler's `error` token into `code` in
+// SCREAMING_SNAKE, so the login challenge arrives as { status: 401, code: "MFA_REQUIRED" } with no `error` key at all.
+// mfa_required was therefore never detected and an MFA account was shown "Invalid email or password" instead of the code
+// step - which locked every system_admin, all of which require MFA, out of the SPA. mfa_invalid and email_not_verified
+// failed the same way. Found by writing this page's first component test (B-1). It is normalised to the lower-case token
+// the rest of this file already branches on, and the raw `error` key is still read first for any endpoint that has not
+// been through the middleware.
+//
+// THE MFA STEP's pending credentials are set only when the API answers 401 mfa_required, per AuthEndpoints.cs's /login.
+// They hold the already-verified password so the TOTP step can re-submit the same credentials plus the code, which is
+// what LoginHandler expects on the second call.
+//
+// WHERE A PERSONA LANDS, written out rather than nested, because the three cases are three different shells and a reader
+// should not have to unpick precedence to see which one a persona lands in.
+//
+// No supplierId means a staff or back-office user - the same signal backOfficeLayoutRoute's own guard uses in router.tsx -
+// so they are routed into the back-office shell rather than the supplier dashboard, which has no staff guard of its own
+// to catch this otherwise.
+//
+// An evaluator gets THEIR dashboard, not the shared placeholder. Found by signing in as evaluator@mots.local: they landed
+// on /back-office/dashboard, which lists their permissions and says "a summary will appear here later", and nothing in
+// the nav linked to /evaluation. The evaluation dashboard and their assignment list both existed, reachable only by
+// typing the address, and an evaluator whose whole job is on one screen must not have to be told where it is. It is keyed
+// on the PERMISSION rather than the role name, because the token carries permissions and a second source for "is this an
+// evaluator" would disagree the day a role's grants change.
+//
+// That question first read permissions.includes('evaluation.score'), and a system_admin holds all 104 permissions
+// including that one - so the administrator was sent to the evaluator's dashboard on every sign-in. The claim set carries
+// no role, so the question has to be asked of the permissions: an evaluator scores and nothing else. rfq.read is the
+// discriminator, because every back-office persona that is more than an evaluator holds it and the evaluator does not -
+// their whole grant is evaluation.score, evaluation.submit and rfq.clarify.
+//
+// WHAT A FAILURE SAYS is read through the error code for the same reason as the challenge: ApiError.message falls back to
+// "Request failed: 400" when the body carries `code` rather than `error`, so matching on the message never fired.
+//
+// 429 is NOT a credential failure, and calling it one is worse than unhelpful. NFR-SEC-009 limits auth attempts and the
+// limiter answers before Identity is ever consulted, so the password was never checked, the account's failure count does
+// not move, and the user is told the one thing that is definitely untrue. What they do next is reset a password that was
+// always correct, on a reset endpoint that is rate limited too. Reproduced by hitting /login ten times: nine 401s, then
+// 429s, all of them displayed as "Invalid email or password".
+//
+// Anything else is the service rather than the person - a 500 shown as a rejected password sends someone to change a
+// credential in response to an outage - and a request that never reached the server at all has no response to have an
+// opinion about the credentials.
+
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,20 +63,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-/**
- * §7's machine-stable code for a failed sign-in.
- *
- * <p><b>This read `body.error` and could never match.</b> ProblemDetailsMiddleware conforms every error
- * response and turns the handler's `error` token into `code` in SCREAMING_SNAKE - the login challenge
- * arrives as <code>{ status: 401, code: "MFA_REQUIRED" }</code> with no `error` key at all. So
- * `mfa_required` was never detected and an MFA account was shown "Invalid email or password" instead of
- * the code step: every `system_admin`, which requires MFA, was locked out of the SPA. `mfa_invalid` and
- * `email_not_verified` failed the same way.</p>
- *
- * <p>Found by writing this page's first component test (B-1). Normalised to the lower-case token the
- * rest of this file already branches on, and the raw `error` key is still read first for any endpoint
- * that has not been through the middleware.</p>
- */
 function errorCode(err: unknown): string | undefined {
   if (!(err instanceof ApiError)) return undefined
   const body = err.body as { error?: string; code?: string } | null
@@ -41,9 +75,6 @@ export function LoginPage() {
   const search = useSearch({ strict: false }) as { redirect?: string }
   const setSession = useAuthStore((s) => s.setSession)
   const [formError, setFormError] = useState<string | null>(null)
-  // Set only when the API answers 401 { error: 'mfa_required' } (Api/Endpoints/AuthEndpoints.cs
-  // `/login`) - holds the already-verified password so the TOTP step can re-submit the same
-  // credentials plus the code, matching what LoginHandler expects on the second call.
   const [pendingCreds, setPendingCreds] = useState<FormValues | null>(null)
   const [totpCode, setTotpCode] = useState('')
   const [mfaSubmitting, setMfaSubmitting] = useState(false)
@@ -56,30 +87,10 @@ export function LoginPage() {
 
   const completeLogin = async (tokens: { accessToken: string }) => {
     setSession(tokens.accessToken)
-    // No supplierId means a staff/back-office user (same signal backOfficeLayoutRoute's own
-    // guard uses in router.tsx) - route them into the back-office shell instead of the
-    // supplier dashboard, which has no staff guard of its own to catch this otherwise.
     const claims = useAuthStore.getState().claims
 
-    // An evaluator gets THEIR dashboard, not the shared placeholder.
-    //
-    // Found by signing in as evaluator@mots.local: they landed on /back-office/dashboard, which lists their
-    // permissions and says "a summary will appear here later", and nothing in the nav linked to /evaluation.
-    // The evaluation dashboard and their assignment list both existed - reachable only by typing the address.
-    // An evaluator whose whole job is on one screen must not have to be told where it is.
-    //
-    // Keyed on the permission rather than the role name, because the token carries permissions and a second
-    // source for "is this an evaluator" would disagree the day a role's grants change.
-    // "Is this account an evaluator" was `permissions.includes('evaluation.score')`, and a system_admin
-    // holds all 104 permissions including that one - so the administrator was sent to the evaluator's
-    // dashboard on every sign-in. The claim set carries no role, so the question has to be asked of the
-    // permissions: an evaluator scores and nothing else. `rfq.read` is the discriminator because every
-    // back-office persona that is more than an evaluator holds it, and the evaluator does not - their
-    // whole grant is evaluation.score, evaluation.submit and rfq.clarify.
     const permissions = claims?.permissions ?? []
     const isEvaluator = permissions.includes('evaluation.score') && !permissions.includes('rfq.read')
-    // Written out rather than nested, because the three cases are three different shells and a
-    // reader should not have to unpick precedence to see which one a persona lands in.
     let defaultRoute = '/back-office/dashboard'
     if (claims?.supplierId) defaultRoute = '/dashboard'
     else if (isEvaluator) defaultRoute = '/evaluation'
@@ -98,23 +109,11 @@ export function LoginPage() {
       }
       if (err instanceof ApiError) {
         if (err.status === 423) setFormError(t('auth.lockedOut'))
-        // Read through errorCode for the same reason: ApiError.message falls back to "Request failed:
-        // 400" when the body carries `code` rather than `error`, so matching on the message never fired.
         else if (err.status === 400 && errorCode(err) === 'email_not_verified') setFormError(t('auth.emailNotVerified'))
-        // 429 is NOT a credential failure, and calling it one is worse than unhelpful.
-        //
-        // NFR-SEC-009 limits auth attempts, and the limiter answers before Identity is ever consulted -
-        // so the password was never checked, the account's failure count does not move, and the user is
-        // told the one thing that is definitely untrue. What they do next is reset a password that was
-        // always correct, on a reset endpoint that is rate limited too. Reproduced by hitting /login ten
-        // times: nine 401s, then 429s, all of them displayed as "Invalid email or password".
         else if (err.status === 429) setFormError(t('auth.tooManyAttempts'))
-        // Anything else is the service, not the person. A 500 shown as a rejected password sends
-        // someone to change a credential in response to an outage.
         else if (err.status >= 500) setFormError(t('auth.serviceUnavailable'))
         else setFormError(t('auth.loginFailed'))
       } else {
-        // Never reached the server at all - no response to have an opinion about the credentials.
         setFormError(t('auth.serviceUnavailable'))
       }
     }

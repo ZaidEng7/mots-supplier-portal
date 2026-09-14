@@ -1,3 +1,72 @@
+// FEAT-09.1 through 09.6 and FR-PRP-001 through 008: the supplier's own proposal workspace against one invited RFQ.
+//
+// OQ-009's two envelopes: the pricing table IS the financial envelope, and this page is the owning supplier's own view -
+// the one case where both envelopes are shown together, because it is their own bid. State-gated actions here are a UI
+// convenience only, per this codebase's hide-never-gate rule: every write re-enforces its own Draft-only guard
+// server-side.
+//
+// ADDRESSING. §12-A/C2: every mutation addresses the proposal by its OWN public code rather than by the RFQ's. The route's
+// referenceCode is the RFQ; the proposal's code comes back on the fetch. Both are strings, so passing the wrong one
+// type-checks - hence a named local rather than threading referenceCode into functions that no longer mean it. R-9 renamed
+// the response field to proposalCode, which says the same thing the local was invented to say.
+//
+// THE DEFAULT CURRENCY is a system setting under T-060, BR-18 and FR-ADM-006, not a literal here. SYP is still the
+// fallback, because it is the setting's own default, so an unreachable settings read behaves exactly as this line did
+// before. The local currency is null until the supplier chooses, so the setting's value can still arrive after the first
+// render without discarding a currency they typed.
+//
+// SCR-151's CONCURRENCY CONFLICT: "Dialog 'This proposal changed in another tab/user' -> reload/merge", which §8.1
+// delivers as a 412 ETAG_MISMATCH. Reload is offered; MERGE is not, because there is no merge UI in this codebase and
+// inventing one here would be a screen nobody specified - reported rather than approximated. A 412 is not a message, it
+// is a state the supplier has to resolve; everything else is a toast.
+//
+// THE EDITS are §12.5's one PATCH per edit, and the items array is sent WHOLE because RFC 7396 replaces an array rather
+// than merging into it. Pricing one line therefore means sending every priced line - which is also what makes removing one
+// possible now that DELETE /items/{id} is gone. Only the fields a given form owns are mentioned: sending deliveryTerms or
+// warranty as null, which the per-field PUT did, would DELETE values the supplier set elsewhere, because under merge patch
+// an explicit null is a delete rather than "no opinion".
+//
+// A BLANK PRICE IS NOT A PRICE. This used to coerce an empty input to 0 and send it, which recorded a free bid before
+// §7.2's rule and produces an unexplained 422 after it - the button is simply disabled instead.
+//
+// THE INCOTERM is a select rather than a free-text box (T-072). It was a text input validated by nothing, so a bidder
+// could type "ASAP" into a field the comparison matrix prints beside real delivery terms, and two bids naming the same
+// term differently compared as if they were different. The options are the server's own list, so nothing offered here can
+// be refused on save - and "not stated" is an option rather than a gap, because a bid may legitimately quote no delivery
+// term at all: a domestic service contract has none.
+//
+// A-2 appears twice. On a requirement it says what the buyer expects the answering document to be, so the supplier has
+// something to tag against rather than guessing at the envelope picker. On the upload the supplier tags the file
+// themselves, and Commercial is the default and stays the default: a mis-tag then under-serves the evaluator rather than
+// leaking a price into the technical envelope, which is the direction that fails closed. The envelope picker uses Field
+// rather than a wrapping label, because wrapping works for a native input and not for this one - the Select renders a
+// button, and a label that wraps rather than points at it is a label a screen reader may not announce. The file input is
+// cleared after each pick, so re-picking the same file fires change again.
+//
+// T-064's OFFER, and the only action that answers it. An AwardOffered proposal with no decline control on the screen is the
+// same defect shape as T-067: a state the product can reach and the persona it concerns cannot act on. Accepting is not a
+// supplier action - §4.1 gives AwardOffered to Awarded to the manager, through award and execute, and "or supplier accept"
+// is tagged [ASSUMPTION], see DECISIONS-TAKEN.md D-21.
+//
+// SCR-155's CLARIFICATION. The buyer's question was already stored and never shown, so a supplier could see the state
+// ClarificationRequested and not what was asked - which is not a state anyone can respond to. The question is projected
+// now, as ProposalDto.clarificationReason, and shown above the control that responds to it. A clarification with no
+// question recorded is not an empty state to paper over.
+//
+// Responding does NOT open an edit form, and the copy says so: §4.1's "only permitted fields changed" is BRULE-050,
+// undecided, and Proposal.Patch refuses every state but Draft, so an edit form here would 409 on its first save. What the
+// supplier gets is the honest half - the response is recorded, the revision number advances, and the officer returns it to
+// review. There is no confirmation prompt and no reason field, because the transition carries neither and inventing an
+// input for it would invent BRULE-050. Revised is shown too, so the screen is not silent between two other people's
+// actions.
+//
+// WITHDRAWAL is terminal - see Proposal.cs. This was an inline field beside a `ghost` button, the lowest-emphasis variant
+// this system has, and nothing on the screen said the action could not be taken back. The variant now matches the
+// consequence, and the dialog says so in words before it happens. The reason arrives from the dialog rather than from page
+// state, so the text the supplier typed in the thing they confirmed is the text that is sent.
+//
+// The tender's code identifies the tender this bid is for; it is not part of the screen's name.
+
 import { formatCurrency, formatNumber } from '../lib/datetime'
 import { useState } from 'react'
 import { Dialog } from '../components/ui/Dialog'
@@ -16,12 +85,6 @@ import {
   addProposalDocument, removeProposalDocument, submitProposal, withdrawProposal, declineAwardOffer, reviseProposal, ProposalApiError,
 } from '../api/proposals'
 
-/** FEAT-09.1..09.6/FR-PRP-001..008: the supplier's own proposal workspace against one invited RFQ.
- * OQ-009 two-envelope: the pricing table below IS the financial envelope - this page is the
- * owning supplier's own view, the one case where both envelopes are shown together (their own
- * bid). State-gated actions here are a UI convenience only (hide, never gate, per this
- * codebase's established rule) - every write re-enforces its own Draft-only guard
- * server-side. */
 export function SupplierProposalPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
   const { t, i18n } = useTranslation()
@@ -32,14 +95,9 @@ export function SupplierProposalPage() {
 
   const [pricingDrafts, setPricingDrafts] = useState<Record<string, { quantity: string; unitPrice: string }>>({})
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, { ar: string; en: string }>>({})
-  // T-060: the default currency is a system setting (BR-18/FR-ADM-006), not a literal here. SYP is
-  // still the fallback - it is the setting's own default, so an unreachable settings read behaves
-  // exactly as this line did before.
   const publicSettings = useQuery({ queryKey: ['public-settings'], queryFn: getPublicSettings })
   const defaultCurrency = publicSettings.data?.['proposals.defaultCurrencyCode'] ?? 'SYP'
   const [currencyOverride, setCurrencyOverride] = useState<string | null>(null)
-  // Null means "the supplier has not chosen", so the setting's value can still arrive after the first
-  // render without discarding a currency they typed.
   const currencyCode = currencyOverride ?? defaultCurrency
   const setCurrencyCode = setCurrencyOverride
   const [paymentTerms, setPaymentTerms] = useState('')
@@ -56,21 +114,11 @@ export function SupplierProposalPage() {
     retry: false,
   })
 
-  // §12-A/C2: every mutation below addresses the proposal by its OWN public code, not by the RFQ's.
-  // `referenceCode` from the route is the RFQ; the proposal's code comes back on the fetch above.
-  // Both are strings, so passing the wrong one type-checks - hence the named local rather than
-  // threading `referenceCode` into functions that no longer mean it. R-9 renamed the response
-  // field to `proposalCode`, which says the same thing the local was invented to say.
   const proposalCode = proposalQuery.data?.proposalCode ?? ''
 
-  // SCR-151: "*Concurrency conflict:* `Dialog` 'This proposal changed in another tab/user' →
-  // reload/merge." §8.1 delivers it as a 412 ETAG_MISMATCH. Reload is offered; MERGE is not, because
-  // there is no merge UI in this codebase and inventing one here would be a screen nobody specified
-  // - reported rather than approximated.
   const [conflictOpen, setConflictOpen] = useState(false)
 
   const invalidate = () => invalidateQuietly(queryClient, { queryKey: ['proposal', referenceCode] })
-  /** A 412 is not a message - it is a state the supplier has to resolve. Everything else is a toast. */
   const onMutationError = (err: unknown, fallback: string) => {
     if (err instanceof ProposalApiError && err.isConcurrencyConflict) {
       setConflictOpen(true)
@@ -88,9 +136,6 @@ export function SupplierProposalPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.startFailed')) }),
   })
 
-  // §12.5: one PATCH per edit, and the items array is sent WHOLE because RFC 7396 replaces an array
-  // rather than merging into it. Pricing one line therefore means sending every priced line - which
-  // is also what makes removing one possible now that DELETE /items/{id} is gone.
   const pricedItems = (proposalQuery.data?.items ?? []).map((i) => ({
     rfqItemId: i.rfqItemId, quantity: i.quantity, unitPrice: i.unitPrice,
     discount: i.discount, leadTimeDays: i.leadTimeDays, notesAr: i.notesAr, notesEn: i.notesEn,
@@ -113,9 +158,6 @@ export function SupplierProposalPage() {
   })
 
   const termsMutation = useMutation({
-    // Only the fields this form owns are mentioned. Sending deliveryTerms/warranty as null here -
-    // which the per-field PUT did - would DELETE values the supplier set elsewhere, because under
-    // merge patch an explicit null is a delete rather than "no opinion".
     mutationFn: () => patchProposal(proposalCode, {
       commercialTerms: {
         currencyCode, paymentTerms: paymentTerms || null, incotermCode: incotermCode || null,
@@ -146,8 +188,6 @@ export function SupplierProposalPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.submitFailed')) }),
   })
 
-  // SCR-155/§4.1: ClarificationRequested -> Revised. No confirmation prompt and no reason field:
-  // the transition carries neither, and inventing an input for it would invent BRULE-050.
   const reviseMutation = useMutation({
     mutationFn: () => reviseProposal(proposalCode),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.revised') }) },
@@ -155,8 +195,6 @@ export function SupplierProposalPage() {
   })
 
   const withdrawMutation = useMutation({
-    // The reason arrives from the dialog rather than from page state, so the text the supplier typed in
-    // the thing they confirmed is the text that is sent.
     mutationFn: (reason: string) => withdrawProposal(proposalCode, reason),
     onSuccess: () => { invalidate(); notify({ kind: 'success', title: t('proposal.withdrawn') }); setWithdrawOpen(false) },
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.withdrawFailed')) }),
@@ -181,7 +219,6 @@ export function SupplierProposalPage() {
   if (!proposal) {
     return (
       <div className="flex flex-col gap-4">
-        {/* The code identifies the tender this bid is for; it is not part of the screen's name. */}
         <PageHeading title={t('proposal.title')} subtitle={rfq.rfqCode} />
         <Button isLoading={startMutation.isPending} onClick={() => startMutation.mutate()} className="self-start">
           {t('proposal.start')}
@@ -237,9 +274,6 @@ export function SupplierProposalPage() {
                         <Input type="number" aria-label={`${t('proposal.unitPrice')} - ${item.titleEn}`} placeholder={t('proposal.unitPrice')}
                           value={draft.unitPrice || (priced?.unitPrice ?? '')} className="w-24"
                           onChange={(e) => setPricingDrafts((prev) => ({ ...prev, [item.id]: { ...draft, unitPrice: e.target.value } }))} />
-                        {/* A blank price is not a price. This used to coerce an empty input to 0
-                            and send it, which recorded a free bid before §7.2's rule and produces an
-                            unexplained 422 after it - the button is simply disabled instead. */}
                         <Button size="sm" isLoading={priceMutation.isPending}
                           disabled={!(draft.unitPrice || priced?.unitPrice)}
                           onClick={() => priceMutation.mutate({
@@ -267,8 +301,6 @@ export function SupplierProposalPage() {
               return (
                 <li key={req.id}>
                   <p className="font-[var(--fw-medium)]">{isArabic ? req.textAr : req.textEn}{req.isMandatory ? <span aria-hidden="true"> *</span> : null}</p>
-                  {/* A-2: what the buyer expects this document to be, so the supplier has something to
-                      tag against rather than guessing at the envelope picker below. */}
                   {req.expectedEnvelope ? (
                     <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
                       {t(`proposal.envelopeExpected.${req.expectedEnvelope}`)}
@@ -304,11 +336,6 @@ export function SupplierProposalPage() {
           <div className="flex flex-wrap items-end gap-2">
             <Input aria-label={t('proposal.currency')} placeholder={t('proposal.currency')} value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} className="w-20" />
             <Input aria-label={t('proposal.paymentTerms')} placeholder={t('proposal.paymentTerms')} value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} />
-            {/* T-072: a select, not a free-text box. It was a text input validated by nothing, so a
-                bidder could type "ASAP" into a field the comparison matrix prints beside real
-                delivery terms - and two bids naming the same term differently compared as if they
-                were different. The options are the server's own list, so nothing offered here can be
-                refused on save. */}
             <Field label={t('proposal.incoterm')}>
               {(p) => (
                 <Select
@@ -317,8 +344,6 @@ export function SupplierProposalPage() {
                   value={incotermCode}
                   onValueChange={setIncotermCode}
                   options={[
-                    // A bid may legitimately quote no delivery term at all - a domestic service
-                    // contract has none - so "not stated" is an option rather than a gap.
                     { value: '', label: t('proposal.incotermUnset') },
                     ...(incotermsQuery.data ?? []).map((incoterm) => ({
                       value: incoterm.code,
@@ -356,14 +381,6 @@ export function SupplierProposalPage() {
         )}
         {isDraft ? (
           <div className="mt-3 flex flex-wrap items-end gap-2">
-            {/*
-              A-2: the supplier tags the file. Commercial is the default and stays the default - a
-              mis-tag then under-serves the evaluator rather than leaking a price into the technical
-              envelope, which is the direction that fails closed.
-            */}
-            {/* A hand-written label wrapping the shared control, where Field associates the two by id.
-                Wrapping works for a native input and not for this one: the Select renders a button, and
-                a label that wraps rather than points at it is a label a screen reader may not announce. */}
             <Field label={t('proposal.envelope')}>
               {(p) => (
                 <Select
@@ -382,31 +399,12 @@ export function SupplierProposalPage() {
               onChange={(e) => {
                 const file = e.target.files?.[0]
                 if (file) documentMutation.mutate({ file, envelope: uploadEnvelope })
-                // Cleared so re-picking the same file fires change again.
                 e.target.value = ''
               }} />
           </div>
         ) : null}
       </Card>
 
-      {/*
-        T-064: the offer, and the only action that answers it. An AwardOffered proposal with no
-        decline control on the screen is the same defect shape as T-067 - a state the product can
-        reach and the persona it concerns cannot act on. Accepting is not a supplier action: §4.1
-        gives AwardOffered -> Awarded to the manager (award/execute), and "or supplier accept" is
-        tagged [ASSUMPTION] - see DECISIONS-TAKEN.md D-21.
-      */}
-      {/*
-        SCR-155. The buyer's question was already stored and never shown - a supplier could see the
-        state ClarificationRequested and not what was asked, which is not a state anyone can respond
-        to. The question is now projected (ProposalDto.clarificationReason) and shown above the
-        control that responds to it.
-
-        Responding does NOT open an edit form, and the copy says so. §4.1's "only permitted fields
-        changed" is BRULE-050, undecided, and Proposal.Patch refuses every state but Draft: an edit
-        form here would 409 on its first save. What the supplier gets is the honest half - the
-        response is recorded, the revision number advances, and the officer returns it to review.
-      */}
       {proposal.state === 'ClarificationRequested' ? (
         <Card title={t('proposal.clarificationTitle')}>
           {proposal.clarificationReason ? (
@@ -415,8 +413,6 @@ export function SupplierProposalPage() {
               {proposal.clarificationReason}
             </blockquote>
           ) : (
-            /* Not an empty state to paper over: a clarification with no question recorded is a
-               defect in whoever asked, and saying so is more use than a blank panel. */
             <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('proposal.clarificationNoReason')}</p>
           )}
           <p className="mb-3 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
@@ -428,8 +424,6 @@ export function SupplierProposalPage() {
         </Card>
       ) : null}
 
-      {/* Revised: the supplier has responded and the officer has not yet re-reviewed. Shown so the
-          screen is not silent between two other people's actions. */}
       {proposal.state === 'Revised' ? (
         <Card title={t('proposal.revisedTitle')}>
           <p style={{ color: 'var(--color-text-secondary)' }}>
@@ -454,10 +448,6 @@ export function SupplierProposalPage() {
 
       {canWithdraw ? (
         <Card title={t('proposal.withdrawTitle')}>
-          {/* `Withdrawn` is terminal (Proposal.cs:553-555). This was an inline field beside a `ghost`
-              button - the lowest-emphasis variant this system has - and nothing on the screen said the
-              action could not be taken back. The variant now matches the consequence, and the dialog
-              says so in words before it happens. */}
           <Button variant="danger" onClick={() => setWithdrawOpen(true)}>
             {t('proposal.withdraw')}
           </Button>

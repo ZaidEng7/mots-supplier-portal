@@ -1,3 +1,22 @@
+// SCR-700 at /back-office/admin, for system_admin, P1 (FR-DSH-006).
+//
+// system_admin could reach the staff, role and reference-data screens but had no landing page, so the operational facts that
+// decide whether the platform is working - is the outbox draining, are the recurring jobs actually registered, does every
+// reference table still have an active code - were visible only in logs.
+//
+// THE JOBS TILE is the one worth explaining. Jobs:EnableRecurring=false is a legitimate configuration - it is how the test
+// host runs - and today it announces itself once at startup and never again. An operator looking at a portal that has
+// stopped sending anything has no other way to see it. Its three answers to "are the background jobs running?" are in order
+// of how bad they are: the scheduler is off, the scheduler is on but jobs the deployment expects are absent, or everything
+// is registered. A function rather than a chain of ternaries, because they are three separate answers rather than one
+// decision refined twice. The missing ids are shown untranslated, because an operator comparing them against the deployment
+// is the point.
+//
+// The KPI row is 2x2 on phones, widening with the viewport - the shape the other dashboards use.
+//
+// B-1 and BRULE-011: a draining outbox with the logging stand-in registered has delivered nothing, and an operator reading a
+// healthy tile would conclude the opposite.
+
 import { useTranslation } from 'react-i18next'
 import { Metric, MetricRow } from '../../components/ui'
 import { useQuery } from '@tanstack/react-query'
@@ -5,19 +24,6 @@ import {Badge, Button, Card, PageHeading, SkeletonList} from '../../components/u
 import { formatNumber } from '../../lib/datetime'
 import { getAdminOverview } from '../../api/admin'
 
-/**
- * SCR-700, `/back-office/admin`, `system_admin`, P1 (FR-DSH-006).
- *
- * <p>`system_admin` could reach the staff, role and reference-data screens but had no landing page,
- * so the operational facts that decide whether the platform is working - is the outbox draining, are
- * the recurring jobs actually registered, does every reference table still have an active code - were
- * visible only in logs.</p>
- *
- * <p>The jobs tile is the one worth explaining: `Jobs:EnableRecurring=false` is a legitimate
- * configuration (it is how the test host runs), and today it announces itself once at startup and
- * never again. An operator looking at a portal that has stopped sending anything has no other way to
- * see it.</p>
- */
 export function AdminOverviewPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -42,12 +48,6 @@ export function AdminOverviewPage() {
 
   const jobsMissing = data.jobs.missingJobs.length > 0
 
-  /**
-   * Three answers to "are the background jobs running?", in order of how bad they are: the scheduler is
-   * off, the scheduler is on but jobs the deployment expects are absent, or everything is registered.
-   * A function rather than a chain of ternaries because they are three separate answers, not one
-   * decision refined twice.
-   */
   function renderJobs() {
     if (!data.jobs.recurringJobsEnabled) {
       return (
@@ -61,8 +61,6 @@ export function AdminOverviewPage() {
       return (
         <div className="flex flex-col gap-2">
           <Badge tone="danger">{t('adminOverview.jobsMissing')}</Badge>
-          {/* The ids themselves: an operator comparing them against the deployment is the point, so
-              these are not translated. */}
           <ul className="flex flex-col gap-1">
             {data.jobs.missingJobs.map((job) => <li key={job}><code>{job}</code></li>)}
           </ul>
@@ -80,7 +78,6 @@ export function AdminOverviewPage() {
     <div className="flex flex-col gap-6">
       <PageHeading title={t('adminOverview.title')} />
 
-      {/* 2x2 on phones, widening with the viewport - the KPI-row shape the other dashboards use. */}
       <MetricRow>
         {([
           ['users', n(users)],
@@ -114,8 +111,6 @@ export function AdminOverviewPage() {
         {data.outbox.failed > 0 ? (
           <p className="mt-2"><Badge tone="danger">{t('adminOverview.outboxFailedWarning')}</Badge></p>
         ) : null}
-        {/* B-1/BRULE-011. A draining outbox with the logging stand-in registered has delivered nothing,
-            and an operator reading a healthy tile would conclude the opposite. */}
         {!data.outbox.erpTransportConfigured ? (
           <div className="mt-2 flex flex-col gap-1">
             <Badge tone="warning">{t('adminOverview.erpNotConfigured')}</Badge>
