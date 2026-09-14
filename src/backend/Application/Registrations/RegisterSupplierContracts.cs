@@ -1,10 +1,20 @@
+// The vocabulary for a supplier registering itself.
+//
+// Locale is the language the registrant actually saw the form in. The endpoint reads it from the
+// request's language header, and that is a faithful signal rather than a guess, because the interface
+// has no language switcher of its own and follows the browser.
+//
+// Three of the four outcomes are deliberately indistinguishable to the caller. Success, an email
+// already registered, and a registration number already registered all map to the same response, so
+// nobody can use the form to discover who is already on the portal. The distinction survives inside
+// the system, because the existing account is notified.
+//
+// A weak password is the one refusal that is told plainly, because it is a fact about the password
+// somebody just typed. It is true or false for any email address, including ones that will never
+// exist, so it reveals nothing about the target.
+
 namespace MotsSupplierPortal.Application.Registrations;
 
-/// <summary>MSP-69: <paramref name="Locale"/> is "ar" or "en", resolved by the endpoint from the
-/// request's Accept-Language header (RegistrationEndpoints.cs) - the frontend has no in-app language
-/// switcher independent of the browser (src/frontend/src/i18n/config.ts's own
-/// i18next-browser-languagedetector), so the header is a faithful signal of what the registrant
-/// actually saw the form rendered in, not a guess.</summary>
 public sealed record RegisterSupplierCommand(
     string DisplayNameAr,
     string DisplayNameEn,
@@ -19,14 +29,8 @@ public abstract record RegisterSupplierResult
 {
     public sealed record Success(string SupplierReferenceCode) : RegisterSupplierResult;
 
-    /// <summary>MSP-73: internal-only distinction now. RegistrationEndpoints.cs maps this to the
-    /// same response shape as Success and DuplicateRegistrationNumber - a caller cannot tell
-    /// which of the three happened, or that a duplicate was detected at all.</summary>
     public sealed record DuplicateEmail : RegisterSupplierResult;
 
-    /// <summary>FR-REG-004. MSP-73: same non-enumerating treatment as DuplicateEmail now - mapped
-    /// to the identical response shape as Success, not a distinct 409 naming which field
-    /// collided. Deliberately symmetric with DuplicateEmail's fix, not just its old leak.</summary>
     public sealed record DuplicateRegistrationNumber : RegisterSupplierResult;
     public sealed record WeakPassword(IReadOnlyList<string> Errors) : RegisterSupplierResult;
 }

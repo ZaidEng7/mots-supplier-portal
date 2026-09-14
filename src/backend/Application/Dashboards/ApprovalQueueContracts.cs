@@ -1,13 +1,14 @@
+// The vocabulary for the manager's approval queues: tenders waiting to be published and awards waiting to
+// be approved.
+//
+// Each row carries the address it opens, returned by the server rather than assembled by the client.
+//
+// That is a defence rather than a convenience. An earlier queue listed work the persona holding it could
+// not then reach, and the cheapest protection is for the queue and the link to come from the same place, so
+// a test can follow exactly what the row offers.
+
 namespace MotsSupplierPortal.Application.Dashboards;
 
-/// <summary>
-/// One row of SCR-401. SCREEN-INVENTORY: "Queues: RFQ publish approvals + award approvals".
-///
-/// <para><c>Href</c> is the API path this row opens, returned by the server rather than assembled by
-/// the client. PR #90's defect was a queue listing work its persona could not then reach, and the
-/// cheapest defence is for the queue and the link to come from the same place - so a test can follow
-/// exactly what the row offers.</para>
-/// </summary>
 public sealed record ApprovalQueueItemDto(
     string RfqReferenceCode,
     string TitleAr,

@@ -1,3 +1,11 @@
+// The vocabulary for enrolling a second factor.
+//
+// Enrolling issues the shared key, or reuses one already issued, and the address an authenticator app reads.
+//
+// Confirming verifies the first code, switches the second factor on, and issues the one-time recovery codes.
+// Both steps exist because a key handed out and never confirmed would leave an account believing it was
+// protected.
+
 namespace MotsSupplierPortal.Application.Auth;
 
 public sealed record EnrollMfaCommand(Guid UserId);
@@ -6,7 +14,6 @@ public sealed record EnrollMfaResult(string SharedKey, string AuthenticatorUri);
 
 public interface IEnrollMfaHandler
 {
-    /// <summary>STORY-01.5.1: begins TOTP enrollment - issues (or reuses) the authenticator key.</summary>
     Task<EnrollMfaResult> HandleAsync(EnrollMfaCommand command, CancellationToken ct);
 }
 
@@ -20,6 +27,5 @@ public abstract record ConfirmMfaEnrollmentResult
 
 public interface IConfirmMfaEnrollmentHandler
 {
-    /// <summary>Verifies the first TOTP code, then flips 2FA on and issues one-time recovery codes.</summary>
     Task<ConfirmMfaEnrollmentResult> HandleAsync(ConfirmMfaEnrollmentCommand command, CancellationToken ct);
 }

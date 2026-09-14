@@ -1,6 +1,12 @@
-using MotsSupplierPortal.Application.Common;
+// The vocabulary for a supplier's own team: listing the people who can sign in for the company, inviting one,
+// disabling one, and accepting an invitation.
+//
+// The list is scoped to the caller's own company and never crosses suppliers. It is paged by cursor on the
+// email address, which is the order it displays in.
 
 namespace MotsSupplierPortal.Application.Suppliers;
+
+using MotsSupplierPortal.Application.Common;
 
 public sealed record SupplierUserDto(Guid UserId, string Email, string FullName, bool IsActive);
 
@@ -20,8 +26,6 @@ public interface IInviteSupplierUserHandler
 
 public interface IListSupplierUsersHandler
 {
-    /// <summary>Row-scoped to the caller's own SupplierId (STORY-01.8.1) - never cross-supplier.
-    /// MSP-84: keyset-paged (see SupplierUserCursor for why).</summary>
     Task<ListEnvelope<SupplierUserDto>> HandleAsync(string? cursor, int? limit, bool withCount, CancellationToken ct);
 }
 

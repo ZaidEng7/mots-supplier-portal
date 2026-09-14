@@ -192,11 +192,11 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
         // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        if (RfqListCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             query = query.Where(r =>
-                r.CreatedAt < from.CreatedAt
-                || (r.CreatedAt == from.CreatedAt && r.Id.CompareTo(from.Id) < 0));
+                r.CreatedAt < from.At
+                || (r.CreatedAt == from.At && r.Id.CompareTo(from.Id) < 0));
         }
 
         // pageSize + 1: the extra row answers HasMore without a COUNT over the whole filtered set.
@@ -223,7 +223,7 @@ public sealed class ListRfqsHandler(AppDbContext db, IScopeContext scope) : ILis
         return ListEnvelope<RfqListItemDto>.Cursor(
             [.. items.Select(r => r.Dto)],
             hasMore,
-            hasMore ? new RfqListCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
+            hasMore ? new KeysetCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
             size,
             totalCount,
             sort: "-createdAt",

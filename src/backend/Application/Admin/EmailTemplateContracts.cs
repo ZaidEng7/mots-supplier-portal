@@ -1,29 +1,29 @@
+// The vocabulary for the screen where an administrator rewords a transactional email, and the placeholders
+// their wording must keep.
+//
+//
+// WHY THE PLACEHOLDERS ARE HARDER HERE THAN FOR IN-APP WORDING
+//
+// An in-app notification that loses a placeholder reads badly. An email that loses its verification link
+// locks the recipient out of the account they are trying to create, and nothing in the system can tell that
+// it happened: the send succeeded, the body was valid, and the applicant simply never gets in.
+//
+// So the contract is declared per template and enforced when the wording is written rather than when the
+// email is sent.
+//
+// The required placeholders must all appear. That list is empty for templates that carry no link, such as an
+// approval notice, which tells the recipient something and asks nothing of them.
+//
+// The optional ones may appear. Anything outside both lists is refused, because a placeholder the system has
+// no value for reaches the recipient as literal characters and cannot be diagnosed from the sent mail.
+
 namespace MotsSupplierPortal.Application.Admin;
 
-/// <summary>
-/// T-076. One email template an administrator may reword, and the tokens their wording MUST keep.
-///
-/// <para><b>Required tokens are the whole reason this is harder than T-061's in-app copy.</b> An in-app
-/// notification that loses a token reads badly. An email that loses <c>{verifyUrl}</c> locks the recipient
-/// out of the account they are trying to create, and nothing in the system can tell that it happened - the
-/// send succeeded, the body was valid HTML, and the applicant simply never gets in. So the contract is
-/// per template and enforced on the write, not on the send.</para>
-/// </summary>
-/// <param name="RequiredTokens">Must all appear in the override's body. Empty for templates that carry no
-/// link - an approval notice, for instance, tells the recipient something and asks nothing of them.</param>
-/// <param name="OptionalTokens">May appear. A token outside Required ∪ Optional is refused, for D-34's
-/// reason: a token the payload cannot fill reaches the recipient as the literal characters and cannot be
-/// diagnosed from the sent mail.</param>
 public sealed record EmailTemplateDefinition(
     string Key,
     IReadOnlyList<string> RequiredTokens,
     IReadOnlyList<string> OptionalTokens);
 
-/// <summary>
-/// The keys, and the token contract for each. Named constants rather than an enum because the value is
-/// persisted as text and read by an administrator on a screen: renaming one must be a visible change to a
-/// string that already exists in rows.
-/// </summary>
 public static class EmailTemplateKeys
 {
     public const string Verification = "email.verification";
@@ -50,15 +50,6 @@ public static class EmailTemplateKeys
     public const string DocumentExpiring = "email.document_expiring";
     public const string DocumentExpired = "email.document_expired";
 
-    /// <summary>
-    /// Every template, with what its payload can fill.
-    ///
-    /// <para>The four with a REQUIRED token are the four whose omission is a lockout rather than a
-    /// readability problem: three single-use links and the RFQ deep link. Everything else names its tokens
-    /// as optional, because a reworded body that drops a reference code is worse copy and not a broken
-    /// journey - and refusing it would stop an administrator writing "your application was approved"
-    /// without repeating the code in the sentence.</para>
-    /// </summary>
     public static readonly EmailTemplateDefinition[] All =
     [
         new(Verification, ["verifyUrl"], []),
@@ -70,8 +61,6 @@ public static class EmailTemplateKeys
         new(ApplicationRejected, [], ["reason"]),
         new(InfoRequested, [], ["reason"]),
         new(ApplicationResubmitted, [], ["referenceCode"]),
-        // The deep link is required: an invitation a supplier cannot open is an invitation they will miss,
-        // which USER-JOURNEYS names as the legacy system's single worst failure.
         new(RfqInvitation, ["deepLink"], ["referenceCode", "rfqTitle"]),
         new(ClarificationAnswered, [], ["referenceCode"]),
         new(ClarificationPublished, [], ["referenceCode"]),
@@ -92,7 +81,6 @@ public static class EmailTemplateKeys
         All.FirstOrDefault(d => string.Equals(d.Key, key, StringComparison.Ordinal));
 }
 
-/// <summary>An administrator's rewording of one email template. Absent means the shipped copy.</summary>
 public sealed record EmailTemplateOverrideDto(
     string Key,
     string SubjectAr,
@@ -101,9 +89,6 @@ public sealed record EmailTemplateOverrideDto(
     string BodyEn,
     DateTimeOffset UpdatedAt);
 
-/// <param name="Shipped">The copy this override replaces, rendered with the tokens left in place. On the
-/// DTO because a screen that cannot show what it is replacing makes revert guesswork - the same reason
-/// SCR-715 shows it.</param>
 public sealed record EmailTemplateRowDto(
     string Key,
     IReadOnlyList<string> RequiredTokens,
@@ -119,8 +104,6 @@ public abstract record UpsertEmailTemplateResult
     public sealed record Success(EmailTemplateOverrideDto Override) : UpsertEmailTemplateResult;
     public sealed record UnknownKey : UpsertEmailTemplateResult;
 
-    /// <param name="MissingTokens">Named, per locale, because "a token is missing" is not actionable and
-    /// "the Arabic body no longer contains {verifyUrl}" is.</param>
     public sealed record MissingRequiredTokens(IReadOnlyList<string> MissingTokens) : UpsertEmailTemplateResult;
 
     public sealed record UnknownTokens(IReadOnlyList<string> Tokens) : UpsertEmailTemplateResult;
@@ -138,14 +121,9 @@ public interface IUpsertEmailTemplateHandler
 
 public interface IDeleteEmailTemplateHandler
 {
-    /// <summary>False when there was nothing to remove. Deleting restores the shipped copy.</summary>
     Task<bool> HandleAsync(string key, CancellationToken ct);
 }
 
-/// <summary>
-/// What the send path uses. Returns the administrator's wording when there is one and the shipped copy
-/// otherwise, with the caller's tokens interpolated either way.
-/// </summary>
 public interface IEmailCopySource
 {
     Task<(string Subject, string Body)> ComposeAsync(

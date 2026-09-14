@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
-using MotsSupplierPortal.Application.Evaluations;
+using MotsSupplierPortal.Application.Evaluation;
 using MotsSupplierPortal.Domain.Proposals;
 using MotsSupplierPortal.Infrastructure.Persistence;
 

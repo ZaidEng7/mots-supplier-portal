@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using MotsSupplierPortal.Application.Reference;
+using MotsSupplierPortal.Application.ReferenceData;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 namespace MotsSupplierPortal.Infrastructure.Reference;

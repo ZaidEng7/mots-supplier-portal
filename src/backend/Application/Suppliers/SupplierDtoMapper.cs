@@ -1,6 +1,14 @@
-using MotsSupplierPortal.Domain.Suppliers;
+// Turns a supplier record into the shape a caller reads.
+//
+// It is one place rather than a mapping written out at each read, so every read of a supplier agrees about
+// what a supplier looks like on the wire.
+//
+// The bank account's number is never mapped in full. Only the masked form travels, and revealing the real one
+// is its own audited action.
 
 namespace MotsSupplierPortal.Application.Suppliers;
+
+using MotsSupplierPortal.Domain.Suppliers;
 
 public static class SupplierDtoMapper
 {
@@ -45,18 +53,12 @@ public static class SupplierDtoMapper
             supplier.TermsAcceptedAt,
             supplier.RowVersion,
             incompleteDocumentTypeCodes,
-            // The submit gate's own checklist, expressed as a fraction - see ProfileCompleteness for
-            // why it is that set and not a narrower one. Null when the caller did not run the
-            // document query, rather than a zero that would read as "nothing done".
             missingRequiredDocumentTypeCodes is null
                 ? null
                 : ProfileCompleteness.Ratio(
                     missingItems: supplier.GetMissingProfileFields().Count + missingRequiredDocumentTypeCodes.Count,
                     totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredDocumentTypeCount),
             documentsSummary,
-            // T-003. Emitted from every call site, unlike the two document-derived fields above: the
-            // timestamp is on the row this mapper already has, so there is no query to skip and no
-            // reason for a mutation response to carry a different answer than a read.
             supplier.UpdatedAt);
     }
 }

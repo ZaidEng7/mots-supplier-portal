@@ -36,11 +36,11 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
         // the cursor narrows it, so it is a total rather than "how many are left".
         int? totalCount = withCount ? ordered.Count() : null;
 
-        if (SessionCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             ordered = ordered.Where(s =>
-                s.CreatedAt < from.CreatedAt
-                || (s.CreatedAt == from.CreatedAt && s.FamilyId.CompareTo(from.FamilyId) < 0));
+                s.CreatedAt < from.At
+                || (s.CreatedAt == from.At && s.FamilyId.CompareTo(from.Id) < 0));
         }
 
         var page = ordered.Take(pageSize + 1).ToList();
@@ -50,7 +50,7 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
         return ListEnvelope<SessionDto>.Cursor(
             items,
             hasMore,
-            hasMore ? new SessionCursor(items[^1].CreatedAt, items[^1].FamilyId).Encode() : null,
+            hasMore ? new KeysetCursor(items[^1].CreatedAt, items[^1].FamilyId).Encode() : null,
             pageSize,
             totalCount,
             sort: "-createdAt");

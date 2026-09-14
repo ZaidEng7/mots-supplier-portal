@@ -62,11 +62,11 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
         // shrink as the caller pages. A second query, so it is off unless asked for.
         int? totalCount = withCount ? await query.CountAsync(ct) : null;
 
-        if (RfqListCursor.TryDecode(cursor, out var from))
+        if (KeysetCursor.TryDecode(cursor, out var from))
         {
             query = query.Where(r =>
-                r.CreatedAt < from.CreatedAt
-                || (r.CreatedAt == from.CreatedAt && r.Id.CompareTo(from.Id) < 0));
+                r.CreatedAt < from.At
+                || (r.CreatedAt == from.At && r.Id.CompareTo(from.Id) < 0));
         }
 
         // MyInvitationStatus is resolved in SQL by a correlated subquery over this supplier's own
@@ -104,7 +104,7 @@ public sealed class SupplierListInvitedRfqsHandler(AppDbContext db, IScopeContex
         return ListEnvelope<SupplierRfqListItemDto>.Cursor(
             [.. items.Select(r => r.Dto)],
             hasMore,
-            hasMore ? new RfqListCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
+            hasMore ? new KeysetCursor(items[^1].Dto.CreatedAt, items[^1].Id).Encode() : null,
             size,
             totalCount,
             sort: "-createdAt");
