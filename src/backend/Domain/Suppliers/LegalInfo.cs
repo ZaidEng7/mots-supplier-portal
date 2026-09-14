@@ -1,3 +1,13 @@
+// A supplier's legal identity: its registered names, its registration and tax numbers, what kind of
+// legal entity it is, and when it was established.
+//
+// The numbers are captured generically, with no invented format rules for Syrian registration or tax
+// identifiers. Nothing in the requirements states those formats, and a made-up pattern would reject
+// legitimate companies. That is the same treatment every other undecided rule in this codebase gets.
+//
+// It is a value rather than a record with its own life: it has no identity of its own and is replaced
+// wholesale rather than edited field by field.
+
 namespace MotsSupplierPortal.Domain.Suppliers;
 
 public enum SupplierLegalType
@@ -7,10 +17,6 @@ public enum SupplierLegalType
     Partnership,
 }
 
-/// <summary>FR-PROF-002/DOMAIN-MODEL.md LegalInfo VO. Registration number, tax id, incorporation
-/// date, and legal form captured generically - no invented Syrian validation rules
-/// (docs/product/ASSUMPTIONS.md ASM-020), same pattern already used elsewhere in this codebase.
-/// [ASSUMPTION / REQUIRES BUSINESS CONFIRMATION] per FEAT-04.2.</summary>
 public sealed class LegalInfo
 {
     public string LegalNameAr { get; private set; } = null!;

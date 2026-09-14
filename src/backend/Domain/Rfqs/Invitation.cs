@@ -1,9 +1,17 @@
+// The link between a tender and one invited supplier. It gates who may see the tender's detail and who
+// may bid.
+//
+// It belongs to the tender rather than standing on its own, because it has no life independent of the
+// tender it is part of.
+//
+// The statuses run Invited, then Viewed, then Responding, then Submitted, and a supplier may decline
+// from any status before submitting.
+//
+// Responding and Submitted are driven by the bid itself, since they mean a bid has been started or
+// handed in.
+
 namespace MotsSupplierPortal.Domain.Rfqs;
 
-/// <summary>FEAT-08.1/FR-INV-001: Invited -> Viewed -> Responding -> Submitted, or Declined from
-/// any pre-Submitted status. Responding/Submitted are driven from EPIC-09 (Proposal) once that
-/// aggregate exists - nothing in this build's Rfq aggregate transitions an invitation past Viewed
-/// except Decline, since there is no Proposal yet to start one from.</summary>
 public enum InvitationStatus
 {
     Invited,
@@ -13,10 +21,6 @@ public enum InvitationStatus
     Declined,
 }
 
-/// <summary>FEAT-08.1/FR-INV-001, DOMAIN-MODEL.md §5.4/DATABASE-MODEL.md §2.4: the link between an
-/// RFQ and a specific invited Supplier - gates who may view RFQ detail (FEAT-08.6) and, later,
-/// propose (EPIC-09). A child entity of Rfq, not its own aggregate: it has no lifecycle independent
-/// of the RFQ it belongs to.</summary>
 public sealed class Invitation
 {
     public Guid Id { get; init; }

@@ -1,44 +1,141 @@
-using MotsSupplierPortal.Domain.Common;
-using MotsSupplierPortal.Domain.Suppliers;
+// The scoring of one tender's submitted bids: the committee, their scores, and the consolidated
+// result. It is its own record, linked to the tender by id rather than being part of it, the same
+// shape a bid has.
+//
+// CriterionSnapshotInput is what Create is given: one criterion as it stood on the tender's frozen
+// template. The guidance is optional with a default so existing callers and tests that do not care
+// about it are unchanged, but the one caller that binds a real template must pass it, and a test
+// asserts that.
+//
+//
+// THE TWO-ENVELOPE GATE, which is the centre of this design
+//
+// A bid's pricing is stored in a genuinely separate table from its technical content. This record is
+// what makes that separation matter in practice.
+//
+// ScoreCriterion refuses a score for a commercial criterion on a bid until the same evaluator has
+// scored every technical criterion for that bid and none has fallen below its threshold.
+//
+// It is enforced per evaluator rather than across the committee, because scoring is blind and
+// independent: one evaluator's technical judgement on a bid must not be influenced by whether another
+// has already opened its pricing, and the gate has to hold in the middle of scoring, long before
+// anything is consolidated.
+//
+// Consolidate then re-derives technical qualification from the averaged scores, and that is the
+// authoritative final answer. A bid that fails it is excluded from the ranking regardless of its
+// total. The per-evaluator gate during scoring and the consolidated gate at the end are the same rule
+// applied at two moments, not two different rules.
+//
+//
+// THE LIFECYCLE
+//
+// Create takes the frozen criteria and produces an evaluation that has not started. The guidance text
+// is copied along with the weights, because an evaluator must see the instruction that was in force
+// when the tender bound the template rather than whatever it says now.
+//
+// AssignEvaluators moves it to assigned on the first call and can be called again later to add more
+// evaluators. That is also the real tool for replacing an evaluator who has gone quiet: recuse the old
+// one and assign a new one, rather than inventing a separate reassignment action.
+//
+// OpenScoring moves it to in progress when the first evaluator opens it, and changes nothing for
+// everyone after that.
+//
+// ScoreCriterion records or replaces one score. The bid must be one of the tender's submitted bids;
+// the handler passes that set in, because bids live elsewhere and this record should not trust an
+// arbitrary identifier. The score must be between zero and the criterion's maximum.
+//
+// A criterion that requires a justification needs a comment in either language, not both. An evaluator
+// writes their reasoning in the language they think in, and demanding a translation from the person
+// making the judgement would either produce a machine-translated second copy or stop the score being
+// recorded at all. That is different from a supplier-facing field, where both languages are the
+// product: this comment is internal evidence for a procurement file, read by the committee that wrote
+// it and by an auditor afterwards.
+//
+// SubmitEvaluator locks one evaluator's work. "Fully scored" means every technical criterion on every
+// bid, plus every financial criterion on every bid that passed technical qualification for this
+// evaluator. A disqualified bid legitimately never needs its financial criteria scored, so it is not
+// held against submission. When the last active evaluator submits, the evaluation moves on.
+//
+// DeclareNoConflict records that this evaluator has seen the bidder list and declared no conflict. A
+// declaration is made once and cannot be remade, because the point of the window is that it closes. A
+// conflicted evaluator does not call this; they are recused, which is recorded and audited.
+//
+// RecuseEvaluator steps an evaluator aside with a mandatory reason. It is refused once they have
+// submitted, because a submitted evaluator's scores are locked and recusing them afterwards would
+// silently discard a real input. Recusing the last outstanding evaluator can complete the round, which
+// is why the state is re-checked here too.
+//
+// Consolidate averages each criterion's scores across evaluators, divides by the maximum, multiplies
+// by the weight and sums. Averaging is the default the written rule states while leaving the policy
+// open to confirmation.
+//
+// FinalizeEvaluation settles the result. The written rule also asks for "no unresolved clarification",
+// and that half is not checked here, because clarifications are a different record this one does not
+// own.
+//
+// ReopenForClarification sends a consolidated evaluation back to in progress with a mandatory reason,
+// clears the results and unlocks every active evaluator's submission. The written rule says to unlock
+// "affected" assignments and never defines which those are, so this unlocks all of them rather than
+// inventing the rule.
+//
+//
+// QUORUM, deliberately not built
+//
+// The written rules tag quorum policy as needing business confirmation and name no number.
+// Consolidation therefore requires every actively assigned evaluator to have submitted, and there is
+// no partial-quorum path. A manager's actual tool for an evaluator who never responds is recusal,
+// reused rather than inventing a second exclude-for-non-response action: removing them from the active
+// set changes what "every active evaluator" means, without fabricating a quorum fraction.
+//
+//
+// TIE-BREAKING
+//
+// BidTieBreakFacts carries the two facts a tie-break needs that the scores do not: the bid's own
+// priced total and the moment it was submitted. Both are passed in rather than read here, because this
+// record has no access to bids, and inferring "cheapest" from the financial score would assume that
+// score runs inverse to price, which no document states.
+//
+// The rungs are, in order: highest weighted total, then highest technical score, then lowest priced
+// total, then earliest submission.
+//
+// Ordering by the total alone, which is what this used to do, left ties resolved by whatever order the
+// score rows happened to come out in, so two bids with identical totals took first and second place
+// arbitrarily, and first place is what the award flow offers. In a government tender that is the
+// ordering that gets challenged, and nothing in the record would explain it.
+//
+// A bid with no priced total sorts last on the price rung, because it cannot claim to be the cheapest.
+//
+// Earliest submission is the last rung because it is objective, already recorded and cannot be
+// manipulated afterwards, which is why it is the standard final rung in public procurement. The bid's
+// identifier is used after that only so the list is stable across re-consolidations, and a tie that
+// reaches it is not treated as resolved.
+//
+// A tie that survives every rung is surfaced rather than picked. Two bids equal on total, technical
+// score, price and submission instant are equal on everything a rule can see, and the ordering between
+// them came from an identifier, which is not a decision anybody made. A genuine full tie is rare
+// enough that a day of manual resolution costs less than a challenge to a silently picked winner.
+//
+// IsFullTie treats an unknown price or an unknown submission time as a tie rather than as a
+// difference. Two bids with no recorded price are not meaningfully equal on that rung, so the unknown
+// surfaces the case instead of inventing an order.
+//
+// ResolveTie is a person breaking a tie the rules could not, with an audited reason. The chosen bid
+// takes the best rank held by any member of its tie group and the others follow in their existing
+// order. Every member's marker clears, including the ones that lost, because the tie is resolved once
+// somebody has put their name to it. The group is every unresolved result sharing this one's total and
+// technical score; price and submission are not re-compared, because they were equal by construction,
+// which is what set the marker in the first place.
 
 namespace MotsSupplierPortal.Domain.Evaluation;
 
-/// <param name="GuidanceAr">SCR-501: how to score this criterion, as the template author wrote it. Optional
-/// with a default so the existing callers and tests that do not care about the brief are unchanged - but the
-/// one caller that binds a real template MUST pass it, which is asserted in EvaluationEndpointsTests.</param>
+using MotsSupplierPortal.Domain.Common;
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed record CriterionSnapshotInput(
     string NameAr, string NameEn, CriterionDimension Dimension, decimal Weight, decimal MaxScore, decimal? Threshold,
     ScoringType ScoringType, bool RequiresJustification = false,
     string? GuidanceAr = null, string? GuidanceEn = null);
 
-/// <summary>The scoring instance for one RFQ's Submitted proposals (docs/architecture/
-/// DOMAIN-MODEL.md §5.7), using the RFQ's already-snapshotted EvaluationTemplate. Its own
-/// aggregate root (schema "evaluation"), bound to RfqId - same "own bounded context, referenced
-/// by id, not an Rfq child" shape as Proposal.
-///
-/// <para><b>The two-envelope technical-qualification gate (OQ-009) - the centerpiece of this
-/// build, not in the original docs.</b> EPIC-09 built Proposal's financial content
-/// (<c>ProposalItem</c>) as a genuinely separate table from its technical content. This aggregate
-/// is what makes that separation matter operationally: <see cref="ScoreCriterion"/> refuses to
-/// accept a score for a Commercial-dimension (financial) criterion on a given proposal until that
-/// SAME evaluator has fully scored every technical-dimension criterion for that proposal and none
-/// failed its threshold - see IsTechnicallyQualifiedByEvaluator. This is enforced per evaluator,
-/// not globally, because scoring is blind/independent (OQ-005/BRULE-058): evaluator A's technical
-/// judgment on a proposal cannot be influenced by whether evaluator B has opened its pricing yet,
-/// and the gate must hold even mid-InProgress, long before Consolidate() ever runs. Consolidate()
-/// re-derives TechnicallyQualified from the AVERAGED scores as the authoritative, final
-/// determination (BRULE-064: "not shortlist-eligible ... regardless of total") - the per-evaluator
-/// gate during scoring and the consolidated gate at the end are the same rule applied at two
-/// different points, not two different rules.</para>
-///
-/// <para><b>Judgment call, flagged - quorum consolidation not built:</b> BRULE-066/
-/// BUSINESS-PROCESSES.md §5.2 both tag "quorum policy" as [ASSUMPTION / REQUIRES BUSINESS
-/// CONFIRMATION] with no number given. Consolidate() requires every actively-assigned evaluator to
-/// have submitted - no partial-quorum path exists. A manager's actual tool for a non-responding
-/// evaluator is <see cref="RecuseEvaluator"/> (BRULE-067's own recusal mechanism, reused rather
-/// than inventing a second "exclude for non-response" action): removing them from the active set
-/// changes what "every actively-assigned evaluator" means, without ever fabricating a quorum
-/// fraction.</para></summary>
 public sealed class Evaluation : IVersionedAggregate
 {
     private readonly List<EvaluationCriterionSnapshot> _criteria = [];
@@ -59,8 +156,6 @@ public sealed class Evaluation : IVersionedAggregate
 
     private Evaluation() { }
 
-    /// <summary>BUSINESS-PROCESSES.md §5.1: "— -&gt; NotStarted: Evaluation created ... system (on
-    /// RFQ UnderEvaluation) ... Instantiate criteria from EvaluationTemplate; snapshot weights".</summary>
     public static Evaluation Create(Guid rfqId, IReadOnlyList<CriterionSnapshotInput> criteria)
     {
         if (criteria.Count == 0) throw new DomainException("Cannot create an evaluation with no criteria.");
@@ -86,8 +181,6 @@ public sealed class Evaluation : IVersionedAggregate
                 Threshold = c.Threshold,
                 ScoringType = c.ScoringType,
                 RequiresJustification = c.RequiresJustification,
-                // SCR-501. Copied here because an evaluator must see the instruction in force when the RFQ
-                // bound the template, not whatever it says now - the same argument as the weights above.
                 GuidanceAr = c.GuidanceAr,
                 GuidanceEn = c.GuidanceEn,
             });
@@ -95,10 +188,6 @@ public sealed class Evaluation : IVersionedAggregate
         return evaluation;
     }
 
-    /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1: NotStarted -&gt; Assigned on the
-    /// first call; callable again later (Assigned/InProgress) to add more evaluators - the real
-    /// tool for replacing a non-responding evaluator (recuse the old one, assign a new one)
-    /// without inventing a separate "reassign" action.</summary>
     public void AssignEvaluators(IReadOnlyList<Guid> evaluatorUserIds)
     {
         if (State is EvaluationState.EvaluatorSubmitted or EvaluationState.Consolidated or EvaluationState.Finalized)
@@ -129,8 +218,6 @@ public sealed class Evaluation : IVersionedAggregate
         _assignments.FirstOrDefault(a => a.EvaluatorUserId == evaluatorUserId && a.IsActive)
         ?? throw new DomainException("This evaluator is not assigned to this evaluation.");
 
-    /// <summary>Assigned -&gt; InProgress on the first evaluator to open (BUSINESS-PROCESSES.md
-    /// §5.1); a no-op state-wise for every evaluator after the first.</summary>
     public void OpenScoring(Guid evaluatorUserId)
     {
         ActiveAssignment(evaluatorUserId);
@@ -141,15 +228,10 @@ public sealed class Evaluation : IVersionedAggregate
         State = EvaluationState.InProgress;
     }
 
-    /// <summary>Technical-dimension criteria only need a score to exist; the gate itself is
-    /// Threshold-based, matching BRULE-064's own threshold-gating language reused here as the
-    /// qualification determinant.</summary>
     private bool AllTechnicalCriteriaScored(Guid evaluatorUserId, Guid proposalId) =>
         _criteria.Where(c => !c.IsFinancial)
             .All(c => _scores.Any(s => s.EvaluatorUserId == evaluatorUserId && s.ProposalId == proposalId && s.CriterionId == c.Id));
 
-    /// <summary>The two-envelope gate's per-evaluator form - see Evaluation.cs's own class doc
-    /// comment. False whenever a technical criterion is unscored OR scored below its threshold.</summary>
     public bool IsTechnicallyQualifiedByEvaluator(Guid evaluatorUserId, Guid proposalId)
     {
         var technicalCriteria = _criteria.Where(c => !c.IsFinancial).ToList();
@@ -162,9 +244,6 @@ public sealed class Evaluation : IVersionedAggregate
         return true;
     }
 
-    /// <summary>FEAT-11.3/FR-EVL-003/004/005. <paramref name="proposalId"/> must be one of the
-    /// RFQ's Submitted proposals - the handler passes the valid set (cross-aggregate, Proposal
-    /// lives elsewhere) rather than this method trusting an arbitrary id.</summary>
     public void ScoreCriterion(Guid evaluatorUserId, Guid proposalId, Guid criterionId, decimal rawScore, string? commentAr, string? commentEn, IReadOnlySet<Guid> validProposalIds)
     {
         if (State != EvaluationState.InProgress)
@@ -186,15 +265,6 @@ public sealed class Evaluation : IVersionedAggregate
         {
             throw new DomainException("Cannot score a financial criterion: this proposal has not yet passed technical qualification for this evaluator.");
         }
-
-        // T-021/BRULE-061: "Criteria requiring justification cannot be submitted without a comment."
-        //
-        // EITHER language satisfies it, not both. An evaluator writes their reasoning in the
-        // language they think in, and demanding a translation from the person making the judgment
-        // would either produce a machine-translated second copy or stop the score being recorded at
-        // all. That is different from a SUPPLIER-facing field, where both languages are the product
-        // (see the answer validation on RequirementAnswer): this comment is internal evidence for a
-        // procurement file, read by the committee that wrote it and by an auditor after the fact.
         if (criterion.RequiresJustification
             && string.IsNullOrWhiteSpace(commentAr) && string.IsNullOrWhiteSpace(commentEn))
         {
@@ -224,10 +294,6 @@ public sealed class Evaluation : IVersionedAggregate
         });
     }
 
-    /// <summary>FEAT-11.5/FR-EVL-006, BRULE-062: "all assigned proposals fully scored" means every
-    /// technical criterion for every proposal, PLUS every financial criterion for every proposal
-    /// that passed technical qualification for this evaluator - a disqualified proposal legitimately
-    /// never needs its financial criteria scored, so it is not held against submission.</summary>
     public void SubmitEvaluator(Guid evaluatorUserId, IReadOnlySet<Guid> proposalIds)
     {
         if (State != EvaluationState.InProgress)
@@ -265,18 +331,6 @@ public sealed class Evaluation : IVersionedAggregate
         }
     }
 
-    /// <summary>BRULE-067: recusal (or exclusion of a non-responding evaluator, FEAT-11.7/
-    /// FR-EVL-011 - the same mechanism, see class doc comment on why no separate quorum path
-    /// exists). Refused once already submitted - a submitted evaluator's scores are locked
-    /// (BRULE-062), recusing them after the fact would silently discard a real, locked
-    /// input.</summary>
-    /// <summary>
-    /// A-8/BRULE-067: this evaluator has seen the bidder list and declared no conflict.
-    ///
-    /// <para>A declaration is recorded once and cannot be re-made - the point of the window is that it
-    /// closes. A conflicted evaluator does not call this; they are recused, which
-    /// <see cref="RecuseEvaluator"/> already handles and audits.</para>
-    /// </summary>
     public void DeclareNoConflict(Guid evaluatorUserId)
     {
         var assignment = ActiveAssignment(evaluatorUserId);
@@ -315,19 +369,6 @@ public sealed class Evaluation : IVersionedAggregate
         }
     }
 
-    /// <summary>FEAT-11.6/FR-EVL-007, BRULE-063/064: per criterion, evaluator scores are averaged
-    /// (default average, [ASSUMPTION / REQUIRES BUSINESS CONFIRMATION] - BRULE-063's own tag),
-    /// multiplied by weight, summed. TechnicallyQualified is re-derived from the averaged scores
-    /// here - the authoritative, final determination (per-evaluator qualification during scoring
-    /// was necessarily provisional, based on one evaluator's view).</summary>
-    /// <summary>
-    /// A-1/BRULE-069: the facts a tie-break needs that the scores do not carry.
-    ///
-    /// <para><c>CommercialTotal</c> is the bid's own priced total and <c>SubmittedAt</c> the moment it
-    /// was submitted. Both are passed IN rather than read here because this aggregate has no access to
-    /// proposals, and inferring "lowest price" from the financial weighted score would assume that
-    /// score is inverse to price - which no document states.</para>
-    /// </summary>
     public sealed record BidTieBreakFacts(decimal? CommercialTotal, DateTimeOffset? SubmittedAt);
 
     public void Consolidate(IReadOnlyDictionary<Guid, BidTieBreakFacts>? bidFacts = null)
@@ -377,19 +418,6 @@ public sealed class Evaluation : IVersionedAggregate
             });
         }
 
-        // BRULE-069's tie-break, in the document's own order (A-1): highest weighted total, then
-        // highest TECHNICAL score, then lowest commercial total, then earliest submission.
-        //
-        // Ordering by WeightedTotal alone - which is what this did before batch 9 - left ties resolved
-        // by whatever order the score rows happened to iterate in, so two proposals with identical
-        // totals took ranks 1 and 2 arbitrarily, and rank 1 is what the award flow offers. In a
-        // government tender that is the ordering that gets challenged, and nothing in the record would
-        // explain it.
-        //
-        // The last rung is earliest submission because it is objective, already recorded, and cannot
-        // be manipulated after the fact - which is why it is the standard final rung in public
-        // procurement. The proposal id remains only as a total order so the list is stable across
-        // re-consolidations; a tie that reaches it is NOT considered resolved (see below).
         BidTieBreakFacts FactsFor(Guid proposalId) =>
             bidFacts is not null && bidFacts.TryGetValue(proposalId, out var facts) ? facts : new BidTieBreakFacts(null, null);
 
@@ -397,7 +425,6 @@ public sealed class Evaluation : IVersionedAggregate
             .Where(r => r.TechnicallyQualified)
             .OrderByDescending(r => r.WeightedTotal)
             .ThenByDescending(r => r.TechnicalWeightedScore)
-            // Nulls last on price: a bid with no priced total cannot claim to be the cheapest.
             .ThenBy(r => FactsFor(r.ProposalId).CommercialTotal ?? decimal.MaxValue)
             .ThenBy(r => FactsFor(r.ProposalId).SubmittedAt ?? DateTimeOffset.MaxValue)
             .ThenBy(r => r.ProposalId)
@@ -409,11 +436,6 @@ public sealed class Evaluation : IVersionedAggregate
             result.Rank = rank++;
         }
 
-        // A-1: a tie that survives every rung is SURFACED, not picked. Two proposals equal on total,
-        // technical score, price and submission instant are equal on everything a rule can see, and
-        // the ordering between them came from the identifier - which is not a decision anyone made.
-        // A genuine full tie is rare enough that a day of manual resolution costs less than a
-        // challenge to a silently-picked winner.
         for (var i = 0; i < ranked.Count; i++)
         {
             for (var j = i + 1; j < ranked.Count; j++)
@@ -437,19 +459,9 @@ public sealed class Evaluation : IVersionedAggregate
 
         var a = factsFor(left.ProposalId);
         var b = factsFor(right.ProposalId);
-        // Two bids with no recorded price, or no recorded submission time, are not "equal" on that
-        // rung in a way that resolves anything - so an unknown counts as a tie rather than as a
-        // difference. The direction that surfaces the case rather than inventing an order.
         return a.CommercialTotal == b.CommercialTotal && a.SubmittedAt == b.SubmittedAt;
     }
 
-    /// <summary>
-    /// A-1: a person breaks a tie the rules could not, with a reason that is audited.
-    ///
-    /// <para>The chosen proposal takes the best rank held by any member of its tie group, and the
-    /// others follow in their existing order. Every member's marker clears, because the tie IS
-    /// resolved once someone has put their name to it - including for the ones that lost.</para>
-    /// </summary>
     public void ResolveTie(Guid proposalId, Guid resolvedByUserId, string reason)
     {
         if (State is not (EvaluationState.Consolidated or EvaluationState.Finalized))
@@ -468,9 +480,6 @@ public sealed class Evaluation : IVersionedAggregate
             throw new DomainException("That proposal is not part of an unresolved tie.");
         }
 
-        // The tie group is every unresolved result sharing this one's total and technical score. Price
-        // and submission are not re-compared here: they were equal by construction, which is what set
-        // the marker in the first place.
         var group = _results
             .Where(r => r.TieUnresolved
                 && r.WeightedTotal == chosen.WeightedTotal
@@ -491,10 +500,6 @@ public sealed class Evaluation : IVersionedAggregate
         }
     }
 
-    /// <summary>FEAT-11.6/FR-EVL-008, BUSINESS-PROCESSES.md §5.1: "Result reviewed; no unresolved
-    /// clarification" - the "no unresolved clarification" half is EPIC-10's own Clarification
-    /// aggregate, a different bounded context; not checked here (same cross-aggregate-or-not-built
-    /// reasoning as every other guard this build could not verify against data it does not own).</summary>
     public void FinalizeEvaluation()
     {
         if (State != EvaluationState.Consolidated)
@@ -504,11 +509,6 @@ public sealed class Evaluation : IVersionedAggregate
         State = EvaluationState.Finalized;
     }
 
-    /// <summary>BUSINESS-PROCESSES.md §5.1: "Consolidated -&gt; InProgress: Re-open ... Reason
-    /// mandatory". Unlocks every active assignment's submission (BUSINESS-PROCESSES.md's own
-    /// "unlock affected assignments" is ambiguous about partial vs. full unlock - flagged, not
-    /// silently resolved: this build unlocks all of them rather than inventing a
-    /// which-ones-are-"affected" rule the docs never define).</summary>
     public void ReopenForClarification(string reason)
     {
         if (State != EvaluationState.Consolidated)

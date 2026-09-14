@@ -1,11 +1,13 @@
-using MotsSupplierPortal.Domain.Suppliers;
+// One supplier trades with one buying body. A supplier may have many of these, because a
+// supplier may work with several bodies.
+//
+// The link is its own record rather than a collection on either side, so neither the
+// supplier nor the organization owns the relationship.
 
 namespace MotsSupplierPortal.Domain.Organizations;
 
-/// <summary>BRULE-010/DOMAIN-MODEL.md §5.2: the many-to-many join between Supplier and
-/// Organization ("a supplier may transact with many companies", Discovery §3.2.2). Deliberately
-/// not owned by either aggregate's collection (Supplier.cs is untouched by Task #7/Stage A) -
-/// linking behavior is Stage C, this stage only makes the row shape exist.</summary>
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed class SupplierOrgLink
 {
     public Guid Id { get; private init; }

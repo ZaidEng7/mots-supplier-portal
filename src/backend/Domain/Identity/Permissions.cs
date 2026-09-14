@@ -1,284 +1,262 @@
+// Every permission in the system, and what each role holds when the database is first seeded.
+//
+// A permission is named resource.action. Roles are named sets of them. The API checks permissions
+// itself, independently of what the interface chooses to show, so hiding a button is never the
+// thing that stops an action.
+//
+// The catalogue is deliberately fine-grained: one permission per actor-and-action pair named in the
+// written process tables, even where the same role holds both today. Reviewing, approving and
+// rejecting an application are three permissions, not one, so a role can be given one without the
+// others. The cost of splitting is a longer list; the cost of merging is that widening one role
+// silently widens another.
+//
+// Adding a permission here does not grant it anywhere. An environment seeded before a permission
+// existed needs it granted by hand, which is why reading tenders, requesting clarification and
+// reading reports are on the first-deploy checklist.
+//
+//
+// THE SUPPLIER-FACING PERMISSIONS
+//
+// SupplierEdit and SupplierSubmit are a company maintaining and submitting its own application.
+//
+// SupplierBankAccountManage is scoped tighter than SupplierEdit and held by a supplier's own
+// administrator only, because the bank account is the most sensitive field on the profile.
+//
+// SupplierUserManage is the supplier's administrator only, so a delegated user cannot invite or
+// disable other delegated users.
+//
+//
+// THE REVIEWER-FACING PERMISSIONS
+//
+// SupplierReview is picking up an application and working it. SupplierApprove and SupplierReject are
+// the two ways it ends, and SupplierRequestInfo is the third outcome that sends it back. All four are
+// separate so a role can be given the review workflow without the authority to decide, or the
+// authority to reject without the authority to admit.
+//
+// DocumentReview is approving or rejecting one document, which is a simpler decision than the
+// three-way one on the application as a whole.
+//
+// SupplierLifecycleManage is suspending, reactivating and deactivating a supplier after approval. It
+// is not SupplierApprove, because those are different authorities: approval admits a company, while
+// suspension removes a working one from every future selection, and deactivation cannot be undone.
+//
+// SupplierDirectoryRead is browsing the registry of companies before inviting anyone: names,
+// categories and whether a company can currently trade. It is not OfferingSearch, which is the same
+// person asking a different question, searching catalogue entries rather than listing companies.
+// Reusing the offering permission would have meant a name about offerings gating a directory of
+// suppliers, and nobody reading a role list could tell which screens it opened. It is not
+// SupplierReview either, because the reviewer's version of that directory carries each company's
+// document health, and a buying officer has no business reading a supplier's document history.
+//
+//
+// THE TENDER PERMISSIONS
+//
+// RfqRead is reading a tender: the list, the detail, and the guided workspace. It was split out of
+// RfqCreate, which those reads used to be gated on. Reading is not authoring, and conflating the two
+// broke approval outright: the manager is the actor who approves a tender, and that role holds
+// review, approve and cancel but deliberately not create, so a manager required to approve a tender
+// could not list or open one. The fix was a read permission rather than widening the manager's
+// grant, because giving approvers authoring rights would weaken exactly the separation of duties the
+// award flow exists to enforce. Row scoping still does the real work: every handler behind these
+// routes filters to the caller's own organization, so this permission decides who may ask, not what
+// comes back.
+//
+// RfqCreate is starting a draft, scoped to the actor's own organization.
+//
+// RfqEdit is routine content work while the tender is still a draft: items, requirements,
+// attachments, the evaluation template. Separate from RfqCreate because a delegate could plausibly
+// edit a tender they did not create.
+//
+// RfqSubmitReview, RfqReview and RfqApprove are the three steps of internal review. Review is named
+// separately because it covers the return path, sending a tender back for edits.
+//
+// RfqPublish opens a tender to suppliers. RfqClose is a manual early close with a reason; the
+// scheduled close at the deadline is the system acting and carries no permission check at all.
+//
+// RfqCancel is cancelling from any state before award, with a mandatory reason.
+//
+// RfqInvite is inviting a supplier, and seeing the suggested candidates.
+//
+// RfqReassign hands a tender to another officer. It is new and appears in no document, because
+// ownership did not exist to be moved. It is deliberately not the officer's own: the point of
+// ownership is putting one named person on record as responsible, and an owner who may reassign
+// their own tender away can drop that responsibility without anybody deciding they should. It
+// belongs to the manager, so an officer who cannot continue has to ask, and the audit row records
+// what was asked and why.
+//
+// RfqAddendum is issuing an addendum. It is the one carve-out in "locked once published", and it is
+// separate from RfqEdit because it is legal only after publishing where RfqEdit is legal only in
+// draft.
+//
+// RfqDeadlineShorten is moving a submission window earlier. The name is an invention, since the rule
+// names an actor and no permission, but the policy is not: extending a deadline is the officer's
+// under RfqEdit, and shortening one is the manager's. It is its own constant rather than a reuse of
+// some other manager-only permission, because overloading approval would mean everyone with
+// approval authority silently gained the power to cut a live tender short.
+//
+// ClarificationAnswer and RfqClarify share a word and nothing else. ClarificationAnswer is answering
+// a supplier's question during the submission window, privately or published. RfqClarify is the
+// evaluation-stage clarification transitions, and it is held by the evaluator as well as the officer.
+//
+//
+// THE BID PERMISSIONS
+//
+// ProposalCreate and ProposalEdit are held by both supplier roles: starting a bid and working on it
+// while it is a draft.
+//
+// ProposalSubmit, ProposalWithdraw, ProposalRevise and ProposalDecline are the supplier's
+// administrator only. Declining an award is a commitment of the same weight as making one.
+//
+//
+// THE EVALUATION PERMISSIONS
+//
+// EvaluationOpen starts evaluation once the window has closed. EvaluationAssign builds the committee,
+// and also covers recusing an evaluator, which is the same roster authority. EvaluationScore and
+// EvaluationSubmit are the evaluator's own work. EvaluationConsolidate gathers the scores,
+// EvaluationFinalize settles them, and EvaluationReopen sends them back with a mandatory reason.
+//
+// EvaluationTemplateManage is the criteria, weights and thresholds, with activate, archive and fork.
+// It is not prefixed admin, because like publishing a tender or scoring a bid it is a procurement
+// authority the manager holds, not a system-catalogue one.
+//
+// ComparisonView is the comparison matrix. It is its own permission rather than a reuse of
+// RfqCreate, which the officer alone holds, or EvaluationConsolidate, which is an action rather than
+// a view.
+//
+//
+// THE AWARD PERMISSIONS
+//
+// AwardRecommend names a winner, and also covers re-recommending after a rejection. AwardApprove and
+// AwardReject are the approver's two answers, separate from each other for the same reason review
+// and approve are separate on a tender.
+//
+// IntegrationRetry clears a failed finance sync.
+//
+//
+// THE ADMINISTRATIVE PERMISSIONS
+//
+// AdminUsersManage covers who has an account and which role they hold.
+//
+// AdminRolesManage covers what a role itself grants, which is a different question. Only the system
+// administrator holds it, and the handler refuses any change that would leave no role holding it, so
+// roles can never be edited into a state where nobody can ever edit roles again.
+//
+// AdminOrganizationsManage covers creating and listing buying organizations, their department tree,
+// and the manual link between a supplier and an organization. It is a different admin surface from
+// managing users, and it is the system administrator's by default.
+//
+// ReferenceDataManage covers the category tree, document types, currencies, units, delivery terms
+// and regions. Its own permission rather than a reuse of user management, because reference data
+// decides what every supplier in the country may register against.
+//
+// AuditRead is reading the compliance record.
+//
+//
+// THE CROSS-ORGANIZATION PERMISSIONS
+//
+// GovernanceRead is the ministry's read-only view across every buying organization, and it covers
+// aggregate governance figures only. It is not RfqRead or ReportRead: both of those are scoped to one
+// organization, so a cross-organization read borrowing either would see nothing or quietly bypass the
+// scoping that makes them safe.
+//
+// ReportRead is cross-organization aggregate reporting. It was granted to no role at all, which left
+// the reports screen reachable by nobody. It is now the manager's, who already holds approval
+// authority over the work these reports aggregate and so learns nothing they could not reach case by
+// case, and the ministry viewer's. Not the officer's, who has no cross-organization remit.
+//
+//
+// THE ROLES
+//
+// Eight personas, and DefaultPermissions is what each one holds at seed time. An administrator can
+// change any of it afterwards.
+//
+// Both supplier roles hold RfqRead because the tender list is one collection serving both sides of
+// the product, gated by permission and filtered by row scope. A supplier reading the tenders they
+// were invited to is still reading a tender, and the invitation-scoped handler behind it is
+// unchanged, so this widens who may call the route rather than what any caller can see.
+//
+// The officer authors, submits for review, publishes, invites, and may close early. The manager
+// reviews, approves and cancels. Post-approval supplier lifecycle belongs to the onboarding
+// reviewer, the manager and the system administrator.
+//
+// The evaluator holds RfqClarify because the process table names the evaluator alongside the officer
+// as someone who can request clarification.
+//
+// The ministry viewer once held an empty set, which meant the persona could sign in and reach
+// nothing at all. It now holds governance and reports.
+//
+// Audit reading was removed from the ministry viewer deliberately. The ministry's access is to
+// aggregate figures across organizations, and a raw audit read is neither aggregate nor a figure: it
+// exposes named actors and reviewers' free text, line by line, for every supplier. That is the
+// disclosure risk the register names. Restore it only if the open question resolves in favour of
+// line-level ministry access.
+//
+// The system administrator holds everything in the catalogue.
+
 namespace MotsSupplierPortal.Domain.Identity;
 
-/// <summary>
-/// Canonical resource.action permission catalog (docs/architecture/00-foundational-decisions.md §6).
-/// Roles are named permission sets seeded per persona; the API enforces these independent of the UI.
-/// </summary>
 public static class Permissions
 {
     public const string SupplierEdit = "supplier.edit";
     public const string SupplierSubmit = "supplier.submit";
     public const string SupplierApprove = "supplier.approve";
-    /// <summary>Pick up an application and review it (STORY-03.2.1) - distinct from
-    /// SupplierApprove per product-owner decision 2026-08-26, so approval and the
-    /// review workflow can be granted independently if a role ever needs one without
-    /// the other.</summary>
     public const string SupplierReview = "supplier.review";
-    /// <summary>Reject an application - distinct from SupplierReview per
-    /// docs/product/PERSONAS.md's onboarding_reviewer permission list (2026-08-27 naming-drift
-    /// fix), so reject can be granted independently of pickup/review if a role ever needs it.</summary>
     public const string SupplierReject = "supplier.reject";
     public const string SupplierRequestInfo = "supplier.requestInfo";
-    /// <summary>Document-level approve/reject (FEAT-05.4) - simpler than, and distinct from, the
-    /// application-level three-way decision above.</summary>
     public const string DocumentReview = "supplier.document.review";
-    /// <summary>FEAT-04.6/MSP-53: bank accounts are the most sensitive profile field (BRULE-014/
-    /// 090/091) - scoped tighter than general SupplierEdit, supplier_admin only, not
-    /// supplier_user.</summary>
     public const string SupplierBankAccountManage = "supplier.bankAccount.manage";
-    /// <summary>FEAT-04.8/MSP-55: supplier_admin only, not supplier_user - a delegated user must
-    /// not be able to invite/disable other delegated users.</summary>
     public const string SupplierUserManage = "supplier.user.manage";
-    /// <summary>FR-ONB-009 (MSP-63): post-approval lifecycle - suspend, reactivate, deactivate.
-    /// Distinct from SupplierApprove because approving an application and suspending a live
-    /// supplier are different authorities: the first admits, the second removes an operating
-    /// supplier from all future selection, and deactivation is irreversible.</summary>
     public const string SupplierLifecycleManage = "supplier.lifecycle.manage";
-    public const string RfqPublish = "rfq.publish";
-    /// <summary>FEAT-09.5/FR-PRP-006/BUSINESS-PROCESSES.md §4.1 "Draft -&gt; Submitted ...
-    /// supplier_admin / proposal.submit" - supplier_admin only, not supplier_user (EPIC-09's own
-    /// correction: this constant predates the Proposal aggregate and was granted to both supplier
-    /// roles as a placeholder; Roles.DefaultPermissions below now matches the table exactly).</summary>
-    public const string ProposalSubmit = "proposal.submit";
-    public const string EvaluationScore = "evaluation.score";
-    public const string AwardApprove = "award.approve";
-    /// <summary>EPIC-14/FEAT-14.2/FR-AWD-003, BUSINESS-PROCESSES.md §6.1 "PendingApproval -&gt;
-    /// Rejected ... procurement_manager / award.reject" - a distinct permission from AwardApprove
-    /// per that table's own actor/permission column, same pattern as RfqReview vs RfqApprove.</summary>
-    public const string AwardReject = "award.reject";
-    /// <summary>EPIC-14/FEAT-14.1/FR-AWD-001, BUSINESS-PROCESSES.md §6.1 "— -&gt; Recommended ...
-    /// procurement_officer,procurement_manager / award.recommend" - also used for the
-    /// Rejected -&gt; Recommended re-recommend transition (same actor/permission per that row).</summary>
-    public const string AwardRecommend = "award.recommend";
-    /// <summary>EPIC-14/FEAT-14.5, BUSINESS-PROCESSES.md §6.1 "ErpPoFailed -&gt; ErpPoRequested:
-    /// Retry ... system,system_admin / integration.retry".</summary>
-    public const string IntegrationRetry = "integration.retry";
-    public const string AdminUsersManage = "admin.users.manage";
-    public const string AuditRead = "audit.read";
-    /// <summary>Task #7/Stage C: create/list Organizations, manage OrgUnits, and the manual
-    /// SupplierOrgLink create/remove action (BRULE-010) - a distinct admin surface from
-    /// AdminUsersManage, following that constant's own pattern of being system_admin-only by
-    /// default (via Permissions.All below) rather than assigned to any other role.</summary>
-    public const string AdminOrganizationsManage = "admin.organizations.manage";
-    /// <summary>FR-ADM-002: edit a role's permission set. Distinct from AdminUsersManage (which
-    /// covers who has an account/which role they hold) - this covers what a role itself grants.
-    /// Only SystemAdmin holds it by default (via Permissions.All below); ManageRolesHandler
-    /// additionally refuses any update that would leave zero roles holding it, so this permission
-    /// can never be edited into a state where nobody can ever edit roles again.</summary>
-    public const string AdminRolesManage = "admin.roles.manage";
-    /// <summary>FEAT-06.3/FR-OFF-004/FR-SRCH-001: procurement staff searching offerings for RFQ
-    /// invitation candidates - distinct from SupplierEdit (which is the owning supplier managing
-    /// its own catalog) since this is a different actor reading across all suppliers.</summary>
-    public const string OfferingSearch = "offering.search";
+    public const string SupplierDirectoryRead = "supplier.directory.read";
 
-    /// <summary>FEAT-11.1/FR-ADM-005, pulled forward for EPIC-07: manage EvaluationTemplates
-    /// (criteria, weights, thresholds, activate/archive/fork). Not prefixed "admin." - like
-    /// rfq.publish/evaluation.score/award.approve, this is a domain-owned procurement permission
-    /// (procurement_manager-held), not a system-catalog admin permission.</summary>
-    public const string EvaluationTemplateManage = "evaluation.template.manage";
-
-    /// <summary>
-    /// FEAT-07.1: read an RFQ - the buyer-side list, detail, and guided workspace.
-    ///
-    /// <para>Split out of <see cref="RfqCreate"/>, which those three GETs were gated on. Reading is
-    /// not authoring, and conflating them broke the approval workflow outright:
-    /// BUSINESS-PROCESSES.md §3.1 makes procurement_manager the actor for InternalReview -&gt;
-    /// Approved, and that role holds rfq.review/rfq.approve/rfq.cancel but deliberately NOT
-    /// rfq.create - so a manager required to approve an RFQ could not list or open one. The fix is
-    /// a read permission, not widening the manager's grant: giving approvers authoring rights would
-    /// weaken exactly the segregation of duties EPIC-14 was built to enforce.</para>
-    ///
-    /// <para>Row-scope is unchanged and still does the real work - every handler behind these
-    /// routes filters on the caller's own OrganizationId (BRULE-029). This permission decides who
-    /// may ask, not what they get back.</para>
-    /// </summary>
     public const string RfqRead = "rfq.read";
-    /// <summary>FEAT-07.1/FR-RFQ-001: create a Draft RFQ, scoped to the actor's own
-    /// OrganizationId (BRULE-029).</summary>
     public const string RfqCreate = "rfq.create";
-    /// <summary>FEAT-07.1..07.3: routine content edits (items, requirements, attachments,
-    /// evaluation-template binding) while Draft - distinct from RfqCreate since a delegate could
-    /// plausibly edit an RFQ they didn't create, and distinct from the state-transition
-    /// permissions below per this catalog's own established pattern (e.g. SupplierReview vs
-    /// SupplierApprove).</summary>
     public const string RfqEdit = "rfq.edit";
-    /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: Draft -> InternalReview.</summary>
     public const string RfqSubmitReview = "rfq.submit_review";
-    /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -> Draft ("return for
-    /// edits") - distinct from RfqApprove per that same transition table naming a separate
-    /// `rfq.review` permission for the return path.</summary>
     public const string RfqReview = "rfq.review";
-    /// <summary>FEAT-07.4/BUSINESS-PROCESSES.md §3.1: InternalReview -> Approved.</summary>
     public const string RfqApprove = "rfq.approve";
-    /// <summary>FEAT-07.6/BUSINESS-PROCESSES.md §3.1: SubmissionOpen -> SubmissionClosed,
-    /// manual early close with reason (the scheduled deadline-driven close is a system actor and
-    /// carries no permission check).</summary>
+    public const string RfqPublish = "rfq.publish";
     public const string RfqClose = "rfq.close";
-    /// <summary>FEAT-07.8/BUSINESS-PROCESSES.md §3.1: cancel from any pre-Awarded state, reason
-    /// mandatory.</summary>
     public const string RfqCancel = "rfq.cancel";
-
-    /// <summary>
-    /// A-7: hand an RFQ to another officer. A NEW permission, not in any document - ownership did not
-    /// exist to be moved.
-    ///
-    /// <para><b>Deliberately not granted to <c>procurement_officer</c>.</b> A-7 exists to put an
-    /// individual on record as responsible for a tender, and an owner who may reassign their own RFQ
-    /// away can drop that responsibility without anyone deciding they should. It goes to
-    /// <c>procurement_manager</c>, so an officer who cannot continue asks - and the audit row records
-    /// what was asked and why.</para>
-    /// </summary>
-    public const string RfqReassign = "rfq.reassign";
-    /// <summary>FEAT-08.1/FR-INV-001: invite a supplier (and view FEAT-08.2 candidate suggestions)
-    /// - distinct from RfqEdit per this catalog's established pattern of a separate permission per
-    /// named actor/action pair in BUSINESS-PROCESSES.md, even though both are procurement_officer
-    /// today.</summary>
     public const string RfqInvite = "rfq.invite";
-    /// <summary>FEAT-10.2/FR-CLR-002: answer a clarification question, privately or published -
-    /// procurement_officer per that FR's own actor.</summary>
+    public const string RfqReassign = "rfq.reassign";
+    public const string RfqAddendum = "rfq.addendum";
+    public const string RfqDeadlineShorten = "rfq.deadline.shorten";
+    public const string RfqClarify = "rfq.clarify";
     public const string ClarificationAnswer = "clarification.answer";
 
-    /// <summary>
-    /// T3-36. BUSINESS-PROCESSES.md §3.1 names this permission for both clarification transitions:
-    /// "UnderEvaluation | Clarification | Request clarification | `procurement_officer`,`evaluator` /
-    /// `rfq.clarify`". Transcribed from the table rather than invented - but it is a NEW permission,
-    /// so any deployed environment needs it granted before those transitions can be used.
-    ///
-    /// <para>Distinct from <see cref="ClarificationAnswer"/>, which governs the submission-window Q&amp;A.
-    /// The two share a word and nothing else.</para>
-    /// </summary>
-    public const string RfqClarify = "rfq.clarify";
-    /// <summary>FEAT-10.4/FR-CLR-004/FR-RFQ-012: issue an RFQ addendum - the "locked after
-    /// Published except addenda" carve-out, distinct from RfqEdit since it is legal only Published+
-    /// where RfqEdit is legal only Draft.</summary>
-    public const string RfqAddendum = "rfq.addendum";
+    public const string OfferingSearch = "offering.search";
 
-    /// <summary>FEAT-09.1/FR-PRP-001, BUSINESS-PROCESSES.md §4.1: start a proposal - the table
-    /// grants this to BOTH supplier_admin and supplier_user, unlike ProposalSubmit/ProposalWithdraw
-    /// below which the same table restricts to supplier_admin only.</summary>
     public const string ProposalCreate = "proposal.create";
-    /// <summary>FEAT-09.1..09.4/BUSINESS-PROCESSES.md §4.1 "Draft -&gt; Draft: Autosave / edit":
-    /// content edits while Draft (pricing, terms, requirement answers, documents) - both supplier
-    /// roles, same as ProposalCreate.</summary>
     public const string ProposalEdit = "proposal.edit";
-    /// <summary>FEAT-09.6/FR-PRP-008/BUSINESS-PROCESSES.md §4.1: "Draft / Submitted -&gt; Withdrawn
-    /// ... supplier_admin / proposal.withdraw" - supplier_admin only, not supplier_user, per that
-    /// table's own actor column.</summary>
+    public const string ProposalSubmit = "proposal.submit";
     public const string ProposalWithdraw = "proposal.withdraw";
-
-    /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1 "SubmissionClosed -&gt;
-    /// UnderEvaluation ... procurement_officer,procurement_manager / evaluation.open".</summary>
-    public const string EvaluationOpen = "evaluation.open";
-    /// <summary>FEAT-11.2/FR-EVL-001, BUSINESS-PROCESSES.md §5.1 "— -&gt; Assigned ...
-    /// procurement_manager / evaluation.assign" - also used for RecuseEvaluator (the same
-    /// manager-held roster-management authority).</summary>
-    public const string EvaluationAssign = "evaluation.assign";
-    /// <summary>FEAT-11.5/FR-EVL-006, BUSINESS-PROCESSES.md §5.1 "InProgress -&gt;
-    /// EvaluatorSubmitted ... evaluator / evaluation.submit".</summary>
-    public const string EvaluationSubmit = "evaluation.submit";
-    /// <summary>FEAT-11.6/FR-EVL-007, BUSINESS-PROCESSES.md §5.1 "EvaluatorSubmitted -&gt;
-    /// Consolidated ... procurement_officer,procurement_manager / evaluation.consolidate".</summary>
-    public const string EvaluationConsolidate = "evaluation.consolidate";
-    /// <summary>FEAT-11.6/FR-EVL-008, BUSINESS-PROCESSES.md §5.1 "Consolidated -&gt; Finalized ...
-    /// procurement_manager / evaluation.finalize".</summary>
-    public const string EvaluationFinalize = "evaluation.finalize";
-    /// <summary>BUSINESS-PROCESSES.md §5.1 "Consolidated -&gt; InProgress ... procurement_manager /
-    /// evaluation.reopen", reason mandatory.</summary>
-    public const string EvaluationReopen = "evaluation.reopen";
-
-    /// <summary>FEAT-12.1/FR-CMP-001, BUSINESS-PROCESSES.md's own actor list for the comparison
-    /// matrix (`procurement_officer`, `procurement_manager`) - a new, feature-scoped permission
-    /// rather than overloading RfqCreate (officer-only today) or EvaluationConsolidate (a
-    /// consolidation action, not a view), matching this catalog's own pattern of one permission per
-    /// feature area.</summary>
-    public const string ComparisonView = "comparison.view";
-
-    /// <summary>
-    /// FEAT-19.1/19.2: read the procurement and compliance reports at <c>/bo/reports</c>.
-    ///
-    /// <para><b>An invention.</b> The IA names the route and says it is gated on
-    /// <c>report.read</c>, and no document defines the permission itself - it is absent from this
-    /// catalog and from every role's list. The name is transcribed from the IA rather than coined,
-    /// and it follows the <c>resource.action</c> convention this catalog uses throughout.</para>
-    ///
-    /// <para><b>It is granted to no role by default, deliberately.</b> Reports aggregate across
-    /// every RFQ, supplier and document in an organization, and guessing which personas should see
-    /// that is a policy decision no document has made. Adding it to a role list would make that
-    /// guess silently, and a permission wrongly granted is far harder to notice than one wrongly
-    /// withheld. It therefore needs a MANUAL grant in any deployed environment - the same footing
-    /// as rfq.read and rfq.clarify.</para>
-    /// </summary>
-    /// <summary>
-    /// BUSINESS-PROCESSES.md §4.1 names it directly: <c>ClarificationRequested -&gt; Revised |
-    /// Supplier responds | `supplier_admin` / `proposal.revise`</c>. Transcribed, not coined.
-    ///
-    /// <para>Granted to no role by default, like report.read - §4.1 names the ACTOR
-    /// (<c>supplier_admin</c>) but the role-to-permission map is seeded from Roles.DefaultPermissions,
-    /// and adding it there is a policy edit rather than a transcription. Needs a manual grant, and it
-    /// is on the first-deploy checklist for that reason.</para>
-    /// </summary>
     public const string ProposalRevise = "proposal.revise";
-
-    /// <summary>T-064/§4.1: "AwardOffered -&gt; Declined | Supplier declines | <c>supplier_admin</c> /
-    /// <c>proposal.decline</c>". Named by the table, and supplier_admin only - the same actor column
-    /// that keeps ProposalSubmit and ProposalWithdraw off supplier_user, because declining an award is
-    /// a commitment of the same weight as making one.</summary>
     public const string ProposalDecline = "proposal.decline";
 
-    /// <summary>
-    /// T-018/BRULE-035: shortening a submission window "requires <c>procurement_manager</c>".
-    ///
-    /// <para>The permission NAME is an invention - the rule names an actor and no permission - but the
-    /// policy is not: extending is the officer's under RfqEdit, shortening is the manager's. A
-    /// separate constant rather than reusing a manager-only permission such as RfqApprove, following
-    /// this catalogue's established one-permission-per-action pattern; overloading RfqApprove would
-    /// mean anyone granted approval authority silently gained the power to cut a live tender short.
-    /// See DECISIONS-TAKEN.md D-23.</para>
-    /// </summary>
-    public const string RfqDeadlineShorten = "rfq.deadline.shorten";
+    public const string EvaluationTemplateManage = "evaluation.template.manage";
+    public const string EvaluationOpen = "evaluation.open";
+    public const string EvaluationAssign = "evaluation.assign";
+    public const string EvaluationScore = "evaluation.score";
+    public const string EvaluationSubmit = "evaluation.submit";
+    public const string EvaluationConsolidate = "evaluation.consolidate";
+    public const string EvaluationFinalize = "evaluation.finalize";
+    public const string EvaluationReopen = "evaluation.reopen";
+    public const string ComparisonView = "comparison.view";
 
-    /// <summary>FR-ADM-004: "Manage Category tree, DocumentType, Currency, UnitOfMeasure, Incoterm,
-    /// Region reference data" - <c>system_admin</c>, named by the requirement's own actor column. Its
-    /// own permission rather than AdminUsersManage: reference data decides what every supplier may
-    /// register against, which is a different authority from managing accounts.</summary>
+    public const string AwardRecommend = "award.recommend";
+    public const string AwardApprove = "award.approve";
+    public const string AwardReject = "award.reject";
+    public const string IntegrationRetry = "integration.retry";
+
+    public const string AdminUsersManage = "admin.users.manage";
+    public const string AdminRolesManage = "admin.roles.manage";
+    public const string AdminOrganizationsManage = "admin.organizations.manage";
     public const string ReferenceDataManage = "reference.manage";
+    public const string AuditRead = "audit.read";
 
-    /// <summary>
-    /// FR-DSH-005/BRULE-086: the Ministry's "read-only, cross-organization access to
-    /// aggregate/governance metrics only".
-    ///
-    /// <para>Its own permission, and the ONLY one ministry_viewer holds. Not RfqRead or ReportRead:
-    /// both of those are row-scoped to an organization, and a cross-organization read that borrowed
-    /// one would either see nothing or quietly bypass the scoping that makes them safe.</para>
-    /// </summary>
     public const string GovernanceRead = "governance.read";
-
-    /// <summary>
-    /// A-10/A-17: cross-organization aggregate reporting (FEAT-19.1/19.2).
-    ///
-    /// <para><b>Held by procurement_manager only</b> (batch 10, A-17 — recommended, awaiting the
-    /// roles owner). It was granted to no role at all, so the reports screen was reachable by nobody.
-    /// The manager already holds approval authority over the work these reports aggregate, so the
-    /// grant discloses nothing that role cannot already reach case by case. NOT ministry_viewer,
-    /// whose single-permission default is deliberate under BRULE-086, and not procurement_officer,
-    /// who has no cross-organization remit.</para>
-    /// </summary>
     public const string ReportRead = "report.read";
-
-    /// <summary>
-    /// SCR-402: browse the supplier registry before inviting anyone - names, categories and whether a
-    /// company is currently able to trade.
-    ///
-    /// <para>Distinct from <see cref="OfferingSearch"/>, which is the same actor asking a different
-    /// question: that one searches catalogue entries, this one lists companies. Reusing it would have
-    /// meant a permission named for offerings gating a directory of suppliers, and the next person
-    /// reading the role list would have no way to tell which screens it opened.</para>
-    ///
-    /// <para>Distinct from <see cref="SupplierReview"/> too: SCR-307 serves the reviewer's directory
-    /// from the same registry with document health attached, and a buying officer has no business
-    /// reading a supplier's document history.</para>
-    /// </summary>
-    public const string SupplierDirectoryRead = "supplier.directory.read";
 
     public static readonly IReadOnlyList<string> All =
     [
@@ -294,7 +272,6 @@ public static class Permissions
     ];
 }
 
-/// <summary>Canonical persona role names (docs/product/PERSONAS.md).</summary>
 public static class Roles
 {
     public const string SupplierAdmin = "supplier_admin";
@@ -306,39 +283,14 @@ public static class Roles
     public const string MinistryViewer = "ministry_viewer";
     public const string SystemAdmin = "system_admin";
 
-    /// <summary>Default permission set per persona at seed time (admin-editable thereafter).</summary>
     public static readonly IReadOnlyDictionary<string, string[]> DefaultPermissions = new Dictionary<string, string[]>
     {
-        // EPIC-09/BUSINESS-PROCESSES.md §4.1: proposal.create/proposal.edit go to both supplier
-        // roles; proposal.submit/proposal.withdraw are supplier_admin only per that table's own
-        // actor column.
-        // §12-A/C1: rfq.read joins both supplier roles because GET /rfqs and GET /rfqs/{code} are
-        // now ONE collection serving both personas (§12.4), gated by permission and filtered by
-        // row-scope (§9.2). A supplier reading the RFQs they were invited to is a read of an RFQ;
-        // the invitation-scoped handler behind it is unchanged, so this widens who may call the
-        // route, not what any caller can see.
         [SupplierAdmin] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.ProposalSubmit, Permissions.ProposalWithdraw, Permissions.ProposalDecline, Permissions.ProposalRevise, Permissions.SupplierEdit, Permissions.SupplierSubmit, Permissions.SupplierBankAccountManage, Permissions.SupplierUserManage],
         [SupplierUser] = [Permissions.RfqRead, Permissions.ProposalCreate, Permissions.ProposalEdit, Permissions.SupplierEdit],
         [OnboardingReviewer] = [Permissions.SupplierApprove, Permissions.SupplierReview, Permissions.SupplierReject, Permissions.SupplierRequestInfo, Permissions.DocumentReview, Permissions.SupplierLifecycleManage],
-        // BUSINESS-PROCESSES.md §3.1: procurement_officer authors, submits for review, publishes,
-        // and may close-early; procurement_manager reviews/approves/cancels. FEAT-11.1: template
-        // management is procurement_manager/system_admin per BACKLOG.md's own actor list.
         [ProcurementOfficer] = [Permissions.RfqPublish, Permissions.OfferingSearch, Permissions.SupplierDirectoryRead, Permissions.RfqRead, Permissions.RfqCreate, Permissions.RfqEdit, Permissions.RfqSubmitReview, Permissions.RfqClose, Permissions.RfqInvite, Permissions.ClarificationAnswer, Permissions.RfqClarify, Permissions.RfqAddendum, Permissions.EvaluationOpen, Permissions.EvaluationConsolidate, Permissions.ComparisonView, Permissions.AwardRecommend],
-        // FR-ONB-009 names onboarding_reviewer, procurement_manager and system_admin as the
-        // three roles permitted to move a supplier's post-approval lifecycle.
         [ProcurementManager] = [Permissions.ReportRead, Permissions.RfqRead, Permissions.RfqPublish, Permissions.AwardApprove, Permissions.SupplierLifecycleManage, Permissions.OfferingSearch, Permissions.SupplierDirectoryRead, Permissions.RfqReview, Permissions.RfqApprove, Permissions.RfqCancel, Permissions.EvaluationTemplateManage, Permissions.EvaluationOpen, Permissions.EvaluationAssign, Permissions.EvaluationConsolidate, Permissions.EvaluationFinalize, Permissions.EvaluationReopen, Permissions.ComparisonView, Permissions.AwardRecommend, Permissions.AwardReject, Permissions.RfqDeadlineShorten, Permissions.RfqReassign],
-        // §3.1 names `evaluator` as an actor for "Request clarification" alongside the officer.
         [Evaluator] = [Permissions.EvaluationScore, Permissions.EvaluationSubmit, Permissions.RfqClarify],
-        // MSP-62 (2026-08-28): audit.read REMOVED from ministry_viewer. BRULE-086 grants the
-        // Ministry "read-only, cross-organization access to aggregate/governance metrics only",
-        // and BRULE-087 defaults to aggregate-only where visibility is undecided. A raw audit-row
-        // read is neither aggregate nor a metric - it exposes named actors (ActorLabel) and
-        // reviewer free text (Reason) at line level for every supplier, which is the RISK-007
-        // exposure. The Ministry's legitimate governance view belongs to EPIC-18/EPIC-19, which
-        // are unbuilt; granting raw audit access as an interim stand-in grants strictly more than
-        // BRULE-086 allows. Re-add only if OQ-001 resolves in favour of line-level Ministry access.
-        // D-6/BRULE-086: the Ministry sees governance data. This was an empty set - the persona could
-        // log in and reach nothing at all, which is the EPIC-11 defect at persona scale.
         [MinistryViewer] = [Permissions.GovernanceRead, Permissions.ReportRead],
         [SystemAdmin] = [.. Permissions.All],
     };
