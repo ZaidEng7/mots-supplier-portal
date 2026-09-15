@@ -829,9 +829,26 @@ rather than accepting them as arguments, so no live token is ever sitting in a j
 
 ### Backup and recovery
 
-PostgreSQL has automated backups with point-in-time recovery. Object storage is backed up separately.
-Target recovery point is 15 minutes and target recovery time is four hours, both pending business
-confirmation. Backups are encrypted, and the outbox survives failover so pending syncs are not lost.
+The design target is a recovery point of 15 minutes and a recovery time of four hours, both still
+pending business confirmation.
+
+What exists is a periodic backup rather than that target. `ops/backup/backup.sh` writes a
+custom-format database dump with a checksum beside it and mirrors the document bucket into the same
+run directory; `ops/backup/restore.sh` puts one back, refusing to run without an explicit
+confirmation and verifying the checksum before it touches the database. Retention prunes whole run
+directories, and only after a dump has succeeded.
+
+The restore path is proven rather than described. `BackupRestoreDrillTests` starts its own
+PostgreSQL on every push, dumps this schema, destroys it, restores it, and asserts both that the
+rows come back and that the audit-log append-only trigger comes back with them, which a restore that
+returned rows alone would have silently dropped.
+
+Three things the target needs are infrastructure and are not in place: continuous WAL archiving,
+without which the recovery point is one backup interval and not fifteen minutes; off-site storage,
+since the scripts write wherever they are pointed; and encryption of the dump at rest, which the
+destination has to provide. A rehearsal against a real production copy is what would turn the
+four-hour recovery time from a target into a measured number. `ops/backup/README.md` carries the
+operator detail and repeats this list.
 
 ---
 
