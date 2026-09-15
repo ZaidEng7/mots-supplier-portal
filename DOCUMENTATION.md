@@ -645,6 +645,17 @@ Conventions worth knowing:
 - A locked account answers `423`, not `429`.
 - Registration responses are deliberately identical whether or not the email already exists, so the
   endpoint cannot be used to enumerate accounts.
+- The unauthenticated surface is rate limited on two independent axes: per calling address, and per
+  email address named in the request. The second is what stops a distributed caller from mail-bombing
+  one inbox while every individual source stays under the per-address limit.
+
+Rate limits and the audit trail both depend on knowing who called. Behind a reverse proxy the socket
+peer is the proxy, so the proxy has to be named in configuration - `Network:TrustedProxies` or
+`Network:TrustedProxyNetworks` - before `X-Forwarded-For` is honoured, and it is honoured only for a
+connection arriving from one of those. Unset, the header is ignored entirely and the socket address
+stands. This is the one setting where getting it wrong in the trusting direction is worse than leaving
+it unset: a header anyone can send would otherwise choose its own rate-limit bucket and write its own
+address into the audit log. RUNBOOK.md §3c carries the deployment detail.
 
 Internal identifiers still appear in some payloads alongside reference codes. Removing them is a
 breaking change deferred to a future major version rather than made quietly.

@@ -42,7 +42,8 @@ builder
     .AddAccessControl()
     .AddApplicationHandlers()
     .AddHealthProbes(connectionString)
-    .AddHttpTransport();
+    .AddHttpTransport()
+    .AddForwardedHeaders();
 
 var app = builder.Build();
 
