@@ -49,6 +49,8 @@ public sealed class RequiredConfigurationTests
         ("App:PublicUrl", "https://suppliers.example.gov"),
         ("Jwt:Issuer", "https://suppliers.example.gov"),
         ("Jwt:Audience", "mots-supplier-portal"),
+        ("Jwt:RsaPrivateKeyPem", "-----BEGIN RSA PRIVATE KEY-----not-a-real-key-----END RSA PRIVATE KEY-----"),
+        ("FieldEncryption:DataKeyBase64", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
         ("Cors:AllowedOrigins:0", "https://suppliers.example.gov"),
         ("Smtp:Host", "smtp.example.gov"),
         ("Smtp:FromAddress", "no-reply@suppliers.example.gov"),
@@ -108,6 +110,36 @@ public sealed class RequiredConfigurationTests
         act.Should().Throw<InvalidOperationException>().WithMessage("*Smtp:FromAddress*");
     }
 
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void Missing_jwt_signing_key_prevents_startup_outside_Development(string environmentName)
+    {
+        var settings = Complete().Where(e => e.Key != "Jwt:RsaPrivateKeyPem").ToArray();
+
+        var act = () => RequiredConfiguration.Validate(Config(settings), new FakeEnvironment(environmentName));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Jwt:RsaPrivateKeyPem*",
+                "without it every replica signs with its own ephemeral key, so a token minted by one is "
+                + "refused by the next and a restart signs everybody out");
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public void Missing_field_encryption_key_prevents_startup_outside_Development(string environmentName)
+    {
+        var settings = Complete().Where(e => e.Key != "FieldEncryption:DataKeyBase64").ToArray();
+
+        var act = () => RequiredConfiguration.Validate(Config(settings), new FakeEnvironment(environmentName));
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*FieldEncryption:DataKeyBase64*",
+                "an ephemeral key makes every bank account number written under it unreadable the moment "
+                + "the process ends, with no error at the time of writing");
+    }
+
     [Fact]
     public void All_missing_keys_are_reported_together()
     {
@@ -119,6 +151,8 @@ public sealed class RequiredConfigurationTests
                 .Contain("App:PublicUrl").And
                 .Contain("Jwt:Issuer").And
                 .Contain("Jwt:Audience").And
+                .Contain("Jwt:RsaPrivateKeyPem").And
+                .Contain("FieldEncryption:DataKeyBase64").And
                 .Contain("Cors:AllowedOrigins").And
                 .Contain("Smtp:Host").And
                 .Contain("Smtp:FromAddress");

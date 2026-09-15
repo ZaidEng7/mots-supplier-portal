@@ -42,6 +42,11 @@
 // screens has to report it: the skew is why a fifteen-minute token is not one, and a screen restating
 // the number would drift the first time somebody changed this line. One value, two readers.
 //
+// The accepted algorithm is stated rather than inferred. An RSA validation key already makes the
+// handler refuse a token signed with anything else, so naming RS256 changes nothing today - it is here
+// so that a later change of key type cannot quietly widen what is accepted, which is the only way the
+// classic algorithm-confusion attack gets in.
+//
 //
 // DENY BY DEFAULT
 //
@@ -122,6 +127,7 @@ internal static class AccessRegistration
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = jwtSigningKeyProvider.GetValidationKey(),
+                    ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ClockSkew = TimeSpan.FromSeconds(builder.Configuration.GetValue("Jwt:ClockSkewSeconds", 30)),
                 };
             });
