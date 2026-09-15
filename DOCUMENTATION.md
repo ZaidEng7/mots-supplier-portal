@@ -678,6 +678,13 @@ security specification asks for.
 dependencies and fails the build on a high or critical advisory, and that gate is itself tested with a
 deliberately vulnerable canary package to prove it still bites.
 
+**Database privileges** follow a two-connection model. The owner runs migrations in the deploy step; the
+application runs as a separate role granted only select, insert, update and delete on the application
+schemas, created by `ops/sql/app-role.sql`. This matters more than a grant usually does, because a
+table's owner bypasses `GRANT` and `REVOKE` in PostgreSQL, so a single-connection deployment cannot be
+constrained at all. `LeastPrivilegeRoleTests` runs the script against a real database and asserts that
+schema changes come back as insufficient privilege.
+
 **Data protection**: personal and commercial data is scoped by role, suppliers never see each other's
 commercial data, sensitive values never appear in URLs or logs, and bank account numbers are encrypted
 at rest and revealed only through an audited action.

@@ -54,6 +54,30 @@ To start over:
 docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS mots_supplier_portal;" -c "CREATE DATABASE mots_supplier_portal;"
 ```
 
+## 3a. The database role a deployment runs as
+
+Local development connects as the owner, `postgres`, which is fine on a laptop and wrong anywhere else:
+in PostgreSQL a table's owner bypasses `GRANT` and `REVOKE` on it, so the application would run every
+request with rights to drop the schema.
+
+A real deployment uses two connections. The **owner** runs migrations in the deploy step. The
+**application** runs as a second role that can only read and write rows:
+
+```bash
+psql -v app_role=mots_app -v app_password="$APP_DB_PASSWORD" -v owner=postgres \
+     -d mots_supplier_portal -f ops/sql/app-role.sql
+```
+
+Re-run it after every migration; it is idempotent, and the default privileges it sets mean new tables
+are covered without a second visit.
+
+Two settings go with it. The runtime connection string names `mots_app`, and `Hangfire:PrepareSchema`
+is set to `false`, because preparing that schema is DDL the restricted role cannot issue. Run the deploy
+step as the owner at least once so the Hangfire schema exists.
+
+What the role may not do is asserted by `LeastPrivilegeRoleTests`, which runs the script above against a
+real PostgreSQL and checks that `DROP`, `ALTER` and `CREATE` all come back as insufficient privilege.
+
 ## 4. The API
 
 ```bash
