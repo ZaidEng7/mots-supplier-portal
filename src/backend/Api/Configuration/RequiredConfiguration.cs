@@ -30,6 +30,24 @@
 // the exact failure this class exists to prevent. They are listed here so the start-up error reports
 // everything at once, and the deeper structural check still stands.
 //
+// THE TWO KEYS ARE HERE FOR THE SAME REASON THE CONNECTION STRING IS, and they are the sharpest case
+// of it. Both generate an ephemeral value when none is configured, which is right for local development
+// and silent ruin in production.
+//
+// A missing Jwt:RsaPrivateKeyPem gives every replica its own signing key, so a token minted by one is
+// refused by the next, and a restart signs everybody out. It reads as an intermittent 401 and gets
+// blamed on the load balancer.
+//
+// A missing FieldEncryption:DataKeyBase64 is worse, because it destroys data rather than sessions. Bank
+// account numbers are encrypted with it, and a key that does not outlive the process makes every number
+// written under it unreadable the moment that process ends - unrecoverably, and with no error at the
+// time of writing. The failure surfaces the first time somebody opens a supplier's banking details,
+// which may be long after the deployment that caused it.
+//
+// Neither had a refusal anywhere, which is precisely the shape of the three settings in the paragraph
+// above. Local development is still exempt, because its own settings file supplies neither and the
+// ephemeral fallback is what makes a fresh checkout run.
+//
 // The mail host and sender address are declared as required where they are bound, but that only fires
 // the moment something actually resolves them, which is the first real email send and could be hours
 // after a bad deployment. They are listed here so a missing mail section is caught at start-up. The
@@ -81,6 +99,8 @@ public static class RequiredConfiguration
         "App:PublicUrl",
         "Jwt:Issuer",
         "Jwt:Audience",
+        "Jwt:RsaPrivateKeyPem",
+        "FieldEncryption:DataKeyBase64",
         "Smtp:Host",
         "Smtp:FromAddress",
     ];
