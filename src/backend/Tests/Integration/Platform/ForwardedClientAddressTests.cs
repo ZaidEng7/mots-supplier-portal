@@ -21,6 +21,11 @@
 // endpoint, and pointing them at a database that is not there turns "the limiter allowed it" into a
 // connection error. The container is what keeps an allowed request distinguishable from a broken one.
 //
+// Object storage is real for the same reason. Startup contacts the bucket unconditionally, so a host
+// without it never finishes starting. The first version of this file left it out and passed locally
+// against the developer's running stack while failing on a CI runner that had none - a test that
+// passes because of something outside it is the defect this repository keeps writing tests about.
+//
 // Hangfire prepares its own schema on these hosts. Jobs:EnableRecurring=false stops THIS application
 // from scheduling work, but the Hangfire server still starts and still takes its distributed locks,
 // and with no hangfire schema to take them in every host start times out.
@@ -42,6 +47,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using Testcontainers.Minio;
 using Testcontainers.PostgreSql;
 
 public sealed class ForwardedClientAddressTests : IAsyncLifetime
@@ -53,9 +59,12 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
     private readonly PostgreSqlContainer _postgres =
         new PostgreSqlBuilder("postgres:16-alpine").Build();
 
+    private readonly MinioContainer _minio =
+        new MinioBuilder("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z").Build();
+
     public async Task InitializeAsync()
     {
-        await _postgres.StartAsync();
+        await Task.WhenAll(_postgres.StartAsync(), _minio.StartAsync());
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(_postgres.GetConnectionString()).Options;
@@ -63,12 +72,13 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    public Task DisposeAsync() => _postgres.DisposeAsync().AsTask();
+    public Task DisposeAsync() =>
+        Task.WhenAll(_postgres.DisposeAsync().AsTask(), _minio.DisposeAsync().AsTask());
 
     [Fact]
     public async Task A_forwarded_address_from_an_untrusted_connection_is_ignored()
     {
-        using var host = new ProxyAwareHost(_postgres.GetConnectionString(), trustTheProxy: false);
+        using var host = NewHost(trustTheProxy: false);
 
         var statuses = await AttemptAsync(host, PermitLimit + 1);
 
@@ -81,13 +91,24 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
     [Fact]
     public async Task A_forwarded_address_from_the_proxy_partitions_the_limit()
     {
-        using var host = new ProxyAwareHost(_postgres.GetConnectionString(), trustTheProxy: true);
+        using var host = NewHost(trustTheProxy: true);
 
         var statuses = await AttemptAsync(host, PermitLimit + 1);
 
         statuses.Should().NotContain(HttpStatusCode.TooManyRequests,
             "each request names a different client, so each gets its own bucket - otherwise one "
             + "attacker spends the allowance for everybody behind the proxy");
+    }
+
+    private ProxyAwareHost NewHost(bool trustTheProxy)
+    {
+        var storage = new Uri(_minio.GetConnectionString());
+        return new ProxyAwareHost(
+            _postgres.GetConnectionString(),
+            $"{storage.Host}:{storage.Port}",
+            _minio.GetAccessKey(),
+            _minio.GetSecretKey(),
+            trustTheProxy);
     }
 
     private static async Task<List<HttpStatusCode>> AttemptAsync(ProxyAwareHost host, int attempts)
@@ -110,13 +131,21 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
         return statuses;
     }
 
-    private sealed class ProxyAwareHost(string connectionString, bool trustTheProxy)
-        : WebApplicationFactory<Program>
+    private sealed class ProxyAwareHost(
+        string connectionString,
+        string storageEndpoint,
+        string storageAccessKey,
+        string storageSecretKey,
+        bool trustTheProxy) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(Environments.Development);
             builder.UseSetting("ConnectionStrings:Default", connectionString);
+            builder.UseSetting("Minio:Endpoint", storageEndpoint);
+            builder.UseSetting("Minio:AccessKey", storageAccessKey);
+            builder.UseSetting("Minio:SecretKey", storageSecretKey);
+            builder.UseSetting("Minio:UseSsl", "false");
             builder.UseSetting("DevSeed:Enabled", "false");
             builder.UseSetting("Jobs:EnableRecurring", "false");
             builder.UseSetting("Password:BreachCheckEnabled", "false");
