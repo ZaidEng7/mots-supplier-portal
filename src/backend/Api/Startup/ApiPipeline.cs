@@ -93,6 +93,11 @@ internal static class ApiPipeline
 {
     internal static WebApplication UseApiPipeline(this WebApplication app)
     {
+        if (ForwardedHeadersRegistration.TrustsProxyHeaders(app.Configuration))
+        {
+            app.UseForwardedHeaders();
+        }
+
         app.UseResponseCompression();
 
         app.UseMiddleware<MotsSupplierPortal.Api.Observability.CorrelationIdMiddleware>();

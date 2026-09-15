@@ -78,6 +78,29 @@ step as the owner at least once so the Hangfire schema exists.
 What the role may not do is asserted by `LeastPrivilegeRoleTests`, which runs the script above against a
 real PostgreSQL and checks that `DROP`, `ALTER` and `CREATE` all come back as insufficient privilege.
 
+## 3c. Deploying behind a reverse proxy
+
+The documented architecture puts a proxy in front for TLS and `/api` routing. Name it, or the
+application will treat the proxy as the client on every request:
+
+```bash
+Network__TrustedProxies__0=10.0.0.4          # one or more proxy addresses
+Network__TrustedProxyNetworks__0=10.0.0.0/8  # or the network they come from
+```
+
+Five things read the client address - the two rate-limit partitions, the address recorded against a
+sign-in and a refresh, and the address stamped on every audited action. Unset, all five see the proxy:
+the ten-per-minute limit becomes one bucket shared by everyone, and the audit trail records one
+address for every actor.
+
+Setting it wrong is worse than leaving it unset, so it is deliberately not guessed. `X-Forwarded-For`
+can be sent by anyone; it is honoured only on a connection arriving from an address named above, and
+only the last hop is read. Where nothing is named the middleware is never added and the socket
+address stands, which is correct for local development and for a deployment with nothing in front.
+
+`ForwardedClientAddressTests` holds both halves: a spoofed header from an untrusted connection is
+ignored, and a header from the proxy partitions the limit.
+
 ## 3b. Backups
 
 ```bash
