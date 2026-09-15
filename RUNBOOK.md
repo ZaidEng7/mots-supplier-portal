@@ -78,6 +78,28 @@ step as the owner at least once so the Hangfire schema exists.
 What the role may not do is asserted by `LeastPrivilegeRoleTests`, which runs the script above against a
 real PostgreSQL and checks that `DROP`, `ALTER` and `CREATE` all come back as insufficient privilege.
 
+## 3b. Backups
+
+```bash
+export DATABASE_URL='postgresql://user:password@host:5432/mots_supplier_portal'
+export BACKUP_DESTINATION=/var/backups/mots
+export MINIO_ALIAS=production
+ops/backup/backup.sh
+```
+
+Each run writes a timestamped directory holding `database.dump`, its checksum, and `documents/`.
+Without `MINIO_ALIAS` the uploaded documents are not in the backup, and the script says so on stderr.
+
+Restoring names a run directory and has to be confirmed on the command line:
+
+```bash
+RESTORE_CONFIRM=yes ops/backup/restore.sh /var/backups/mots/2026-09-15T02-00-00Z
+```
+
+Schedule `backup.sh` with cron or a systemd timer, and make its failures visible somewhere a person
+reads. The recovery point is however often it runs; reaching the documented 15 minutes needs WAL
+archiving, which is not set up. `ops/backup/README.md` has the rest, including what is still owed.
+
 ## 4. The API
 
 ```bash
