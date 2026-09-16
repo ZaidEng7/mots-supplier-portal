@@ -14,7 +14,7 @@
 
 ## 1. What the product is
 
-A procurement portal for the Syrian Ministry of Transport. Two audiences, and almost every design
+A procurement portal for the Syrian Ministry of Tourism. Two audiences, and almost every design
 decision follows from the difference between them:
 
 - **A procurement officer** is inside the product all day, moving a tender from draft to award.
