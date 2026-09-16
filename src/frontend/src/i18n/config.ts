@@ -116,7 +116,7 @@ const resources = {
         groupAdministration: 'الإدارة',
         breadcrumb: 'مسار التنقل',
         primaryLabel: 'قائمة التنقل',
-        supplierArea: 'وزارة النقل',
+        supplierArea: 'وزارة السياحة',
  home: 'الرئيسية', dashboard: 'لوحة التحكم', onboarding: 'استكمال الملف', profile: 'ملف الشركة', documents: 'المستندات', proposals: 'عروضي', account: 'حسابي', offerings: 'الخدمات المعروضة', team: 'الفريق', settings: 'الإعدادات', backOffice: 'الإدارة الداخلية', logout: 'تسجيل الخروج', mobileTabBarLabel: 'التنقل الرئيسي', rfqs: 'طلبات العروض' },
       supplierDashboard: {
         title: 'لوحة المورد',
@@ -2013,7 +2013,7 @@ const resources = {
         groupAdministration: 'Administration',
         breadcrumb: 'Breadcrumb',
         primaryLabel: 'Navigation menu',
-        supplierArea: 'Ministry of Transport',
+        supplierArea: 'Ministry of Tourism',
  home: 'Home', dashboard: 'Dashboard', onboarding: 'Complete profile', profile: 'Company profile', documents: 'Documents', proposals: 'My proposals', account: 'My account', offerings: 'Offerings', team: 'Team', settings: 'Settings', backOffice: 'Back office', logout: 'Log out', mobileTabBarLabel: 'Primary navigation', rfqs: 'Tenders' },
       supplierDashboard: {
         title: 'Supplier dashboard',
