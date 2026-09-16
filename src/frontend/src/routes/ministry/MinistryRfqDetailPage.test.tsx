@@ -37,7 +37,7 @@ function detail(overrides: Record<string, unknown> = {}) {
   return {
     summary: {
       referenceCode: 'RFQ-2026-000001', titleAr: 'طلب تموين', titleEn: 'Catering tender',
-      state: 'SubmissionOpen', organizationNameAr: 'وزارة النقل', organizationNameEn: 'Ministry of Transport',
+      state: 'SubmissionOpen', organizationNameAr: 'وزارة السياحة', organizationNameEn: 'Ministry of Tourism',
       publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z',
       invitedSuppliers: 3, submittedProposals: 2, awardedValue: null, currencyCode: 'SYP',
     },

@@ -28,7 +28,8 @@ and to be searched later by someone who needs one specific answer.
 15. [Running the system](#15-running-the-system)
 16. [How correctness is checked](#16-how-correctness-is-checked)
 17. [Boundaries and open decisions](#17-boundaries-and-open-decisions)
-18. [Glossary](#18-glossary)
+18. [What release requires](#18-what-release-requires)
+19. [Glossary](#19-glossary)
 
 ---
 
@@ -619,6 +620,38 @@ transitions require them.
 Offerings carry a typed core plus a flexible attribute bag stored as JSONB, because the useful
 attributes of a catering offering and a transport offering are not the same.
 
+One table is worth reading in full, because it shows how these rules land together.
+`supplier.supplier_document`:
+
+| Field | Type and rule | Purpose |
+| --- | --- | --- |
+| `Id` | UUID, primary key | Internal identifier, never shown |
+| `ReferenceCode` | Varchar, not null | What a person quotes; immutable once issued |
+| `SupplierId` | UUID, foreign key, not null | Owner, and the column every query here must filter on |
+| `DocumentTypeId` | UUID, foreign key to `reference.document_type` | What kind of document it is |
+| `Version`, `IsLatestVersion` | Integer and boolean, not null | Documents supersede rather than overwrite, so an expired certificate and its replacement both survive |
+| `State` | Varchar, not null | `PendingScan`, `ScanRejected`, `Uploaded`, `UnderReview`, `Approved`, `Rejected`, `ExpiringSoon`, `Expired` |
+| `StorageKey` | Varchar, not null | Object storage key, never a URL, because URLs are signed per request |
+| `OriginalFileName`, `ContentType`, `SizeBytes` | Varchar, varchar, bigint | What the supplier uploaded, as they uploaded it |
+| `IssueDate`, `ExpiryDate` | Date, nullable | `ExpiryDate` drives the reminder job and the `ExpiringSoon` state |
+| `RejectReason` | Varchar, nullable | Why a reviewer refused it |
+| `UploadedByUserId`, `UploadedAt` | UUID and `timestamptz`, not null | Who supplied it, and when |
+| `ReviewedByUserId`, `ReviewedAt` | UUID and `timestamptz`, nullable | Null until somebody reviews it |
+
+Two details there are deliberate and easy to misread. The scan state is folded into `State` rather than
+kept in its own column, so a document that has not cleared the scanner cannot be in a state that lets
+it be read. Proposal documents and tender attachments do the opposite, carrying a separate `ScanState`
+of `PendingScan`, `Clean` or `ScanRejected`, because those two have a review lifecycle independent of
+scanning. Three tables, two designs, one reason each.
+
+There is also no version column on this table. Thirteen columns in the database carry one and they sit
+on aggregate roots: a supplier document is written through its supplier, and the version guarding that
+write lives there.
+
+Timestamps are named for the moment they record rather than defaulting to `created_at` everywhere.
+Sixteen of the 62 application tables carry a generic `CreatedAt`; the rest, like this one, name their
+events, because "uploaded" and "reviewed" are two different acts by two different people.
+
 Schema changes are versioned EF Core migrations applied as an explicit pipeline step, never
 implicitly on application start in production. Five migrations exist today, the first of which creates the whole schema.
 
@@ -667,14 +700,19 @@ breaking change deferred to a future major version rather than made quietly.
 The target is OWASP ASVS Level 2. The formal review against it is deferred to a later pass, which is
 recorded rather than implied.
 
-**Authentication** uses ASP.NET Core Identity with JWT access tokens and rotating refresh tokens.
-Reusing a revoked refresh token invalidates the whole token family and forces a fresh login. Password
-policy covers length, complexity, and a breached-password check, with lockout and backoff after
-repeated failures. Time-limited single-use tokens handle email verification and password reset, and a
+**Authentication** (`src/backend/Api/Startup/AccessRegistration.cs`) uses ASP.NET Core Identity with
+JWT access tokens and rotating refresh tokens.
+Reusing a revoked refresh token invalidates the whole token family and forces a fresh login. The
+password policy is twelve characters with no forced mixture of cases, digits or symbols: length over
+composition, so a passphrase is not punished in favour of a predictable pattern. A breached-password
+check is registered as a validator, so it applies anywhere a password is set rather than only where
+somebody remembered to call it. Five failed attempts lock the account for fifteen minutes. Time-limited single-use tokens handle email verification and password reset, and a
 reset invalidates active sessions. Users can see their active sessions and sign out of one or all
 devices. TOTP two-factor authentication is available and can be required by role.
 
-**Authorisation** is policy-based on permission claims, deny by default, with row scoping enforced
+**Authorisation** (`PERMISSIONS.md`, generated by
+`src/backend/Tests/Architecture/PermissionCatalogueTests.cs`) is policy-based on permission claims,
+deny by default, with row scoping enforced
 server-side as described in section 6.
 
 **Files** are validated for type, MIME and size, malware-scanned before acceptance, and stored outside
@@ -947,7 +985,58 @@ for a decision, the questions above are the ones to settle first.
 
 ---
 
-## 18. Glossary
+## 18. What release requires
+
+Everything above describes a system that is built. This section is the part that is not, gathered in
+one place rather than inferred from the sections that mention it.
+
+Seven stages of the build are finished: the foundation and its pipeline, a thin end-to-end slice,
+identity and access, the core features, the ERPNext integration, the interface, and a hardening pass.
+That last one ran against a 54-point security review which returned 38 passes, 4 failures, 4 unknowns
+and 8 not applicable, with a file reference behind every pass. All four failures are fixed and merged:
+key material no longer falls back to a generated value, the accepted token algorithm is pinned, the
+deployment runs as a database role that cannot change the schema, and backups exist with a restore
+drill that runs on every push.
+
+The eighth stage, release, has not started. Six things it needs:
+
+**Provision the environment.** No production or staging infrastructure exists. The compose file in this
+repository is for a developer machine and is not a deployment artefact. Decisions needed: where
+PostgreSQL runs and in which region, where object storage lives and under what bucket policy, where the
+container runs, and whether the Hangfire server stays in-process with the API.
+
+**Supply the secrets.** Eight configuration keys, from a secret store: `ConnectionStrings:Default`,
+`App:PublicUrl`, `Jwt:Issuer`, `Jwt:Audience`, `Jwt:RsaPrivateKeyPem`, `FieldEncryption:DataKeyBase64`,
+`Smtp:Host` and `Smtp:FromAddress`. The application refuses to start in production without them
+(`src/backend/Api/Configuration/RequiredConfiguration.cs`). That refusal is deliberate and will look
+like a failure the first time somebody meets it.
+
+**Name the reverse proxy.** `Network:TrustedProxies` or `Network:TrustedProxyNetworks`. Unset, the
+rate limiter and the audit log both record the proxy rather than the caller, which turns ten requests a
+minute into one bucket shared by everyone and attributes every audited action to one address
+(`src/backend/Api/Startup/ForwardedHeadersRegistration.cs`, `RUNBOOK.md` §3c).
+
+**Schedule the backups and rehearse one restore.** `BackupRestoreDrillTests` proves the mechanism
+against this schema on every push. It does not prove that a particular production backup restores
+inside a tolerable window on real hardware, and only a rehearsal on a real copy turns the four-hour
+recovery target into a measured number. Continuous WAL archiving, off-site copies and encryption of the
+dump at rest are separate work, listed as owed in `ops/backup/README.md`.
+
+**Answer the two blocked business rules.** BRULE-016 and BRULE-017, in
+`docs/product/BLOCKED-DECISIONS.md`, each with what is needed to unblock it.
+
+**Decide about SonarCloud.** Analysis has been failing since roughly 5 September 2026 because the
+organisation exceeds its plan's line limit, and for most of that period the GitHub check continued to
+report success while producing nothing. The repository's own 45% new-code coverage floor is the
+authoritative gate and is unaffected, but nobody is receiving Sonar signal.
+
+Three of the security review's four unknowns also need a real environment and cannot be closed from
+inside this repository: the object storage bucket policy, a staging environment, and where TLS
+terminates.
+
+---
+
+## 19. Glossary
 
 | Term | Meaning |
 |---|---|

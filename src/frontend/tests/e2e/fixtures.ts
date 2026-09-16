@@ -428,10 +428,10 @@ export async function mockBackend(page: Page) {
     } })
 
     if (p === '/api/v1/ministry/rfqs') return route.fulfill({ json: listPage([
-      { referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ', state: 'SubmissionOpen', organizationNameAr: 'وزارة النقل', organizationNameEn: 'Ministry of Transport', publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z', invitedSuppliers: 3, submittedProposals: 2, awardedValue: null, currencyCode: 'SYP' },
+      { referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ', state: 'SubmissionOpen', organizationNameAr: 'وزارة السياحة', organizationNameEn: 'Ministry of Tourism', publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z', invitedSuppliers: 3, submittedProposals: 2, awardedValue: null, currencyCode: 'SYP' },
     ]) })
     if (p === `/api/v1/ministry/rfqs/${RFQ_REFERENCE_CODE}`) return route.fulfill({ json: {
-      summary: { referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ', state: 'SubmissionOpen', organizationNameAr: 'وزارة النقل', organizationNameEn: 'Ministry of Transport', publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z', invitedSuppliers: 3, submittedProposals: 1, awardedValue: null, currencyCode: 'SYP' },
+      summary: { referenceCode: RFQ_REFERENCE_CODE, titleAr: 'طلب تجريبي', titleEn: 'A11y Test RFQ', state: 'SubmissionOpen', organizationNameAr: 'وزارة السياحة', organizationNameEn: 'Ministry of Tourism', publishedAt: '2026-09-01T09:00:00Z', submissionClosesAt: '2026-09-20T09:00:00Z', invitedSuppliers: 3, submittedProposals: 1, awardedValue: null, currencyCode: 'SYP' },
       descriptionAr: 'وصف', descriptionEn: 'A11y description',
       items: [{ titleAr: 'وجبات', titleEn: 'Meals', categoryCode: 'general', quantity: 500, unitOfMeasureCode: 'unit' }],
       bids: [{ proposalCode: PROPOSAL_REFERENCE_CODE, supplierCode: REFERENCE_CODE, supplierDisplayNameAr: SUPPLIER_PROFILE.displayNameAr, supplierDisplayNameEn: SUPPLIER_PROFILE.displayNameEn, state: 'UnderReview', submittedAt: '2026-09-05T10:00:00Z', totalValue: null, isAwarded: false }],
@@ -445,7 +445,7 @@ export async function mockBackend(page: Page) {
       totalAwardedValue: null,
       byMonth: [{ key: '2026-08', awards: 2, value: null }],
       byCategory: [{ key: 'general', awards: 3, value: null }],
-      byOrganization: [{ key: 'Ministry of Transport', awards: 3, value: null }],
+      byOrganization: [{ key: 'Ministry of Tourism', awards: 3, value: null }],
       commercialValuesVisible: false,
     } })
 
