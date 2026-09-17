@@ -16,7 +16,10 @@
 // than a two-row fixture, because the defect lived in which rows exist and how they are flagged. The denominator is
 // every row of both lists, thirty-six today, asserted before the rule. Every row is rendered twice with every permission
 // granted: one level below its path the trail links the owner breadcrumb() names and marks nothing as the current page,
-// and at its own path the section is the current page and is not a link. Link is a plain anchor in this file, so these
+// and at its own path the section is the current page and is not a link. Each row is its own case rather than one loop:
+// the loop rendered seventy-two bars inside a single test, took three and a half seconds locally under coverage, and
+// timed out at five on the CI runner, where the budget is per test. Split, a failure also names the row that broke.
+// Link is a plain anchor in this file, so these
 // cases say what the bar itself marks and cannot see the mark TanStack's Link adds to a link that matches by prefix. That
 // mark kept the crumb announced as the current page after it became a link, and currentPageMarks.test renders the real
 // Link to catch it.
@@ -161,32 +164,31 @@ describe('the top bar says where you are', () => {
 describe('the trail offers a way back up', () => {
   const ROWS = [BACK_OFFICE, SUPPLIER].flatMap((shell) => shell.groups.flatMap((group) => group.items).map((row) => ({ shell, row })))
 
-  it('links the owner from below every row of the real navigation, and marks a section current only on its own page', () => {
-    const checked: NavItem[] = []
-    const problems: string[] = []
+  it('checks every row of both real navigations', () => {
+    expect(ROWS.map(({ row }) => row)).toEqual([...BACK_OFFICE_NAV, ...SUPPLIER_NAV].flatMap((group) => group.items))
+    expect(ROWS.length).toBeGreaterThan(30)
+  })
 
-    for (const { shell, row } of ROWS) {
-      checked.push(row)
+  it.each(ROWS)('$row.to/X-1: the trail links its owner and marks nothing as the current page', ({ shell, row }) => {
+    const below = `${row.to}/X-1`
+    const owner = breadcrumb(visibleGroups(shell.groups, EVERYTHING), below)
+    renderBar(below, { shell })
 
-      const below = `${row.to}/X-1`
-      const owner = breadcrumb(visibleGroups(shell.groups, EVERYTHING), below)
-      const deeper = renderBar(below, { shell })
-      if (owner === null) problems.push(`${below} has no owner`)
-      else if (sectionLink(theTrail(), owner) === null) problems.push(`${below} does not link ${owner.to}`)
-      if (currentMarks(theTrail()).length > 0) problems.push(`${below} marks a crumb as the current page`)
-      deeper.unmount()
+    expect(owner, `${below} has no owner`).not.toBeNull()
+    expect(sectionLink(theTrail(), owner!), `${below} does not link ${owner?.to}`).not.toBeNull()
+    expect(currentMarks(theTrail()), `${below} marks a crumb as the current page`).toEqual([])
+  })
 
-      const own = renderBar(row.to, { shell })
-      const marks = currentMarks(theTrail())
-      if (marks.length !== 1 || marks[0].textContent !== row.labelKey) problems.push(`${row.to} is not marked as the current page`)
-      if (marks.some((mark) => mark.tagName === 'A')) problems.push(`${row.to} marks a link as the current page`)
-      if (within(theTrail()).queryAllByRole('link').some((a) => a.getAttribute('href') === row.to)) problems.push(`${row.to} links to itself`)
-      own.unmount()
-    }
+  it.each(ROWS)('$row.to: the section is the current page, and not a link to itself', ({ shell, row }) => {
+    renderBar(row.to, { shell })
+    const marks = currentMarks(theTrail())
 
-    expect(checked).toEqual([...BACK_OFFICE_NAV, ...SUPPLIER_NAV].flatMap((group) => group.items))
-    expect(checked.length).toBeGreaterThan(30)
-    expect(problems).toEqual([])
+    expect(marks.map((mark) => mark.textContent), `${row.to} is not marked as the current page`).toEqual([row.labelKey])
+    expect(marks.some((mark) => mark.tagName === 'A'), `${row.to} marks a link as the current page`).toBe(false)
+    expect(
+      within(theTrail()).queryAllByRole('link').some((a) => a.getAttribute('href') === row.to),
+      `${row.to} links to itself`,
+    ).toBe(false)
   })
 
   it('gives a record below the exact Review queue row to that row, and the compliance directory still to itself', () => {
