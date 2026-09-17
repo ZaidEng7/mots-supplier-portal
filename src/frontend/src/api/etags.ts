@@ -26,7 +26,7 @@
 //
 // OWNERPREFIXOF answers which stored path a write against a given path would take its precondition from - the
 // resource whose version that write asserts. The transport needs it because of T-030 split (2): a child write
-// forgets every prefix and then files the response's fresh ETag under the WRITE path, so after adding an RFQ
+// used to forget every prefix and then file the response's fresh ETag under the WRITE path, so after adding an RFQ
 // item the version sits at /rfqs/RFQ-1/items, and a write to /rfqs/RFQ-1/requirements walks up to /rfqs/RFQ-1,
 // finds the entry gone, and sends no If-Match - a 428 on the officer's second edit. Filing the fresh version
 // back where the old one lived fixes that without the store having to work out where a resource boundary sits
@@ -34,6 +34,9 @@
 // different depths and neither is deducible from a segment count. It answers undefined when nothing was read
 // first, and nothing is invented - filing a version at the collection would offer one aggregate's version as
 // the precondition for another, which is precisely what the prefix walk exists to prevent.
+//
+// FORGETETAG drops exactly one entry and its twin, not its ancestors. The transport uses it when a 412's re-read
+// could not refresh the entry the precondition came from, so the next write falls back to the aggregate above it.
 //
 // FORGETTING. A mutation moves the resource on, so the version cached for it is stale the moment it succeeds.
 // Dropping it forces the next write to wait for a fresh read rather than replay a version the row no longer
@@ -78,6 +81,12 @@ export function ownerPrefixOf(path: string): string | undefined {
     if (etags.has(prefix)) return prefix
   }
   return undefined
+}
+
+export function forgetETag(path: string): void {
+  etags.delete(path)
+  const twin = aliasOf.get(path)
+  if (twin) etags.delete(twin)
 }
 
 export function forgetETags(path: string): void {

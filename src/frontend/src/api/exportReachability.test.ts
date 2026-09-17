@@ -38,6 +38,7 @@ const USED_ONLY_INSIDE_THE_API_LAYER: Record<string, string> = {
   lookupETag: 'Read by apiFetch when it attaches If-Match.',
   ownerPrefixOf: 'Read by apiFetch to decide where a fresh ETag goes back, see etags.ts for why the store cannot deduce it.',
   forgetETags: 'Called by apiFetch after a mutation: a version cached for a row that just moved is a 412 waiting to happen.',
+  forgetETag: 'Called by apiFetch when a 412 re-read cannot refresh the entry a precondition came from, so the next attempt falls back to the aggregate instead of asserting the same dead version.',
   aliasETagPaths: "Declares that /suppliers/me and /suppliers/{code} are one resource, so a version filed under either reaches both. Called once by the profile parser, which is the only place that learns the pairing - no screen has any business knowing the store has two keys for one row.",
   problemMessage: 'RFC 9457 rendering, used by the api modules own error classes.',
   hasCode: 'Problem-code predicate used by the api layer error types.',
