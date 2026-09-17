@@ -85,6 +85,7 @@
 // instruction in front of the score fields every time.
 
 import { lazy, Suspense } from 'react'
+import { PageOutlet } from './components/PageOutlet'
 
 const AdminOverviewPage = lazy(() => import('./routes/admin/AdminOverviewPage').then((m) => ({ default: m.AdminOverviewPage })))
 const SystemSettingsPage = lazy(() => import('./routes/admin/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })))
@@ -319,7 +320,7 @@ const supplierLayoutRoute = createRoute({
     }
     return (
       <SupplierShell>
-        <Outlet />
+        <PageOutlet />
       </SupplierShell>
     )
   },
@@ -402,7 +403,7 @@ const evaluatorLayoutRoute = createRoute({
     }
     return (
       <BackOfficeShell>
-        <Outlet />
+        <PageOutlet />
       </BackOfficeShell>
     )
   },
@@ -614,7 +615,7 @@ const backOfficeLayoutRoute = createRoute({
     }
     return (
       <BackOfficeShell>
-        <Outlet />
+        <PageOutlet />
       </BackOfficeShell>
     )
   },
