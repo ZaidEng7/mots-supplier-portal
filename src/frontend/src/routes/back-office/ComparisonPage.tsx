@@ -16,7 +16,12 @@
 //
 // The heading is the TENDER rather than the view, because the strip below already says this is the comparison. The bid count
 // moved to its own line rather than into the subtitle, which now carries the tender's code and its owner like every other
-// view of it, and the strip is the way back, as on every other tab.
+// view of it, and that line is the first thing under the strip. The strip is the way back, as on every other tab.
+//
+// THE HEAD AND STRIP ARE ON EVERY BRANCH - loading, failed, not found and no bids - because every return goes through
+// TenderFrame. They used to be drawn inside the matrix's return alone, so the no-bids sentence stood on its own with no way
+// back to the tender. That was the common case rather than an edge: a tender in Draft, in review, approved or published has
+// no submitted bid, and the Evaluation tab links here from all of them.
 //
 // A-1: A RANK THAT CAME FROM A TIE no rule broke is marked, because acting on it as though it were decided is the thing that
 // gets challenged. The tie is surfaced HERE because this is where the officer sees the ranking, and the award flow refuses to
@@ -35,8 +40,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import {Badge, Button, Input, QueryError, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
-import { TenderTabs } from './rfq/TenderTabs'
-import { TenderHeader } from './rfq/TenderHeader'
+import { TenderFrame } from './rfq/TenderFrame'
 import { getComparison, resolveEvaluationTie } from '../../api/comparison'
 import { requestProposalClarification } from '../../api/proposals'
 import type { ComparisonProposal } from '../../api/comparison'
@@ -91,15 +95,33 @@ export function ComparisonPage() {
   })
 
   if (comparisonQuery.isLoading) {
-    return <SkeletonTable label={t('common.loading')} />
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <SkeletonTable label={t('common.loading')} />
+      </TenderFrame>
+    )
   }
-  if (comparisonQuery.isError) return <QueryError error={comparisonQuery.error} onRetry={() => void comparisonQuery.refetch()} />
+  if (comparisonQuery.isError) {
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <QueryError error={comparisonQuery.error} onRetry={() => void comparisonQuery.refetch()} />
+      </TenderFrame>
+    )
+  }
 
   if (!comparison) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notFound')}</p>
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.notFound')}</p>
+      </TenderFrame>
+    )
   }
   if (comparison.proposals.length === 0) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.empty')}</p>
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('comparison.empty')}</p>
+      </TenderFrame>
+    )
   }
 
   const proposals = comparison.proposals
@@ -130,10 +152,9 @@ export function ComparisonPage() {
   const scoreFor = (p: ComparisonProposal, criterionId: string) => p.criterionScores?.find((c) => c.criterionId === criterionId) ?? null
 
   return (
-    <div className="flex flex-col gap-6">
+    <TenderFrame referenceCode={referenceCode}>
       <div>
-        <TenderHeader referenceCode={referenceCode} />
-        <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+        <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('comparison.proposalCount', { count: proposals.length })}
         </p>
         {!consolidatedOrLater ? (
@@ -142,8 +163,6 @@ export function ComparisonPage() {
           </p>
         ) : null}
       </div>
-
-      <TenderTabs referenceCode={referenceCode} />
 
       <Table caption={t('comparison.title')} maxHeight="70vh">
         <TableHead sticky>
@@ -356,6 +375,6 @@ export function ComparisonPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </TenderFrame>
   )
 }

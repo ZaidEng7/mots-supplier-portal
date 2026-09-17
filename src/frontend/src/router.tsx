@@ -30,7 +30,14 @@
 // arriving by the one door nobody had closed: a supplier session that reached /evaluation got the back-office chrome, the dark
 // staff rail included, and then a screen whose every query answered 404. There a supplier is REFUSED rather than redirected,
 // which is what the other two do - a redirect would bounce somebody who followed a link into a loop, and a 403 says what
-// happened.
+// happened. That 403 stands where the shell would, so it carries its own link home, to the dashboard of the session's persona.
+//
+// A SCREEN THAT THROWS IS CAUGHT INSIDE ITS SHELL. Only the root declared an errorComponent, and TanStack Router wraps a match in
+// a catch boundary only when that match has an error component of its own or the router has a default. So a screen that threw
+// while rendering - a lazy chunk that still failed after lazyRouteComponent's one automatic reload included - was caught at the
+// root, and its 500 replaced the sidebar, the top bar and the breadcrumb along with the screen. defaultErrorComponent gives every
+// match its own boundary, so a screen's error now renders inside its layout's PageOutlet with the shell still standing. The root
+// keeps its own errorComponent for anything that fails above the layouts.
 //
 // FIVE PATH DISAGREEMENTS WITH THE INVENTORY are reported rather than resolved by renaming a shell. SCR-500 sits at /evaluation,
 // which is SCREEN-INVENTORY's own route column and what the epic names, while IA §4.3 puts the evaluator's dashboard at /bo;
@@ -771,6 +778,7 @@ export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
   defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" />,
+  defaultErrorComponent: () => <ErrorBoundaryScreen code="500" />,
 })
 
 declare module '@tanstack/react-router' {

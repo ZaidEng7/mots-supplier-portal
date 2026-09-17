@@ -65,6 +65,13 @@
 // consequence, and the dialog says so in words before it happens. The reason arrives from the dialog rather than from page
 // state, so the text the supplier typed in the thing they confirmed is the text that is sent.
 //
+// THE WAY BACK TO THE TENDER is built before the first early return and drawn on every return: the skeleton, the tender that
+// could not be read, the screen with no bid yet, and every loaded state. This page had no link and no navigate call in any
+// branch. The tender's code was subtitle text, a supplier with no bid yet had one control and it was a server write, and a
+// Withdrawn proposal had no control at all - while the tender's attachments, clarifications and addenda live only on
+// /rfqs/$referenceCode. That address needs nothing but the route's own param, so no branch has a reason to go without it.
+// Whether a withdrawn supplier is offered a new bid from here is a product decision, and this link does not make it.
+//
 // The tender's code identifies the tender this bid is for; it is not part of the screen's name.
 
 import { formatCurrency, formatNumber } from '../lib/datetime'
@@ -75,7 +82,7 @@ import { useTranslation } from 'react-i18next'
 import { getPublicSettings } from '../api/systemSettings'
 import { fetchIncoterms } from '../api/reference'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import {Button, Card, Field, Input, PageHeading, Select, SkeletonList, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
 import { invalidateQuietly } from '../lib/queryClient'
 import { getInvitedRfq } from '../api/supplierRfqs'
@@ -206,11 +213,27 @@ export function SupplierProposalPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('proposal.errors.declineFailed')) }),
   })
 
+  const backToTender = (
+    <Link to="/rfqs/$referenceCode" params={{ referenceCode }} className="self-start text-[length:var(--text-body-sm)]">
+      {t('proposal.backToTender')}
+    </Link>
+  )
+
   if (rfqQuery.isLoading || proposalQuery.isLoading) {
-    return <SkeletonList label={t('common.loading')} />
+    return (
+      <div className="flex flex-col gap-4">
+        {backToTender}
+        <SkeletonList label={t('common.loading')} />
+      </div>
+    )
   }
   if (rfqQuery.isError || !rfqQuery.data) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.notFound')}</p>
+    return (
+      <div className="flex flex-col gap-4">
+        {backToTender}
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('supplierRfq.notFound')}</p>
+      </div>
+    )
   }
 
   const rfq = rfqQuery.data
@@ -219,7 +242,10 @@ export function SupplierProposalPage() {
   if (!proposal) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeading title={t('proposal.title')} subtitle={rfq.rfqCode} />
+        <div>
+          {backToTender}
+          <PageHeading title={t('proposal.title')} subtitle={rfq.rfqCode} />
+        </div>
         <Button isLoading={startMutation.isPending} onClick={() => startMutation.mutate()} className="self-start">
           {t('proposal.start')}
         </Button>
@@ -237,14 +263,17 @@ export function SupplierProposalPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeading
-        title={t('proposal.title')}
-        subtitle={rfq.rfqCode}
-        meta={<StatusChip machine="proposal" value={proposal.state} />}
-        actions={isDraft ? (
-          <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('proposal.submit')}</Button>
-        ) : null}
-      />
+      <div>
+        {backToTender}
+        <PageHeading
+          title={t('proposal.title')}
+          subtitle={rfq.rfqCode}
+          meta={<StatusChip machine="proposal" value={proposal.state} />}
+          actions={isDraft ? (
+            <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('proposal.submit')}</Button>
+          ) : null}
+        />
+      </div>
 
       <Card flush title={t('proposal.pricing')}>
         <Table flush caption={t('proposal.pricing')}>

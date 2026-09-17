@@ -11,7 +11,9 @@
 //
 // ONE PERMISSION LOOKUP for the whole shell. This was thirteen separate useAuthStore subscriptions, each repeating
 // claims?.permissions.includes(x) ?? false. Reading the claim list once and returning a predicate says the same thing
-// in one place, and adding a destination no longer means adding a subscription.
+// in one place, and adding a destination no longer means adding a subscription. The lookup is usePermissions in
+// authStore rather than a function private to this shell, because the tender's section strip hides its tabs with the
+// same predicate, and a question asked in two places should have one answer.
 //
 // WHETHER THIS ACCOUNT BELONGS TO A BUYING BODY is asked once too. BRULE-029 scopes every procurement query by the
 // caller's organization, and two personas deliberately have none: the bootstrap administrator, and ministry_viewer,
@@ -25,12 +27,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './AppShell'
 import { BACK_OFFICE_CHROME, BACK_OFFICE_NAV } from './navigation'
-import { useAuthStore } from '../lib/authStore'
-
-function usePermissions(): (permission: string) => boolean {
-  const permissions = useAuthStore((state) => state.claims?.permissions)
-  return (permission) => permissions?.includes(permission) ?? false
-}
+import { useAuthStore, usePermissions } from '../lib/authStore'
 
 function useHasOrganization(): boolean {
   return useAuthStore((state) => Boolean(state.claims?.organizationId))

@@ -11,6 +11,8 @@
 // procurement manager - who opens the evaluation, assigns the evaluators and consolidates their scores, but does not score -
 // was offered a scoring screen with nothing on it and no explanation. Asked directly: "if I cannot evaluate as a manager, why
 // is there an evaluate button for the manager?" Holding a permission is not the test there; being on the assignment list is.
+// That rule is the panel's link and nothing else's. The tab strip above the page offers a My evaluation tab to anyone holding
+// evaluation.score, because the strip does not read the assignment list; a manager, who does not score, is offered neither.
 //
 // TWO READS ARE SKIPPED rather than their buttons hidden. The evaluator-candidates list exists only to feed the assign
 // control and sits behind evaluation.assign, so an officer opening this page would fetch a list they cannot act on and get a
@@ -88,6 +90,11 @@
 // again. That band was written here first and is now TenderHeader, which the tender's other five views render too; it was the
 // only one of the six that named the tender rather than the tab.
 //
+// The head and the strip come from TenderFrame on the failure and the loading state as well as on the tender itself. They
+// used to be drawn in the last return only, so a tender that failed to load showed a retry button and no tabs, and the way to
+// the tender's other views was the browser's back button. The lifecycle actions are handed to the frame only once the tender
+// has arrived, because the tender's state is what chooses each of them.
+//
 // THE LAYOUT is one column on a narrow screen and two from the layout breakpoint up. The rail is FIRST in the DOM, so a screen
 // reader and a 320px viewport both meet "what happens next" before the body, and grid placement moves it to the inline-end side
 // on a wide one. That is why it is a grid rather than a flex row: source order and visual order are allowed to differ.
@@ -118,7 +125,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import type { StepState } from '../../components/ui'
-import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, Select, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { earliestSubmissionInput, toLocalInput } from './submissionWindow'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
@@ -136,8 +143,7 @@ import { getWorkspace } from '../../api/workspace'
 import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
 import { ButtonLink } from '../../components/ButtonLink'
-import { TenderTabs } from './rfq/TenderTabs'
-import { TenderHeader } from './rfq/TenderHeader'
+import { TenderFrame, TenderReadFallback } from './rfq/TenderFrame'
 import { apiErrorMessage } from '../../api/problem'
 
 function stepStateOf(stage: { isCurrent: boolean; isCompleted: boolean }): StepState {
@@ -377,10 +383,8 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
   })
 
-  if (rfqQuery.isError) return <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
-
-  if (rfqQuery.isLoading || !rfq) {
-    return <SkeletonList label={t('common.loading')} />
+  if (rfqQuery.isError || rfqQuery.isLoading || !rfq) {
+    return <TenderReadFallback referenceCode={referenceCode} query={rfqQuery} />
   }
 
   const isDraft = rfq.state === 'Draft'
@@ -403,61 +407,56 @@ export function RfqDetailPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-6">
-      <TenderHeader
-        referenceCode={referenceCode}
-        actions={
+    <TenderFrame
+      referenceCode={referenceCode}
+      actions={
+        <>
+        {isDraft ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              aria-label={t('rfq.ownership.nominateApprover')}
+              aria-describedby="rfq-approver-hint"
+              placeholder={t('rfq.ownership.anyManager')}
+              value={approverDraft}
+              onValueChange={setApproverDraft}
+              options={(assigneesQuery.data?.approvers ?? []).map((a) => ({ value: a.userId, label: a.fullName }))}
+            />
+            <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
+            <p
+              id="rfq-approver-hint"
+              className="basis-full text-[length:var(--text-caption)]"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              {t('rfq.ownership.approverHint')}
+            </p>
+          </div>
+        ) : null}
+        {isInternalReview && canApproveRfq ? (
+          <Button isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>{t('rfq.approve')}</Button>
+        ) : null}
+        {isApproved ? (
+          <Button isLoading={publishMutation.isPending} onClick={() => publishMutation.mutate()}>{t('rfq.publish')}</Button>
+        ) : null}
+        {isSubmissionOpen ? (
           <>
-          {isDraft ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                aria-label={t('rfq.ownership.nominateApprover')}
-                aria-describedby="rfq-approver-hint"
-                placeholder={t('rfq.ownership.anyManager')}
-                value={approverDraft}
-                onValueChange={setApproverDraft}
-                options={(assigneesQuery.data?.approvers ?? []).map((a) => ({ value: a.userId, label: a.fullName }))}
-              />
-              <Button isLoading={submitMutation.isPending} onClick={() => submitMutation.mutate()}>{t('rfq.submitForReview')}</Button>
-              <p
-                id="rfq-approver-hint"
-                className="basis-full text-[length:var(--text-caption)]"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                {t('rfq.ownership.approverHint')}
-              </p>
-            </div>
-          ) : null}
-          {isInternalReview && canApproveRfq ? (
-            <Button isLoading={approveMutation.isPending} onClick={() => approveMutation.mutate()}>{t('rfq.approve')}</Button>
-          ) : null}
-          {isApproved ? (
-            <Button isLoading={publishMutation.isPending} onClick={() => publishMutation.mutate()}>{t('rfq.publish')}</Button>
-          ) : null}
-          {isSubmissionOpen ? (
-            <>
-              <Button variant="secondary" onClick={() => setCloseOpen(true)}>
-                {t('rfq.closeSubmission')}
-              </Button>
-              <ReasonDialog
-                open={closeOpen}
-                onOpenChange={setCloseOpen}
-                onSubmit={(reason) => closeMutation.mutate(reason.trim())}
-                isLoading={closeMutation.isPending}
-                title={t('rfq.closeSubmission')}
-                confirmLabel={t('rfq.closeSubmission')}
-                variant="danger"
-                warning={t('rfq.closeReasonPrompt')}
-              />
-            </>
-          ) : null}
+            <Button variant="secondary" onClick={() => setCloseOpen(true)}>
+              {t('rfq.closeSubmission')}
+            </Button>
+            <ReasonDialog
+              open={closeOpen}
+              onOpenChange={setCloseOpen}
+              onSubmit={(reason) => closeMutation.mutate(reason.trim())}
+              isLoading={closeMutation.isPending}
+              title={t('rfq.closeSubmission')}
+              confirmLabel={t('rfq.closeSubmission')}
+              variant="danger"
+              warning={t('rfq.closeReasonPrompt')}
+            />
           </>
-        }
-      />
-
-
-      <TenderTabs referenceCode={referenceCode} />
-
+        ) : null}
+        </>
+      }
+    >
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1">
           {workspace === undefined || workspace === null ? null : workspace.isCancelled ? (
@@ -1019,6 +1018,6 @@ export function RfqDetailPage() {
 
         </div>
       </div>
-    </div>
+    </TenderFrame>
   )
 }

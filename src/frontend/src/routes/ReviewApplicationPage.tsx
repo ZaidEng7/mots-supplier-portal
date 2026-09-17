@@ -22,6 +22,11 @@
 // "NOT FOUND" AND "WE COULD NOT LOAD IT" were one branch, and they are not the same answer: the first says this
 // application does not exist, the second says the reviewer should try again.
 //
+// BACK TO QUEUE is built before the first early return and drawn on all of them: loading, the failure panel, not found and
+// the loaded application. It used to be drawn in the last return only, so an application that could not be read left a retry
+// button and no way out of the record. The queue's address needs no data from this page. Where it should lead a reviewer who
+// arrived from somewhere other than the queue is a separate question, and this link does not answer it.
+//
 // Lifecycle is shown only once it has begun, because 'None' would be noise on an application that has not been approved
 // yet.
 //
@@ -229,10 +234,37 @@ export function ReviewApplicationPage() {
     onError: (err) => notify({ kind: 'danger', title: t('review.rejectFailed'), description: err instanceof DocumentApiError ? err.message : undefined }),
   })
 
-  if (viewQuery.isLoading) return <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
-  if (viewQuery.isError) return <QueryError error={viewQuery.error} onRetry={() => void viewQuery.refetch()} />
+  const backToQueue = (
+    <Link to="/back-office/review" className="self-start" style={{ color: 'var(--color-text-brand)' }}>
+      {t('review.backToQueue')}
+    </Link>
+  )
+
+  if (viewQuery.isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {backToQueue}
+        <p style={{ color: 'var(--color-text-secondary)' }}>...</p>
+      </div>
+    )
+  }
+  if (viewQuery.isError) {
+    return (
+      <div className="flex flex-col gap-4">
+        {backToQueue}
+        <QueryError error={viewQuery.error} onRetry={() => void viewQuery.refetch()} />
+      </div>
+    )
+  }
   const view = viewQuery.data
-  if (!view) return <p style={{ color: 'var(--color-text-secondary)' }}>{t('errors.notFound')}</p>
+  if (!view) {
+    return (
+      <div className="flex flex-col gap-4">
+        {backToQueue}
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('errors.notFound')}</p>
+      </div>
+    )
+  }
 
   const { supplier, documents, annotationHistory } = view
   const state = supplier.onboardingState
@@ -246,9 +278,7 @@ export function ReviewApplicationPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link to="/back-office/review" style={{ color: 'var(--color-text-brand)' }}>
-            {t('review.backToQueue')}
-          </Link>
+          {backToQueue}
           <PageHeading title={isArabic ? supplier.displayNameAr : supplier.displayNameEn} />
         </div>
         <div className="flex items-center gap-2">

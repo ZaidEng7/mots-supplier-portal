@@ -13,6 +13,11 @@
 // CLAIMS ARE DECODED CLIENT-SIDE for display and routing ONLY. Never trust this for authorization: the API re-validates and
 // enforces every permission server-side.
 //
+// ONE PERMISSION LOOKUP, usePermissions, reads the claim list once and returns a predicate. It lives beside the claims rather
+// than in the back-office shell because two things now ask the same question: the shell, to decide which destinations to
+// offer, and the tender's section strip, to decide which of its tabs to offer. Asked in two places it could be answered two
+// ways. Like the claims it reads, it decides what is OFFERED, never what is allowed.
+//
 // A JWT claim holding several values arrives as an ARRAY and one holding a single value as a STRING. Neither shape is an
 // error; both mean "these permissions".
 
@@ -80,3 +85,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       lastEmail: get().claims?.email ?? get().lastEmail,
     }),
 }))
+
+export function usePermissions(): (permission: string) => boolean {
+  const permissions = useAuthStore((state) => state.claims?.permissions)
+  return (permission) => permissions?.includes(permission) ?? false
+}

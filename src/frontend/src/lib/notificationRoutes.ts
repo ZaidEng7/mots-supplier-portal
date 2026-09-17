@@ -8,6 +8,12 @@
 // "the RFQ you are running" for an officer, and those are two different screens. Reading the persona from the session claim
 // is what keeps one notification type from needing two payloads.
 //
+// The same rule separates an EVALUATOR from the rest of the staff. An evaluator holds evaluation.score, evaluation.submit and
+// rfq.clarify, and the tender itself answers 403 for anyone without rfq.read - so "evaluation reopened", which carries only
+// the rfqCode, used to open a refusal with nothing on it. A staff session that holds evaluation.score without rfq.read lands on
+// its own scoring screen instead. A session that holds both goes to the tender, which it can open and whose strip offers its
+// scoring as a tab.
+//
 // An explicit route in the payload WINS - it is on the allow-list precisely so a notification can point somewhere this
 // function has no rule for.
 //
@@ -22,14 +28,19 @@ import { useAuthStore } from './authStore'
 
 export function notificationRoute(notification: Notification): string | undefined {
   const data = parseData(notification.data)
-  const isSupplier = Boolean(useAuthStore.getState().claims?.supplierId)
+  const claims = useAuthStore.getState().claims
+  const isSupplier = Boolean(claims?.supplierId)
 
   if (typeof data.route === 'string') return data.route
 
   const rfqCode = typeof data.rfqCode === 'string' ? data.rfqCode : undefined
   if (rfqCode === undefined) return undefined
 
-  return isSupplier ? `/rfqs/${rfqCode}` : `/back-office/rfqs/${rfqCode}`
+  if (isSupplier) return `/rfqs/${rfqCode}`
+
+  const permissions = claims?.permissions ?? []
+  const scoresWithoutReading = permissions.includes('evaluation.score') && !permissions.includes('rfq.read')
+  return scoresWithoutReading ? `/back-office/rfqs/${rfqCode}/my-evaluation` : `/back-office/rfqs/${rfqCode}`
 }
 
 function parseData(json: string): Record<string, unknown> {

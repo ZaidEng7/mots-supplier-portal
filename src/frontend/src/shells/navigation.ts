@@ -16,11 +16,23 @@
 // that have none - the bootstrap administrator and the Ministry viewer - would otherwise be offered a screen that can
 // only answer 404.
 //
+// `holds` is exported because the tender's section strip hides its tabs by the same rule. It asks the context for `can`
+// alone, so a strip with no reason to know about buying bodies can use it, and given several permissions it requires every
+// one of them - the award tab reads two endpoints guarded by two different permissions.
+//
 // A row's path is matched against the router's own paths by the reachability guard, and its label is always an i18n key
 // and never a literal, because both languages ship every phase. `exact` matches the current path exactly rather than by
 // prefix, and is needed only where one destination's path is a prefix of another's, which would otherwise light up two
-// rows at once. A group's heading is an i18n key too, or absent for the opening group, which carries the two
-// destinations that answer "where am I" and needs no name to do it.
+// rows at once. It decides which sidebar row lights and nothing else: it does not disown the pages under the row, so the
+// breadcrumb ignores it and /back-office/review/SUP-1 still belongs to Review queue. A group's heading is an i18n key
+// too, or absent for the opening group, which carries the two destinations that answer "where am I" and needs no name to
+// do it.
+//
+// `owns` claims pages that do not sit under a row's own path. My evaluations is the list an evaluator opens a tender
+// from, and the screens it opens - /back-office/rfqs/<code>/my-evaluation and /brief - sit under Tenders by prefix, a
+// section a pure evaluator is never shown. So the trail named a section they could not see, and neither it nor the
+// sidebar pointed back to the list they came from. A row whose pattern matches beats every row that matches by prefix,
+// in the sidebar and the trail alike, which also keeps an account that sees both rows to one lit row rather than two.
 //
 // THE BACK OFFICE is grouped by the question a member of staff arrived with rather than by the team that built each
 // screen. Every gate in it is the one the flat row already applied, moved rather than rewritten - this phase changes
@@ -65,6 +77,7 @@ export interface NavItem {
   labelKey: string
   icon: ComponentType<LucideProps>
   exact?: boolean
+  owns?: RegExp
   when?: (context: NavContext) => boolean
 }
 
@@ -76,7 +89,8 @@ export interface NavGroup {
 const inBuyingBody = (permission: string) => (context: NavContext) =>
   context.can(permission) && context.inABuyingBody
 
-const holds = (permission: string) => (context: NavContext) => context.can(permission)
+export const holds = (...permissions: readonly [string, ...string[]]) => (context: Pick<NavContext, 'can'>) =>
+  permissions.every((permission) => context.can(permission))
 
 export const BACK_OFFICE_NAV: readonly NavGroup[] = [
   {
@@ -95,7 +109,10 @@ export const BACK_OFFICE_NAV: readonly NavGroup[] = [
         to: '/back-office/evaluation-templates', labelKey: 'evaluationTemplates.title',
         icon: ClipboardList, when: inBuyingBody('evaluation.template.manage'),
       },
-      { to: '/evaluation', labelKey: 'evaluationDashboard.title', icon: ClipboardCheck, when: holds('evaluation.score') },
+      {
+        to: '/evaluation', labelKey: 'evaluationDashboard.title', icon: ClipboardCheck, when: holds('evaluation.score'),
+        owns: /^\/back-office\/rfqs\/[^/]+\/(my-evaluation|brief)$/,
+      },
     ],
   },
   {

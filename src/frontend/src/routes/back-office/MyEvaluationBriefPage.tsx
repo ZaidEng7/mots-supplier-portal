@@ -20,6 +20,12 @@
 // BRULE-061's justification flag is marked here, because the rule exists and the scoring form does not read it yet: the brief
 // is where an evaluator learns a comment will be required.
 //
+// THE LINK TO SCORING sits above the title and is drawn on every return, the skeleton and the failure line included. It used
+// to render only after both early returns, so the screens an evaluator is most likely to meet here without a brief - after
+// recusing, from a bookmark, or when the read answers a 5xx or a 400 invalid_state - were one sentence with no way anywhere.
+// The scoring screen's address needs only the tender code this page already holds, so nothing has to arrive first. The
+// failure line still offers no retry; that is a separate gap and this link does not close it.
+//
 // The route's own component reads the param and hands it down, so the page takes the tender code as a PROP. Every other
 // screen here calls useParams inline, which means its tests must mock the router to render it at all - and a test that mocks
 // the router is testing the mock's idea of the URL. This one does not have to.
@@ -30,7 +36,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import {Badge, Card, PageHeading, Skeleton, Table, TableBody, TableCell, TableHead, TableRow} from '../../components/ui'
 import { getMyEvaluation } from '../../api/evaluations'
 
-export function MyEvaluationBriefPage({ referenceCode }: { referenceCode: string }) {
+export function MyEvaluationBriefPage({ referenceCode }: Readonly<{ referenceCode: string }>) {
   const { t, i18n } = useTranslation()
   const isArabic = i18n.language.startsWith('ar')
 
@@ -39,9 +45,31 @@ export function MyEvaluationBriefPage({ referenceCode }: { referenceCode: string
     queryFn: () => getMyEvaluation(referenceCode),
   })
 
-  if (briefQuery.isPending) return <Skeleton className="h-64 w-full" />
+  const toScoring = (
+    <Link
+      to="/back-office/rfqs/$referenceCode/my-evaluation"
+      params={{ referenceCode }}
+      className="self-start text-[length:var(--text-body-sm)]"
+    >
+      {t('evaluationBrief.toScoring')}
+    </Link>
+  )
+
+  if (briefQuery.isPending) {
+    return (
+      <div className="flex flex-col gap-4">
+        {toScoring}
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
   if (briefQuery.isError || !briefQuery.data) {
-    return <p style={{ color: 'var(--color-danger-fg)' }}>{t('evaluationBrief.error')}</p>
+    return (
+      <div className="flex flex-col gap-4">
+        {toScoring}
+        <p style={{ color: 'var(--color-danger-fg)' }}>{t('evaluationBrief.error')}</p>
+      </div>
+    )
   }
 
   const evaluation = briefQuery.data
@@ -50,17 +78,11 @@ export function MyEvaluationBriefPage({ referenceCode }: { referenceCode: string
   return (
     <div className="flex flex-col gap-6">
       <div>
+        {toScoring}
         <PageHeading title={t('evaluationBrief.title')} />
         <p className="mt-1 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
           {isArabic ? evaluation.rfqTitleAr : evaluation.rfqTitleEn} · {evaluation.rfqReferenceCode}
         </p>
-        <Link
-          to="/back-office/rfqs/$referenceCode/my-evaluation"
-          params={{ referenceCode }}
-          className="mt-2 inline-block text-[length:var(--text-body-sm)]"
-        >
-          {t('evaluationBrief.toScoring')}
-        </Link>
       </div>
 
       <Card title={t('evaluationBrief.tender')}>

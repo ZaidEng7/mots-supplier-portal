@@ -11,7 +11,9 @@
 //
 // THE HEAD is the tender's identity, said the same way on all six of its views. This screen already named the tender and its
 // code; what it did not carry was who owns it or when bidding closes, which the tender's own view has always shown. One
-// record, one head.
+// record, one head. It comes from TenderFrame with the strip, on the loading and the failure state too. Both used to be drawn
+// in the last return only, and the failure state is reached more often here than it looks: getRfq does not turn a 404 into
+// "no tender", so a stale link or a tender outside the caller's scope lands on it, with a retry button and no way back.
 //
 // A-7's REASSIGNMENT is shown for every non-closed state rather than only Draft, because ownership moves when people do rather
 // than when a tender does. Hide-never-gate as everywhere else: the endpoint re-enforces rfq.reassign, which officers do not
@@ -38,7 +40,7 @@ import { useParams } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { invalidateQuietly } from '../../lib/queryClient'
-import { Button, Card, Input, QueryError, Select, SkeletonList, useToast } from '../../components/ui'
+import { Button, Card, Input, Select, useToast } from '../../components/ui'
 import { apiErrorMessage } from '../../api/problem'
 import {
   getRfq,
@@ -50,8 +52,7 @@ import {
   listRfqAssignees,
 } from '../../api/rfqs'
 import { CancelSection } from './rfq/sections/CancelSection'
-import { TenderTabs } from './rfq/TenderTabs'
-import { TenderHeader } from './rfq/TenderHeader'
+import { TenderFrame, TenderReadFallback } from './rfq/TenderFrame'
 
 export function TenderSettingsPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
@@ -126,18 +127,16 @@ export function TenderSettingsPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.errors.transitionFailed')) }),
   })
 
-  if (rfqQuery.isError) return <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
-  if (rfqQuery.isLoading || !rfq) return <SkeletonList label={t('common.loading')} />
+  if (rfqQuery.isError || rfqQuery.isLoading || !rfq) {
+    return <TenderReadFallback referenceCode={referenceCode} query={rfqQuery} />
+  }
 
   const canCancel = !['Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
   const isInternalReview = rfq.state === 'InternalReview'
   const canIssueAddendum = rfq.state === 'Published' || rfq.state === 'SubmissionOpen'
 
   return (
-    <div className="flex flex-col gap-6">
-      <TenderHeader referenceCode={referenceCode} />
-      <TenderTabs referenceCode={referenceCode} />
-
+    <TenderFrame referenceCode={referenceCode}>
       <div className="flex flex-col gap-4">
           {canCancel ? (
             <Card title={t('rfq.ownership.title')}>
@@ -244,6 +243,6 @@ export function TenderSettingsPage() {
             <CancelSection onCancel={(reason) => cancelMutation.mutate(reason)} isPending={cancelMutation.isPending} />
           ) : null}
       </div>
-    </div>
+    </TenderFrame>
   )
 }
