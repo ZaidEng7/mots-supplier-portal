@@ -18,8 +18,16 @@
 // It is a component rather than a layout route around the tender's pages. A layout would move the lifecycle buttons and
 // the brief link out of the heading's actions, put a second page title on the two screens that carry their own, and break
 // the route collector and the heading sweep, both of which read the router one parent deep.
+//
+// TENDERREADFALLBACK is the one answer the three views that read the tender itself give before it has arrived: the failure
+// panel with Retry when the read failed, the list skeleton while it is still on its way, both inside the frame. The Tender,
+// Suppliers and Settings views each carried an identical copy, and three copies of the same block pushed the pull request
+// that introduced the frame past the duplicated-lines limit on new code. The views keep the condition, because the branch
+// is theirs to take and narrowing the tender to loaded depends on it; only what the branch renders is shared.
 
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { QueryError, SkeletonList } from '../../../components/ui'
 import { TenderHeader } from './TenderHeader'
 import { TenderTabs } from './TenderTabs'
 
@@ -34,5 +42,19 @@ export function TenderFrame({ referenceCode, actions, children }: Readonly<{
       <TenderTabs referenceCode={referenceCode} />
       {children}
     </div>
+  )
+}
+
+export function TenderReadFallback({ referenceCode, query }: Readonly<{
+  referenceCode: string
+  query: Readonly<{ isError: boolean; error: unknown; refetch: () => unknown }>
+}>) {
+  const { t } = useTranslation()
+  return (
+    <TenderFrame referenceCode={referenceCode}>
+      {query.isError
+        ? <QueryError error={query.error} onRetry={() => void query.refetch()} />
+        : <SkeletonList label={t('common.loading')} />}
+    </TenderFrame>
   )
 }

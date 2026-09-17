@@ -125,7 +125,7 @@ import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from '@tanstack/react-router'
 import type { StepState } from '../../components/ui'
-import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, QueryError, Select, SkeletonList, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
+import {Badge, Button, Card, Dialog, FactList, Field, Input, NextActionCard, Select, StatusChip, Stepper, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../../components/ui'
 import { earliestSubmissionInput, toLocalInput } from './submissionWindow'
 import { invalidateQuietly } from '../../lib/queryClient'
 import {
@@ -143,7 +143,7 @@ import { getWorkspace } from '../../api/workspace'
 import { formatDateTime, formatNumber } from '../../lib/datetime'
 import { ReasonDialog } from '../../components/ReasonDialog'
 import { ButtonLink } from '../../components/ButtonLink'
-import { TenderFrame } from './rfq/TenderFrame'
+import { TenderFrame, TenderReadFallback } from './rfq/TenderFrame'
 import { apiErrorMessage } from '../../api/problem'
 
 function stepStateOf(stage: { isCurrent: boolean; isCompleted: boolean }): StepState {
@@ -383,20 +383,8 @@ export function RfqDetailPage() {
     onError: (err) => notify({ kind: 'danger', title: evaluationErrorMessage(err, t('evaluation.errors.actionFailed')) }),
   })
 
-  if (rfqQuery.isError) {
-    return (
-      <TenderFrame referenceCode={referenceCode}>
-        <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
-      </TenderFrame>
-    )
-  }
-
-  if (rfqQuery.isLoading || !rfq) {
-    return (
-      <TenderFrame referenceCode={referenceCode}>
-        <SkeletonList label={t('common.loading')} />
-      </TenderFrame>
-    )
+  if (rfqQuery.isError || rfqQuery.isLoading || !rfq) {
+    return <TenderReadFallback referenceCode={referenceCode} query={rfqQuery} />
   }
 
   const isDraft = rfq.state === 'Draft'
