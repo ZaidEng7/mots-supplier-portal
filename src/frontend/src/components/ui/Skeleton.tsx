@@ -90,7 +90,7 @@ export function Skeleton({
   className = '',
   style,
   revealAfterMs = REVEAL_AFTER_MS,
-}: SkeletonProps) {
+}: Readonly<SkeletonProps>) {
   const revealed = useRevealed(revealAfterMs)
   return (
     <span
@@ -109,7 +109,7 @@ interface SkeletonListProps extends SkeletonContainerProps {
   rows?: number
 }
 
-export function SkeletonList({ label, rows = 5 }: SkeletonListProps) {
+export function SkeletonList({ label, rows = 5 }: Readonly<SkeletonListProps>) {
   const revealed = useRevealed(REVEAL_AFTER_MS)
   return (
     <div role="status" aria-live="polite" aria-busy="true" className="flex flex-col gap-3" style={hiddenUntil(revealed)}>
@@ -126,7 +126,7 @@ interface SkeletonTableProps extends SkeletonContainerProps {
   columns?: number
 }
 
-export function SkeletonTable({ label, rows = 5, columns = 3 }: SkeletonTableProps) {
+export function SkeletonTable({ label, rows = 5, columns = 3 }: Readonly<SkeletonTableProps>) {
   const template = `minmax(8rem, 1.25fr) repeat(${columns}, minmax(6rem, 1fr))`
   const revealed = useRevealed(REVEAL_AFTER_MS)
   return (
@@ -167,7 +167,7 @@ interface SkeletonGridProps extends SkeletonContainerProps {
   columns?: number
 }
 
-export function SkeletonGrid({ label, items = 4, columns = 4 }: SkeletonGridProps) {
+export function SkeletonGrid({ label, items = 4, columns = 4 }: Readonly<SkeletonGridProps>) {
   const revealed = useRevealed(REVEAL_AFTER_MS)
   return (
     <div
