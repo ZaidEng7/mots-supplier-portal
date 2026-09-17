@@ -56,11 +56,27 @@
 // If-Match at all - a 428 on the officer's second edit. Writing it back to the prefix the precondition came from
 // keeps the aggregate's version reachable from every child of it.
 //
+// AND ONLY THERE, when the precondition came from somewhere. Filing a second copy under the write path is what broke
+// the next round of this: that copy is updated by nothing but a later write to the same child, so a SIBLING write
+// moved the aggregate on and left it behind. A supplier added a Billing address, then a branch, then a Head Office
+// address - the third save preferred the most specific entry, /suppliers/me/addresses, which still held the version
+// from before the branch, and was refused with 412. The API log shows exactly that sequence. So a write whose
+// precondition had an owner files the new version under the owner alone, and every child of that aggregate reads it
+// from there; a write with no owner, which asserted nothing, still files under its own path as before.
+//
+// When a 412 carries the aggregate's current version, that goes back under the owner too, so the next attempt asserts a
+// live version. Not every 412 does: a whole-profile update is refused through StaleVersionResult, which sets one, but a
+// child write refused at save becomes a concurrency exception that ApiPipeline answers after clearing the response, so no
+// ETag survives. The address save that was reported took that second path, and its recovery is the re-read below.
+//
 // A 412 means the row moved since this tab read it - another tab, another person, or a background job. The write
 // is correctly refused and is NOT retried here, because replaying it would overwrite whatever moved the row,
 // which is the lost update the precondition exists to prevent. What IS done is re-reading the resource, so the
 // version this tab holds is current again and the user's next attempt succeeds. Without that the tab was stuck:
 // every further save on that screen asserted the same dead version, and the only way through was a page reload.
+// If the re-read fails and the refusal carried no version either, the entry it came from is dropped, so the next
+// attempt walks up to the aggregate rather than asserting the same dead version again. Re-reading a child path with no
+// GET of its own answered 405, and without the drop that tab stayed stuck exactly as the paragraph above describes.
 // Reported as "I come back to the tab and cannot edit anything until I refresh" - with several tabs of this
 // product open at once, which is exactly how the row moves underneath one of them.
 //
@@ -68,7 +84,7 @@
 // state the user can do anything about. It is surfaced loudly rather than folded into the generic error path,
 // where it would reach a supplier as an unexplained failure to save.
 
-import { forgetETags, lookupETag, ownerPrefixOf, rememberETag } from './etags'
+import { forgetETag, forgetETags, lookupETag, ownerPrefixOf, rememberETag } from './etags'
 import { useAuthStore } from '../lib/authStore'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
@@ -250,11 +266,9 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     }
   }
   const freshETag = res.headers.get('ETag')
-  if (isMutation && res.ok) {
-    forgetETags(path)
-    if (preconditionPrefix) rememberETag(preconditionPrefix, freshETag)
-  }
-  rememberETag(path, freshETag)
+  if (isMutation && res.ok) forgetETags(path)
+  if (isMutation && preconditionPrefix) rememberETag(preconditionPrefix, freshETag)
+  else rememberETag(path, freshETag)
 
   if (res.status === 412 && isMutation && preconditionPrefix) {
     const current = useAuthStore.getState().accessToken
@@ -264,6 +278,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
       cache: 'no-store',
     }).catch(() => null)
     if (reread?.ok) rememberETag(preconditionPrefix, reread.headers.get('ETag'))
+    else if (!freshETag) forgetETag(preconditionPrefix)
   }
 
   if (res.status === 428) {
