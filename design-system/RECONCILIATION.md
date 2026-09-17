@@ -36,7 +36,7 @@ the point of having the test.
 
 # The density rules Phase 2 owed
 
-Derived from the two comps, the two audiences, and `docs/ux/DESIGN-SYSTEM.md` §3.2. These are the answers
+Derived from the two redesign comps (since removed from the tree; `git show 44d1b0d` restores them), the two audiences, and `docs/ux/DESIGN-SYSTEM.md` §3.2. These are the answers
 the audit found missing: 13px was the most common size on every screen measured, and `<h1>` rendered at
 three different sizes for one job.
 
