@@ -7,6 +7,15 @@
 // ministry_viewer's whole product is those two. SCR-601, 602, 603 and 606 are lazy despite belonging to the same persona,
 // because they carry tables and a detail view and a ministry_viewer opening the overview should not pay for all four.
 //
+// HOW THE SPLITTING IS DONE matters as much as that it is done. Screens were React.lazy, and React holds a Suspense boundary's
+// content back for up to 300ms after it last showed a fallback, so a first visit whose code arrived in 50ms still sat blank for
+// 300: 404ms from click to heading on the supplier directory, with its data taking 25. Screens now use lazyRouteComponent, which
+// renders synchronously once loaded and exposes preload(). defaultPreload 'intent' starts that load on hover, focus or touch, and
+// the router awaits it during navigation, so a screen never enters a fallback on a click: 113-124ms on a plain click, 73-83ms
+// with a hover first. It loads only what someone is about to open, not everything - preloading all screens up front would add
+// 272KB gzipped to a 219KB entry, which is the 4G budget above spent in reverse. HomePage and the two shells stay React.lazy:
+// they render inside layouts rather than as route components, so the router cannot preload them, and each loads once a session.
+//
 // THE TWO GUARDS. ensureAuthenticated makes sure a valid access token is in memory before a protected route renders: on a cold
 // load the store is empty, so it silently exchanges the httpOnly refresh cookie for a fresh one before deciding whether to
 // redirect to /login. And SCR-902's other half reads the stored interface language, because a stored language nobody read would
@@ -85,76 +94,77 @@
 // instruction in front of the score fields every time.
 
 import { lazy, Suspense } from 'react'
+import { PageOutlet } from './components/PageOutlet'
 
-const AdminOverviewPage = lazy(() => import('./routes/admin/AdminOverviewPage').then((m) => ({ default: m.AdminOverviewPage })))
-const SystemSettingsPage = lazy(() => import('./routes/admin/SystemSettingsPage').then((m) => ({ default: m.SystemSettingsPage })))
-const NotificationTemplatesPage = lazy(() => import('./routes/admin/NotificationTemplatesPage').then((m) => ({ default: m.NotificationTemplatesPage })))
-const ProfilePage = lazy(() => import('./routes/ProfilePage').then((m) => ({ default: m.ProfilePage })))
-const DocumentsPage = lazy(() => import('./routes/DocumentsPage').then((m) => ({ default: m.DocumentsPage })))
-const MyProposalsPage = lazy(() => import('./routes/MyProposalsPage').then((m) => ({ default: m.MyProposalsPage })))
-const AboutPage = lazy(() => import('./routes/AboutPage').then((m) => ({ default: m.AboutPage })))
-const HelpPage = lazy(() => import('./routes/HelpPage').then((m) => ({ default: m.HelpPage })))
-const ReferenceDataPage = lazy(() => import('./routes/admin/ReferenceDataPage').then((m) => ({ default: m.ReferenceDataPage })))
-const OperationsPage = lazy(() => import('./routes/admin/OperationsPage').then((m) => ({ default: m.OperationsPage })))
-const UiStringsPage = lazy(() => import('./routes/admin/UiStringsPage').then((m) => ({ default: m.UiStringsPage })))
-const EmailTemplatesPage = lazy(() => import('./routes/admin/EmailTemplatesPage').then((m) => ({ default: m.EmailTemplatesPage })))
-const SearchPage = lazy(() => import('./routes/SearchPage').then((m) => ({ default: m.SearchPage })))
-const AuditExplorerPage = lazy(() => import('./routes/admin/AuditExplorerPage').then((m) => ({ default: m.AuditExplorerPage })))
-const MinistryOverviewPage = lazy(() => import('./routes/ministry/MinistryOverviewPage').then((m) => ({ default: m.MinistryOverviewPage })))
-const CategoryCoveragePage = lazy(() => import('./routes/ministry/CategoryCoveragePage').then((m) => ({ default: m.CategoryCoveragePage })))
-const MinistryRfqMonitorPage = lazy(() => import('./routes/ministry/MinistryRfqMonitorPage').then((m) => ({ default: m.MinistryRfqMonitorPage })))
-const MinistryRfqDetailRoute = lazy(() => import('./routes/ministry/MinistryRfqDetailPage').then((m) => ({ default: m.MinistryRfqDetailRoute })))
-const MinistrySupplierRegistryPage = lazy(() => import('./routes/ministry/MinistrySupplierRegistryPage').then((m) => ({ default: m.MinistrySupplierRegistryPage })))
-const MinistryAwardAnalyticsPage = lazy(() => import('./routes/ministry/MinistryAwardAnalyticsPage').then((m) => ({ default: m.MinistryAwardAnalyticsPage })))
-const ReportsPage = lazy(() => import('./routes/back-office/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const AdminOverviewPage = lazyRouteComponent(() => import('./routes/admin/AdminOverviewPage'), 'AdminOverviewPage')
+const SystemSettingsPage = lazyRouteComponent(() => import('./routes/admin/SystemSettingsPage'), 'SystemSettingsPage')
+const NotificationTemplatesPage = lazyRouteComponent(() => import('./routes/admin/NotificationTemplatesPage'), 'NotificationTemplatesPage')
+const ProfilePage = lazyRouteComponent(() => import('./routes/ProfilePage'), 'ProfilePage')
+const DocumentsPage = lazyRouteComponent(() => import('./routes/DocumentsPage'), 'DocumentsPage')
+const MyProposalsPage = lazyRouteComponent(() => import('./routes/MyProposalsPage'), 'MyProposalsPage')
+const AboutPage = lazyRouteComponent(() => import('./routes/AboutPage'), 'AboutPage')
+const HelpPage = lazyRouteComponent(() => import('./routes/HelpPage'), 'HelpPage')
+const ReferenceDataPage = lazyRouteComponent(() => import('./routes/admin/ReferenceDataPage'), 'ReferenceDataPage')
+const OperationsPage = lazyRouteComponent(() => import('./routes/admin/OperationsPage'), 'OperationsPage')
+const UiStringsPage = lazyRouteComponent(() => import('./routes/admin/UiStringsPage'), 'UiStringsPage')
+const EmailTemplatesPage = lazyRouteComponent(() => import('./routes/admin/EmailTemplatesPage'), 'EmailTemplatesPage')
+const SearchPage = lazyRouteComponent(() => import('./routes/SearchPage'), 'SearchPage')
+const AuditExplorerPage = lazyRouteComponent(() => import('./routes/admin/AuditExplorerPage'), 'AuditExplorerPage')
+const MinistryOverviewPage = lazyRouteComponent(() => import('./routes/ministry/MinistryOverviewPage'), 'MinistryOverviewPage')
+const CategoryCoveragePage = lazyRouteComponent(() => import('./routes/ministry/CategoryCoveragePage'), 'CategoryCoveragePage')
+const MinistryRfqMonitorPage = lazyRouteComponent(() => import('./routes/ministry/MinistryRfqMonitorPage'), 'MinistryRfqMonitorPage')
+const MinistryRfqDetailRoute = lazyRouteComponent(() => import('./routes/ministry/MinistryRfqDetailPage'), 'MinistryRfqDetailRoute')
+const MinistrySupplierRegistryPage = lazyRouteComponent(() => import('./routes/ministry/MinistrySupplierRegistryPage'), 'MinistrySupplierRegistryPage')
+const MinistryAwardAnalyticsPage = lazyRouteComponent(() => import('./routes/ministry/MinistryAwardAnalyticsPage'), 'MinistryAwardAnalyticsPage')
+const ReportsPage = lazyRouteComponent(() => import('./routes/back-office/ReportsPage'), 'ReportsPage')
 const HomePage = lazy(() => import('./routes/HomePage').then((m) => ({ default: m.HomePage })))
-const LoginPage = lazy(() => import('./routes/LoginPage').then((m) => ({ default: m.LoginPage })))
-const RegisterPage = lazy(() => import('./routes/RegisterPage').then((m) => ({ default: m.RegisterPage })))
-const ForgotPasswordPage = lazy(() => import('./routes/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
-const ResetPasswordPage = lazy(() => import('./routes/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
-const VerifyEmailPage = lazy(() => import('./routes/VerifyEmailPage').then((m) => ({ default: m.VerifyEmailPage })))
-const AcceptTeamInvitePage = lazy(() => import('./routes/AcceptTeamInvitePage').then((m) => ({ default: m.AcceptTeamInvitePage })))
-const AcceptStaffInvitePage = lazy(() => import('./routes/AcceptStaffInvitePage').then((m) => ({ default: m.AcceptStaffInvitePage })))
-const SupplierDashboardPage = lazy(() => import('./routes/SupplierDashboardPage').then((m) => ({ default: m.SupplierDashboardPage })))
-const OnboardingPage = lazy(() => import('./routes/OnboardingPage').then((m) => ({ default: m.OnboardingPage })))
-const ContactsPage = lazy(() => import('./routes/onboarding/ContactsPage').then((m) => ({ default: m.ContactsPage })))
-const AddressesPage = lazy(() => import('./routes/onboarding/AddressesPage').then((m) => ({ default: m.AddressesPage })))
-const BankingPage = lazy(() => import('./routes/onboarding/BankingPage').then((m) => ({ default: m.BankingPage })))
-const OfferingsPage = lazy(() => import('./routes/onboarding/OfferingsPage').then((m) => ({ default: m.OfferingsPage })))
-const TeamPage = lazy(() => import('./routes/TeamPage').then((m) => ({ default: m.TeamPage })))
-const OfferingCatalogPage = lazy(() => import('./routes/OfferingCatalogPage').then((m) => ({ default: m.OfferingCatalogPage })))
-const SettingsPage = lazy(() => import('./routes/SettingsPage').then((m) => ({ default: m.SettingsPage })))
-const NotificationPreferencesPage = lazy(() => import('./routes/NotificationPreferencesPage').then((m) => ({ default: m.NotificationPreferencesPage })))
-const NotificationsPage = lazy(() => import('./routes/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
-const EvaluationDashboardPage = lazy(() => import('./routes/EvaluationDashboardPage').then((m) => ({ default: m.EvaluationDashboardPage })))
-const ProcurementDashboardPage = lazy(() => import('./routes/back-office/ProcurementDashboardPage').then((m) => ({ default: m.ProcurementDashboardPage })))
-const ApprovalQueuesPage = lazy(() => import('./routes/back-office/ApprovalQueuesPage').then((m) => ({ default: m.ApprovalQueuesPage })))
-const ReviewDashboardPage = lazy(() => import('./routes/back-office/ReviewDashboardPage').then((m) => ({ default: m.ReviewDashboardPage })))
-const BackOfficeDashboardPage = lazy(() => import('./routes/BackOfficeDashboardPage').then((m) => ({ default: m.BackOfficeDashboardPage })))
-const ReviewQueuePage = lazy(() => import('./routes/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
-const ReviewApplicationPage = lazy(() => import('./routes/ReviewApplicationPage').then((m) => ({ default: m.ReviewApplicationPage })))
-const ComplianceDirectoryPage = lazy(() => import('./routes/ComplianceDirectoryPage').then((m) => ({ default: m.ComplianceDirectoryPage })))
-const SupplierDirectoryPage = lazy(() => import('./routes/back-office/SupplierDirectoryPage').then((m) => ({ default: m.SupplierDirectoryPage })))
-const OrganizationsPage = lazy(() => import('./routes/back-office/OrganizationsPage').then((m) => ({ default: m.OrganizationsPage })))
-const StaffPage = lazy(() => import('./routes/back-office/StaffPage').then((m) => ({ default: m.StaffPage })))
-const RolesPage = lazy(() => import('./routes/back-office/RolesPage').then((m) => ({ default: m.RolesPage })))
-const OfferingSearchPage = lazy(() => import('./routes/back-office/OfferingSearchPage').then((m) => ({ default: m.OfferingSearchPage })))
-const EvaluationTemplatesPage = lazy(() => import('./routes/back-office/EvaluationTemplatesPage').then((m) => ({ default: m.EvaluationTemplatesPage })))
-const RfqListPage = lazy(() => import('./routes/back-office/RfqListPage').then((m) => ({ default: m.RfqListPage })))
-const RfqDetailPage = lazy(() => import('./routes/back-office/RfqDetailPage').then((m) => ({ default: m.RfqDetailPage })))
-const TenderSuppliersPage = lazy(() => import('./routes/back-office/TenderSuppliersPage').then((m) => ({ default: m.TenderSuppliersPage })))
-const TenderSettingsPage = lazy(() => import('./routes/back-office/TenderSettingsPage').then((m) => ({ default: m.TenderSettingsPage })))
-const MyEvaluationPage = lazy(() => import('./routes/back-office/MyEvaluationPage').then((m) => ({ default: m.MyEvaluationPage })))
-const MyEvaluationBriefRoute = lazy(() => import('./routes/back-office/MyEvaluationBriefPage').then((m) => ({ default: m.MyEvaluationBriefRoute })))
-const ComparisonPage = lazy(() => import('./routes/back-office/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
-const ReceivedProposalsPage = lazy(() => import('./routes/back-office/ReceivedProposalsPage').then((m) => ({ default: m.ReceivedProposalsPage })))
-const AwardPage = lazy(() => import('./routes/back-office/AwardPage').then((m) => ({ default: m.AwardPage })))
-const SupplierRfqListPage = lazy(() => import('./routes/SupplierRfqListPage').then((m) => ({ default: m.SupplierRfqListPage })))
-const SupplierRfqDetailPage = lazy(() => import('./routes/SupplierRfqDetailPage').then((m) => ({ default: m.SupplierRfqDetailPage })))
-const SupplierProposalPage = lazy(() => import('./routes/SupplierProposalPage').then((m) => ({ default: m.SupplierProposalPage })))
+const LoginPage = lazyRouteComponent(() => import('./routes/LoginPage'), 'LoginPage')
+const RegisterPage = lazyRouteComponent(() => import('./routes/RegisterPage'), 'RegisterPage')
+const ForgotPasswordPage = lazyRouteComponent(() => import('./routes/ForgotPasswordPage'), 'ForgotPasswordPage')
+const ResetPasswordPage = lazyRouteComponent(() => import('./routes/ResetPasswordPage'), 'ResetPasswordPage')
+const VerifyEmailPage = lazyRouteComponent(() => import('./routes/VerifyEmailPage'), 'VerifyEmailPage')
+const AcceptTeamInvitePage = lazyRouteComponent(() => import('./routes/AcceptTeamInvitePage'), 'AcceptTeamInvitePage')
+const AcceptStaffInvitePage = lazyRouteComponent(() => import('./routes/AcceptStaffInvitePage'), 'AcceptStaffInvitePage')
+const SupplierDashboardPage = lazyRouteComponent(() => import('./routes/SupplierDashboardPage'), 'SupplierDashboardPage')
+const OnboardingPage = lazyRouteComponent(() => import('./routes/OnboardingPage'), 'OnboardingPage')
+const ContactsPage = lazyRouteComponent(() => import('./routes/onboarding/ContactsPage'), 'ContactsPage')
+const AddressesPage = lazyRouteComponent(() => import('./routes/onboarding/AddressesPage'), 'AddressesPage')
+const BankingPage = lazyRouteComponent(() => import('./routes/onboarding/BankingPage'), 'BankingPage')
+const OfferingsPage = lazyRouteComponent(() => import('./routes/onboarding/OfferingsPage'), 'OfferingsPage')
+const TeamPage = lazyRouteComponent(() => import('./routes/TeamPage'), 'TeamPage')
+const OfferingCatalogPage = lazyRouteComponent(() => import('./routes/OfferingCatalogPage'), 'OfferingCatalogPage')
+const SettingsPage = lazyRouteComponent(() => import('./routes/SettingsPage'), 'SettingsPage')
+const NotificationPreferencesPage = lazyRouteComponent(() => import('./routes/NotificationPreferencesPage'), 'NotificationPreferencesPage')
+const NotificationsPage = lazyRouteComponent(() => import('./routes/NotificationsPage'), 'NotificationsPage')
+const EvaluationDashboardPage = lazyRouteComponent(() => import('./routes/EvaluationDashboardPage'), 'EvaluationDashboardPage')
+const ProcurementDashboardPage = lazyRouteComponent(() => import('./routes/back-office/ProcurementDashboardPage'), 'ProcurementDashboardPage')
+const ApprovalQueuesPage = lazyRouteComponent(() => import('./routes/back-office/ApprovalQueuesPage'), 'ApprovalQueuesPage')
+const ReviewDashboardPage = lazyRouteComponent(() => import('./routes/back-office/ReviewDashboardPage'), 'ReviewDashboardPage')
+const BackOfficeDashboardPage = lazyRouteComponent(() => import('./routes/BackOfficeDashboardPage'), 'BackOfficeDashboardPage')
+const ReviewQueuePage = lazyRouteComponent(() => import('./routes/ReviewQueuePage'), 'ReviewQueuePage')
+const ReviewApplicationPage = lazyRouteComponent(() => import('./routes/ReviewApplicationPage'), 'ReviewApplicationPage')
+const ComplianceDirectoryPage = lazyRouteComponent(() => import('./routes/ComplianceDirectoryPage'), 'ComplianceDirectoryPage')
+const SupplierDirectoryPage = lazyRouteComponent(() => import('./routes/back-office/SupplierDirectoryPage'), 'SupplierDirectoryPage')
+const OrganizationsPage = lazyRouteComponent(() => import('./routes/back-office/OrganizationsPage'), 'OrganizationsPage')
+const StaffPage = lazyRouteComponent(() => import('./routes/back-office/StaffPage'), 'StaffPage')
+const RolesPage = lazyRouteComponent(() => import('./routes/back-office/RolesPage'), 'RolesPage')
+const OfferingSearchPage = lazyRouteComponent(() => import('./routes/back-office/OfferingSearchPage'), 'OfferingSearchPage')
+const EvaluationTemplatesPage = lazyRouteComponent(() => import('./routes/back-office/EvaluationTemplatesPage'), 'EvaluationTemplatesPage')
+const RfqListPage = lazyRouteComponent(() => import('./routes/back-office/RfqListPage'), 'RfqListPage')
+const RfqDetailPage = lazyRouteComponent(() => import('./routes/back-office/RfqDetailPage'), 'RfqDetailPage')
+const TenderSuppliersPage = lazyRouteComponent(() => import('./routes/back-office/TenderSuppliersPage'), 'TenderSuppliersPage')
+const TenderSettingsPage = lazyRouteComponent(() => import('./routes/back-office/TenderSettingsPage'), 'TenderSettingsPage')
+const MyEvaluationPage = lazyRouteComponent(() => import('./routes/back-office/MyEvaluationPage'), 'MyEvaluationPage')
+const MyEvaluationBriefRoute = lazyRouteComponent(() => import('./routes/back-office/MyEvaluationBriefPage'), 'MyEvaluationBriefRoute')
+const ComparisonPage = lazyRouteComponent(() => import('./routes/back-office/ComparisonPage'), 'ComparisonPage')
+const ReceivedProposalsPage = lazyRouteComponent(() => import('./routes/back-office/ReceivedProposalsPage'), 'ReceivedProposalsPage')
+const AwardPage = lazyRouteComponent(() => import('./routes/back-office/AwardPage'), 'AwardPage')
+const SupplierRfqListPage = lazyRouteComponent(() => import('./routes/SupplierRfqListPage'), 'SupplierRfqListPage')
+const SupplierRfqDetailPage = lazyRouteComponent(() => import('./routes/SupplierRfqDetailPage'), 'SupplierRfqDetailPage')
+const SupplierProposalPage = lazyRouteComponent(() => import('./routes/SupplierProposalPage'), 'SupplierProposalPage')
 const SupplierShell = lazy(() => import('./shells/SupplierShell').then((m) => ({ default: m.SupplierShell })))
 const BackOfficeShell = lazy(() => import('./shells/BackOfficeShell').then((m) => ({ default: m.BackOfficeShell })))
-import { createRootRoute, createRoute, createRouter, Link, Outlet, redirect } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Link, Outlet, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { LanguageSwitch } from './components/LanguageSwitch'
 import { ErrorBoundaryScreen } from './components/ErrorBoundaryScreen'
@@ -319,7 +329,7 @@ const supplierLayoutRoute = createRoute({
     }
     return (
       <SupplierShell>
-        <Outlet />
+        <PageOutlet />
       </SupplierShell>
     )
   },
@@ -402,7 +412,7 @@ const evaluatorLayoutRoute = createRoute({
     }
     return (
       <BackOfficeShell>
-        <Outlet />
+        <PageOutlet />
       </BackOfficeShell>
     )
   },
@@ -614,7 +624,7 @@ const backOfficeLayoutRoute = createRoute({
     }
     return (
       <BackOfficeShell>
-        <Outlet />
+        <PageOutlet />
       </BackOfficeShell>
     )
   },
@@ -757,7 +767,11 @@ const routeTree = rootRoute.addChildren([
   backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, ministryRfqMonitorRoute, ministryRfqDetailRoute, ministrySupplierRegistryRoute, ministryAwardAnalyticsRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, tenderSuppliersRoute, tenderSettingsRoute, rfqDetailRoute]),
 ])
 
-export const router = createRouter({ routeTree, defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" /> })
+export const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  defaultNotFoundComponent: () => <ErrorBoundaryScreen code="404" />,
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

@@ -15,6 +15,12 @@
 // around a child route, never independent content of its own - and that is the basis for excluding
 // it from the page count, not whether it happens to declare a `path:`. backOfficeLayoutRoute does
 // declare one, and is still a shell.
+//
+// The Outlet may be a PageOutlet: the shells render their screen through one so a loading screen does
+// not hide the shell with it. The first version of that change matched only `<Outlet />` here, so all
+// three layouts stopped being recognised, joined the page list, and the two pathless ones gave a dozen
+// tests the same empty title - Playwright refused to start with "duplicate test title a11y:  [ar]". The
+// route-count assertion in the accessibility sweep is what would have named it had the suite started.
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -59,7 +65,7 @@ export function extractRoutes(): RouteEntry[] {
     return `${parentPath === '/' ? '' : parentPath}${own}`
   }
 
-  const isShellWrapper = (body: string) => /<\w*Shell>[\s\S]*<Outlet \/>/.test(body)
+  const isShellWrapper = (body: string) => /<\w*Shell>[\s\S]*<(?:Page)?Outlet \/>/.test(body)
 
   return raw
     .filter((r) => !isShellWrapper(r.body))

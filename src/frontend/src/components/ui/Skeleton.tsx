@@ -39,7 +39,40 @@
 // SkeletonList. It uses auto-fit rather than a fixed count so the grid reflows at 320px without a breakpoint of its
 // own, per ACCESSIBILITY.md §9's "reflow at 320px/400% with no loss".
 
-import type { CSSProperties } from 'react'
+//
+// EVERY PLACEHOLDER WAITS 150MS BEFORE IT IS SEEN. Most loads here finish faster than a placeholder can be read: a screen
+// recording at 60 frames a second showed the Offerings list's bars on screen for five frames, 83ms, between the previous screen
+// and the list. Bars that appear and vanish that quickly are not read as loading - they are read as a flicker, which is what was
+// reported. So a placeholder mounts at once, keeps the space its content will take so nothing below it moves when it appears,
+// and stays visibility:hidden until REVEAL_AFTER_MS has passed. A load that finishes first never shows one at all; a slow load
+// shows it exactly as before, 150ms later.
+//
+// It is done here with a timer rather than in index.css with an animation delay, deliberately. The reduced-motion rules set
+// .msp-skeleton's animation-name to none, so a reveal expressed as an animation would leave the placeholder invisible forever
+// for anyone with reduced motion on - the users least able to tell a stalled screen from a loading one. visibility:hidden also
+// keeps the live region out of the accessibility tree until the reveal, so a screen reader is not told "loading" about a load
+// that has already finished.
+//
+// The delay lives on the placeholder that owns the space: a container hides itself and its bars reveal with it rather than each
+// running a timer of their own, and a bar used on its own carries the delay itself.
+
+import { useEffect, useState, type CSSProperties } from 'react'
+
+export const REVEAL_AFTER_MS = 150
+
+function useRevealed(afterMs: number): boolean {
+  const [revealed, setRevealed] = useState(afterMs <= 0)
+  useEffect(() => {
+    if (afterMs <= 0) return
+    const timer = setTimeout(() => setRevealed(true), afterMs)
+    return () => clearTimeout(timer)
+  }, [afterMs])
+  return revealed
+}
+
+function hiddenUntil(revealed: boolean): CSSProperties | undefined {
+  return revealed ? undefined : { visibility: 'hidden' }
+}
 
 interface SkeletonProps {
   width?: string
@@ -47,14 +80,23 @@ interface SkeletonProps {
   radius?: string
   className?: string
   style?: CSSProperties
+  revealAfterMs?: number
 }
 
-export function Skeleton({ width = '100%', height = '1rem', radius = '0.375rem', className = '', style }: SkeletonProps) {
+export function Skeleton({
+  width = '100%',
+  height = '1rem',
+  radius = '0.375rem',
+  className = '',
+  style,
+  revealAfterMs = REVEAL_AFTER_MS,
+}: Readonly<SkeletonProps>) {
+  const revealed = useRevealed(revealAfterMs)
   return (
     <span
       aria-hidden="true"
       className={`msp-skeleton block ${className}`}
-      style={{ width, height, borderRadius: radius, backgroundColor: 'var(--color-bg-sunken)', ...style }}
+      style={{ width, height, borderRadius: radius, backgroundColor: 'var(--color-bg-sunken)', ...style, ...hiddenUntil(revealed) }}
     />
   )
 }
@@ -67,12 +109,13 @@ interface SkeletonListProps extends SkeletonContainerProps {
   rows?: number
 }
 
-export function SkeletonList({ label, rows = 5 }: SkeletonListProps) {
+export function SkeletonList({ label, rows = 5 }: Readonly<SkeletonListProps>) {
+  const revealed = useRevealed(REVEAL_AFTER_MS)
   return (
-    <div role="status" aria-live="polite" aria-busy="true" className="flex flex-col gap-3">
+    <div role="status" aria-live="polite" aria-busy="true" className="flex flex-col gap-3" style={hiddenUntil(revealed)}>
       <span className="sr-only">{label}</span>
       {Array.from({ length: rows }, (_, i) => (
-        <Skeleton key={i} height="2.25rem" />
+        <Skeleton key={i} height="2.25rem" revealAfterMs={0} />
       ))}
     </div>
   )
@@ -83,21 +126,23 @@ interface SkeletonTableProps extends SkeletonContainerProps {
   columns?: number
 }
 
-export function SkeletonTable({ label, rows = 5, columns = 3 }: SkeletonTableProps) {
+export function SkeletonTable({ label, rows = 5, columns = 3 }: Readonly<SkeletonTableProps>) {
   const template = `minmax(8rem, 1.25fr) repeat(${columns}, minmax(6rem, 1fr))`
+  const revealed = useRevealed(REVEAL_AFTER_MS)
   return (
     <div
       role="status"
       aria-live="polite"
       aria-busy="true"
       className="w-full overflow-x-auto"
-      style={{ border: '1px solid var(--color-border)', borderRadius: '0.5rem' }}
+      style={{ border: '1px solid var(--color-border)', borderRadius: '0.5rem', ...hiddenUntil(revealed) }}
     >
       <span className="sr-only">{label}</span>
       <div className="grid gap-2 p-3" style={{ gridTemplateColumns: template, minWidth: 'max-content' }}>
         {Array.from({ length: columns + 1 }, (_, c) => (
           <Skeleton
             key={`h${c}`}
+            revealAfterMs={0}
             height="1.75rem"
             style={c === 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 1 } : undefined}
           />
@@ -106,6 +151,7 @@ export function SkeletonTable({ label, rows = 5, columns = 3 }: SkeletonTablePro
           Array.from({ length: columns + 1 }, (_, c) => (
             <Skeleton
               key={`r${r}c${c}`}
+              revealAfterMs={0}
               height="1.25rem"
               style={c === 0 ? { position: 'sticky', insetInlineStart: 0, zIndex: 1 } : undefined}
             />
@@ -121,18 +167,22 @@ interface SkeletonGridProps extends SkeletonContainerProps {
   columns?: number
 }
 
-export function SkeletonGrid({ label, items = 4, columns = 4 }: SkeletonGridProps) {
+export function SkeletonGrid({ label, items = 4, columns = 4 }: Readonly<SkeletonGridProps>) {
+  const revealed = useRevealed(REVEAL_AFTER_MS)
   return (
     <div
       role="status"
       aria-live="polite"
       aria-busy="true"
       className="grid gap-4"
-      style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${Math.floor(100 / columns)}%), 1fr))` }}
+      style={{
+        gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${Math.floor(100 / columns)}%), 1fr))`,
+        ...hiddenUntil(revealed),
+      }}
     >
       <span className="sr-only">{label}</span>
       {Array.from({ length: items }, (_, i) => (
-        <Skeleton key={i} height="5.5rem" radius="0.75rem" />
+        <Skeleton key={i} height="5.5rem" radius="0.75rem" revealAfterMs={0} />
       ))}
     </div>
   )

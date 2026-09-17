@@ -143,11 +143,13 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
   })
 
   it('shows a skeleton while loading, not a spinner, labelled with the screen', async () => {
-    restore = mockFetch(routes)
+    const original = globalThis.fetch
+    globalThis.fetch = (() => new Promise(() => {})) as typeof fetch
+    restore = () => { globalThis.fetch = original }
 
     renderPage(<ReportsPage />)
 
-    const loading = screen.getAllByRole('status')
+    const loading = await screen.findAllByRole('status')
     expect(loading.length).toBeGreaterThan(0)
     expect(loading.every((el) => el.textContent === 'Reports')).toBe(true)
   })

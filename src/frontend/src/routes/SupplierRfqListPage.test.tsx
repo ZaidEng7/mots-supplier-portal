@@ -37,14 +37,14 @@ describe('SupplierRfqListPage', () => {
   let restore: () => void
   afterEach(() => restore?.())
 
-  it('shows the loading skeleton and NOT the empty copy while the query is still pending', () => {
+  it('shows the loading skeleton and NOT the empty copy while the query is still pending', async () => {
     const original = globalThis.fetch
     globalThis.fetch = (() => new Promise(() => {})) as typeof fetch
     restore = () => { globalThis.fetch = original }
 
     renderPage(<SupplierRfqListPage />)
 
-    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+    expect(await screen.findByRole('status')).toHaveAttribute('aria-busy', 'true')
     expect(screen.queryByText('No invitations yet')).not.toBeInTheDocument()
   })
 

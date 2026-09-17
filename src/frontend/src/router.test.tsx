@@ -26,6 +26,21 @@
 // but it fails when a fourth layout is added without one. The layouts are the routes that mount a shell, whether pathless or a
 // real path, and the denominator is asserted because three mount one and a filter that found none would pass in silence.
 //
+// EVERY SHELL LAYOUT RENDERS ITS SCREEN THROUGH PageOutlet, never a bare Outlet. Screens are lazy, and a bare Outlet leaves the
+// nearest Suspense boundary above the shell, so the first visit to a screen hid the sidebar and header along with it and the
+// whole app went blank until the code arrived - about 285ms warm, a second or more after a server restart. PageOutlet.test.tsx
+// proves the boundary keeps the shell up and carries the control that reproduces the blank; this is the half that fails when a
+// fourth layout is added the old way. It reads the component's source, like the persona check, and asserts the same denominator.
+//
+// NO ROUTE COMPONENT IS A React.lazy. React holds a Suspense boundary's content back for up to 300ms after it last showed a
+// fallback, to stop content popping in piece by piece - FALLBACK_THROTTLE_MS in react-dom 19.3. So a screen that suspended even for
+// the ten milliseconds its code took to arrive sat blank for three hundred: measured at 404ms from click to heading on the
+// supplier directory, of which the page's code took 50 and its data 25. lazyRouteComponent renders synchronously once loaded and
+// exposes preload(), which the router calls on intent and awaits during navigation, so a screen never enters a fallback on a
+// click. Measured after: 113-124ms on a plain click, 73-83ms with a hover first. A route converted back to lazy() compiles, renders
+// and passes every other test here while quietly costing that 300ms again, so it is named. The denominator is asserted because a
+// filter that found no preloadable components would pass in silence.
+//
 // THE TWO SHELLS STAY IN SEPARATE URL SPACES, because supplier screens and back-office screens are different shells with
 // different navigation and a path that answered under both would render one persona's chrome around the other's page.
 //
@@ -105,6 +120,32 @@ describe('route tree', () => {
 
     expect(withoutPersonaCheck, 'a shell layout that only checks for a session lets the wrong persona in')
       .toEqual([])
+  })
+
+  it('renders every shell layout\'s screen inside its own loading boundary', () => {
+    const layouts = all.filter((r) => String(r.options?.component ?? '').includes('Shell'))
+
+    expect(layouts.length).toBeGreaterThanOrEqual(3)
+
+    const withBareOutlet = layouts
+      .filter((r: AnyRoute) => {
+        const body = String(r.options?.component ?? '')
+        return !body.includes('PageOutlet') || /(?<!Page)Outlet\b/.test(body)
+      })
+      .map((r: AnyRoute) => r.id ?? r.fullPath)
+
+    expect(withBareOutlet, 'a bare Outlet in a shell blanks the whole app while a lazy screen loads').toEqual([])
+  })
+
+  it('code-splits screens with lazyRouteComponent, never React.lazy', () => {
+    const components = withPaths.map((r) => ({ id: r.id, component: r.options?.component as unknown }))
+    const reactLazy = components
+      .filter(({ component }) => (component as { $$typeof?: symbol } | undefined)?.$$typeof === Symbol.for('react.lazy'))
+      .map(({ id }) => id)
+    const preloadable = components.filter(({ component }) => typeof (component as { preload?: unknown })?.preload === 'function')
+
+    expect(preloadable.length).toBeGreaterThanOrEqual(60)
+    expect(reactLazy, 'a React.lazy route component waits out React\'s 300ms reveal throttle on every first visit').toEqual([])
   })
 
   it('keeps the two shells in separate URL spaces', () => {
