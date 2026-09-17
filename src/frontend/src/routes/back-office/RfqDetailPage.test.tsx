@@ -81,6 +81,12 @@
 // called, so the comp puts the name in the heading and files the code with the other identifying facts. The owner is still on
 // the screen and still says who is answerable - A-7 put it there and it stays.
 //
+// The heading is on the screen BEFORE the tender is: TenderFrame draws it around the loading state too, naming the tender by
+// its code until the read answers, so the tabs are there from the first paint. A test that means "once the tender has
+// rendered" therefore waits for the identity line or for the tender's NAME in the heading, never for a heading alone. Waiting
+// for any heading asserted the name before it had arrived, and let the countdown's denominator pass against a page that had
+// not loaded, where no chip of any kind is shown.
+//
 // The second chip says WHEN submissions close, while they are open, and it is the one a buyer acts on: "Open for submissions"
 // does not say whether that means today or next month, and the closing date lived three cards down the page. That test allows
 // an hour of slack, because formatRelative truncates and exactly six days minus the milliseconds the test takes to run is five
@@ -115,12 +121,20 @@
 // any existing test could have caught: two cells rendered GUIDs on the screen where a tender is decided, the assign control
 // was a free-text GUID box, and the panel was hidden for the four states after UnderEvaluation.
 //
-// "MY EVALUATION" is an assigned evaluator's screen and nobody else's. It was shown to whoever could see the panel, so a
-// procurement manager - who opens the evaluation, assigns the evaluators and consolidates their scores, but does not score -
-// was offered a scoring screen with nothing on it. Asked directly by the person it happened to: "if I cannot evaluate as a
-// manager, why is there an evaluate button for the manager?" Its control is the same panel with the same permissions and one
-// thing different, this session being on the assignment list - without which the first test would pass against a link nobody
-// ever sees.
+// The panel's "MY EVALUATION" link is for an evaluator assigned to this tender and nobody else. It was shown to whoever could
+// see the panel, so a procurement manager - who opens the evaluation, assigns the evaluators and consolidates their scores, but
+// does not score - was offered a scoring screen with nothing on it. Asked directly by the person it happened to: "if I cannot
+// evaluate as a manager, why is there an evaluate button for the manager?" Its control is the same panel with the same
+// permissions and one thing different, this session being on the assignment list - without which the first test would pass
+// against a link nobody ever sees.
+//
+// The tab strip is a different control and says something different. It offers a My evaluation tab to anyone holding
+// evaluation.score, because the strip does not read the assignment list, and TenderFrame draws it while the tender is still
+// loading. The second test used to look for the link across the whole page, so it found that tab on the first render and
+// passed whether the panel offered the link or not. Both tests now wait for the assignment roster, which is on the screen only
+// once the evaluation has answered, and look for the link inside the Decisions group. Both sessions hold evaluation.score, so
+// the strip carries the tab in each, and the first test asserts that it does: a query that reached the strip would find a link
+// there, so the empty Decisions group is the panel's answer and not a matcher that could see nothing.
 //
 // The evaluator is NAMED rather than printed as a GUID, with the fallback to the id as its control and a real case: an
 // assignment whose user row has gone should stay visible rather than leaving the recuse button beside an empty cell. The
@@ -391,7 +405,7 @@ describe('RfqDetailPage', () => {
     restore = mockFetch({ ...REFERENCE_ROUTES, '/api/v1/rfqs/RFQ-2026-000001': rfqFixture('Draft') })
 
     renderPage(<RfqDetailPage />)
-    await screen.findByRole('heading', { level: 1 })
+    await screen.findByRole('heading', { level: 1, name: 'Sample RFQ' })
 
     const regions = screen.getAllByRole('region').filter((g) => g.tagName === 'SECTION')
     expect(regions.map((g) => document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent))
@@ -563,11 +577,11 @@ describe('RfqDetailPage', () => {
 
     renderPage(<RfqDetailPage />)
 
-    const heading = await screen.findByRole('heading', { level: 1 })
+    expect(await screen.findByText(/RFQ-2026-000001 · Owner: Rana Tester/)).toBeInTheDocument()
+
+    const heading = screen.getByRole('heading', { level: 1 })
     expect(heading).toHaveTextContent('Sample RFQ')
     expect(heading).not.toHaveTextContent('RFQ-2026-000001')
-
-    expect(screen.getByText(/RFQ-2026-000001 · Owner: Rana Tester/)).toBeInTheDocument()
   })
 
   it('says when submissions close, while they are open', async () => {
@@ -591,7 +605,7 @@ describe('RfqDetailPage', () => {
 
     renderPage(<RfqDetailPage />)
 
-    await screen.findByRole('heading', { level: 1 })
+    await screen.findByRole('heading', { level: 1, name: 'Sample RFQ' })
     expect(screen.queryByText(/Closes in/)).toBeNull()
   })
 
@@ -689,7 +703,7 @@ describe('RfqDetailPage', () => {
 
     renderPage(<RfqDetailPage />)
 
-    expect(await screen.findByText(/RFQ-2026-000001/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sample RFQ' })).toBeInTheDocument()
     expect(screen.queryByLabelText('New deadline')).not.toBeInTheDocument()
   })
 
@@ -820,7 +834,7 @@ describe('RfqDetailPage evaluation panel (T-082)', () => {
   }
 
   it('offers the scoring screen only to an evaluator assigned to this tender', async () => {
-    signInWith(['evaluation.assign', 'evaluation.consolidate'])
+    signInWith(['evaluation.score'])
     restore = mockFetch(routes('UnderEvaluation', evaluation({
       assignments: [{
         evaluatorUserId: 'someone-else', evaluatorName: 'Nadia Suleiman',
@@ -831,7 +845,11 @@ describe('RfqDetailPage evaluation panel (T-082)', () => {
     renderPage(<RfqDetailPage />)
 
     await screen.findByText('Nadia Suleiman')
-    expect(screen.queryByRole('link', { name: /my evaluation/i })).not.toBeInTheDocument()
+    const strip = screen.getByRole('navigation', { name: 'Tender sections' })
+    expect(within(strip).getByRole('link', { name: /my evaluation/i })).toBeInTheDocument()
+
+    const decisions = screen.getByRole('region', { name: 'Decisions' })
+    expect(within(decisions).queryByRole('link', { name: /my evaluation/i })).not.toBeInTheDocument()
   })
 
   it('offers it to the evaluator whose assignment it is', async () => {
@@ -845,7 +863,10 @@ describe('RfqDetailPage evaluation panel (T-082)', () => {
 
     renderPage(<RfqDetailPage />)
 
-    expect(await screen.findByRole('link', { name: /my evaluation/i })).toBeInTheDocument()
+    await screen.findByText('The signed-in evaluator')
+    const decisions = screen.getByRole('region', { name: 'Decisions' })
+    expect(within(decisions).getByRole('link', { name: /my evaluation/i }))
+      .toHaveAttribute('href', '/back-office/rfqs/RFQ-2026-000001/my-evaluation')
   })
 
   it('names the evaluator rather than printing their GUID', async () => {

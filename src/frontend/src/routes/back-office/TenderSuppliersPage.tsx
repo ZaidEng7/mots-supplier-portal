@@ -8,7 +8,8 @@
 //
 // THE HEAD is the tender's identity, said the same way on all six of its views. This screen already named the tender and its
 // code; what it did not carry was who owns it or when bidding closes, which the tender's own view has always shown. One
-// record, one head.
+// record, one head. It comes from TenderFrame with the strip, on the loading and the failure state too: both used to be
+// drawn in the last return only, so a tender that could not be read here left a retry button and no way to its other tabs.
 //
 // A-4: NO PUBLISH CHECKBOX. Answering broadcasts to every invitee with the asker anonymised, so the officer is TOLD that
 // rather than asked it - an option whose only fair setting is "yes" is not a choice.
@@ -28,8 +29,7 @@ import {
   publishClarification,
   suggestInvitationCandidates,
 } from '../../api/rfqs'
-import { TenderTabs } from './rfq/TenderTabs'
-import { TenderHeader } from './rfq/TenderHeader'
+import { TenderFrame } from './rfq/TenderFrame'
 
 export function TenderSuppliersPage() {
   const { referenceCode } = useParams({ strict: false }) as { referenceCode: string }
@@ -82,18 +82,27 @@ export function TenderSuppliersPage() {
     onError: (err) => notify({ kind: 'danger', title: errorMessage(err, t('rfq.clarifications.errors.answerFailed')) }),
   })
 
-  if (rfqQuery.isError) return <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
-  if (rfqQuery.isLoading || !rfq) return <SkeletonList label={t('common.loading')} />
+  if (rfqQuery.isError) {
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <QueryError error={rfqQuery.error} onRetry={() => void rfqQuery.refetch()} />
+      </TenderFrame>
+    )
+  }
+  if (rfqQuery.isLoading || !rfq) {
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <SkeletonList label={t('common.loading')} />
+      </TenderFrame>
+    )
+  }
 
   const canInvite = !['SubmissionClosed', 'UnderEvaluation', 'Clarification', 'Shortlisting', 'Recommendation', 'AwardApproval', 'Awarded', 'Completed', 'Cancelled'].includes(rfq.state)
   const invitedSupplierIds = new Set(rfq.invitations.map((i) => i.supplierId))
   const uninvitedCandidates = (candidatesQuery.data ?? []).filter((c) => !invitedSupplierIds.has(c.supplierId))
 
   return (
-    <div className="flex flex-col gap-6">
-      <TenderHeader referenceCode={referenceCode} />
-      <TenderTabs referenceCode={referenceCode} />
-
+    <TenderFrame referenceCode={referenceCode}>
       <div className="flex flex-col gap-4">
           <Card title={t('rfq.invitations.title')}>
             {rfq.invitations.length > 0 ? (
@@ -184,6 +193,6 @@ export function TenderSuppliersPage() {
             )}
           </Card>
       </div>
-    </div>
+    </TenderFrame>
   )
 }

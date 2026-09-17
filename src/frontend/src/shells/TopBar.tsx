@@ -17,6 +17,23 @@
 // the home crumb, and rendering both read "Dashboard / Dashboard" - a trail that says the same word twice tells a reader
 // less than one that says it once.
 //
+// The section is a LINK on every page below it, and marked as the current page only on its own. It was a span marked
+// aria-current wherever it appeared, so on /back-office/rfqs/RFQ-1/award the trail announced Tenders as the page you
+// were on and offered no way up to it. The home crumb follows the same rule on a page below the front page.
+//
+// Every link in the bar asks the router to match EXACTLY. TanStack's Link marks itself aria-current="page" on any path its
+// target is a prefix of, and it writes that mark after the props written here, so turning the crumb into a link was not
+// enough: on /back-office/rfqs/RFQ-1/award the Tenders crumb was a link and still announced itself as the page you were on.
+// The account links had the same fault, so Account was announced as current on its own notification settings. This file
+// decides which crumb and which account link is current, and an exact match lets the router agree with it and add nothing.
+//
+// The owner is chosen from the rows this account can SEE, the same filtered list the sidebar draws. It was chosen from
+// the whole list, so an evaluator scoring a tender was told they were in Tenders, a section hidden from them. It is
+// chosen by prefix with `exact` ignored: `exact` exists to stop two sidebar rows lighting at once, not to disown the
+// pages under a row, and honouring it here left /back-office/review/SUP-1 with no owner and the trail a lone Dashboard.
+// A row's `owns` pattern beats every prefix match, by the sidebar's own isClaimed rule, so an evaluator's scoring screen
+// and brief belong to My evaluations, the list they were opened from, rather than to the Tenders section beside it.
+//
 // ACCOUNT CHROME sits here, off the path between a supplier and a tender. It is rendered as TEXT rather than bare icons:
 // an icon-only row of three would need three accessible names to say what three words already say, and these are read
 // rarely enough that the words cost nothing.
@@ -38,12 +55,14 @@ import { Icon } from '../components/ui/Icon'
 import { LanguageSwitch } from '../components/LanguageSwitch'
 import { NotificationBell } from '../components/NotificationBell'
 import { Button } from '../components/ui'
-import { NavGroups, isCurrent } from './Sidebar'
+import { NavGroups, isClaimed, isCurrent, visibleGroups } from './Sidebar'
 import type { NavContext, NavGroup, NavItem } from './navigation'
 
 export function breadcrumb(groups: readonly NavGroup[], pathname: string): NavItem | null {
-  const rows = groups.flatMap((group) => group.items)
-  const matches = rows.filter((item) => isCurrent(item, pathname))
+  const claimed = isClaimed(groups, pathname)
+  const matches = groups
+    .flatMap((group) => group.items)
+    .filter((item) => isCurrent({ ...item, exact: false }, pathname, claimed))
   return matches.sort((a, b) => b.to.length - a.to.length)[0] ?? null
 }
 
@@ -61,7 +80,7 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
   const { t } = useTranslation()
   const [navOpen, setNavOpen] = useState(false)
   const navId = useId()
-  const here = breadcrumb(groups, pathname)
+  const here = breadcrumb(visibleGroups(groups, context), pathname)
 
   return (
     <>
@@ -86,21 +105,37 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
         </button>
 
         <nav aria-label={t('nav.breadcrumb')} className="flex min-w-0 items-center gap-1.5 text-[length:var(--text-body-sm)]">
-          {here?.to === home.to ? (
+          {here?.to === home.to && pathname === home.to ? (
             <span aria-current="page" className="truncate font-[var(--fw-medium)]" style={{ color: 'var(--color-text-primary)' }}>
               {home.label}
             </span>
           ) : (
             <>
-              <Link to={home.to as never} className="no-underline" style={{ color: 'var(--color-text-secondary)' }}>
+              <Link
+                to={home.to as never}
+                activeOptions={{ exact: true }}
+                className="no-underline"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
                 {home.label}
               </Link>
-              {here ? (
+              {here && here.to !== home.to ? (
                 <>
                   <span aria-hidden="true" style={{ color: 'var(--color-text-muted)' }}>/</span>
-                  <span aria-current="page" className="truncate font-[var(--fw-medium)]" style={{ color: 'var(--color-text-primary)' }}>
-                    {t(here.labelKey)}
-                  </span>
+                  {pathname === here.to ? (
+                    <span aria-current="page" className="truncate font-[var(--fw-medium)]" style={{ color: 'var(--color-text-primary)' }}>
+                      {t(here.labelKey)}
+                    </span>
+                  ) : (
+                    <Link
+                      to={here.to as never}
+                      activeOptions={{ exact: true }}
+                      className="truncate no-underline"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      {t(here.labelKey)}
+                    </Link>
+                  )}
                 </>
               ) : null}
             </>
@@ -115,6 +150,7 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
               <Link
                 key={item.to}
                 to={item.to as never}
+                activeOptions={{ exact: true }}
                 aria-current={isCurrent(item, pathname) ? 'page' : undefined}
                 className="text-[length:var(--text-body-sm)] no-underline"
                 style={{
@@ -144,6 +180,7 @@ export function TopBar({ groups, chrome, context, pathname, home, searchTo, onLo
             <Link
               key={item.to}
               to={item.to as never}
+              activeOptions={{ exact: true }}
               onClick={() => setNavOpen(false)}
               aria-current={isCurrent(item, pathname) ? 'page' : undefined}
               className="rounded-[var(--radius-sm)] px-2 py-[7px] text-[length:var(--text-body-sm)] no-underline"

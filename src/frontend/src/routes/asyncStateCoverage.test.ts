@@ -43,10 +43,10 @@ const NO_ERROR_BRANCH_NEEDED: Record<string, string> = {
     + 'to not knowing - and the strip still takes you everywhere it did. An error panel here would '
     + 'replace the way back with a message the screen underneath is already showing.',
   'back-office/rfq/TenderHeader.tsx':
-    'Not a screen, and the same case as the strip directly below it. It is the identity band six tender '
+    'Not a screen, and the same case as the strip directly below it. It is the identity band the tender '
     + 'views share, and it fetches only to say which tender you are looking at. A failed fetch falls '
     + 'back to the reference code, which is the one fact the screen holds before any request answers '
-    + 'and is enough to name the record. Each of the six views reports its own failure for its own '
+    + 'and is enough to name the record. Each view reports its own failure for its own '
     + 'data; an error panel here would report the same outage a second time, above the tab strip, on '
     + 'every one of them.',
   'admin/AuditExplorerPage.tsx':

@@ -7,7 +7,16 @@
 // CURRENT is matched by PREFIX rather than equality, so a step inside a section still lights the section that owns it -
 // /onboarding/banking marks Complete profile, /back-office/rfqs/RFQ-1/award marks Tenders. `exact` is for the handful of
 // destinations whose path is a prefix of another's, which would otherwise light two rows at once and tell the reader
-// nothing.
+// nothing. A row's `owns` pattern lights it on pages outside its own path, and while any row this account can see claims
+// the path that way, the rows that match only by prefix stay dark: /back-office/rfqs/RFQ-1/my-evaluation marks My
+// evaluations, the list an evaluator opened it from, and not Tenders beside it. isClaimed is exported because the
+// breadcrumb picks its owner by the same rule, and a trail that named one row while the rail lit another would be two
+// answers to one question.
+//
+// Every row asks the router to match EXACTLY, so isCurrent is the only thing that marks a row as the current page.
+// TanStack's Link marks itself aria-current="page" on any path its target is a prefix of, and writes that after the props
+// written here. So the rail drew one lit row while a screen reader heard two: Tenders beside My evaluations on
+// /back-office/rfqs/RFQ-1/my-evaluation, and the `exact` Review queue beside Compliance directory on its own page.
 //
 // The rows an account can see are filtered with empty GROUPS DROPPED rather than rendered as bare headings.
 //
@@ -25,8 +34,14 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '../components/ui/Icon'
 import type { NavContext, NavGroup, NavItem } from './navigation'
 
-export function isCurrent(item: NavItem, pathname: string): boolean {
+export function isCurrent(item: NavItem, pathname: string, claimed = false): boolean {
+  if (item.owns?.test(pathname)) return true
+  if (claimed) return false
   return item.exact ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`)
+}
+
+export function isClaimed(groups: readonly NavGroup[], pathname: string): boolean {
+  return groups.some((group) => group.items.some((item) => item.owns?.test(pathname) ?? false))
 }
 
 export function visibleGroups(groups: readonly NavGroup[], context: NavContext): NavGroup[] {
@@ -42,10 +57,12 @@ export function NavGroups({ groups, context, pathname, onNavigate }: Readonly<{
   onNavigate?: () => void
 }>) {
   const { t } = useTranslation()
+  const visible = visibleGroups(groups, context)
+  const claimed = isClaimed(visible, pathname)
 
   return (
     <>
-      {visibleGroups(groups, context).map((group) => {
+      {visible.map((group) => {
         const label = t(group.headingKey ?? 'nav.groupOverview')
         return (
           <nav key={group.headingKey ?? 'overview'} aria-label={label} className="flex flex-col gap-px">
@@ -58,11 +75,12 @@ export function NavGroups({ groups, context, pathname, onNavigate }: Readonly<{
               </h2>
             ) : null}
             {group.items.map((item) => {
-              const current = isCurrent(item, pathname)
+              const current = isCurrent(item, pathname, claimed)
               return (
                 <Link
                   key={item.to}
                   to={item.to as never}
+                  activeOptions={{ exact: true }}
                   onClick={onNavigate}
                   aria-current={current ? 'page' : undefined}
                   className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-[7px] text-[length:var(--text-body-sm)] no-underline"

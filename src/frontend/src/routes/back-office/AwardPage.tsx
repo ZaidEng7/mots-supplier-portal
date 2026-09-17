@@ -17,9 +17,11 @@
 // typed as a Record over the enum MINUS that member, so adding a fifth ErpSyncStatus fails the type-check here rather than
 // falling through to a missing translation key at runtime.
 //
-// THE HEADING is the tender, then which of its six views you are on. It used to name the VIEW - "Award" joined to a
+// THE HEADING is the tender, then which of its views you are on. It used to name the VIEW - "Award" joined to a
 // reference code - which is what the strip immediately below already says, while the tender's own name appeared nowhere on
-// the screen.
+// the screen. The heading and the strip come from TenderFrame on the loading and the failure state as well, because both used
+// to be drawn in the last return only: an award or evaluation that could not be read left a retry button and no way back to
+// the tender.
 //
 // THE WINNER is chosen by the proposal's §3 CODE, in the label as well as the value. "Rank 1 - 86.00" identifies a row on
 // this screen and nothing outside it, and a manager recommending a winner - or anyone later reading the award file - needs
@@ -37,8 +39,7 @@ import { invalidateQuietly } from '../../lib/queryClient'
 import type { ErpSyncStatus } from '../../api/awards'
 import { getAward, recommendAward, routeAwardForApproval, approveAward, rejectAward, executeAward, retryAwardErpSync, AwardApiError } from '../../api/awards'
 import { getEvaluation } from '../../api/evaluations'
-import { TenderTabs } from './rfq/TenderTabs'
-import { TenderHeader } from './rfq/TenderHeader'
+import { TenderFrame } from './rfq/TenderFrame'
 import { apiErrorMessage } from '../../api/problem'
 
 const ERP_SYNC_LABEL_KEYS: Record<Exclude<ErpSyncStatus, 'NotRequested'>, string> = {
@@ -122,21 +123,26 @@ export function AwardPage() {
   })
 
   if (awardQuery.isError || evaluationQuery.isError) {
-    return <QueryError error={awardQuery.error} onRetry={() => { void awardQuery.refetch(); void evaluationQuery.refetch() }} />
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <QueryError error={awardQuery.error} onRetry={() => { void awardQuery.refetch(); void evaluationQuery.refetch() }} />
+      </TenderFrame>
+    )
   }
 
   if (awardQuery.isLoading || evaluationQuery.isLoading) {
-    return <SkeletonList label={t('common.loading')} />
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <SkeletonList label={t('common.loading')} />
+      </TenderFrame>
+    )
   }
 
   const showRecommendForm = !award || award.state === 'Rejected'
   const lastApproval = award?.approvals[award.approvals.length - 1]
 
   return (
-    <div className="flex flex-col gap-6">
-      <TenderHeader referenceCode={referenceCode} />
-      <TenderTabs referenceCode={referenceCode} />
-
+    <TenderFrame referenceCode={referenceCode}>
       {award ? (
         <Card title={t('award.status')}>
           <div className="flex flex-col gap-3">
@@ -225,7 +231,7 @@ export function AwardPage() {
           )}
         </Card>
       ) : null}
-    </div>
+    </TenderFrame>
   )
 }
 

@@ -47,6 +47,16 @@
 // The screens this batch added are named INDIVIDUALLY rather than counted, so a route deleted in a refactor fails here with its
 // own name instead of as an off-by-one on a total. And an unknown path answers with the 404 screen rather than a blank page.
 //
+// A SCREEN THAT THROWS KEEPS ITS SHELL. Only the root declared an errorComponent and the router set no default, and TanStack Router
+// wraps a match in a catch boundary only when one of the two applies to it. So a screen that threw while rendering was caught at
+// the root, and the 500 replaced the sidebar, the top bar and the breadcrumb along with the screen: a code, a sentence, and no link
+// anywhere on the page. The case asserts first that the real router has a default, because the tree after it is built by hand and
+// would say nothing about the router this app ships. Then it takes PageOutlet.test.tsx's shape - a root carrying the real root's
+// own error component, a layout rendering chrome around a PageOutlet, and a screen that throws - passes createRouter the real
+// default, and expects the chrome, the 500 inside the layout beside it, and a link home. THE CONTROL is the identical tree with no
+// default: the root catches the error, its 500 is on screen and the chrome is not. Without it the first case could pass because
+// this environment never unmounted the chrome at all, and it would look exactly like a fix.
+//
 // THE REACHABILITY GUARD, and the reason it exists. Six times in this project a screen has been built, permissioned, tested -
 // and reachable only by typing its address. SCR-400, the procurement officer's own home screen, SCR-300, the reviewer's
 // dashboard, FEAT-19's reports and SCR-908's about page were all in that state at the end of batch 11. Nothing caught it,
@@ -69,9 +79,21 @@
 // itself is excluded, because it DEFINES the routes and counting it would make every route trivially reachable - which is the
 // failure this guard exists to catch.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { Suspense } from 'react'
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from '@tanstack/react-router'
 import type { AnyRoute } from '@tanstack/react-router'
 import { router } from './router'
+import { PageOutlet } from './components/PageOutlet'
+import { useAuthStore } from './lib/authStore'
 
 function walk(route: AnyRoute, trail: AnyRoute[] = []): AnyRoute[] {
   const children = (route.children ?? []) as AnyRoute[]
@@ -81,7 +103,57 @@ function walk(route: AnyRoute, trail: AnyRoute[] = []): AnyRoute[] {
 const all = walk(router.routeTree)
 const withPaths = all.filter((r) => r.id !== '__root__' && typeof r.path === 'string' && r.path.length > 0)
 
+function buildShellWithBrokenScreen(defaultErrorComponent: typeof router.options.defaultErrorComponent) {
+  const root = createRootRoute({
+    component: () => (
+      <Suspense fallback={null}>
+        <Outlet />
+      </Suspense>
+    ),
+    errorComponent: router.routeTree.options.errorComponent,
+  })
+
+  const layout = createRoute({
+    getParentRoute: () => root,
+    id: 'layout',
+    component: () => (
+      <div>
+        <nav>shell chrome</nav>
+        <PageOutlet />
+      </div>
+    ),
+  })
+
+  const broken = createRoute({
+    getParentRoute: () => layout,
+    path: '/broken',
+    component: () => {
+      throw new Error('the screen failed to render')
+    },
+  })
+
+  return createRouter({
+    routeTree: root.addChildren([layout.addChildren([broken])]),
+    history: createMemoryHistory({ initialEntries: ['/broken'] }),
+    defaultErrorComponent,
+  })
+}
+
+async function renderBrokenScreen(defaultErrorComponent: typeof router.options.defaultErrorComponent) {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
+  useAuthStore.getState().clearSession()
+
+  render(<RouterProvider router={buildShellWithBrokenScreen(defaultErrorComponent)} />)
+
+  return screen.findByText('500')
+}
+
 describe('route tree', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('registers every route under exactly one full path', () => {
     const fullPaths = withPaths.map((r) => r.fullPath)
     expect(new Set(fullPaths).size).toBe(fullPaths.length)
@@ -170,6 +242,25 @@ describe('route tree', () => {
 
   it('answers an unknown path with the 404 screen rather than a blank page', () => {
     expect(router.options.defaultNotFoundComponent).toBeDefined()
+  })
+
+  it('catches a screen\'s render error inside its shell', async () => {
+    expect(router.options.defaultErrorComponent).toBeDefined()
+
+    const code = await renderBrokenScreen(router.options.defaultErrorComponent)
+
+    const chrome = screen.getByText('shell chrome')
+    expect(chrome).toBeVisible()
+    expect(chrome.parentElement).toContainElement(code)
+    expect(screen.getByRole('link')).toBeVisible()
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/')
+  })
+
+  it('loses the shell to the root\'s 500 without a default error component, which is what the case above guards against', async () => {
+    const code = await renderBrokenScreen(undefined)
+
+    expect(code).toBeVisible()
+    expect(screen.queryByText('shell chrome')).toBeNull()
   })
 })
 

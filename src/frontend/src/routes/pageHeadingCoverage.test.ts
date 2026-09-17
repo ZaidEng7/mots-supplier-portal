@@ -36,8 +36,10 @@
 // demanding the wrong thing. What the router names is what a person can land on.
 //
 // DELEGATION is resolved one level deep, because that is the depth the product actually uses: three auth screens hand
-// the whole viewport to AcceptInvitePageBase, and the tender's six views hand their band to TenderHeader. A resolver
-// that chased imports without limit would be a module graph rather than a test.
+// the whole viewport to AcceptInvitePageBase, and the tender's views hand their band to TenderFrame, which draws
+// TenderHeader over the tab strip on every branch the view renders. Both tender components are named in the check itself
+// rather than chased, because the frame is two imports away from PageHeading. A resolver that chased imports without
+// limit would be a module graph rather than a test.
 //
 // The sweep asserts its denominator first - a sweep that matched nothing would pass every assertion after it, which is
 // exactly the shape of instrument this batch has been removing - then that no screen hand-rolls its own <h1>, and that
@@ -89,7 +91,7 @@ function saysItsName(relativePath: string): boolean {
   } catch {
     return true
   }
-  if (/<(PageHeading|AuthHeading|TenderHeader)[\s/>]/.test(source)) return true
+  if (/<(PageHeading|AuthHeading|TenderHeader|TenderFrame)[\s/>]/.test(source)) return true
   return [...source.matchAll(/from '([./A-Za-z-]+)'/g)]
     .map((m) => m[1])
     .filter((spec) => spec.startsWith('.'))

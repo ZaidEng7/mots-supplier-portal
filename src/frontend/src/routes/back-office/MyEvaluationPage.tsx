@@ -36,11 +36,22 @@
 // comment with no score typed yet and the save button reads the two conditions separately.
 //
 // A failed fetch is its own branch: without it the screen renders its empty state and tells the reader there is nothing here.
+// That holds for the DECLARATION read as well as the workspace. Nothing handled the declaration failing: the workspace read
+// stayed switched off behind it, so the page fell through to "not assigned" and told an evaluator who IS assigned that they
+// are not. The branch is for a read that never succeeded: a background refetch that fails keeps the answer it already had,
+// and replacing a declaration the evaluator is part-way through reading with a retry panel would be the worse failure.
 //
-// THE HEADING is the tender, then which of its six views you are on. It used to name the VIEW, which is what the strip
+// THE HEADING is the tender, then which of its views you are on. It used to name the VIEW, which is what the strip
 // immediately below already says - and the strip was nested inside the heading's own flex row, so it sat beside the title
 // rather than under it. The link beside it goes to SCR-501's brief, which carries the one thing this screen cannot show
 // without becoming a wall of text: each criterion's scoring guidance, as the template author wrote it.
+//
+// The heading and the strip come from TenderFrame on EVERY branch: loading, failed, the declaration, and "not assigned".
+// They used to be drawn in the workspace's return alone, so every evaluator's first sight of an assignment was a card whose
+// only controls were declarations they cannot take back, with no way to leave it but the browser's own button - and an
+// evaluator who had just recused themselves was left on one sentence. The declaration gets the frame WITHOUT the brief link
+// and the status chip: the brief reads the workspace, that read opens scoring, and holding the declaration window shut is
+// what `enabled` above is for.
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,8 +60,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import {Badge, Button, Card, Input, QueryError, SkeletonList, StatusChip, useToast} from '../../components/ui'
 import { invalidateQuietly } from '../../lib/queryClient'
 import { formatNumber } from '../../lib/datetime'
-import { TenderTabs } from './rfq/TenderTabs'
-import { TenderHeader } from './rfq/TenderHeader'
+import { TenderFrame } from './rfq/TenderFrame'
 import { apiErrorMessage } from '../../api/problem'
 import {
   getMyEvaluation, scoreCriterion, submitMyEvaluation, evaluatorProposalDocumentUrl,
@@ -121,52 +131,79 @@ export function MyEvaluationPage() {
   })
 
   if (declarationQuery.isLoading) {
-    return <SkeletonList label={t('common.loading')} />
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <SkeletonList label={t('common.loading')} />
+      </TenderFrame>
+    )
+  }
+
+  if (declarationQuery.isError && !declarationQuery.data) {
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <QueryError error={declarationQuery.error} onRetry={() => void declarationQuery.refetch()} />
+      </TenderFrame>
+    )
   }
 
   if (declarationRequired) {
     const bidders = declarationQuery.data?.bidders ?? []
     return (
-      <Card title={t('evaluation.my.declaration.title')}>
-        <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.declaration.body')}</p>
-        <ul className="mb-4 flex flex-col gap-1">
-          {bidders.map((bidder) => (
-            <li key={bidder.proposalCode}>
-              {i18n.language.startsWith('ar') ? bidder.supplierDisplayNameAr : bidder.supplierDisplayNameEn}
-            </li>
-          ))}
-        </ul>
-        <div className="flex flex-wrap items-end gap-2">
-          <Button size="sm" disabled={declareMutation.isPending} onClick={() => declareMutation.mutate(false)}>
-            {t('evaluation.my.declaration.noConflict')}
-          </Button>
-          <Input
-            aria-label={t('evaluation.my.declaration.reasonLabel')}
-            placeholder={t('evaluation.my.declaration.reasonPlaceholder')}
-            value={conflictReason}
-            onChange={(event) => setConflictReason(event.target.value)}
-          />
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!conflictReason || declareMutation.isPending}
-            onClick={() => declareMutation.mutate(true)}
-          >
-            {t('evaluation.my.declaration.hasConflict')}
-          </Button>
-        </div>
-      </Card>
+      <TenderFrame referenceCode={referenceCode}>
+        <Card title={t('evaluation.my.declaration.title')}>
+          <p className="mb-3" style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.declaration.body')}</p>
+          <ul className="mb-4 flex flex-col gap-1">
+            {bidders.map((bidder) => (
+              <li key={bidder.proposalCode}>
+                {i18n.language.startsWith('ar') ? bidder.supplierDisplayNameAr : bidder.supplierDisplayNameEn}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap items-end gap-2">
+            <Button size="sm" disabled={declareMutation.isPending} onClick={() => declareMutation.mutate(false)}>
+              {t('evaluation.my.declaration.noConflict')}
+            </Button>
+            <Input
+              aria-label={t('evaluation.my.declaration.reasonLabel')}
+              placeholder={t('evaluation.my.declaration.reasonPlaceholder')}
+              value={conflictReason}
+              onChange={(event) => setConflictReason(event.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!conflictReason || declareMutation.isPending}
+              onClick={() => declareMutation.mutate(true)}
+            >
+              {t('evaluation.my.declaration.hasConflict')}
+            </Button>
+          </div>
+        </Card>
+      </TenderFrame>
     )
   }
 
   if (evaluationQuery.isLoading) {
-    return <SkeletonList label={t('common.loading')} />
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <SkeletonList label={t('common.loading')} />
+      </TenderFrame>
+    )
   }
-  if (evaluationQuery.isError) return <QueryError error={evaluationQuery.error} onRetry={() => void evaluationQuery.refetch()} />
-
+  if (evaluationQuery.isError) {
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <QueryError error={evaluationQuery.error} onRetry={() => void evaluationQuery.refetch()} />
+      </TenderFrame>
+    )
+  }
 
   if (!evaluation) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.notAssigned')}</p>
+    return (
+      <TenderFrame referenceCode={referenceCode}>
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('evaluation.my.notAssigned')}</p>
+      </TenderFrame>
+    )
   }
 
   const draftKey = (proposalCode: string, criterionId: string) => `${proposalCode}:${criterionId}`
@@ -176,24 +213,21 @@ export function MyEvaluationPage() {
   const isArabic = i18n.language.startsWith('ar')
 
   return (
-    <div className="flex flex-col gap-6">
-      <TenderHeader
-        referenceCode={referenceCode}
-        actions={
-          <div className="flex items-center gap-3">
-          <Link
-            to="/back-office/rfqs/$referenceCode/brief"
-            params={{ referenceCode }}
-            className="text-[length:var(--text-body-sm)]"
-          >
-            {t('evaluationBrief.title')}
-          </Link>
-          <StatusChip machine="evaluation" value={evaluation.state} />
-          </div>
-        }
-      />
-      <TenderTabs referenceCode={referenceCode} />
-
+    <TenderFrame
+      referenceCode={referenceCode}
+      actions={
+        <div className="flex items-center gap-3">
+        <Link
+          to="/back-office/rfqs/$referenceCode/brief"
+          params={{ referenceCode }}
+          className="text-[length:var(--text-body-sm)]"
+        >
+          {t('evaluationBrief.title')}
+        </Link>
+        <StatusChip machine="evaluation" value={evaluation.state} />
+        </div>
+      }
+    >
       <Card title={`${t('evaluation.my.specification')}: ${isArabic ? evaluation.rfqTitleAr : evaluation.rfqTitleEn}`}>
         {(isArabic ? evaluation.rfqDescriptionAr : evaluation.rfqDescriptionEn) ? (
           <p className="mb-3">{isArabic ? evaluation.rfqDescriptionAr : evaluation.rfqDescriptionEn}</p>
@@ -355,6 +389,6 @@ export function MyEvaluationPage() {
           </Button>
         )}
       </div>
-    </div>
+    </TenderFrame>
   )
 }

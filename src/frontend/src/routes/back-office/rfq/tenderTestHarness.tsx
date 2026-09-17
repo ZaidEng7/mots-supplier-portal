@@ -11,10 +11,24 @@
 // appears in and it cannot be called from here.
 //
 // The fixture's tender is unowned by default (A-7), which is what every RFQ created before ownership existed looks like.
+//
+// THE ROUTES THE TENDER FRAME COVERS are listed here as addresses. tenderFrameCoverage keys its screens by exactly this list,
+// and recordWayBack counts it among the parameterised routes that already have a way back. The list cannot stay inside the
+// coverage test, because importing a test file runs its suite a second time inside whichever file imported it.
 
 import type { Rfq, RfqState } from '../../../api/rfqs'
 
 export const TENDER_CODE = 'RFQ-2026-000001'
+
+export const TENDER_FRAME_SCREENS: readonly string[] = [
+  '/back-office/rfqs/$referenceCode',
+  '/back-office/rfqs/$referenceCode/suppliers',
+  '/back-office/rfqs/$referenceCode/proposals',
+  '/back-office/rfqs/$referenceCode/comparison',
+  '/back-office/rfqs/$referenceCode/award',
+  '/back-office/rfqs/$referenceCode/settings',
+  '/back-office/rfqs/$referenceCode/my-evaluation',
+]
 
 export function TestLink({ to, params, children, ...rest }: {
   to: string
