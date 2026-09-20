@@ -1,7 +1,7 @@
 // The two densities, and the one variable that carries them.
 //
 // What the audit measured. 13px was the most common size on all twelve screens it looked at - for both audiences at once,
-// though RECONCILIATION.md had already decided they differ: 14px for a back-office officer scanning tables all day, 16px for a
+// though docs/handbook/RECONCILIATION.md had already decided they differ: 14px for a back-office officer scanning tables all day, 16px for a
 // supplier reading a legal form under deadline. The rules existed and nothing applied them.
 //
 // Why ONE VARIABLE rather than a sweep of 191 sites. The size is a property of the audience rather than of each place text is

@@ -7,7 +7,7 @@
    600, 700 - as were previously requested from Google, one @import per weight per family, because that is how
    @fontsource ships them.
 
-   THE TWO DENSITIES, as one variable. RECONCILIATION.md decided them and nothing applied them: the back office
+   THE TWO DENSITIES, as one variable. docs/handbook/RECONCILIATION.md decided them and nothing applied them: the back office
    is a workspace read all day and its body floor is 14px; the supplier is an outside company reading a legal
    form a few times a year under deadline, and its body is 16px. The audit found 13px as the most common size on
    all twelve screens it measured, for both audiences at once.

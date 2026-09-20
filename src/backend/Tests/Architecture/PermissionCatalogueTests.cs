@@ -1,4 +1,4 @@
-// Generates the permission catalogue at the repository root, and fails when it drifts from the code.
+// Generates the permission catalogue in docs/handbook, and fails when it drifts from the code.
 //
 //
 // WHY A TEST AND NOT A SCRIPT
@@ -116,7 +116,7 @@ public sealed partial class PermissionCatalogueTests
             dir = dir.Parent;
         }
 
-        dir.Should().NotBeNull("the catalogue lives at the repository root, next to docker-compose.yml");
+        dir.Should().NotBeNull("the repository root is the directory holding docker-compose.yml");
         return dir!.FullName;
     }
 
@@ -124,7 +124,7 @@ public sealed partial class PermissionCatalogueTests
     public void The_permission_catalogue_is_current()
     {
         var root = RepositoryRoot();
-        var path = Path.Combine(root, "PERMISSIONS.md");
+        var path = Path.Combine(root, "docs", "handbook", "PERMISSIONS.md");
         var generated = Generate(root);
 
         if (Environment.GetEnvironmentVariable("UPDATE_PERMISSION_CATALOGUE") == "1")
@@ -133,9 +133,9 @@ public sealed partial class PermissionCatalogueTests
             return;
         }
 
-        File.Exists(path).Should().BeTrue("PERMISSIONS.md is generated - run with UPDATE_PERMISSION_CATALOGUE=1");
+        File.Exists(path).Should().BeTrue("docs/handbook/PERMISSIONS.md is generated - run with UPDATE_PERMISSION_CATALOGUE=1");
         Normalise(File.ReadAllText(path)).Should().Be(Normalise(generated),
-            "PERMISSIONS.md has drifted from the code. Re-run this test with UPDATE_PERMISSION_CATALOGUE=1.");
+            "docs/handbook/PERMISSIONS.md has drifted from the code. Re-run this test with UPDATE_PERMISSION_CATALOGUE=1.");
     }
 
     [Fact]

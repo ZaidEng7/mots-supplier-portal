@@ -33,7 +33,7 @@ DOTNET_ROOT=$HOME/.dotnet UPDATE_OPENAPI_BASELINE=1 dotnet test \
   --filter OpenApiContractTests
 ```
 
-The same idiom `PERMISSIONS.md` uses for the generated permission catalogue, and it writes nothing unless
+The same idiom `docs/handbook/PERMISSIONS.md` uses for the generated permission catalogue, and it writes nothing unless
 the variable is set. This replaced a curl pipeline that needed the API running in Development with a
 database and a port. True, and it meant refreshing the contract was a small chore, so it was done rarely
 and the baseline drifted behind additive changes. The integration fixture already has the database.

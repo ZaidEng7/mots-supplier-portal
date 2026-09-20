@@ -14,7 +14,7 @@
 // Its size is --text-h1, not --text-h2. The audit measured <h1> rendering at THREE different sizes across the
 // product for one job - the h1 token on 5 screens, h2 on 45 and h3 on 7 - and this component was itself one of the
 // wrong ones, so the six screens already using it were being made consistent with each other and inconsistent with
-// the scale. RECONCILIATION.md's shared rule: the page title is --text-h1, one size, once per page, and never a
+// the scale. docs/handbook/RECONCILIATION.md's shared rule: the page title is --text-h1, one size, once per page, and never a
 // smaller heading for the page's own name.
 //
 // break-words on it is not decoration. A page title is not always prose: the back-office dashboard greets you with

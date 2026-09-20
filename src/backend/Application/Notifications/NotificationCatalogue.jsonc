@@ -239,7 +239,7 @@
   // GLOSSARY: «استيضاح», never «إيضاح». These are not synonyms - Form X (استيضاح) is the ASKING,
   // Form IV (إيضاح) is the explanation given in reply - and §8's glossary settles which word the
   // product uses for the event. These two entries were drafted later than the RFQ ones and used
-  // «إيضاح»; corrected under DECISIONS-TAKEN.md D-17.
+  // «إيضاح»; corrected under docs/handbook/DECISIONS-TAKEN.md D-17.
   // ==========================================================================================
   {
     "type": "proposal.clarification_requested",

@@ -46,7 +46,7 @@
 // T-064's OFFER, and the only action that answers it. An AwardOffered proposal with no decline control on the screen is the
 // same defect shape as T-067: a state the product can reach and the persona it concerns cannot act on. Accepting is not a
 // supplier action - §4.1 gives AwardOffered to Awarded to the manager, through award and execute, and "or supplier accept"
-// is tagged [ASSUMPTION], see DECISIONS-TAKEN.md D-21.
+// is tagged [ASSUMPTION], see docs/handbook/DECISIONS-TAKEN.md D-21.
 //
 // SCR-155's CLARIFICATION. The buyer's question was already stored and never shown, so a supplier could see the state
 // ClarificationRequested and not what was asked - which is not a state anyone can respond to. The question is projected

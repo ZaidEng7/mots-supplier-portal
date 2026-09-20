@@ -9,7 +9,7 @@ unmeasured, and so the next change to a cross-aggregate read can be compared aga
 Usage:  python3 perf/baseline.py [--iterations 30]
 
 THE ACCOUNTS. Passwords are the dev seed's. This script only ever talks to a local development
-server, and RUNBOOK.md prints the same values. There is ONE password for every seeded account,
+server, and docs/handbook/RUNBOOK.md prints the same values. There is ONE password for every seeded account,
 DevDataSeeder.Password. This script once held two others, motsreview2026 and motsadmin2026, from
 before the seeders converged on a single fallback, and both were refused. The harness reported that
 as "could not sign in" and carried on, so eight of the eighteen measured reads (the reviewer's two
@@ -78,7 +78,7 @@ measure_write: Latencies in milliseconds for a repeatable write, plus the status
 
 percentile: Nearest-rank percentile. Not interpolated: with 30 samples an interpolated p95 invents a value between two measurements, and a made-up number is the wrong thing to put in a baseline.
 
-endpoint_url: The URL for one endpoint on the local API, built from a module constant and a literal path. No part of this address comes from outside the file, and that is the point. The script authenticates as five personas and replays reads with their bearer tokens, so whatever names the host decides where those credentials get sent. It began as `--base`, a free-form string concatenated onto a path: a typo in a copied invocation was enough to post real credentials to someone else's server. Validating that string - in main(), then again at the point of use - fixed the hole and kept the smell: an address assembled from caller input, safe only because of a check the reader has to go and find. Narrowing the flag to an integer port removed the hole properly but kept the same shape. So there is no flag. This measures the local development API, whose port RUNBOOK.md fixes at 5080, and the one documented invocation only ever passes --iterations. Nothing outside this file can influence where a token is sent, which is a stronger statement than any amount of validation, and measuring a different server is a one-line edit above by someone who has read this.
+endpoint_url: The URL for one endpoint on the local API, built from a module constant and a literal path. No part of this address comes from outside the file, and that is the point. The script authenticates as five personas and replays reads with their bearer tokens, so whatever names the host decides where those credentials get sent. It began as `--base`, a free-form string concatenated onto a path: a typo in a copied invocation was enough to post real credentials to someone else's server. Validating that string - in main(), then again at the point of use - fixed the hole and kept the smell: an address assembled from caller input, safe only because of a check the reader has to go and find. Narrowing the flag to an integer port removed the hole properly but kept the same shape. So there is no flag. This measures the local development API, whose port docs/handbook/RUNBOOK.md fixes at 5080, and the one documented invocation only ever passes --iterations. Nothing outside this file can influence where a token is sent, which is a stronger statement than any amount of validation, and measuring a different server is a one-line edit above by someone who has read this.
 """
 from __future__ import annotations
 

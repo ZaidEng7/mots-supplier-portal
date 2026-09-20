@@ -8,7 +8,7 @@
 // carries five destinations at its documented cap. The top bar's own disclosure covers the rest of the list at that
 // width.
 //
-// msp-density-supplier sets --density-body to 16px for everything inside. RECONCILIATION.md's reasoning: this reader is
+// msp-density-supplier sets --density-body to 16px for everything inside. docs/handbook/RECONCILIATION.md's reasoning: this reader is
 // an outside company completing a legal application a few times a year under deadline, not an officer scanning tables
 // all day. The back office keeps the 14px default, so only one of the two shells has to say anything.
 //
