@@ -91,7 +91,7 @@
 // D-18: three report strings diverged from their counterparts in ReportViews.cs, which produces the PDF and CSV. The rule
 // chosen is IDENTICAL rather than "screen terse, export self-describing" - both surfaces render the same table with the same
 // column headers, so there is no context the export lacks, and all three divergences turned out to be errors rather than
-// adaptations. See DECISIONS-TAKEN.md.
+// adaptations. See docs/handbook/DECISIONS-TAKEN.md.
 //
 // RTL_LANGUAGES is re-exported from rtl.ts, which exists so that knowing the page direction does not require importing the
 // i18next bootstrap at the end of this file. See that file for what broke.

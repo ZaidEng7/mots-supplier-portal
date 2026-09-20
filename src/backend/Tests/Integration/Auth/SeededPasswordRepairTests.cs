@@ -4,7 +4,7 @@
 // which is what makes restarting the API safe. But "one password across every seeded account" changed what the
 // fallback IS, and an idempotent seeder returning early cannot apply a change to an account it created before
 // it. So on any database older than that change, the two accounts the change was written for kept the old
-// value. Found by hand during a walkthrough: reviewer@mots.local existed, the password published in RUNBOOK.md
+// value. Found by hand during a walkthrough: reviewer@mots.local existed, the password published in docs/handbook/RUNBOOK.md
 // was refused, and nothing anywhere said why.
 //
 // This is the regression test for the repair, and it exercises it through the real public entry point rather
@@ -66,7 +66,7 @@ public sealed class SeededPasswordRepairTests(PostgresApiFixture fixture)
             var repaired = await userManager.FindByEmailAsync(ReviewerSeeder.Email);
             repaired.Should().NotBeNull();
             (await userManager.CheckPasswordAsync(repaired!, DevDataSeeder.Password))
-                .Should().BeTrue("the published password is the one RUNBOOK.md tells a person to type");
+                .Should().BeTrue("the published password is the one docs/handbook/RUNBOOK.md tells a person to type");
             (await userManager.CheckPasswordAsync(repaired!, DriftedPassword))
                 .Should().BeFalse("the drifted password must not keep working alongside the repaired one");
 
