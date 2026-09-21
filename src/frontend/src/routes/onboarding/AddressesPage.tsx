@@ -6,6 +6,15 @@
 //
 // A failed profile read is its own branch. The wizard step cannot be filled in from a profile that failed to load, and the
 // form would otherwise render as though the supplier simply had none.
+//
+// COORDINATES ARE OPTIONAL AND ARRIVE AS TEXT. The database, the API and the registry export have carried latitude and
+// longitude since the schema was written, and every one of them was empty, because no screen had ever asked. They are two
+// more inputs rather than a map picker: a picker needs tiles from a server on the public internet, which a ministry network
+// may not reach, and the field being unfillable is the problem worth solving first.
+//
+// An <input type="number"> is deliberately NOT used. It hands back the empty string for text it cannot parse, so "33,5" -
+// a decimal comma, which is what an Arabic keyboard and a European locale both produce - silently becomes no coordinate at
+// all rather than a value the supplier can be told is wrong. The field is text, the range is checked, and a refusal says so.
 
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -22,6 +31,11 @@ import { fetchRegions } from '../../api/reference'
 
 const ADDRESS_KINDS = ['HeadOffice', 'Billing', 'Branch'] as const
 
+const coordinate = (limit: number) =>
+  z.string().optional().refine(
+    (v) => !v || (Number.isFinite(Number(v.trim())) && Math.abs(Number(v.trim())) <= limit),
+    { message: 'range' })
+
 const addressSchema = z.object({
   kind: z.enum(ADDRESS_KINDS),
   line1: z.string().min(1),
@@ -30,6 +44,8 @@ const addressSchema = z.object({
   regionCode: z.string().min(1),
   country: z.string().min(1),
   postalCode: z.string().optional(),
+  latitude: coordinate(90),
+  longitude: coordinate(180),
 })
 type AddressFormValues = z.infer<typeof addressSchema>
 
@@ -79,6 +95,8 @@ function AddressDialog({
       regionCode: initial?.regionCode ?? '',
       country: initial?.country ?? '',
       postalCode: initial?.postalCode ?? '',
+      latitude: initial?.latitude?.toString() ?? '',
+      longitude: initial?.longitude?.toString() ?? '',
     },
   })
   const kind = watch('kind')
@@ -116,6 +134,21 @@ function AddressDialog({
             {(p) => <Input {...p} {...register('country')} />}
           </Field>
           <Field label={t('addresses.fields.postalCode')}>{(p) => <Input {...p} {...register('postalCode')} />}</Field>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field
+            label={t('addresses.fields.latitude')}
+            hint={t('addresses.coordinatesHint')}
+            error={errors.latitude ? t('addresses.errors.latitudeRange') : undefined}
+          >
+            {(p) => <Input dir="ltr" inputMode="decimal" placeholder="33.5138" {...p} {...register('latitude')} />}
+          </Field>
+          <Field
+            label={t('addresses.fields.longitude')}
+            error={errors.longitude ? t('addresses.errors.longitudeRange') : undefined}
+          >
+            {(p) => <Input dir="ltr" inputMode="decimal" placeholder="36.2765" {...p} {...register('longitude')} />}
+          </Field>
         </div>
         {apiError ? (
           <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
@@ -217,7 +250,13 @@ export function AddressesPage() {
 
   const addrMutation = useMutation({
     mutationFn: (values: AddressFormValues) => {
-      const payload = { ...values, line2: values.line2 || null, postalCode: values.postalCode || null }
+      const payload = {
+        ...values,
+        line2: values.line2 || null,
+        postalCode: values.postalCode || null,
+        latitude: values.latitude?.trim() ? Number(values.latitude) : null,
+        longitude: values.longitude?.trim() ? Number(values.longitude) : null,
+      }
       return addrDialog.addr ? updateAddress(addrDialog.addr.id, payload) : addAddress(payload)
     },
     onSuccess: (data) => { onProfile(data); setAddrDialog({ open: false }) },
