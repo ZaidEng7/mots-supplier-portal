@@ -1095,5 +1095,21 @@
     "ar": "تاريخ التأسيس مطلوب.",
     "en": "Date of establishment is required.",
     "usedIn": "UpdateLegalInfoRequest (only when configured as required)"
+  },
+  {
+    "key": "Latitude.InclusiveBetween",
+    "code": "LATITUDE_OUT_OF_RANGE",
+    "source": "drafted",
+    "ar": "خط العرض رقم بين ٩٠- و٩٠.",
+    "en": "Latitude is a number between -90 and 90.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "Longitude.InclusiveBetween",
+    "code": "LONGITUDE_OUT_OF_RANGE",
+    "source": "drafted",
+    "ar": "خط الطول رقم بين ١٨٠- و١٨٠.",
+    "en": "Longitude is a number between -180 and 180.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
   }
 ]
