@@ -393,6 +393,11 @@ const resources = {
           documentsByState: 'المستندات حسب الحالة (أحدث الإصدارات)',
           registryScope: 'تشمل هذه الأعداد جميع الموردين المسجَّلين، وليست مقصورة على جهتك.',
         },
+        registry: {
+          title: 'تصدير سجل المورّدين',
+          what: 'سطر واحد لكل مورّد، بكل ما تحتفظ به البوابة عنه، وفي جميع حالات التسجيل. أُعدّ لبحيرة بيانات الوزارة.',
+          sensitive: 'يحتوي الملف على الأرقام الضريبية وأسماء جهات الاتصال مع بُرُدهم الإلكترونية وهواتفهم وأصحاب الحسابات المصرفية. أرقام الحسابات المصرفية تظهر مُقنَّعة.',
+        },
       },
       procurementDashboard: {
         title: 'لوحة المشتريات',
@@ -2291,6 +2296,11 @@ const resources = {
           suppliersByState: 'Suppliers by lifecycle state',
           documentsByState: 'Documents by state (latest versions)',
           registryScope: 'These counts cover every registered supplier, not only your organization.',
+        },
+        registry: {
+          title: 'Supplier registry export',
+          what: 'One row per supplier, every field the portal holds about them, at every onboarding state. Built for the ministry data lake.',
+          sensitive: 'The file contains tax identifiers, named contacts with their email addresses and phone numbers, and bank account holders. Bank account numbers appear masked.',
         },
       },
       procurementDashboard: {

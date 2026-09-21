@@ -30,6 +30,19 @@
 // buying body; only a 404 does, and a 404 is what this state is. The download error itself stays, for the compliance export
 // and for a download that really does break.
 //
+// THE REGISTRY EXPORT IS ON THIS SCREEN but it is NOT a report, and the card says so rather than pretending
+// otherwise: it is the registry itself, one row per supplier, for the ministry data lake. It sits here because
+// this is where a person already comes to take data out of the product, and a second screen holding one button
+// would be worse. It is gated on supplier.registry.export, which only the system administrator holds - NOT on
+// report.read, which opens this screen and which the procurement manager and the Ministry viewer also hold. So
+// the card is absent for them rather than present and answering 403, which is the defect the procurement
+// export above was just fixed for; repeating it one card lower would be hard to excuse.
+//
+// WHAT IS IN THE FILE IS STATED ON THE CARD, in the colour a warning uses. Tax identifiers, named contacts with
+// their email addresses and phone numbers, and bank account holders leave the building in one file, and an
+// administrator who has not read the API documentation has no other way to know that before clicking. Saying it
+// after the download is saying it too late.
+//
 // THE COVERAGE FLOOR is stated on the screen and not only in the export. Cycle time is derived from audit rows, which began
 // when that logging was added, so RFQs that moved earlier contribute to nothing and are silently absent - and without that
 // line a short history reads as a fast process.
@@ -48,7 +61,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { getComplianceReport, getProcurementReport, downloadReport } from '../../api/reports'
+import { getComplianceReport, getProcurementReport, downloadReport, downloadSupplierRegistry } from '../../api/reports'
+import { usePermissions } from '../../lib/authStore'
 import type { ReportCount } from '../../api/reports'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -80,11 +94,21 @@ export function ReportsPage() {
   })
 
   const procurementOutOfScope = procurement.isSuccess && procurement.data === null
+  const can = usePermissions()
 
   async function download(kind: 'procurement' | 'compliance', format: 'pdf' | 'csv') {
     setDownloadError(false)
     try {
       await downloadReport(kind, format, from || undefined, to || undefined)
+    } catch {
+      setDownloadError(true)
+    }
+  }
+
+  async function downloadRegistry() {
+    setDownloadError(false)
+    try {
+      await downloadSupplierRegistry()
     } catch {
       setDownloadError(true)
     }
@@ -190,6 +214,24 @@ export function ReportsPage() {
           </div>
         ) : null}
       </Card>
+
+      {can('supplier.registry.export') ? (
+        <Card title={t('reports.registry.title')}>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={downloadRegistry}>
+              {t('reports.exportCsv')}
+            </Button>
+          </div>
+
+          <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('reports.registry.what')}
+          </p>
+
+          <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-warning-fg)' }}>
+            {t('reports.registry.sensitive')}
+          </p>
+        </Card>
+      ) : null}
 
       <Card title={t('reports.compliance.title')}>
         <div className="mb-3 flex flex-wrap gap-2">

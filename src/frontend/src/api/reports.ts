@@ -21,6 +21,12 @@
 // download a 401 body as a file - a failure that looks like a successful download until someone opens it. The
 // filename comes from Content-Disposition when the server sent one, so the name in the downloads folder is the
 // server's rather than a second copy of the naming rule maintained here.
+//
+// downloadSupplierRegistry is the same mechanism pointed at a different route, which is why the blob handling is
+// one function both call rather than two copies. It is not a report: it is the registry itself, one row per
+// supplier, and it is gated on supplier.registry.export rather than report.read - the screen only offers it to
+// an account that holds that, because offering a download which can only answer 403 is the defect this same
+// screen was just fixed for.
 
 import { apiFetch } from './auth'
 
@@ -82,6 +88,17 @@ export async function downloadReport(
   const response = await apiFetch(`/api/v1/reports/${kind}/export?${params.toString()}`)
   if (!response.ok) throw new Error(`reports.${kind}.export ${response.status}`)
 
+  await saveAsFile(response, `${kind}-report.${format}`)
+}
+
+export async function downloadSupplierRegistry(): Promise<void> {
+  const response = await apiFetch('/api/v1/suppliers/export')
+  if (!response.ok) throw new Error(`suppliers.export ${response.status}`)
+
+  await saveAsFile(response, 'mots-suppliers.csv')
+}
+
+async function saveAsFile(response: Response, fallbackName: string): Promise<void> {
   const disposition = response.headers.get('content-disposition') ?? ''
   const named = /filename=([^;]+)/i.exec(disposition)?.[1]?.trim()
 
@@ -90,7 +107,7 @@ export async function downloadReport(
   try {
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = named || `${kind}-report.${format}`
+    anchor.download = named || fallbackName
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
