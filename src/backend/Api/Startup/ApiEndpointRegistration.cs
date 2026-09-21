@@ -289,6 +289,7 @@ internal static class ApiEndpointRegistration
         app.MapDocumentEndpoints();
         app.MapReviewEndpoints();
         app.MapSupplierDirectoryEndpoints();
+        app.MapSupplierExportEndpoints();
         app.MapOrganizationEndpoints();
         app.MapStaffEndpoints();
         app.MapRoleEndpoints();

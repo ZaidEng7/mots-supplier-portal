@@ -31,11 +31,26 @@
 // So the scope is EXPLAINED instead of reported as a failure, and the retry is the part that mattered: a button that re-asks a
 // question this account cannot ask. Its control is that a real failure is still reported as one, with a retry that can work -
 // without which the change would pass just as well on a screen that had simply stopped reporting errors at all.
+//
+// THE REGISTRY EXPORT CARD is asserted from both sides, because it is the one card on this screen whose absence
+// is the correct behaviour for most of the people who can open the screen. report.read opens Reports and is held
+// by the procurement manager and the Ministry viewer; supplier.registry.export is held by the system
+// administrator alone. A test that only checked the card appears would pass against a card that always appears,
+// which is the failure that matters here - it would offer every one of those accounts a download that can only
+// answer 403. So the absent case comes first, with the other two cards as its control, and the sensitivity line
+// is asserted with the card rather than trusted to be there.
+//
+// THE EXPORT BUTTONS are the same boundary and were missed by that fix. /reports/procurement/export 404s for the two accounts
+// with no buying body, exactly as the report itself does, so Export PDF and Export CSV sat above the explanation and answered
+// it with "The file could not be downloaded" in red. Counting is what makes this test say something: the page offers two
+// exports per card, so the assertion is that four buttons become two, not that some button is absent - a name-based query
+// would pass against a page that had lost the compliance exports too. The loaded case above is its control.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import i18n from '../../i18n/config'
 import { renderPage, mockFetch } from '../../test/renderPage'
+import { useAuthStore } from '../../lib/authStore'
 
 vi.mock('@tanstack/react-router', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@tanstack/react-router')
@@ -92,6 +107,16 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
     expect(await screen.findByText('18.5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Procurement report' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Compliance report' })).toBeInTheDocument()
+  })
+
+  it('offers an export on both cards when the procurement report is in scope', async () => {
+    restore = mockFetch(routes)
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText('18.5')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Export PDF' })).toHaveLength(2)
   })
 
   it('an interval nothing has completed reads as not measured, never as zero', async () => {
@@ -172,6 +197,31 @@ describe('the procurement report when the reader belongs to no buying body', () 
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
   })
 
+  it('does not offer an export of a report this account cannot ask for', async () => {
+    restore = mockFetch({
+      '/api/v1/reports/procurement': { __status: 404 },
+      '/api/v1/reports/compliance': compliance(),
+    })
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText(/not attached to one/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Export PDF' })).toHaveLength(1)
+  })
+
+  it('still offers the export while the procurement report is failing, which says nothing about scope', async () => {
+    restore = mockFetch({
+      '/api/v1/reports/procurement': { __status: 500 },
+      '/api/v1/reports/compliance': compliance(),
+    })
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText('The report could not be loaded.')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(2)
+  })
+
   it('still reports a real failure as one, with a retry that can work', async () => {
     restore = mockFetch({
       '/api/v1/reports/procurement': { __status: 500 },
@@ -182,5 +232,39 @@ describe('the procurement report when the reader belongs to no buying body', () 
 
     expect(await screen.findByText('The report could not be loaded.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+  })
+})
+
+describe('the supplier registry export card', () => {
+  let restore: () => void
+  afterEach(() => {
+    restore?.()
+    useAuthStore.setState({ claims: null } as never)
+  })
+
+  function signInWith(permissions: string[]) {
+    useAuthStore.setState({ claims: { organizationId: null, permissions } } as never)
+  }
+
+  it('is absent for an account that can open Reports but does not hold the permission', async () => {
+    signInWith(['report.read'])
+    restore = mockFetch(routes)
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Compliance report' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Procurement report' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Supplier registry export' })).toBeNull()
+  })
+
+  it('is offered to an account that holds supplier.registry.export, and says what is in the file', async () => {
+    signInWith(['report.read', 'supplier.registry.export'])
+    restore = mockFetch(routes)
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Supplier registry export' })).toBeInTheDocument()
+    expect(screen.getByText(/tax identifiers, named contacts/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(3)
   })
 })

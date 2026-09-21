@@ -191,6 +191,15 @@
 // disclosure risk the register names. Restore it only if the open question resolves in favour of
 // line-level ministry access.
 //
+// SupplierRegistryExport is the whole registry as one file: every supplier at every onboarding state, with
+// tax identifiers, named people, their email addresses and phone numbers, and bank account holders. It is
+// deliberately NOT SupplierDirectoryRead, which is browsing companies before inviting one and is held by both
+// procurement roles - a screen a person reads one supplier at a time is a different disclosure from a file
+// that leaves the building with all of them in it. It is not granted to the ministry viewer either, for the
+// reason audit reading was taken away from that persona: the ministry's access is to aggregate figures, and a
+// registry export is line-level personal data, which is exactly the risk the register names. Only the system
+// administrator holds it, through All.
+//
 // The system administrator holds everything in the catalogue.
 
 namespace MotsSupplierPortal.Domain.Identity;
@@ -208,6 +217,7 @@ public static class Permissions
     public const string SupplierUserManage = "supplier.user.manage";
     public const string SupplierLifecycleManage = "supplier.lifecycle.manage";
     public const string SupplierDirectoryRead = "supplier.directory.read";
+    public const string SupplierRegistryExport = "supplier.registry.export";
 
     public const string RfqRead = "rfq.read";
     public const string RfqCreate = "rfq.create";
@@ -268,7 +278,8 @@ public static class Permissions
         ClarificationAnswer, RfqClarify, RfqAddendum, ProposalCreate, ProposalEdit, ProposalWithdraw,
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
-        RfqDeadlineShorten, ReferenceDataManage, GovernanceRead, RfqReassign, SupplierDirectoryRead
+        RfqDeadlineShorten, ReferenceDataManage, GovernanceRead, RfqReassign, SupplierDirectoryRead,
+        SupplierRegistryExport
     ];
 }
 
