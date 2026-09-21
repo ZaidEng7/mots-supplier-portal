@@ -173,6 +173,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IDisableSupplierUserHandler, DisableSupplierUserHandler>();
         builder.Services.AddScoped<IAcceptSupplierUserInviteHandler, AcceptSupplierUserInviteHandler>();
         builder.Services.AddScoped<IGetSupplierHandler, GetSupplierHandler>();
+        builder.Services.AddScoped<ISupplierRegistryExportHandler, SupplierRegistryExportHandler>();
         builder.Services.AddScoped<IUpdateProfileHandler, UpdateProfileHandler>();
         builder.Services.AddScoped<IAcceptTermsHandler, AcceptTermsHandler>();
         builder.Services.AddScoped<ISubmitApplicationHandler, SubmitApplicationHandler>();
