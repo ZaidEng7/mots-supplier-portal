@@ -31,6 +31,12 @@
 // So the scope is EXPLAINED instead of reported as a failure, and the retry is the part that mattered: a button that re-asks a
 // question this account cannot ask. Its control is that a real failure is still reported as one, with a retry that can work -
 // without which the change would pass just as well on a screen that had simply stopped reporting errors at all.
+//
+// THE EXPORT BUTTONS are the same boundary and were missed by that fix. /reports/procurement/export 404s for the two accounts
+// with no buying body, exactly as the report itself does, so Export PDF and Export CSV sat above the explanation and answered
+// it with "The file could not be downloaded" in red. Counting is what makes this test say something: the page offers two
+// exports per card, so the assertion is that four buttons become two, not that some button is absent - a name-based query
+// would pass against a page that had lost the compliance exports too. The loaded case above is its control.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
@@ -92,6 +98,16 @@ describe('ReportsPage (/back-office/reports — screen design is an invention)',
     expect(await screen.findByText('18.5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Procurement report' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Compliance report' })).toBeInTheDocument()
+  })
+
+  it('offers an export on both cards when the procurement report is in scope', async () => {
+    restore = mockFetch(routes)
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText('18.5')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Export PDF' })).toHaveLength(2)
   })
 
   it('an interval nothing has completed reads as not measured, never as zero', async () => {
@@ -170,6 +186,31 @@ describe('the procurement report when the reader belongs to no buying body', () 
     expect(await screen.findByText(/not attached to one/i)).toBeInTheDocument()
     expect(screen.queryByText('The report could not be loaded.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
+  it('does not offer an export of a report this account cannot ask for', async () => {
+    restore = mockFetch({
+      '/api/v1/reports/procurement': { __status: 404 },
+      '/api/v1/reports/compliance': compliance(),
+    })
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText(/not attached to one/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Export PDF' })).toHaveLength(1)
+  })
+
+  it('still offers the export while the procurement report is failing, which says nothing about scope', async () => {
+    restore = mockFetch({
+      '/api/v1/reports/procurement': { __status: 500 },
+      '/api/v1/reports/compliance': compliance(),
+    })
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByText('The report could not be loaded.')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(2)
   })
 
   it('still reports a real failure as one, with a retry that can work', async () => {

@@ -22,6 +22,14 @@
 // account is not able to ask. The compliance report below is unscoped, which is why it loads for the same accounts - and the
 // two sitting side by side, one broken and one fine, is what made it read as a fault.
 //
+// ITS EXPORT BUTTONS WERE LEFT BEHIND by that fix. The card explained the scope while, three lines above, Export PDF and
+// Export CSV still offered a download of it - and /reports/procurement/export 404s for the same accounts and the same reason,
+// so pressing either one produced "The file could not be downloaded" in red. One card then said both things at once: this is
+// not a failure, and here is a failure. So the two buttons are not rendered when the report is out of scope. They are offered
+// while the report is still loading and while it is genuinely failing, because neither of those says the account has no
+// buying body; only a 404 does, and a 404 is what this state is. The download error itself stays, for the compliance export
+// and for a download that really does break.
+//
 // THE COVERAGE FLOOR is stated on the screen and not only in the export. Cycle time is derived from audit rows, which began
 // when that logging was added, so RFQs that moved earlier contribute to nothing and are silently absent - and without that
 // line a short history reads as a fast process.
@@ -71,6 +79,8 @@ export function ReportsPage() {
     queryFn: () => getComplianceReport(),
   })
 
+  const procurementOutOfScope = procurement.isSuccess && procurement.data === null
+
   async function download(kind: 'procurement' | 'compliance', format: 'pdf' | 'csv') {
     setDownloadError(false)
     try {
@@ -99,14 +109,16 @@ export function ReportsPage() {
       ) : null}
 
       <Card title={t('reports.procurement.title')}>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="ghost" onClick={() => download('procurement', 'pdf')}>
-            {t('reports.exportPdf')}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => download('procurement', 'csv')}>
-            {t('reports.exportCsv')}
-          </Button>
-        </div>
+        {procurementOutOfScope ? null : (
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={() => download('procurement', 'pdf')}>
+              {t('reports.exportPdf')}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => download('procurement', 'csv')}>
+              {t('reports.exportCsv')}
+            </Button>
+          </div>
+        )}
 
         {procurement.isPending ? <SkeletonList label={t('reports.title')} rows={4} /> : null}
 
