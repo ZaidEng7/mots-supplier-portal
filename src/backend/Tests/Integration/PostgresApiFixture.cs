@@ -89,6 +89,14 @@
 // The comparison is also public, so a test can ask for it. The end-of-run check reports at collection level, and
 // the runner's adapter exits successfully on a collection cleanup failure: loud in the log, invisible to
 // continuous integration. A dedicated test is what makes it a gate.
+//
+//
+// THE MAP TILE UPSTREAM POINTS AT A CLOSED PORT
+//
+// Map:TileBaseUrl is 127.0.0.1:1 rather than openstreetmap.org, because a test run must not depend on a third
+// party being reachable and must not send a build agent's traffic to a free service on every push. A closed
+// port refuses immediately and always, which is what lets the tile endpoint's unreachable-upstream branch be
+// asserted rather than hoped for.
 
 namespace MotsSupplierPortal.Tests.Integration;
 
@@ -165,6 +173,8 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
 
         builder.UseSetting("RateLimiting:AuthPermitLimit", "10000");
         builder.UseSetting("RateLimiting:RegisterPermitLimit", "10000");
+
+        builder.UseSetting("Map:TileBaseUrl", "http://127.0.0.1:1/");
     }
 
     async Task IAsyncLifetime.DisposeAsync()
