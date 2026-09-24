@@ -3678,6 +3678,26 @@
         ]
       }
     },
+    "/api/v1/feeds/suppliers": {
+      "get": {
+        "description": "Requires the `supplier.registry.export` permission.",
+        "operationId": "ExportMinistrySupplierFeed",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Feeds"
+        ],
+        "x-required-permissions": [
+          "supplier.registry.export"
+        ]
+      }
+    },
     "/api/v1/meta": {
       "get": {
         "operationId": "Meta",
@@ -9019,6 +9039,26 @@
         ]
       }
     },
+    "/api/v1/suppliers/export": {
+      "get": {
+        "description": "Requires the `supplier.registry.export` permission.",
+        "operationId": "ExportSupplierRegistry",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.registry.export"
+        ]
+      }
+    },
     "/api/v1/suppliers/me": {
       "get": {
         "operationId": "GetOwnSupplier",
@@ -9809,6 +9849,59 @@
       "delete": {
         "description": "Requires the `supplier.edit` permission.",
         "operationId": "UnlinkCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "categoryCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The ETag of the version being edited, from a prior read of this resource or of the aggregate containing it. Missing: 428. Not a version this API issued, or no longer current: 412.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "ETag": {
+                "description": "The version of this resource, to be sent back as If-Match on a write.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          },
+          "412": {
+            "description": "ETAG_MISMATCH"
+          },
+          "428": {
+            "description": "IF_MATCH_REQUIRED"
+          }
+        },
+        "tags": [
+          "Suppliers"
+        ],
+        "x-required-permissions": [
+          "supplier.edit"
+        ]
+      }
+    },
+    "/api/v1/suppliers/me/category-links/{categoryCode}/primary": {
+      "put": {
+        "description": "Requires the `supplier.edit` permission.",
+        "operationId": "SetPrimaryCategory",
         "parameters": [
           {
             "in": "path",
@@ -11216,6 +11309,9 @@
     },
     {
       "name": "Review"
+    },
+    {
+      "name": "Feeds"
     },
     {
       "name": "Staff"
