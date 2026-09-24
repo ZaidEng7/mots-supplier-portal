@@ -125,8 +125,8 @@ public sealed class AddAddressRequestValidator : AbstractValidator<AddAddressReq
         RuleFor(x => x.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.RegionCode).NotEmpty();
         RuleFor(x => x.Country).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Latitude).InclusiveBetween(-90, 90).When(x => x.Latitude.HasValue);
-        RuleFor(x => x.Longitude).InclusiveBetween(-180, 180).When(x => x.Longitude.HasValue);
+        RuleFor(x => x.Latitude).NotNull().InclusiveBetween(-90, 90);
+        RuleFor(x => x.Longitude).NotNull().InclusiveBetween(-180, 180);
     }
 }
 
@@ -140,8 +140,8 @@ public sealed class UpdateAddressRequestValidator : AbstractValidator<UpdateAddr
         RuleFor(x => x.City).NotEmpty().MaximumLength(100);
         RuleFor(x => x.RegionCode).NotEmpty();
         RuleFor(x => x.Country).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Latitude).InclusiveBetween(-90, 90).When(x => x.Latitude.HasValue);
-        RuleFor(x => x.Longitude).InclusiveBetween(-180, 180).When(x => x.Longitude.HasValue);
+        RuleFor(x => x.Latitude).NotNull().InclusiveBetween(-90, 90);
+        RuleFor(x => x.Longitude).NotNull().InclusiveBetween(-180, 180);
     }
 }
 

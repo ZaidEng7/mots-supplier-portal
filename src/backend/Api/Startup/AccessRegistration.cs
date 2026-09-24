@@ -100,6 +100,15 @@ internal static class AccessRegistration
 
         builder.Services.AddHttpClient(nameof(HibpBreachedPasswordValidator));
 
+        builder.Services.AddHttpClient(Endpoints.MapTileEndpoints.HttpClientName, client =>
+        {
+            client.BaseAddress = new Uri(
+                builder.Configuration.GetValue("Map:TileBaseUrl", "https://tile.openstreetmap.org/")!);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(
+                builder.Configuration.GetValue("Map:TileUserAgent", "MOTS-Supplier-Portal/1.0")!);
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 
         var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);

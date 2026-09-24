@@ -131,7 +131,7 @@ public sealed class SupplierChildWriteConcurrencyTests(PostgresApiFixture fixtur
         {
             kind = "Branch", line1 = "Bob Street", line2 = (string?)null, city = "Damascus",
             regionCode = "DM", country = "SY", postalCode = (string?)null,
-            latitude = (decimal?)null, longitude = (decimal?)null,
+            latitude = 33.5131, longitude = 36.2925,
         }, shared));
 
         bobsWrite.StatusCode.Should().Be(HttpStatusCode.PreconditionFailed,

@@ -7,7 +7,17 @@
 // A failed profile read is its own branch. The wizard step cannot be filled in from a profile that failed to load, and the
 // form would otherwise render as though the supplier simply had none.
 //
-// COORDINATES ARE OPTIONAL AND ARRIVE AS TEXT. The database, the API and the registry export have carried latitude and
+// COORDINATES ARE REQUIRED AND ARE PLACED ON A MAP. The ministry's dashboard lists both as Must fields and
+// describes them as a pin dropped at registration, so the form asks for them the way it asks for a city. The
+// map writes into the two number inputs and they write back to it; the inputs are the keyboard path and the
+// reason the screen still works when tiles do not load.
+//
+// THE THIRTY-FIVE ADDRESSES ALREADY SAVED WITHOUT COORDINATES ARE LEFT ALONE. Required means required of every
+// new save, not of history: the domain still accepts null, because those rows exist and the aggregate has to be
+// able to load them. A supplier meets the requirement the next time they touch an address, which is the only
+// moment we can ask without locking them out of a profile they filled in before the field existed.
+//
+// COORDINATES ARRIVE AS TEXT. The database, the API and the registry export have carried latitude and
 // longitude since the schema was written, and every one of them was empty, because no screen had ever asked. They are two
 // more inputs rather than a map picker: a picker needs tiles from a server on the public internet, which a ministry network
 // may not reach, and the field being unfillable is the problem worth solving first.
@@ -23,6 +33,7 @@ import { z } from 'zod'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow} from '../../components/ui'
+import { MapPicker } from '../../components/ui/MapPicker'
 import { FormMeasure } from '../../components/ui/FormMeasure'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, SupplierApiError, type Address, type Branch, type SupplierProfile } from '../../api/supplier'
@@ -32,8 +43,8 @@ import { fetchRegions } from '../../api/reference'
 const ADDRESS_KINDS = ['HeadOffice', 'Billing', 'Branch'] as const
 
 const coordinate = (limit: number) =>
-  z.string().optional().refine(
-    (v) => !v || (Number.isFinite(Number(v.trim())) && Math.abs(Number(v.trim())) <= limit),
+  z.string().min(1).refine(
+    (v) => Number.isFinite(Number(v.trim())) && Math.abs(Number(v.trim())) <= limit,
     { message: 'range' })
 
 const addressSchema = z.object({
@@ -101,6 +112,8 @@ function AddressDialog({
   })
   const kind = watch('kind')
   const regionCode = watch('regionCode')
+  const latitude = watch('latitude') ?? ''
+  const longitude = watch('longitude') ?? ''
 
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) reset() }} title={initial ? t('addresses.editAddress') : t('addresses.addAddress')}>
@@ -135,21 +148,16 @@ function AddressDialog({
           </Field>
           <Field label={t('addresses.fields.postalCode')}>{(p) => <Input {...p} {...register('postalCode')} />}</Field>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field
-            label={t('addresses.fields.latitude')}
-            hint={t('addresses.coordinatesHint')}
-            error={errors.latitude ? t('addresses.errors.latitudeRange') : undefined}
-          >
-            {(p) => <Input dir="ltr" inputMode="decimal" placeholder="33.5138" {...p} {...register('latitude')} />}
-          </Field>
-          <Field
-            label={t('addresses.fields.longitude')}
-            error={errors.longitude ? t('addresses.errors.longitudeRange') : undefined}
-          >
-            {(p) => <Input dir="ltr" inputMode="decimal" placeholder="36.2765" {...p} {...register('longitude')} />}
-          </Field>
-        </div>
+        <MapPicker
+          latitude={latitude}
+          longitude={longitude}
+          onChange={(lat, lng) => {
+            setValue('latitude', lat, { shouldValidate: true })
+            setValue('longitude', lng, { shouldValidate: true })
+          }}
+          latitudeError={errors.latitude ? t('addresses.errors.latitudeRange') : undefined}
+          longitudeError={errors.longitude ? t('addresses.errors.longitudeRange') : undefined}
+        />
         {apiError ? (
           <p role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
             {apiError}
@@ -254,8 +262,8 @@ export function AddressesPage() {
         ...values,
         line2: values.line2 || null,
         postalCode: values.postalCode || null,
-        latitude: values.latitude?.trim() ? Number(values.latitude) : null,
-        longitude: values.longitude?.trim() ? Number(values.longitude) : null,
+        latitude: Number(values.latitude),
+        longitude: Number(values.longitude),
       }
       return addrDialog.addr ? updateAddress(addrDialog.addr.id, payload) : addAddress(payload)
     },

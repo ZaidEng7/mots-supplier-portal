@@ -150,6 +150,8 @@ public sealed class FlaggedFieldEnforcementTests(PostgresApiFixture fixture)
             city = "Damascus",
             regionCode = "DIM",
             country = "Syria",
+            latitude = 33.5131,
+            longitude = 36.2925,
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,

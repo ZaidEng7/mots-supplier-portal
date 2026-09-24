@@ -343,7 +343,7 @@ public static class DevDataSeeder
 
         supplier.MarkEmailVerified();
         supplier.UpdateCoreProfile($"{nameEn} - demo fixture", "https://example.com", null, "SYP");
-        supplier.AddAddress(AddressKind.HeadOffice, "1 Demo Street", null, "Damascus", "DIM", "SY", null, null, null);
+        supplier.AddAddress(AddressKind.HeadOffice, "1 Demo Street", null, "Damascus", "DIM", "SY", null, 33.5131, 36.2925);
         supplier.LinkCategory("catering", isComplianceCritical: false);
         supplier.AcceptTerms("v1");
 

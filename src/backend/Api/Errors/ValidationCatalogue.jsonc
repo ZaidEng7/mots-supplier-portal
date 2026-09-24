@@ -1097,6 +1097,22 @@
     "usedIn": "UpdateLegalInfoRequest (only when configured as required)"
   },
   {
+    "key": "Latitude.NotNull",
+    "code": "LATITUDE_REQUIRED",
+    "source": "drafted",
+    "ar": "حدّد موقع العنوان على الخريطة أو أدخل خط العرض.",
+    "en": "Place the address on the map, or enter a latitude.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
+    "key": "Longitude.NotNull",
+    "code": "LONGITUDE_REQUIRED",
+    "source": "drafted",
+    "ar": "حدّد موقع العنوان على الخريطة أو أدخل خط الطول.",
+    "en": "Place the address on the map, or enter a longitude.",
+    "usedIn": "AddAddressRequest, UpdateAddressRequest"
+  },
+  {
     "key": "Latitude.InclusiveBetween",
     "code": "LATITUDE_OUT_OF_RANGE",
     "source": "drafted",

@@ -54,6 +54,8 @@ public sealed class AggregateLoadingAndTrackingTests(PostgresApiFixture fixture)
             city = "Damascus",
             regionCode = "DIM",
             country = "Syria",
+            latitude = 33.5131,
+            longitude = 36.2925,
         })).EnsureSuccessStatusCode();
 
         (await client.PostAsJsonAsync("/api/v1/suppliers/me/contacts", new

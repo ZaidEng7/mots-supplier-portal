@@ -1,5 +1,15 @@
 // The coordinate fields on a supplier's address.
 //
+// COORDINATES ARE NOW REQUIRED, and the test that used to assert a blank pair became null is gone with the
+// behaviour it described. What replaced it asserts the refusal: an address cannot be saved without a position.
+// The ministry lists both as Must fields, so a form that let them through would produce exactly the file we
+// already sent them - two empty columns.
+//
+// THE MAP ITSELF IS NOT TESTED HERE. Leaflet needs a laid-out container and jsdom gives it none, so what these
+// tests drive is the pair of inputs the map writes into. That is the right seam anyway: the inputs are the
+// accessible path and the thing the form actually submits, and a test that mocked a map into rendering would
+// assert that the mock worked.
+//
 // THE FIELDS EXISTED EVERYWHERE EXCEPT THE SCREEN. Address.Latitude and Address.Longitude have been on the table, in the
 // API contract and in the registry export since the schema was written, and every one of them was null across every
 // supplier - not because nobody wanted to fill them in, but because nothing ever asked. That is the failure this file
@@ -104,9 +114,11 @@ describe('coordinates on a supplier address', () => {
     await user.click(await screen.findByRole('button', { name: /add address/i }))
 
     await user.type(await screen.findByLabelText(/latitude/i), '33,5')
+    await user.type(screen.getByLabelText(/longitude/i), '36.2765')
     await user.click(screen.getByRole('button', { name: /^save$/i }))
 
-    expect(await screen.findByText(/decimal point/i)).toBeInTheDocument()
+    expect(await screen.findByText(/between -90 and 90/i)).toBeInTheDocument()
+    expect(screen.queryByText(/between -180 and 180/i)).toBeNull()
   })
 })
 
@@ -136,7 +148,7 @@ describe('what the coordinate fields send', () => {
     expect(JSON.parse(posted!.body)).toMatchObject({ latitude: 33.5138, longitude: 36.2765 })
   })
 
-  it('sends null for a coordinate left blank, because zero is a real place', async () => {
+  it('refuses to save an address with no position at all', async () => {
     recorded = []
     restore = mockFetch(withAddress, recorded)
     const user = userEvent.setup()
@@ -145,8 +157,7 @@ describe('what the coordinate fields send', () => {
     await openTheEditDialog(user)
     await user.click(screen.getByRole('button', { name: /^save$/i }))
 
-    const posted = recorded.find((r) => r.url.includes('/addresses') && r.method !== 'GET')
-    expect(posted).toBeDefined()
-    expect(JSON.parse(posted!.body)).toMatchObject({ latitude: null, longitude: null })
+    expect(await screen.findByText(/between -90 and 90/i)).toBeInTheDocument()
+    expect(recorded.find((r) => r.url.includes('/addresses') && r.method !== 'GET')).toBeUndefined()
   })
 })
