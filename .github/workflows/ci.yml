@@ -545,6 +545,33 @@ jobs:
       - name: Architecture tests (NetArchTest)
         run: dotnet test src/backend/Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
+      # Testcontainers starts a real Postgres, MinIO and ClamAV, and has to fetch those images from Docker Hub
+      # before it can start anything. Docker Hub meters anonymous downloads by network address, and GitHub's
+      # hosted runners are shared by an enormous number of projects behind a small pool of addresses, so the
+      # quota is spent by strangers rather than by us. On 2026-09-24 it ran out: every image download was
+      # refused with "unauthorized: access to the requested resource is not authorized", every container-backed
+      # test failed together in about thirty seconds, and the same suite passed locally and on main.
+      #
+      # Signing in moves the quota from that shared address to this account, where nobody else is spending it.
+      # The token is read-only against public images, which is the whole of what a download needs.
+      #
+      # It is skipped when the secret is absent so a fork still builds - the same rule the Sonar steps follow -
+      # and that path is exactly the anonymous behaviour this repository had until now.
+      #
+      # WHAT THIS IS NOT: a fix for anything in this product. It is a change of who asks Docker Hub for a copy
+      # of Postgres. If the authenticated quota is ever exhausted too, the durable answer is mirroring the three
+      # images into a registry this project controls, not a larger token.
+      - name: Check for Docker Hub credentials
+        id: dockerhub
+        run: echo "enabled=${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Sign in to Docker Hub so Testcontainers can pull its images
+        if: steps.dockerhub.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Integration tests (real Postgres via Testcontainers)
         run: dotnet test src/backend/Tests/Integration/MotsSupplierPortal.Tests.Integration.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
