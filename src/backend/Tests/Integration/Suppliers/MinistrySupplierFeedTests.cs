@@ -56,7 +56,7 @@ public sealed class MinistrySupplierFeedTests(PostgresApiFixture fixture)
         text.Should().NotContain("# MOTS Supplier Portal");
 
         response.Headers.GetValues("X-Feed-Scope").Should().ContainSingle()
-            .Which.Should().Be(Api.Endpoints.MinistryFeedEndpoints.Scope);
+            .Which.Should().Be(Api.Endpoints.MinistryFeedEndpoints.SupplierScope);
         response.Headers.GetValues("X-Feed-Generated-At").Should().ContainSingle();
     }
 

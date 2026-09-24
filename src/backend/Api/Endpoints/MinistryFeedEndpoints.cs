@@ -1,4 +1,5 @@
-// GET /api/v1/feeds/suppliers - feed 1 of the ministry's Syria Hotels Dashboard.
+// The ministry's Syria Hotels Dashboard feeds: /api/v1/feeds/suppliers and /api/v1/feeds/rfqs, feeds 1 and 4
+// of the workbook they sent. Feeds 2 and 3 are the ERP's and are not here.
 //
 // THE FILE HAS NO PROVENANCE COMMENT LINES, and that is the difference between this and every other export in
 // the product. The registry export opens with three "#" lines saying what it is and when it was taken, because
@@ -26,12 +27,14 @@ using System.Text;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Exports;
+using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
 
 public static class MinistryFeedEndpoints
 {
-    public const string Scope = "every supplier in the registry, at every onboarding state";
+    public const string SupplierScope = "every supplier in the registry, at every onboarding state";
+    public const string RfqScope = "every supplier invited to every published tender";
 
     public static void MapMinistryFeedEndpoints(this IEndpointRouteBuilder app)
     {
@@ -50,7 +53,7 @@ public static class MinistryFeedEndpoints
             response.ContentType = "text/csv; charset=utf-8";
             response.Headers.ContentDisposition = $"attachment; filename={MinistrySupplierFeedCsv.FileName}";
             response.Headers["X-Feed-Generated-At"] = DateTimeOffset.UtcNow.ToString("O");
-            response.Headers["X-Feed-Scope"] = Scope;
+            response.Headers["X-Feed-Scope"] = SupplierScope;
 
             await response.Body.WriteAsync(CsvFormat.Utf8Bom, ct);
             await using var writer = new StreamWriter(
@@ -67,6 +70,40 @@ public static class MinistryFeedEndpoints
         })
         .RequirePermission(Permissions.SupplierRegistryExport)
         .WithName("ExportMinistrySupplierFeed")
+        .WithTags("Feeds");
+
+        app.MapGet("/api/v1/feeds/rfqs", async (
+            IMinistryRfqFeedHandler handler,
+            IAuditLogger audit,
+            HttpResponse response,
+            CancellationToken ct) =>
+        {
+            await audit.LogAsync(
+                aggregateType: "Rfq",
+                aggregateId: Guid.Empty,
+                action: "MinistryRfqFeedExported",
+                ct: ct);
+
+            response.ContentType = "text/csv; charset=utf-8";
+            response.Headers.ContentDisposition = $"attachment; filename={MinistryRfqFeedCsv.FileName}";
+            response.Headers["X-Feed-Generated-At"] = DateTimeOffset.UtcNow.ToString("O");
+            response.Headers["X-Feed-Scope"] = RfqScope;
+
+            await response.Body.WriteAsync(CsvFormat.Utf8Bom, ct);
+            await using var writer = new StreamWriter(
+                response.Body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            await writer.WriteLineAsync(MinistryRfqFeedCsv.Header);
+
+            await foreach (var record in handler.StreamAsync(ct))
+            {
+                await writer.WriteLineAsync(MinistryRfqFeedCsv.Row(record));
+            }
+
+            return Results.Empty;
+        })
+        .RequirePermission(Permissions.SupplierRegistryExport)
+        .WithName("ExportMinistryRfqFeed")
         .WithTags("Feeds");
     }
 }

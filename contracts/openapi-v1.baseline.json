@@ -3678,6 +3678,26 @@
         ]
       }
     },
+    "/api/v1/feeds/rfqs": {
+      "get": {
+        "description": "Requires the `supplier.registry.export` permission.",
+        "operationId": "ExportMinistryRfqFeed",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Feeds"
+        ],
+        "x-required-permissions": [
+          "supplier.registry.export"
+        ]
+      }
+    },
     "/api/v1/feeds/suppliers": {
       "get": {
         "description": "Requires the `supplier.registry.export` permission.",
