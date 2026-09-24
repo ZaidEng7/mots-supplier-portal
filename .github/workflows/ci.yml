@@ -561,6 +561,17 @@ jobs:
       # WHAT THIS IS NOT: a fix for anything in this product. It is a change of who asks Docker Hub for a copy
       # of Postgres. If the authenticated quota is ever exhausted too, the durable answer is mirroring the three
       # images into a registry this project controls, not a larger token.
+      # The MinIO image lives in this repository's own registry, because the public one was withdrawn - the note
+      # in PostgresApiFixture explains what happened and why it cannot be fixed with a credential. Pulling from
+      # ghcr.io needs a sign-in even for this repository's own package, and the token the runner is already
+      # given is enough: no secret to create, nothing to rotate.
+      - name: Sign in to this project's registry for the MinIO image
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check for Docker Hub credentials
         id: dockerhub
         run: echo "enabled=${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}" >> "$GITHUB_OUTPUT"

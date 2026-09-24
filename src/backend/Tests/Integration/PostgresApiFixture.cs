@@ -91,6 +91,32 @@
 // continuous integration. A dedicated test is what makes it a gate.
 //
 //
+// THE OBJECT STORE IS NOW A COPY THIS PROJECT HOLDS, AND THE REASON IS WORTH READING
+//
+// The paragraph above says a pinned release changes only when a person changes it. On 2026-09-24 the release
+// stopped existing. MinIO withdrew its public images: every tag on quay.io and Docker Hub, latest included,
+// answered "unauthorized: access to the requested resource is not authorized", and hub.docker.com/r/minio/minio
+// returned Page Not Found. Pinning protects against an upstream that changes. It does nothing against an
+// upstream that leaves.
+//
+// The symptom was the one this fixture produces whenever a container cannot start: every container-backed test
+// failing together, in about thirty seconds, for a reason that has nothing to do with any of them. It was
+// invisible on developer machines, which still had the image, and total in continuous integration, which starts
+// from nothing.
+//
+// MIRRORING THE CACHED COPY WAS THE OBVIOUS FIX AND IT DOES NOT WORK. A developer machine here is arm64 and the
+// build agents are amd64, so the only copy anyone still had was for the wrong processor. An image that runs
+// perfectly for the person mirroring it and cannot start in CI is worse than no mirror at all.
+//
+// So this is Chainguard's build of the same server, copied into this repository's own registry with both
+// architectures, and tagged by the date it was taken. Chainguard's own free tag keeps moving and collects its
+// old digests, so depending on it directly would be the floating tag this file already warns about. A copy we
+// hold does not move, cannot be withdrawn, and answers only to whoever changes this line.
+//
+// It was verified before being adopted: the hundred and twenty-two document, upload and storage tests pass
+// against it unchanged.
+//
+//
 // THE MAP TILE UPSTREAM POINTS AT A CLOSED PORT
 //
 // Map:TileBaseUrl is 127.0.0.1:1 rather than openstreetmap.org, because a test run must not depend on a third
@@ -112,9 +138,11 @@ using Testcontainers.PostgreSql;
 
 public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public const string MinioImage = "ghcr.io/zaideng7/mots-minio:chainguard-2026-09-24";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine").Build();
-    private readonly MinioContainer _minio =
-        new MinioBuilder("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z").Build();
+
+    private readonly MinioContainer _minio = new MinioBuilder(MinioImage).Build();
 
     private readonly IContainer _clamav = new ContainerBuilder("clamav/clamav:stable")
         .WithPortBinding(3310, true)
