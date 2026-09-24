@@ -358,6 +358,10 @@ export async function mockBackend(page: Page) {
       { key: 'documents.expiringSoonWindowDays', kind: 'Integer', value: '30', defaultValue: '30', isOverridden: false, updatedAt: null, allowedValues: null, minimum: 1, maximum: 365 },
       { key: 'documents.renewalReminderDays', kind: 'IntegerList', value: '30,14,3', defaultValue: '30,14,3', isOverridden: false, updatedAt: null, allowedValues: null, minimum: 1, maximum: 365 },
     ] })
+    if (p === '/api/v1/admin/api-keys') return route.fulfill({ json: [
+      { id: '0199b0d0-0000-7000-8000-000000000001', name: 'Ministry dashboard', prefix: 'a1b2c3d4', permissions: ['supplier.registry.export'], createdAt: '2026-09-20T09:00:00Z', expiresAt: '2027-09-20T09:00:00Z', lastUsedAt: '2026-09-23T03:00:00Z', revokedAt: null },
+      { id: '0199b0d0-0000-7000-8000-000000000002', name: 'Retired loader', prefix: 'e5f6g7h8', permissions: ['supplier.registry.export'], createdAt: '2026-08-01T09:00:00Z', expiresAt: '2027-08-01T09:00:00Z', lastUsedAt: null, revokedAt: '2026-09-01T10:00:00Z' },
+    ] })
     if (p === '/api/v1/ministry/overview') return route.fulfill({ json: {
       totalSuppliers: 12,
       suppliersByLifecycleState: [{ key: 'Active', count: 9 }],
