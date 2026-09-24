@@ -32,6 +32,12 @@
 // question this account cannot ask. Its control is that a real failure is still reported as one, with a retry that can work -
 // without which the change would pass just as well on a screen that had simply stopped reporting errors at all.
 //
+// THE MINISTRY FEED CARD sits beside the registry export behind the same permission, and the pair is asserted
+// as a pair: four Export CSV buttons rather than three. The count is the assertion that noticed this card
+// arriving at all, which is what a count is for - a name-based query would have been satisfied by any one of
+// them. The card's own test asserts the sentence distinguishing the two files, because two exports of the same
+// registry sitting one above the other is exactly the screen on which somebody sends the wrong one.
+//
 // THE REGISTRY EXPORT CARD is asserted from both sides, because it is the one card on this screen whose absence
 // is the correct behaviour for most of the people who can open the screen. report.read opens Reports and is held
 // by the procurement manager and the Ministry viewer; supplier.registry.export is held by the system
@@ -265,6 +271,27 @@ describe('the supplier registry export card', () => {
 
     expect(await screen.findByRole('heading', { name: 'Supplier registry export' })).toBeInTheDocument()
     expect(screen.getByText(/tax identifiers, named contacts/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(4)
+  })
+
+  it('offers the ministry feed beside the registry export, and says they are different files', async () => {
+    signInWith(['report.read', 'supplier.registry.export'])
+    restore = mockFetch(routes)
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByRole('heading', { name: /Ministry dashboard feed/i })).toBeInTheDocument()
+    expect(screen.getByText(/ministry\u2019s own column names/i)).toBeInTheDocument()
+    expect(screen.getByText(/Purchase orders, invoices and payments are the ERP/i)).toBeInTheDocument()
+  })
+
+  it('hides the ministry feed from an account that cannot export the registry', async () => {
+    signInWith(['report.read'])
+    restore = mockFetch(routes)
+
+    renderPage(<ReportsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Compliance report' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /Ministry dashboard feed/i })).toBeNull()
   })
 })

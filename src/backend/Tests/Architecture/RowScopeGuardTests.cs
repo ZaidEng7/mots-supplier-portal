@@ -139,6 +139,7 @@ public sealed class RowScopeGuardTests
         ["VerifyEmailHandler"] = "anonymous: a token is the only identity the caller has",
 
         ["SupplierRegistryExportHandler"] = "supplier.registry.export, system_admin only: the file IS the whole national registry",
+        ["MinistrySupplierFeedHandler"] = "supplier.registry.export, system_admin only: the ministry feed IS the whole national registry",
         ["StorageSettingsHandler"] = "system_admin: storage totals for the deployment, not for a tenant",
         ["GetErpSyncMonitorHandler"] = "system_admin: the ERP queue is one queue for the deployment",
     };

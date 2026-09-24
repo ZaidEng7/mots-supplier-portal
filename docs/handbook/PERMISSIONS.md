@@ -62,7 +62,7 @@ either dead or waiting for a surface. Both are called out below.
 | `supplier.document.review` | `onboarding_reviewer`, `system_admin` | `ApproveDocument`, `RejectDocument`, checked in GetDocumentDownloadUrlHandler, not on a route, checked in GetDocumentHistoryHandler, not on a route, checked in GetSupplierDocumentHandler, not on a route |
 | `supplier.edit` | `supplier_admin`, `supplier_user`, `system_admin` | `AcceptTerms`, `AddAddress`, `AddBranch`, `AddContact`, `AddRepresentative`, `CreateOffering`, `DeactivateOffering`, `GetOffering`, `LinkCategory`, `ListOfferings`, `RemoveAddress`, `RemoveBranch`, `RemoveContact`, `RemoveRepresentative`, `ResubmitApplication`, `SetPrimaryCategory`, `SetPrimaryRepresentative`, `UnlinkCategory`, `UpdateAddress`, `UpdateBranch`, `UpdateContact`, `UpdateLegalInfo`, `UpdateOffering`, `UpdateRepresentative`, `UpdateSupplierProfile`, `UploadDocument`, `UploadLogo` |
 | `supplier.lifecycle.manage` | `onboarding_reviewer`, `procurement_manager`, `system_admin` | `ReviewEndpoints (name resolved at runtime)`, checked in SearchHandler, not on a route |
-| `supplier.registry.export` | `system_admin` | `ExportSupplierRegistry` |
+| `supplier.registry.export` | `system_admin` | `ExportMinistrySupplierFeed`, `ExportSupplierRegistry` |
 | `supplier.reject` | `onboarding_reviewer`, `system_admin` | `RejectApplication` |
 | `supplier.requestInfo` | `onboarding_reviewer`, `system_admin` | `RequestApplicationInfo` |
 | `supplier.review` | `onboarding_reviewer`, `system_admin` | `ClaimReviewItem`, `GetReviewerSupplierView`, `ListComplianceDirectory`, `ListReviewQueue`, `PickUpApplication`, `ReviewDashboard`, `UnassignReviewItem`, checked in SearchHandler, not on a route |
