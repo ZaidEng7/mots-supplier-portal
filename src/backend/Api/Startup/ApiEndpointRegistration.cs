@@ -293,6 +293,7 @@ internal static class ApiEndpointRegistration
         app.MapMinistryFeedEndpoints();
         app.MapMapTileEndpoints();
         app.MapOrganizationEndpoints();
+        app.MapApiKeyEndpoints();
         app.MapStaffEndpoints();
         app.MapRoleEndpoints();
         app.MapOfferingEndpoints();

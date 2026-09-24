@@ -67,6 +67,7 @@ using MotsSupplierPortal.Api.Endpoints;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Identity;
+using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Application.Organizations;
 using MotsSupplierPortal.Application.Registrations;
 using MotsSupplierPortal.Application.ReferenceData;
@@ -84,6 +85,7 @@ using MotsSupplierPortal.Infrastructure.Audit;
 using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Evaluation;
 using MotsSupplierPortal.Infrastructure.Identity;
+using MotsSupplierPortal.Infrastructure.Integration;
 using MotsSupplierPortal.Infrastructure.Organizations;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
@@ -123,6 +125,7 @@ internal static class ApplicationHandlerRegistration
         builder.AddDashboardsHandlers();
         builder.AddGovernanceHandlers();
         builder.AddOrganizationsHandlers();
+        builder.AddIntegrationHandlers();
         builder.AddStaffHandlers();
         builder.AddIdentityHandlers();
         builder.AddNotificationsHandlers();
@@ -358,6 +361,13 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<ICreateOrganizationHandler, CreateOrganizationHandler>();
         builder.Services.AddScoped<IListOrganizationsHandler, ListOrganizationsHandler>();
         builder.Services.AddScoped<IManageOrgUnitHandler, ManageOrgUnitHandler>();
+    }
+
+    private static void AddIntegrationHandlers(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddScoped<ICreateApiKeyHandler, CreateApiKeyHandler>();
+        builder.Services.AddScoped<IListApiKeysHandler, ListApiKeysHandler>();
+        builder.Services.AddScoped<IRevokeApiKeyHandler, RevokeApiKeyHandler>();
     }
 
     private static void AddStaffHandlers(this WebApplicationBuilder builder)

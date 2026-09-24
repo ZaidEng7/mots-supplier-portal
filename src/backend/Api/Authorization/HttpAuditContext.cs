@@ -30,6 +30,13 @@
 // exists to hold.
 //
 //
+// THE INTEGRATION LABEL
+//
+// It is the API key's prefix when the caller authenticated with a key, and null for a person. The prefix is the
+// part of a key that is safe to write down - it identifies the credential and cannot be used as one - which is
+// why it is what lands in the audit row rather than the key's name or its identifier.
+//
+//
 // THE NETWORK ADDRESS, AND WHY IT IS TRUNCATED
 //
 // Addresses are truncated before they are stored, to the network rather than the host. This is a
@@ -108,6 +115,9 @@ public sealed class HttpAuditContext(IHttpContextAccessor accessor) : IAuditCont
             return remote is null ? null : Truncate(remote);
         }
     }
+
+    public string? IntegrationLabel =>
+        accessor.HttpContext?.User.FindFirst(ApiKeyAuthentication.KeyPrefixClaim)?.Value;
 
     public static string Truncate(IPAddress address)
     {

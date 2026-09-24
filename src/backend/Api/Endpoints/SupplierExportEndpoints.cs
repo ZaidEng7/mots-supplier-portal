@@ -21,6 +21,12 @@
 // - before, not after, because a download that dies halfway still happened and a row written on success would
 // be the one record missing exactly when someone asks.
 //
+// AND THE ROW IS SAVED, which it was not. The audit logger no longer commits for itself - it used to commit
+// inside its caller's transaction, which turned a clean refusal into a server error - so each caller saves its
+// own. This route has no transaction of its own and was never given one, so the row it wrote went into the
+// change tracker and was dropped when the request ended. Every export since this feature shipped left no trace,
+// while the code above read as though it did.
+//
 // THE PERMISSION IS ITS OWN. See the note beside SupplierRegistryExport in the permission catalogue: reading
 // the directory a supplier at a time and carrying all of them out in one file are different disclosures, and
 // the second one is held by the system administrator alone.
@@ -33,6 +39,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Exports;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Persistence;
 
 public static class SupplierExportEndpoints
 {
@@ -43,6 +50,7 @@ public static class SupplierExportEndpoints
         app.MapGet("/api/v1/suppliers/export", async (
             ISupplierRegistryExportHandler handler,
             IAuditLogger audit,
+            AppDbContext db,
             HttpResponse response,
             CancellationToken ct) =>
         {
@@ -51,6 +59,8 @@ public static class SupplierExportEndpoints
                 aggregateId: Guid.Empty,
                 action: "SupplierRegistryExported",
                 ct: ct);
+
+            await db.SaveChangesAsync(ct);
 
             var lookups = await handler.GetLookupsAsync(ct);
 

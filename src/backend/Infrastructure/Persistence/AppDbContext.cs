@@ -177,6 +177,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ConsolidatedResult> ConsolidatedResults => Set<ConsolidatedResult>();
     public DbSet<Award> Awards => Set<Award>();
     public DbSet<Approval> Approvals => Set<Approval>();
+    public DbSet<Domain.Integration.ApiKey> ApiKeys => Set<Domain.Integration.ApiKey>();
 
     public void ApplyExpectedVersion(uint expected)
     {

@@ -1121,6 +1121,14 @@
     "usedIn": "AddAddressRequest, UpdateAddressRequest"
   },
   {
+    "key": "LifetimeDays.InclusiveBetween",
+    "code": "API_KEY_LIFETIME_OUT_OF_RANGE",
+    "source": "drafted",
+    "ar": "مدة صلاحية المفتاح بين يوم واحد و١٨٢٥ يوماً.",
+    "en": "A key lasts between 1 and 1825 days.",
+    "usedIn": "CreateApiKeyRequest"
+  },
+  {
     "key": "Longitude.InclusiveBetween",
     "code": "LONGITUDE_OUT_OF_RANGE",
     "source": "drafted",
