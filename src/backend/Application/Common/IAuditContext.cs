@@ -12,6 +12,13 @@
 //
 // OverrideCorrelationId adopts an identifier the caller supplied, so their own log line and this request's
 // audit rows carry the same value.
+//
+// IntegrationLabel names the API key when the caller is another system rather than a person, and is null
+// otherwise. It is here for the same reason as the other two: a call site cannot know, and must not have to
+// say, whether the request it is serving arrived on a person's session or a nightly job's credential. Without
+// it every feed pull recorded itself as the System actor, which is the actor a background job inside this
+// product uses - so the one thing the row needed to say, that somebody else's dashboard read the registry,
+// was the thing it could not say.
 
 namespace MotsSupplierPortal.Application.Common;
 
@@ -22,4 +29,6 @@ public interface IAuditContext
     void OverrideCorrelationId(Guid correlationId);
 
     string? IpAddress { get; }
+
+    string? IntegrationLabel { get; }
 }

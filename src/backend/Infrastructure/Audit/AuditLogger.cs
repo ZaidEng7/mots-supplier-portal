@@ -14,6 +14,21 @@
 //
 // Three callers had no save of their own and gained one. Without those, their audit rows would have been
 // written to memory and dropped.
+//
+//
+// WHAT KIND OF ACTOR IT WAS
+//
+// A person is User, another system holding an API key is Integration, and anything else is System. The caller
+// does not say which, and cannot: a handler serving a feed pull is the same handler either way, and asking it
+// to know would mean the answer depended on every call site remembering.
+//
+// Integration was a value the enum carried and nothing ever wrote. Every feed pull recorded itself as System,
+// the actor a background job inside this product uses, so the audit trail could not distinguish our own nightly
+// work from somebody else's dashboard reading the national registry - which is the one distinction anyone
+// auditing an integration needs.
+//
+// A user identifier wins over a key, rather than the two being combined. Both cannot be true of one request,
+// and if they somehow were, the person is the accountable actor.
 
 namespace MotsSupplierPortal.Infrastructure.Audit;
 
@@ -41,8 +56,8 @@ public sealed class AuditLogger(AppDbContext db, IAuditContext auditContext) : I
             Id = Guid.CreateVersion7(),
             OccurredAt = DateTimeOffset.UtcNow,
             ActorUserId = actorUserId,
-            ActorKind = actorUserId is null ? AuditActorKind.System : AuditActorKind.User,
-            ActorLabel = actorLabel,
+            ActorKind = ActorKindOf(actorUserId, auditContext.IntegrationLabel),
+            ActorLabel = actorLabel ?? auditContext.IntegrationLabel,
             AggregateType = aggregateType,
             AggregateId = aggregateId,
             ReferenceCode = referenceCode,
@@ -57,4 +72,11 @@ public sealed class AuditLogger(AppDbContext db, IAuditContext auditContext) : I
 
         await Task.CompletedTask;
     }
+
+    private static AuditActorKind ActorKindOf(Guid? actorUserId, string? integrationLabel) => (actorUserId, integrationLabel) switch
+    {
+        (not null, _) => AuditActorKind.User,
+        (null, not null) => AuditActorKind.Integration,
+        _ => AuditActorKind.System,
+    };
 }

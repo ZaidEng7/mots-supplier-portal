@@ -381,6 +381,28 @@
         ],
         "type": "object"
       },
+      "CreateApiKeyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "lifetimeDays": {
+            "format": "int32",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "lifetimeDays"
+        ],
+        "type": "object"
+      },
       "CreateEvaluationTemplateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1702,6 +1724,85 @@
         },
         "tags": [
           "MotsSupplierPortal.Api"
+        ]
+      }
+    },
+    "/api/v1/admin/api-keys": {
+      "get": {
+        "description": "Requires the `admin.apiKeys.manage` permission.",
+        "operationId": "ListApiKeys",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ],
+        "x-required-permissions": [
+          "admin.apiKeys.manage"
+        ]
+      },
+      "post": {
+        "description": "Requires the `admin.apiKeys.manage` permission.",
+        "operationId": "CreateApiKey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ],
+        "x-required-permissions": [
+          "admin.apiKeys.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/api-keys/{apiKeyId}/revoke": {
+      "post": {
+        "description": "Requires the `admin.apiKeys.manage` permission.",
+        "operationId": "RevokeApiKey",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "apiKeyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ],
+        "x-required-permissions": [
+          "admin.apiKeys.manage"
         ]
       }
     },
@@ -11413,6 +11514,9 @@
     },
     {
       "name": "Organizations"
+    },
+    {
+      "name": "ApiKeys"
     },
     {
       "name": "EvaluationTemplates"

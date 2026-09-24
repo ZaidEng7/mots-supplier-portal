@@ -14,12 +14,24 @@
 //
 // IT REUSES supplier.registry.export rather than adding a permission. The disclosure is the same - the whole
 // registry, with tax identifiers and named contacts - and a second permission held by the same single role
-// would say nothing the first does not. The one that will need its own is the read-only service account the
-// ministry's requirements ask for, and that is a different piece of work: a machine cannot answer the TOTP
-// challenge this role carries today, so the feed is a browser download until it exists.
+// would say nothing the first does not.
+//
+// A PERSON OR A KEY MAY CALL IT, which is what the FeedCaller policy on both routes says. The permission gate
+// is unchanged and does the same work for both; the policy only widens which authentication schemes are tried,
+// because authorization middleware authenticates the schemes a policy names and a route naming none gets the
+// bearer scheme alone. Until an API key existed these were browser downloads by necessity - the role that
+// holds this permission requires a second factor, which no nightly job can answer.
 //
 // IT IS AUDITED BEFORE THE FIRST BYTE, not after. A download that dies halfway still happened, and a row
 // written on success would be the one missing exactly when somebody asks who took the file.
+//
+// THE AUDIT ROW IS SAVED HERE, and that is a fix rather than a flourish. The audit logger stopped committing for
+// itself deliberately - it used to commit inside its caller's transaction and turned a clean refusal into a
+// server error - which left every caller responsible for its own save. These export routes have no transaction
+// of their own, so they were left calling the logger and never persisting it: the row was added to the change
+// tracker and dropped when the request ended. Nothing failed, nothing logged, and the table held no record of a
+// single export for the life of the feature. A route that writes an audit row and does not save it is worse than
+// one that writes none, because the code reads as though the trail exists.
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
@@ -30,6 +42,7 @@ using MotsSupplierPortal.Application.Exports;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Persistence;
 
 public static class MinistryFeedEndpoints
 {
@@ -41,6 +54,7 @@ public static class MinistryFeedEndpoints
         app.MapGet("/api/v1/feeds/suppliers", async (
             IMinistrySupplierFeedHandler handler,
             IAuditLogger audit,
+            AppDbContext db,
             HttpResponse response,
             CancellationToken ct) =>
         {
@@ -49,6 +63,8 @@ public static class MinistryFeedEndpoints
                 aggregateId: Guid.Empty,
                 action: "MinistrySupplierFeedExported",
                 ct: ct);
+
+            await db.SaveChangesAsync(ct);
 
             response.ContentType = "text/csv; charset=utf-8";
             response.Headers.ContentDisposition = $"attachment; filename={MinistrySupplierFeedCsv.FileName}";
@@ -69,12 +85,14 @@ public static class MinistryFeedEndpoints
             return Results.Empty;
         })
         .RequirePermission(Permissions.SupplierRegistryExport)
+        .RequireAuthorization(ApiKeyAuthentication.PolicyName)
         .WithName("ExportMinistrySupplierFeed")
         .WithTags("Feeds");
 
         app.MapGet("/api/v1/feeds/rfqs", async (
             IMinistryRfqFeedHandler handler,
             IAuditLogger audit,
+            AppDbContext db,
             HttpResponse response,
             CancellationToken ct) =>
         {
@@ -83,6 +101,8 @@ public static class MinistryFeedEndpoints
                 aggregateId: Guid.Empty,
                 action: "MinistryRfqFeedExported",
                 ct: ct);
+
+            await db.SaveChangesAsync(ct);
 
             response.ContentType = "text/csv; charset=utf-8";
             response.Headers.ContentDisposition = $"attachment; filename={MinistryRfqFeedCsv.FileName}";
@@ -103,6 +123,7 @@ public static class MinistryFeedEndpoints
             return Results.Empty;
         })
         .RequirePermission(Permissions.SupplierRegistryExport)
+        .RequireAuthorization(ApiKeyAuthentication.PolicyName)
         .WithName("ExportMinistryRfqFeed")
         .WithTags("Feeds");
     }

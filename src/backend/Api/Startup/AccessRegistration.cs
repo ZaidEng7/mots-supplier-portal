@@ -56,12 +56,24 @@
 //
 // An architecture test enforces that every mapped route declares one or the other, so this cannot
 // silently regress.
+//
+//
+// TWO WAYS TO BE A CALLER
+//
+// A person proves a bearer token; another system proves an API key. Both schemes are registered, bearer stays
+// the default, and only the routes naming the FeedCaller policy accept either - because authorization
+// middleware authenticates the schemes a policy names, and a route that names none gets the default alone.
+//
+// That is deliberately narrow. A key holds read permissions and would be refused elsewhere on its permissions
+// anyway, but a credential built for one nightly job should not be presentable at every door in the building
+// to find that out. Two independent reasons, one of them structural.
 
 namespace MotsSupplierPortal.Api.Startup;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Auth;
@@ -139,13 +151,19 @@ internal static class AccessRegistration
                     ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                     ClockSkew = TimeSpan.FromSeconds(builder.Configuration.GetValue("Jwt:ClockSkewSeconds", 30)),
                 };
-            });
+            })
+            .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+                ApiKeyAuthentication.Scheme, _ => { });
 
         builder.Services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser()
                 .Build();
+
+            options.AddPolicy(ApiKeyAuthentication.PolicyName, policy => policy
+                .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, ApiKeyAuthentication.Scheme)
+                .RequireAuthenticatedUser());
         });
 
         builder.Services.AddHttpContextAccessor();

@@ -90,7 +90,7 @@ import { extractRoutes } from './routes'
 const routes = extractRoutes()
 
 test('the route denominator is what the router actually declares, not what this file assumes', () => {
-  expect(routes.length).toBe(70)
+  expect(routes.length).toBe(71)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )

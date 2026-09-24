@@ -262,6 +262,7 @@ public static class Permissions
     public const string AdminUsersManage = "admin.users.manage";
     public const string AdminRolesManage = "admin.roles.manage";
     public const string AdminOrganizationsManage = "admin.organizations.manage";
+    public const string AdminApiKeysManage = "admin.apiKeys.manage";
     public const string ReferenceDataManage = "reference.manage";
     public const string AuditRead = "audit.read";
 
@@ -279,7 +280,7 @@ public static class Permissions
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
         RfqDeadlineShorten, ReferenceDataManage, GovernanceRead, RfqReassign, SupplierDirectoryRead,
-        SupplierRegistryExport
+        SupplierRegistryExport, AdminApiKeysManage
     ];
 }
 

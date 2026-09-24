@@ -9,8 +9,16 @@
 # store. That wiring does not exist yet and is tracked as a deployment-readiness item rather than
 # assumed to be in place.
 #
-# minio is pinned to quay.io. Docker Hub no longer serves minio/minio at all, a change that also
-# had to be made in PostgresApiFixture.cs, where it took CI down.
+# minio comes from this project's own registry, which is the second move this image has forced. Docker
+# Hub stopped serving minio/minio, so it was pinned to quay.io; on 2026-09-24 quay.io stopped serving it
+# too, and hub.docker.com/r/minio/minio now returns Page Not Found - MinIO withdrew its public images
+# entirely. The copy here is Chainguard's build of the same server, mirrored with both architectures and
+# tagged by the date it was taken, so no third party can withdraw it again. PostgresApiFixture.cs holds
+# the same reference for the test suite, and the two are meant to stay in step.
+#
+# It is a private package, so a machine that has never pulled it needs `docker login ghcr.io` once, with
+# a GitHub token that may read packages. Anyone who already has the old image running will not notice
+# until they next start from nothing - which is exactly how this broke in the first place.
 #
 # mailhog is Task #35: an SMTP catcher for development and test. It accepts any mail with no
 # authentication and is never a real destination, with a web interface on :8025 for reading what
@@ -38,7 +46,7 @@ services:
       retries: 10
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: ghcr.io/zaideng7/mots-minio:chainguard-2026-09-24
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}

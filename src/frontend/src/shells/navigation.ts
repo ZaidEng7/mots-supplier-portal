@@ -61,7 +61,7 @@
 import {
   Activity, BarChart3, Bell, Briefcase, Building2, ChartColumn, CircleHelp, ClipboardCheck,
   ClipboardList, Clock, Database, FileText, Handshake, KeyRound, Landmark, LayoutDashboard,
-  LayoutGrid, List, Mail, ScrollText, Search, Settings, ShieldCheck, SlidersHorizontal, Trophy,
+  LayoutGrid, List, Mail, Plug, ScrollText, Search, Settings, ShieldCheck, SlidersHorizontal, Trophy,
   User, UserCog, Users,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
@@ -146,6 +146,7 @@ export const BACK_OFFICE_NAV: readonly NavGroup[] = [
       { to: '/back-office/email-templates', labelKey: 'emailTemplates.title', icon: Mail, when: holds('admin.users.manage') },
       { to: '/back-office/ui-strings', labelKey: 'uiStrings.title', icon: ScrollText, when: holds('admin.users.manage') },
       { to: '/back-office/settings', labelKey: 'systemSettings.title', icon: SlidersHorizontal, when: holds('admin.users.manage') },
+      { to: '/back-office/api-keys', labelKey: 'apiKeys.title', icon: Plug, when: holds('admin.apiKeys.manage') },
       { to: '/back-office/audit', labelKey: 'auditExplorer.title', icon: ScrollText, when: holds('audit.read') },
       { to: '/back-office/operations', labelKey: 'operations.title', icon: Activity, when: holds('admin.users.manage') },
       { to: '/back-office/admin', labelKey: 'adminOverview.title', icon: Settings, when: holds('admin.users.manage'), exact: true },
