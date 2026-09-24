@@ -56,7 +56,8 @@ public sealed record MinistryRfqFeedRecord(
     ProposalState? ProposalState,
     string? ProposalCurrencyCode,
     string RfqCurrencyCode,
-    decimal? ProposalTotal);
+    decimal? ProposalTotal,
+    DateTimeOffset ModifiedAt);
 
 public static class MinistryRfqFeedCsv
 {

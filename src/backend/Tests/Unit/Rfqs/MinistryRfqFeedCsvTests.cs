@@ -33,7 +33,8 @@ public sealed class MinistryRfqFeedCsvTests
         ProposalState? state = null, decimal? total = null, string? currency = null, string? proposalCode = null,
         string rfqCurrency = "SYP") =>
         new("RFQ-2026-000123", "SUP-2026-000042", new DateTimeOffset(2026, 9, 5, 8, 0, 0, TimeSpan.Zero),
-            proposalCode, state, currency, rfqCurrency, total);
+            proposalCode, state, currency, rfqCurrency, total,
+            new DateTimeOffset(2026, 9, 5, 8, 0, 0, TimeSpan.Zero));
 
     private static int At(string column) => MinistryRfqFeedCsv.Columns.ToList().IndexOf(column);
 

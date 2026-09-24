@@ -38,6 +38,35 @@ public sealed class MinistrySupplierFeedHandler(AppDbContext db) : IMinistrySupp
         return (categories, regions);
     }
 
+    public async Task<IReadOnlyList<MinistrySupplierFeedRecord>> PageAsync(
+        string? afterReferenceCode, DateTimeOffset? modifiedSince, int limit, CancellationToken ct)
+    {
+        var (categoryNames, regionNames) = await GetLookupsAsync(ct);
+
+        var query = db.Suppliers
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(s => s.Addresses)
+            .Include(s => s.Representatives)
+            .Include(s => s.CategoryLinks)
+            .OrderBy(s => s.ReferenceCode)
+            .AsQueryable();
+
+        if (afterReferenceCode is not null)
+        {
+            query = query.Where(s => string.Compare(s.ReferenceCode, afterReferenceCode) > 0);
+        }
+
+        if (modifiedSince is { } since)
+        {
+            query = query.Where(s => s.UpdatedAt > since);
+        }
+
+        var suppliers = await query.Take(limit).ToListAsync(ct);
+
+        return [.. suppliers.Select(s => new MinistrySupplierFeedRecord(s, categoryNames, regionNames))];
+    }
+
     public async IAsyncEnumerable<MinistrySupplierFeedRecord> StreamAsync([EnumeratorCancellation] CancellationToken ct)
     {
         var (categoryNames, regionNames) = await GetLookupsAsync(ct);

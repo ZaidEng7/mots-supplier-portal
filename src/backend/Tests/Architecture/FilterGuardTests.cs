@@ -110,6 +110,11 @@ public sealed class FilterGuardTests
         ["query"] = "free-text ILIKE search; no vocabulary to validate against, and unfiltered is already the default",
 
         ["q"] = "free-text tsquery search; a blank or unparseable term returns NOTHING, never everything",
+
+        ["modifiedSince"] = "ministry feeds: parsed as a timestamp and REFUSED with 400 when it will not parse, "
+            + "so an unreadable value never becomes an absent filter - which is the widening this check exists "
+            + "to prevent. Asserted in MinistryFeedIncrementalTests.",
+
     };
 
     private sealed record FilterParameter(string File, int Line, string Endpoint, string Name, bool Guarded);
