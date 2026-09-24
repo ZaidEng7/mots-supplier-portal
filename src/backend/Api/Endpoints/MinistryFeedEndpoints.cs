@@ -22,6 +22,15 @@
 // bearer scheme alone. Until an API key existed these were browser downloads by necessity - the role that
 // holds this permission requires a second factor, which no nightly job can answer.
 //
+//
+// TWO REPRESENTATIONS, ONE FEED. The ministry's requirements ask for JSON; the handovers so far have been CSV
+// files. Both are served from the same routes, chosen by the Accept header, because the alternative - a second
+// pair of URLs - is a second thing to keep in their runbook and a second thing to forget to change.
+//
+// The rows cannot drift apart, because each feed decides what a row means in exactly one place and the two
+// representations only differ in how they write it. Feed 1 has a projection beside its CSV class for that
+// reason; feed 4 needs none, because its record already arrives as the values themselves.
+//
 // IT IS AUDITED BEFORE THE FIRST BYTE, not after. A download that dies halfway still happened, and a row
 // written on success would be the one missing exactly when somebody asks who took the file.
 //
@@ -49,12 +58,24 @@ public static class MinistryFeedEndpoints
     public const string SupplierScope = "every supplier in the registry, at every onboarding state";
     public const string RfqScope = "every supplier invited to every published tender";
 
+    // Which representation the caller asked for. CSV is what answers when nobody says, because that is what the
+    // ministry has been handed by file and what a browser asks for by default - a person clicking a link must
+    // not suddenly receive JSON.
+    //
+    // Only an explicit application/json wins, and */* does not count. A browser sends */* at the end of its
+    // Accept header, so treating it as agreement would flip the default for every human caller while looking
+    // like content negotiation.
+    private static bool WantsJson(HttpRequest request) =>
+        request.Headers.Accept.Any(value =>
+            value is not null && value.Contains("application/json", StringComparison.OrdinalIgnoreCase));
+
     public static void MapMinistryFeedEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/v1/feeds/suppliers", async (
             IMinistrySupplierFeedHandler handler,
             IAuditLogger audit,
             AppDbContext db,
+            HttpRequest request,
             HttpResponse response,
             CancellationToken ct) =>
         {
@@ -66,10 +87,22 @@ public static class MinistryFeedEndpoints
 
             await db.SaveChangesAsync(ct);
 
-            response.ContentType = "text/csv; charset=utf-8";
-            response.Headers.ContentDisposition = $"attachment; filename={MinistrySupplierFeedCsv.FileName}";
             response.Headers["X-Feed-Generated-At"] = DateTimeOffset.UtcNow.ToString("O");
             response.Headers["X-Feed-Scope"] = SupplierScope;
+
+            if (WantsJson(request))
+            {
+                var rows = new List<MinistrySupplierFeedJsonRow>();
+                await foreach (var record in handler.StreamAsync(ct))
+                {
+                    rows.Add(MinistrySupplierFeedJson.Row(record));
+                }
+
+                return Results.Ok(rows);
+            }
+
+            response.ContentType = "text/csv; charset=utf-8";
+            response.Headers.ContentDisposition = $"attachment; filename={MinistrySupplierFeedCsv.FileName}";
 
             await response.Body.WriteAsync(CsvFormat.Utf8Bom, ct);
             await using var writer = new StreamWriter(
@@ -93,6 +126,7 @@ public static class MinistryFeedEndpoints
             IMinistryRfqFeedHandler handler,
             IAuditLogger audit,
             AppDbContext db,
+            HttpRequest request,
             HttpResponse response,
             CancellationToken ct) =>
         {
@@ -104,10 +138,22 @@ public static class MinistryFeedEndpoints
 
             await db.SaveChangesAsync(ct);
 
-            response.ContentType = "text/csv; charset=utf-8";
-            response.Headers.ContentDisposition = $"attachment; filename={MinistryRfqFeedCsv.FileName}";
             response.Headers["X-Feed-Generated-At"] = DateTimeOffset.UtcNow.ToString("O");
             response.Headers["X-Feed-Scope"] = RfqScope;
+
+            if (WantsJson(request))
+            {
+                var rows = new List<MinistryRfqFeedJsonRow>();
+                await foreach (var record in handler.StreamAsync(ct))
+                {
+                    rows.Add(MinistryRfqFeedJson.Row(record));
+                }
+
+                return Results.Ok(rows);
+            }
+
+            response.ContentType = "text/csv; charset=utf-8";
+            response.Headers.ContentDisposition = $"attachment; filename={MinistryRfqFeedCsv.FileName}";
 
             await response.Body.WriteAsync(CsvFormat.Utf8Bom, ct);
             await using var writer = new StreamWriter(

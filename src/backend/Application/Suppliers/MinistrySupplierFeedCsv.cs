@@ -87,45 +87,34 @@ public static class MinistrySupplierFeedCsv
 
     public static string Row(MinistrySupplierFeedRecord record) => CsvFormat.Row(Cells(record));
 
-    public static IReadOnlyList<string?> Cells(MinistrySupplierFeedRecord record)
-    {
-        var s = record.Supplier;
-        var legal = s.LegalInfo;
+    public static IReadOnlyList<string?> Cells(MinistrySupplierFeedRecord record) =>
+        Cells(MinistrySupplierFeedProjection.Of(record));
 
-        var address = s.Addresses.FirstOrDefault(a => a.IsPrimary) ?? s.Addresses.FirstOrDefault();
-        var representative = s.Representatives.FirstOrDefault(r => r.IsPrimary) ?? s.Representatives.FirstOrDefault();
-        var primaryCategory = s.PrimaryCategoryCode;
-
-        return
-        [
-            s.ReferenceCode,
-            legal?.LegalNameEn ?? s.DisplayNameEn,
-            legal?.LegalNameAr ?? s.DisplayNameAr,
-            null,
-            primaryCategory is null
-                ? null
-                : record.CategoryNameEn.TryGetValue(primaryCategory, out var group) ? group : primaryCategory,
-            ApprovalStatus(s.OnboardingState),
-            Flag(s.LifecycleState is SupplierLifecycleState.Suspended or SupplierLifecycleState.Deactivated),
-            s.CurrencyCode,
-            legal?.SupplierType.ToString(),
-            legal?.RegistrationNumber,
-            legal?.TaxId,
-            address is null ? null : CountryCode(address.Country),
-            address?.Line1,
-            address?.City,
-            address is null
-                ? null
-                : record.RegionNameEn.TryGetValue(address.RegionCode, out var region) ? region : address.RegionCode,
-            Coordinate(address?.Latitude),
-            Coordinate(address?.Longitude),
-            representative?.Phone,
-            representative?.Email,
-            representative is null ? null : Flag(representative.UserId.HasValue),
-            Date(s.CreatedAt),
-            Time(s.UpdatedAt),
-        ];
-    }
+    public static IReadOnlyList<string?> Cells(MinistrySupplierFeedRow row) =>
+    [
+        row.SupplierId,
+        row.SupplierName,
+        row.SupplierNameAr,
+        row.SupplierCode,
+        row.SupplierGroup,
+        row.ApprovalStatus,
+        Flag(row.Disabled),
+        row.DefaultCurrency,
+        row.RegistrationType,
+        row.CommercialRegisterNo,
+        row.TaxId,
+        row.Country,
+        row.AddressLine,
+        row.City,
+        row.Governorate,
+        Coordinate(row.Latitude),
+        Coordinate(row.Longitude),
+        row.Phone,
+        row.Email,
+        row.PortalUser is null ? null : Flag(row.PortalUser.Value),
+        Date(row.CreatedOn),
+        Time(row.LastModified),
+    ];
 
     public static string ApprovalStatus(SupplierOnboardingState state) => state switch
     {
