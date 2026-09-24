@@ -394,9 +394,11 @@ const resources = {
           registryScope: 'تشمل هذه الأعداد جميع الموردين المسجَّلين، وليست مقصورة على جهتك.',
         },
         feed: {
-          title: 'تغذية لوحة الوزارة — المورّدون',
-          what: 'سجل المورّدين بأسماء أعمدة الوزارة، للوحة فنادق سوريا. اثنان وعشرون عموداً، سطر لكل مورّد، وفي جميع حالات التسجيل.',
-          shape: 'هذه التغذية الأولى من ملفهم. أوامر الشراء والفواتير والدفعات تغذيات يقدمها نظام الموارد لا نحن.',
+          title: 'تغذيات لوحة الوزارة',
+          what: 'التغذيتان اللتان تطلبهما لوحة فنادق سوريا، بأسماء أعمدة الوزارة. ملف المورّدين سطر لكل مورّد، وملف المناقصات سطر لكل مورّد في كل مناقصة دُعي إليها.',
+          shape: 'هاتان التغذيتان الأولى والرابعة من ملفهم. أوامر الشراء والفواتير والدفعات تغذيات يقدمها نظام الموارد لا نحن.',
+          suppliers: 'ملف المورّدين',
+          rfqs: 'ملف المناقصات',
         },
         registry: {
           title: 'تصدير سجل المورّدين',
@@ -2311,9 +2313,11 @@ const resources = {
           registryScope: 'These counts cover every registered supplier, not only your organization.',
         },
         feed: {
-          title: 'Ministry dashboard feed — suppliers',
-          what: 'The supplier registry in the ministry\u2019s own column names, for the Syria Hotels Dashboard. Twenty-two columns, one row per supplier, every onboarding state.',
-          shape: 'This is feed 1 of their workbook. Purchase orders, invoices and payments are the ERP\u2019s feeds, not ours.',
+          title: 'Ministry dashboard feeds',
+          what: 'The two feeds the Syria Hotels Dashboard asks us for, in the ministry\u2019s own column names. Suppliers is one row per supplier; tenders is one row per supplier per tender they were invited to.',
+          shape: 'These are feeds 1 and 4 of their workbook. Purchase orders, invoices and payments are the ERP\u2019s feeds, not ours.',
+          suppliers: 'Suppliers CSV',
+          rfqs: 'Tenders CSV',
         },
         registry: {
           title: 'Supplier registry export',

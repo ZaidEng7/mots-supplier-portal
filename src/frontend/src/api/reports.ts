@@ -105,6 +105,13 @@ export async function downloadMinistrySupplierFeed(): Promise<void> {
   await saveAsFile(response, 'mots-feed-suppliers.csv')
 }
 
+export async function downloadMinistryRfqFeed(): Promise<void> {
+  const response = await apiFetch('/api/v1/feeds/rfqs')
+  if (!response.ok) throw new Error(`feeds.rfqs ${response.status}`)
+
+  await saveAsFile(response, 'mots-feed-rfqs.csv')
+}
+
 async function saveAsFile(response: Response, fallbackName: string): Promise<void> {
   const disposition = response.headers.get('content-disposition') ?? ''
   const named = /filename=([^;]+)/i.exec(disposition)?.[1]?.trim()

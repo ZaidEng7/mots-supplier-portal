@@ -32,6 +32,11 @@
 // question this account cannot ask. Its control is that a real failure is still reported as one, with a retry that can work -
 // without which the change would pass just as well on a screen that had simply stopped reporting errors at all.
 //
+// THE TWO FEED BUTTONS ARE ASSERTED TO GO TO DIFFERENT ROUTES, which is not paranoia: they sit side by side on
+// one card, differ by one word, and the failure - both wired to the same handler - produces a screen where
+// every button works and one file is silently never sent. Clicking Tenders and asserting the suppliers route
+// was NOT called is what catches it.
+//
 // THE MINISTRY FEED CARD sits beside the registry export behind the same permission, and the pair is asserted
 // as a pair: four Export CSV buttons rather than three. The count is the assertion that noticed this card
 // arriving at all, which is what a count is for - a name-based query would have been satisfied by any one of
@@ -54,8 +59,9 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18n from '../../i18n/config'
-import { renderPage, mockFetch } from '../../test/renderPage'
+import { renderPage, mockFetch, type RecordedRequest } from '../../test/renderPage'
 import { useAuthStore } from '../../lib/authStore'
 
 vi.mock('@tanstack/react-router', async () => {
@@ -271,18 +277,34 @@ describe('the supplier registry export card', () => {
 
     expect(await screen.findByRole('heading', { name: 'Supplier registry export' })).toBeInTheDocument()
     expect(screen.getByText(/tax identifiers, named contacts/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(4)
+    expect(screen.getAllByRole('button', { name: 'Export CSV' })).toHaveLength(3)
   })
 
-  it('offers the ministry feed beside the registry export, and says they are different files', async () => {
+  it('offers both ministry feeds by name, beside the registry export', async () => {
     signInWith(['report.read', 'supplier.registry.export'])
     restore = mockFetch(routes)
 
     renderPage(<ReportsPage />)
 
-    expect(await screen.findByRole('heading', { name: /Ministry dashboard feed/i })).toBeInTheDocument()
-    expect(screen.getByText(/ministry\u2019s own column names/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /Ministry dashboard feeds/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Suppliers CSV' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tenders CSV' })).toBeInTheDocument()
     expect(screen.getByText(/Purchase orders, invoices and payments are the ERP/i)).toBeInTheDocument()
+  })
+
+  it('sends each feed button to its own route', async () => {
+    signInWith(['report.read', 'supplier.registry.export'])
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(routes, recorded)
+
+    renderPage(<ReportsPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Tenders CSV' }))
+
+    await vi.waitFor(() => {
+      expect(recorded.some((r) => r.url.includes('/api/v1/feeds/rfqs'))).toBe(true)
+    })
+    expect(recorded.some((r) => r.url.includes('/api/v1/feeds/suppliers'))).toBe(false)
   })
 
   it('hides the ministry feed from an account that cannot export the registry', async () => {
@@ -292,6 +314,6 @@ describe('the supplier registry export card', () => {
     renderPage(<ReportsPage />)
 
     expect(await screen.findByRole('heading', { name: 'Compliance report' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /Ministry dashboard feed/i })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /Ministry dashboard feeds/i })).toBeNull()
   })
 })

@@ -43,6 +43,10 @@
 // administrator who has not read the API documentation has no other way to know that before clicking. Saying it
 // after the download is saying it too late.
 //
+// THE MINISTRY FEEDS ARE TWO FILES ON ONE CARD, not two cards, because they are one delivery: feeds 1 and 4 of
+// a workbook whose other two feeds belong to the ERP. Their buttons say which file each is rather than both
+// saying Export CSV, since the failure this screen already has a history of is somebody sending the wrong one.
+//
 // THE MINISTRY FEED IS A THIRD EXPORT AND NOT A FOURTH REPORT. It is the supplier registry again, but shaped
 // to a workbook the ministry sent: their twenty-two column names, their vocabulary, their file. It sits beside
 // the registry export because both are "take the registry out of the product", and it is separate from it
@@ -67,7 +71,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { getComplianceReport, getProcurementReport, downloadReport, downloadSupplierRegistry, downloadMinistrySupplierFeed } from '../../api/reports'
+import { getComplianceReport, getProcurementReport, downloadReport, downloadSupplierRegistry, downloadMinistrySupplierFeed, downloadMinistryRfqFeed } from '../../api/reports'
 import { usePermissions } from '../../lib/authStore'
 import type { ReportCount } from '../../api/reports'
 import { Card } from '../../components/ui/Card'
@@ -120,10 +124,10 @@ export function ReportsPage() {
     }
   }
 
-  async function downloadFeed() {
+  async function downloadFeed(feed: 'suppliers' | 'rfqs') {
     setDownloadError(false)
     try {
-      await downloadMinistrySupplierFeed()
+      await (feed === 'suppliers' ? downloadMinistrySupplierFeed() : downloadMinistryRfqFeed())
     } catch {
       setDownloadError(true)
     }
@@ -251,8 +255,11 @@ export function ReportsPage() {
       {can('supplier.registry.export') ? (
         <Card title={t('reports.feed.title')}>
           <div className="mb-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="ghost" onClick={downloadFeed}>
-              {t('reports.exportCsv')}
+            <Button size="sm" variant="ghost" onClick={() => downloadFeed('suppliers')}>
+              {t('reports.feed.suppliers')}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => downloadFeed('rfqs')}>
+              {t('reports.feed.rfqs')}
             </Button>
           </div>
 
