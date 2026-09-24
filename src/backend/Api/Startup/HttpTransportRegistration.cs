@@ -70,6 +70,8 @@ internal static class HttpTransportRegistration
 
     internal const string RegisterRateLimitPolicy = "register-strict";
 
+    internal const string MapTileRateLimitPolicy = "map-tiles";
+
     internal static WebApplicationBuilder AddHttpTransport(this WebApplicationBuilder builder)
     {
         builder.Services.AddResponseCompression(options =>
@@ -109,6 +111,15 @@ internal static class HttpTransportRegistration
                     {
                         Window = TimeSpan.FromMinutes(1),
                         PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 10),
+                        QueueLimit = 0,
+                    }));
+            options.AddPolicy(MapTileRateLimitPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        Window = TimeSpan.FromMinutes(1),
+                        PermitLimit = builder.Configuration.GetValue("RateLimiting:MapTilePermitLimit", 600),
                         QueueLimit = 0,
                     }));
             options.AddPolicy(RegisterRateLimitPolicy, httpContext =>

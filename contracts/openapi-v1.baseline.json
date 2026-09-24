@@ -3718,6 +3718,51 @@
         ]
       }
     },
+    "/api/v1/map/tiles/{z}/{x}/{y}.png": {
+      "get": {
+        "operationId": "GetMapTile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Map"
+        ]
+      }
+    },
     "/api/v1/meta": {
       "get": {
         "operationId": "Meta",
@@ -11332,6 +11377,9 @@
     },
     {
       "name": "Feeds"
+    },
+    {
+      "name": "Map"
     },
     {
       "name": "Staff"

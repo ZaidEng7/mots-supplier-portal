@@ -95,6 +95,7 @@ public sealed class ApprovedSupplierMaintenanceTests(PostgresApiFixture fixture)
         {
             kind = "HeadOffice", line1 = "12 Al-Thawra Street", line2 = (string?)null, city = "Damascus",
             regionCode = "DAM", country = "Syria", postalCode = "0100",
+            latitude = 33.5131, longitude = 36.2925,
         });
 
         rep.StatusCode.Should().Be(HttpStatusCode.OK, await rep.Content.ReadAsStringAsync());
