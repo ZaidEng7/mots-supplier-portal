@@ -80,4 +80,34 @@ public sealed class ApiKeySecretTests
         prefixes.Distinct().Should().HaveCount(prefixes.Count,
             "the prefix carries a unique index, so a generator that repeated itself would fail at insert");
     }
+
+    // EVERY generated key parses, not one of them. This is the test that was missing, and the defect it now
+    // guards shipped through a suite that generated a single key per assertion: the prefix was cut from
+    // base64url, which contains the '_' this format separates on, so roughly one key in eight came out with an
+    // underscore inside its prefix and could not be parsed back. It authenticated nothing and presented as a 401
+    // that reproduced perhaps one run in three. A single-sample test of a random generator asserts almost
+    // nothing; 500 is enough that a one-in-eight failure cannot hide.
+    [Fact]
+    public void Every_generated_key_parses_back_into_its_own_prefix_and_secret()
+    {
+        for (var i = 0; i < 500; i++)
+        {
+            var generated = ApiKeySecret.Generate();
+
+            ApiKeySecret.TryParse(generated.Presented, out var prefix, out var secret).Should().BeTrue(
+                $"'{generated.Presented}' was issued by this product and must be readable by it");
+            prefix.Should().Be(generated.Prefix);
+            ApiKeySecret.Verify(secret, generated.Salt, generated.SecretHash).Should().BeTrue();
+        }
+    }
+
+    [Fact]
+    public void A_prefix_never_contains_the_character_the_format_separates_on()
+    {
+        for (var i = 0; i < 500; i++)
+        {
+            ApiKeySecret.Generate().Prefix.Should().NotContain("_",
+                "a prefix holding the delimiter puts the separator in the wrong place and the key stops parsing");
+        }
+    }
 }

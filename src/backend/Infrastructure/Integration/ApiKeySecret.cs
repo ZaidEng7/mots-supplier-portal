@@ -21,6 +21,14 @@
 // BASE64URL AND NOT BASE64, because this value travels in an HTTP header and gets pasted into shells and config
 // files by people. '+' and '/' survive all of that unevenly; '-' and '_' do not need escaping anywhere.
 //
+// THE PREFIX IS LETTERS AND DIGITS ONLY, AND THAT IS A BUG FIX. It was cut from base64url like the secret, and
+// base64url contains the underscore this format separates on - so about one key in eight was issued with an
+// underscore inside its prefix, the separator landed in the wrong place, and the key could not be parsed back.
+// It authenticated nothing and the only symptom was a 401 nobody could reproduce. A generator whose output
+// sometimes collides with its own delimiter is the defect; narrowing the alphabet is the fix, and the parse test
+// over many generations is what keeps it fixed. 36 characters over 8 positions is still far more than the number
+// of keys this product will ever hold, and the database's unique index is the backstop.
+//
 // THE SECRET IS RETURNED ONCE AND NEVER STORED. What the caller gets back is the only copy; the database holds
 // the salt and the hash. That is not an inconvenience to be worked around later - it is the property that makes
 // a leaked key replaceable rather than a thing to be looked up and re-sent.
@@ -39,6 +47,8 @@ public static class ApiKeySecret
 
     private const int SecretBytes = 32;
     private const int SaltBytes = 16;
+
+    private const string PrefixAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 
     public static GeneratedApiKeySecret Generate()
     {
@@ -82,7 +92,7 @@ public static class ApiKeySecret
         => Base64Url(SHA256.HashData(Encoding.UTF8.GetBytes($"{salt}:{secret}")));
 
     private static string RandomToken(int length)
-        => Base64Url(RandomNumberGenerator.GetBytes(length))[..length];
+        => RandomNumberGenerator.GetString(PrefixAlphabet, length);
 
     private static string Base64Url(byte[] bytes)
         => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
