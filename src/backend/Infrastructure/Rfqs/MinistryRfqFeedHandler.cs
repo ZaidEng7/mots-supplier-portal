@@ -23,9 +23,37 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class MinistryRfqFeedHandler(AppDbContext db) : IMinistryRfqFeedHandler
 {
+    public async Task<IReadOnlyList<MinistryRfqFeedRecord>> PageAsync(
+        string? afterRfqReferenceCode, string? afterSupplierReferenceCode, int limit, CancellationToken ct)
+    {
+        var rows = Rows();
+
+        // The pair is ordered, so "after" means a later tender, or the same tender and a later supplier.
+        // Comparing only the tender would drop the rest of the tender a page ended inside.
+        if (afterRfqReferenceCode is not null && afterSupplierReferenceCode is not null)
+        {
+            rows = rows.Where(r =>
+                string.Compare(r.RfqReferenceCode, afterRfqReferenceCode) > 0
+                || (r.RfqReferenceCode == afterRfqReferenceCode
+                    && string.Compare(r.SupplierReferenceCode, afterSupplierReferenceCode) > 0));
+        }
+
+        return await rows.Take(limit).ToListAsync(ct);
+    }
+
     public async IAsyncEnumerable<MinistryRfqFeedRecord> StreamAsync([EnumeratorCancellation] CancellationToken ct)
     {
-        var rows = from invitation in db.Invitations.AsNoTracking()
+        await foreach (var row in Rows().AsAsyncEnumerable().WithCancellation(ct))
+        {
+            yield return row;
+        }
+    }
+
+    // One query behind both representations. The stream and the page differ in how much they take, never in
+    // what a row is or what order rows come in - a second copy of this join is a second place for the two to
+    // disagree about which invitations exist.
+    private IQueryable<MinistryRfqFeedRecord> Rows() =>
+                   from invitation in db.Invitations.AsNoTracking()
                    join rfq in db.Rfqs.AsNoTracking() on invitation.RfqId equals rfq.Id
                    join supplier in db.Suppliers.AsNoTracking() on invitation.SupplierId equals supplier.Id
                    join proposal in db.Proposals.AsNoTracking()
@@ -46,10 +74,4 @@ public sealed class MinistryRfqFeedHandler(AppDbContext db) : IMinistryRfqFeedHa
                            : db.ProposalItems
                                .Where(i => i.ProposalId == proposal.Id)
                                .Sum(i => (decimal?)((i.Quantity * i.UnitPrice) - (i.Discount ?? 0m))));
-
-        await foreach (var row in rows.AsAsyncEnumerable().WithCancellation(ct))
-        {
-            yield return row;
-        }
-    }
 }

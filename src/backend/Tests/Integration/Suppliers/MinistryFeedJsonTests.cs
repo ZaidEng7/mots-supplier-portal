@@ -51,7 +51,15 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         address.EnsureSuccessStatusCode();
     }
 
+    // The rows of one page. The envelope around them is the same one every paged list in this product uses,
+    // so the tests that are about rows read through this and the tests that are about paging read the envelope.
     private static async Task<JsonElement> JsonFeedAsync(HttpClient client, string route)
+    {
+        var envelope = await JsonEnvelopeAsync(client, route);
+        return envelope.GetProperty("data");
+    }
+
+    private static async Task<JsonElement> JsonEnvelopeAsync(HttpClient client, string route)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, route);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));

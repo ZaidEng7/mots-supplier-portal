@@ -77,7 +77,9 @@ public static class MinistryFeedEndpoints
             AppDbContext db,
             HttpRequest request,
             HttpResponse response,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            string? cursor = null,
+            int? limit = null) =>
         {
             await audit.LogAsync(
                 aggregateType: "SupplierRegistry",
@@ -92,13 +94,27 @@ public static class MinistryFeedEndpoints
 
             if (WantsJson(request))
             {
-                var rows = new List<MinistrySupplierFeedJsonRow>();
-                await foreach (var record in handler.StreamAsync(ct))
+                string[] after = [];
+                if (cursor is not null && !FeedCursor.TryDecode(cursor, 1, out after))
                 {
-                    rows.Add(MinistrySupplierFeedJson.Row(record));
+                    return Results.Problem(
+                        title: "The cursor is not one this feed issued.",
+                        statusCode: StatusCodes.Status400BadRequest);
                 }
 
-                return Results.Ok(rows);
+                var size = FeedPage.ClampLimit(limit);
+                var page = await handler.PageAsync(
+                    cursor is null ? null : after[0], size + 1, ct);
+
+                var hasMore = page.Count > size;
+                var rows = page.Take(size).Select(MinistrySupplierFeedJson.Row).ToList();
+
+                return Results.Ok(ListEnvelope<MinistrySupplierFeedJsonRow>.Cursor(
+                    rows,
+                    hasMore,
+                    rows.Count == 0 ? null : FeedCursor.Encode(rows[^1].SupplierId),
+                    size,
+                    sort: "SupplierID"));
             }
 
             response.ContentType = "text/csv; charset=utf-8";
@@ -128,7 +144,9 @@ public static class MinistryFeedEndpoints
             AppDbContext db,
             HttpRequest request,
             HttpResponse response,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            string? cursor = null,
+            int? limit = null) =>
         {
             await audit.LogAsync(
                 aggregateType: "Rfq",
@@ -143,13 +161,27 @@ public static class MinistryFeedEndpoints
 
             if (WantsJson(request))
             {
-                var rows = new List<MinistryRfqFeedJsonRow>();
-                await foreach (var record in handler.StreamAsync(ct))
+                string[] after = [];
+                if (cursor is not null && !FeedCursor.TryDecode(cursor, 2, out after))
                 {
-                    rows.Add(MinistryRfqFeedJson.Row(record));
+                    return Results.Problem(
+                        title: "The cursor is not one this feed issued.",
+                        statusCode: StatusCodes.Status400BadRequest);
                 }
 
-                return Results.Ok(rows);
+                var size = FeedPage.ClampLimit(limit);
+                var page = await handler.PageAsync(
+                    cursor is null ? null : after[0], cursor is null ? null : after[1], size + 1, ct);
+
+                var hasMore = page.Count > size;
+                var rows = page.Take(size).Select(MinistryRfqFeedJson.Row).ToList();
+
+                return Results.Ok(ListEnvelope<MinistryRfqFeedJsonRow>.Cursor(
+                    rows,
+                    hasMore,
+                    rows.Count == 0 ? null : FeedCursor.Encode(rows[^1].RfqNo, rows[^1].SupplierId),
+                    size,
+                    sort: "RFQNo,SupplierID"));
             }
 
             response.ContentType = "text/csv; charset=utf-8";
