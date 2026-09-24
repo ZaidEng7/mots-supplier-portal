@@ -20,6 +20,16 @@
 # a GitHub token that may read packages. Anyone who already has the old image running will not notice
 # until they next start from nothing - which is exactly how this broke in the first place.
 #
+# SWAPPING THE IMAGE ON AN EXISTING VOLUME NEEDS ONE MANUAL STEP. The old image ran as root and this one
+# runs as uid 65532, so data written before the swap is owned by a user the new server is not, and it
+# exits immediately with "Unable to write to the backend". Contents are fine; only ownership is wrong:
+#
+#   docker run --rm -v mots-supplier-portal_minio-data:/data alpine chown -R 65532:65532 /data
+#
+# Continuous integration never meets this, because Testcontainers starts every run with an empty volume.
+# It is a first-run-after-the-swap problem on developer machines only, and it looks like data loss when
+# it is not.
+#
 # mailhog is Task #35: an SMTP catcher for development and test. It accepts any mail with no
 # authentication and is never a real destination, with a web interface on :8025 for reading what
 # was actually sent. Real environments point Smtp:Host, Smtp:User and Smtp:Password at a provider
@@ -56,8 +66,12 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+    # The probe speaks to the server with the client shipped inside the image, because this image carries no
+    # curl and no wget: it is a distroless build, and the old curl-based check failed with "executable file not
+    # found" while the server itself was serving perfectly. A health check that cannot run reports unhealthy,
+    # which is the same colour as a broken service and none of the meaning.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "sh", "-c", "mc alias set probe http://localhost:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" >/dev/null && mc ready probe"]
       interval: 5s
       timeout: 5s
       retries: 10
