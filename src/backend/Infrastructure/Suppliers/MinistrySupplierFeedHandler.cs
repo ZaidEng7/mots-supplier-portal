@@ -39,7 +39,7 @@ public sealed class MinistrySupplierFeedHandler(AppDbContext db) : IMinistrySupp
     }
 
     public async Task<IReadOnlyList<MinistrySupplierFeedRecord>> PageAsync(
-        string? afterReferenceCode, int limit, CancellationToken ct)
+        string? afterReferenceCode, DateTimeOffset? modifiedSince, int limit, CancellationToken ct)
     {
         var (categoryNames, regionNames) = await GetLookupsAsync(ct);
 
@@ -55,6 +55,11 @@ public sealed class MinistrySupplierFeedHandler(AppDbContext db) : IMinistrySupp
         if (afterReferenceCode is not null)
         {
             query = query.Where(s => string.Compare(s.ReferenceCode, afterReferenceCode) > 0);
+        }
+
+        if (modifiedSince is { } since)
+        {
+            query = query.Where(s => s.UpdatedAt > since);
         }
 
         var suppliers = await query.Take(limit).ToListAsync(ct);

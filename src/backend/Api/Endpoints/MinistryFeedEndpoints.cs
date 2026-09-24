@@ -45,6 +45,7 @@
 namespace MotsSupplierPortal.Api.Endpoints;
 
 using System.Text;
+using Microsoft.AspNetCore.Mvc;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Exports;
@@ -79,7 +80,8 @@ public static class MinistryFeedEndpoints
             HttpResponse response,
             CancellationToken ct,
             string? cursor = null,
-            int? limit = null) =>
+            int? limit = null,
+            [FromQuery(Name = "modified_since")] string? modifiedSince = null) =>
         {
             await audit.LogAsync(
                 aggregateType: "SupplierRegistry",
@@ -102,9 +104,16 @@ public static class MinistryFeedEndpoints
                         statusCode: StatusCodes.Status400BadRequest);
                 }
 
+                if (!FeedModifiedSince.TryParse(modifiedSince, out var since))
+                {
+                    return Results.Problem(
+                        title: "modified_since must be an ISO 8601 timestamp, for example 2026-09-21T10:15:00Z.",
+                        statusCode: StatusCodes.Status400BadRequest);
+                }
+
                 var size = FeedPage.ClampLimit(limit);
                 var page = await handler.PageAsync(
-                    cursor is null ? null : after[0], size + 1, ct);
+                    cursor is null ? null : after[0], since, size + 1, ct);
 
                 var hasMore = page.Count > size;
                 var rows = page.Take(size).Select(MinistrySupplierFeedJson.Row).ToList();
@@ -114,7 +123,8 @@ public static class MinistryFeedEndpoints
                     hasMore,
                     rows.Count == 0 ? null : FeedCursor.Encode(rows[^1].SupplierId),
                     size,
-                    sort: "SupplierID"));
+                    sort: "SupplierID",
+                    filtersApplied: since is null ? null : ["modified_since"]));
             }
 
             response.ContentType = "text/csv; charset=utf-8";
@@ -146,7 +156,8 @@ public static class MinistryFeedEndpoints
             HttpResponse response,
             CancellationToken ct,
             string? cursor = null,
-            int? limit = null) =>
+            int? limit = null,
+            [FromQuery(Name = "modified_since")] string? modifiedSince = null) =>
         {
             await audit.LogAsync(
                 aggregateType: "Rfq",
@@ -169,9 +180,16 @@ public static class MinistryFeedEndpoints
                         statusCode: StatusCodes.Status400BadRequest);
                 }
 
+                if (!FeedModifiedSince.TryParse(modifiedSince, out var since))
+                {
+                    return Results.Problem(
+                        title: "modified_since must be an ISO 8601 timestamp, for example 2026-09-21T10:15:00Z.",
+                        statusCode: StatusCodes.Status400BadRequest);
+                }
+
                 var size = FeedPage.ClampLimit(limit);
                 var page = await handler.PageAsync(
-                    cursor is null ? null : after[0], cursor is null ? null : after[1], size + 1, ct);
+                    cursor is null ? null : after[0], cursor is null ? null : after[1], since, size + 1, ct);
 
                 var hasMore = page.Count > size;
                 var rows = page.Take(size).Select(MinistryRfqFeedJson.Row).ToList();
@@ -181,7 +199,8 @@ public static class MinistryFeedEndpoints
                     hasMore,
                     rows.Count == 0 ? null : FeedCursor.Encode(rows[^1].RfqNo, rows[^1].SupplierId),
                     size,
-                    sort: "RFQNo,SupplierID"));
+                    sort: "RFQNo,SupplierID",
+                    filtersApplied: since is null ? null : ["modified_since"]));
             }
 
             response.ContentType = "text/csv; charset=utf-8";

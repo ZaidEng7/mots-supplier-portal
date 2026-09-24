@@ -3802,6 +3802,13 @@
                 "string"
               ]
             }
+          },
+          {
+            "in": "query",
+            "name": "modified_since",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3842,6 +3849,13 @@
                 "integer",
                 "string"
               ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "modified_since",
+            "schema": {
+              "type": "string"
             }
           }
         ],

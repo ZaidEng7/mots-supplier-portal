@@ -25,6 +25,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using MotsSupplierPortal.Application.Exports;
 using MotsSupplierPortal.Application.Rfqs;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
@@ -51,12 +52,30 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         address.EnsureSuccessStatusCode();
     }
 
-    // The rows of one page. The envelope around them is the same one every paged list in this product uses,
-    // so the tests that are about rows read through this and the tests that are about paging read the envelope.
-    private static async Task<JsonElement> JsonFeedAsync(HttpClient client, string route)
+    // EVERY row of the feed, following the cursor to the end - not the first page. These tests compare the two
+    // representations, and the CSV is unpaged, so reading one page of JSON and calling it the feed compares a
+    // page against a file. It passes while the suite is small and fails the moment the registry outgrows one
+    // page, which is precisely the kind of order-dependent failure that arrives in continuous integration and
+    // not on the machine that wrote it.
+    private static async Task<List<JsonElement>> JsonFeedRowsAsync(HttpClient client, string route)
     {
-        var envelope = await JsonEnvelopeAsync(client, route);
-        return envelope.GetProperty("data");
+        List<JsonElement> rows = [];
+        string? cursor = null;
+        var separator = route.Contains('?') ? "&" : "?";
+
+        while (true)
+        {
+            var url = route + separator + $"limit={FeedPage.MaxLimit}"
+                + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
+            var envelope = await JsonEnvelopeAsync(client, url);
+
+            rows.AddRange(envelope.GetProperty("data").EnumerateArray().Select(r => r.Clone()));
+
+            var pagination = envelope.GetProperty("pagination");
+            if (!pagination.GetProperty("hasMore").GetBoolean()) return rows;
+
+            cursor = pagination.GetProperty("nextCursor").GetString();
+        }
     }
 
     private static async Task<JsonElement> JsonEnvelopeAsync(HttpClient client, string route)
@@ -107,10 +126,9 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         await SeedSupplierWithAPositionAsync(fixture);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var json = await JsonFeedAsync(client, "/api/v1/feeds/suppliers");
+        var json = await JsonFeedRowsAsync(client, "/api/v1/feeds/suppliers");
 
-        json.ValueKind.Should().Be(JsonValueKind.Array);
-        json.GetArrayLength().Should().BeGreaterThan(0, "the registry is not empty in this suite");
+        json.Should().NotBeEmpty("this class seeds a supplier of its own");
 
         var names = json[0].EnumerateObject().Select(p => p.Name).ToList();
         names.Should().Equal(MinistrySupplierFeedCsv.Columns,
@@ -124,13 +142,13 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         await SeedSupplierWithAPositionAsync(fixture);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var json = await JsonFeedAsync(client, "/api/v1/feeds/suppliers");
+        var json = await JsonFeedRowsAsync(client, "/api/v1/feeds/suppliers");
         var csv = await CsvFeedAsync(client, "/api/v1/feeds/suppliers");
 
         csv[0].Should().Equal(MinistrySupplierFeedCsv.Columns);
-        (csv.Count - 1).Should().Be(json.GetArrayLength(), "both representations carry every supplier");
+        (csv.Count - 1).Should().Be(json.Count, "both representations carry every supplier");
 
-        for (var row = 0; row < json.GetArrayLength(); row++)
+        for (var row = 0; row < json.Count; row++)
         {
             var cells = csv[row + 1];
             var element = json[row];
@@ -207,9 +225,9 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         await SeedSupplierWithAPositionAsync(fixture);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var json = await JsonFeedAsync(client, "/api/v1/feeds/suppliers");
+        var json = await JsonFeedRowsAsync(client, "/api/v1/feeds/suppliers");
 
-        var placed = json.EnumerateArray()
+        var placed = json
             .FirstOrDefault(row => row.GetProperty("Latitude").ValueKind is not JsonValueKind.Null);
 
         placed.ValueKind.Should().NotBe(JsonValueKind.Undefined,
@@ -224,11 +242,9 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         await SeedSupplierWithAPositionAsync(fixture);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var json = await JsonFeedAsync(client, "/api/v1/feeds/rfqs");
+        var json = await JsonFeedRowsAsync(client, "/api/v1/feeds/rfqs");
 
-        json.ValueKind.Should().Be(JsonValueKind.Array);
-
-        if (json.GetArrayLength() == 0) return;
+        if (json.Count == 0) return;
 
         var names = json[0].EnumerateObject().Select(p => p.Name).ToList();
         names.Should().Equal(MinistryRfqFeedCsv.Columns);
@@ -240,13 +256,13 @@ public sealed class MinistryFeedJsonTests(PostgresApiFixture fixture)
         await SeedSupplierWithAPositionAsync(fixture);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var json = await JsonFeedAsync(client, "/api/v1/feeds/rfqs");
+        var json = await JsonFeedRowsAsync(client, "/api/v1/feeds/rfqs");
         var csv = await CsvFeedAsync(client, "/api/v1/feeds/rfqs");
 
         csv[0].Should().Equal(MinistryRfqFeedCsv.Columns);
-        (csv.Count - 1).Should().Be(json.GetArrayLength());
+        (csv.Count - 1).Should().Be(json.Count);
 
-        for (var row = 0; row < json.GetArrayLength(); row++)
+        for (var row = 0; row < json.Count; row++)
         {
             var cells = csv[row + 1];
             var element = json[row];

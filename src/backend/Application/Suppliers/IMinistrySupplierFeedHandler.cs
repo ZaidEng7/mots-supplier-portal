@@ -17,6 +17,12 @@
 // reference code never changes once allocated, so a supplier edited between two pages cannot move position:
 // ordering by anything mutable - a last-modified time, most obviously - would let a row that was updated
 // mid-walk jump ahead of a page boundary and be skipped, or behind it and be sent twice.
+//
+// MODIFIEDSINCE IS A FILTER, NOT AN ORDER, which is why it can be applied to that same stable ordering. It
+// reads Supplier.UpdatedAt, which the persistence layer stamps whenever the aggregate's version advances -
+// including a write to an address, a representative or a bank account. That matters more than it sounds: the
+// columns the ministry is waiting on are mostly on the address, so a filter that only noticed edits to the
+// supplier row itself would silently never re-send a corrected coordinate.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
@@ -27,5 +33,6 @@ public interface IMinistrySupplierFeedHandler
 
     IAsyncEnumerable<MinistrySupplierFeedRecord> StreamAsync(CancellationToken ct);
 
-    Task<IReadOnlyList<MinistrySupplierFeedRecord>> PageAsync(string? afterReferenceCode, int limit, CancellationToken ct);
+    Task<IReadOnlyList<MinistrySupplierFeedRecord>> PageAsync(
+        string? afterReferenceCode, DateTimeOffset? modifiedSince, int limit, CancellationToken ct);
 }

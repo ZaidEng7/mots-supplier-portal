@@ -53,12 +53,15 @@ public sealed class MinistryFeedPagingTests(PostgresApiFixture fixture)
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
     }
 
-    private static async Task<List<string>> WalkAsync(HttpClient client, string route, string key, int limit)
+    // The walk is bounded by how many rows the feed actually holds rather than by a round number, because a
+    // round number is a limit the suite grows past: the first version stopped at five hundred pages and passed
+    // alone, then failed in a full run where other classes had left more suppliers behind than that.
+    private static async Task<List<string>> WalkAsync(HttpClient client, string route, string key, int limit, int expected)
     {
         List<string> seen = [];
         string? cursor = null;
 
-        for (var page = 0; page < 500; page++)
+        for (var page = 0; page <= expected + 1; page++)
         {
             var url = $"{route}?limit={limit}" + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
             var envelope = await PageAsync(client, url);
@@ -86,13 +89,12 @@ public sealed class MinistryFeedPagingTests(PostgresApiFixture fixture)
         await SeedSuppliersAsync(fixture, 3);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var whole = await PageAsync(client, $"/api/v1/feeds/suppliers?limit={FeedPage.MaxLimit}");
-        var expected = whole.GetProperty("data").EnumerateArray()
-            .Select(r => r.GetProperty("SupplierID").GetString()!).ToList();
+        var expected = await WalkAsync(
+            client, "/api/v1/feeds/suppliers", "SupplierID", FeedPage.MaxLimit, int.MaxValue - 2);
 
         expected.Should().HaveCountGreaterThan(2, "this test needs several pages to cross a boundary");
 
-        var walked = await WalkAsync(client, "/api/v1/feeds/suppliers", "SupplierID", limit: 1);
+        var walked = await WalkAsync(client, "/api/v1/feeds/suppliers", "SupplierID", limit: 1, expected.Count);
 
         walked.Should().Equal(expected,
             "a row that falls between two pages is never loaded and a row in both is loaded twice, "
@@ -100,35 +102,50 @@ public sealed class MinistryFeedPagingTests(PostgresApiFixture fixture)
         walked.Distinct().Should().HaveCount(walked.Count, "no supplier may appear on two pages");
     }
 
+    // This test used to return early when the feed was empty, and that is how a broken cursor shipped: run on
+    // its own there are no tenders, so the walk never asked for a second page and the test passed without
+    // exercising the thing it is named after. It seeds its own tender now, so there is always a page boundary
+    // to cross.
     [Fact]
     public async Task Walking_the_rfq_feed_one_row_at_a_time_returns_every_row_exactly_once()
     {
+        await EvaluationSeed.CreateAsync(fixture, $"Paging RFQ {Guid.NewGuid():N}"[..20]);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var whole = await PageAsync(client, $"/api/v1/feeds/rfqs?limit={FeedPage.MaxLimit}");
-        var expected = whole.GetProperty("data").EnumerateArray()
-            .Select(r => $"{r.GetProperty("RFQNo").GetString()}|{r.GetProperty("SupplierID").GetString()}").ToList();
+        var expected = await WalkPairsAsync(client, FeedPage.MaxLimit, int.MaxValue - 2);
 
-        if (expected.Count == 0) return;
+        expected.Should().NotBeEmpty("this class seeds a tender, so the feed cannot be empty");
 
-        List<string> walked = [];
-        string? cursor = null;
-
-        for (var page = 0; page < 500; page++)
-        {
-            var url = "/api/v1/feeds/rfqs?limit=1" + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
-            var envelope = await PageAsync(client, url);
-
-            walked.AddRange(envelope.GetProperty("data").EnumerateArray()
-                .Select(r => $"{r.GetProperty("RFQNo").GetString()}|{r.GetProperty("SupplierID").GetString()}"));
-
-            if (!envelope.GetProperty("pagination").GetProperty("hasMore").GetBoolean()) break;
-            cursor = envelope.GetProperty("pagination").GetProperty("nextCursor").GetString();
-        }
+        var walked = await WalkPairsAsync(client, limit: 1, expected.Count);
 
         walked.Should().Equal(expected,
             "the pair is the sort key, so a page that ended inside a tender must resume inside it");
-        walked.Distinct().Should().HaveCount(walked.Count);
+        walked.Distinct().Should().HaveCount(walked.Count,
+            "the pair is the cursor, so two rows sharing it cannot both be paged past - which is how the "
+            + "duplicate this feed used to emit was found");
+    }
+
+    private static async Task<List<string>> WalkPairsAsync(HttpClient client, int limit, int expected)
+    {
+        List<string> seen = [];
+        string? cursor = null;
+
+        for (var page = 0; page <= expected + 1; page++)
+        {
+            var url = $"/api/v1/feeds/rfqs?limit={limit}"
+                + (cursor is null ? "" : $"&cursor={Uri.EscapeDataString(cursor)}");
+            var envelope = await PageAsync(client, url);
+
+            seen.AddRange(envelope.GetProperty("data").EnumerateArray()
+                .Select(r => $"{r.GetProperty("RFQNo").GetString()}|{r.GetProperty("SupplierID").GetString()}"));
+
+            var pagination = envelope.GetProperty("pagination");
+            if (!pagination.GetProperty("hasMore").GetBoolean()) return seen;
+
+            cursor = pagination.GetProperty("nextCursor").GetString();
+        }
+
+        throw new InvalidOperationException("The walk did not terminate, which means hasMore never went false.");
     }
 
     [Fact]
@@ -182,8 +199,8 @@ public sealed class MinistryFeedPagingTests(PostgresApiFixture fixture)
         await SeedSuppliersAsync(fixture, 2);
         var client = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
 
-        var json = await PageAsync(client, $"/api/v1/feeds/suppliers?limit={FeedPage.MaxLimit}");
-        var expected = json.GetProperty("data").GetArrayLength();
+        var expected = (await WalkAsync(
+            client, "/api/v1/feeds/suppliers", "SupplierID", FeedPage.MaxLimit, int.MaxValue - 2)).Count;
 
         using var csv = await client.GetAsync("/api/v1/feeds/suppliers?limit=1");
         csv.EnsureSuccessStatusCode();

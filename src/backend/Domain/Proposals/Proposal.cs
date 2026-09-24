@@ -145,13 +145,25 @@
 // kind exists in this build, and withdrawal is how a bid is actually retired. No soft-delete
 // machinery exists anywhere in this codebase yet, not even for suppliers or tenders, which the same
 // list also names. Building the columns here with nothing to ever set them would be dead scaffolding.
+//
+//
+// WHEN THIS BID LAST CHANGED, WHICH IS NOT THE SAME AS WHEN ITS STATE LAST CHANGED
+//
+// StateChangedAt moves when a draft becomes submitted or a submission is withdrawn. It does not move when the
+// supplier corrects a price, adds a line or edits a requirement answer, because none of those are state
+// changes - and those are exactly the edits that change the total the ministry's feed reports.
+//
+// UpdatedAt is stamped wherever this record's version is advanced, which includes a write to any of its
+// children, so a corrected line moves it. That is what the ministry's incremental feed needs: a row whose
+// quoted total changed has to come back in the next nightly pull, and a filter reading only the state would
+// have reported the old total forever while looking like it was working.
 
 namespace MotsSupplierPortal.Domain.Proposals;
 
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
-public sealed class Proposal : IVersionedAggregate, IStateTimestamped
+public sealed class Proposal : IVersionedAggregate, IStateTimestamped, ILastModified
 {
     private readonly List<ProposalItem> _items = [];
     private readonly List<ProposalDocument> _documents = [];
@@ -195,6 +207,8 @@ public sealed class Proposal : IVersionedAggregate, IStateTimestamped
 
     public int RevisionNumber { get; private set; } = 1;
     public DateTimeOffset CreatedAt { get; private init; }
+
+    public DateTimeOffset UpdatedAt { get; private set; }
     public uint RowVersion { get; private set; }
 
     public IReadOnlyList<ProposalItem> Items => _items;

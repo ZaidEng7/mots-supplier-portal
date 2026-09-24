@@ -16,6 +16,19 @@
 // their sheet specifies 0/1 and being right about the type does not license changing the value they asked for -
 // while the timestamp carries its Z and the coordinate is a number rather than a quoted string. A coordinate
 // serialised as a string is accepted by most loaders and plotted by none.
+//
+//
+// WHICH ADDRESS, WHEN NOBODY MARKED ONE PRIMARY, IS ORDERED RATHER THAN LEFT TO THE DATABASE. This was found by
+// the test that compares the two representations: row 539 read "Line 2" in the CSV and "Line 0" in the JSON,
+// for the same supplier, in the same second. Nothing was wrong with either representation - the projection took
+// whichever address the database returned first, and without an ORDER BY that is not a promise, so two requests
+// gave two answers.
+//
+// A supplier with one address, or with a primary marked, never shows it; a supplier with several unmarked
+// addresses reports a different street to the ministry depending on when they ask. Ordering by the identifier
+// after the primary flag makes the answer the same every time. It does not make the answer RIGHT - the right
+// answer is for the supplier to mark one - but a stable wrong answer can be noticed, and an unstable one
+// cannot.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
@@ -52,8 +65,8 @@ public static class MinistrySupplierFeedProjection
         var s = record.Supplier;
         var legal = s.LegalInfo;
 
-        var address = s.Addresses.FirstOrDefault(a => a.IsPrimary) ?? s.Addresses.FirstOrDefault();
-        var representative = s.Representatives.FirstOrDefault(r => r.IsPrimary) ?? s.Representatives.FirstOrDefault();
+        var address = s.Addresses.OrderByDescending(a => a.IsPrimary).ThenBy(a => a.Id).FirstOrDefault();
+        var representative = s.Representatives.OrderByDescending(r => r.IsPrimary).ThenBy(r => r.Id).FirstOrDefault();
         var primaryCategory = s.PrimaryCategoryCode;
 
         return new MinistrySupplierFeedRow(
