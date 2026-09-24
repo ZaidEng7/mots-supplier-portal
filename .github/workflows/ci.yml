@@ -545,23 +545,6 @@ jobs:
       - name: Architecture tests (NetArchTest)
         run: dotnet test src/backend/Tests/Architecture/MotsSupplierPortal.Tests.Architecture.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
-      # Testcontainers pulls Postgres, MinIO and ClamAV from Docker Hub, and it authenticates with whatever
-      # credential it finds in the runner's Docker configuration. On 2026-09-24 the hosted runners began
-      # carrying a credential Docker Hub itself rejects: the log read "Docker registry credential
-      # https://index.docker.io/v1/ found" and then every pull failed with "unauthorized: access to the
-      # requested resource is not authorized". Anonymous pulls, which is what this repository has always
-      # relied on, were never attempted - a bad credential is worse than none, because it is used in
-      # preference to asking anonymously.
-      #
-      # Every container-backed test failed together in about thirty seconds, which reads as a catastrophic
-      # regression and is nothing of the kind. Removing the configuration before the step restores the
-      # anonymous pull. It changes nothing about what is tested.
-      #
-      # If Docker Hub's anonymous rate limit becomes the next obstacle, the answer is a real login with a
-      # token in repository secrets, not a longer wait.
-      - name: Drop the runner's rejected Docker Hub credential
-        run: rm -f ~/.docker/config.json
-
       - name: Integration tests (real Postgres via Testcontainers)
         run: dotnet test src/backend/Tests/Integration/MotsSupplierPortal.Tests.Integration.csproj --no-build --configuration Release --logger "console;verbosity=normal" --collect:"XPlat Code Coverage;Format=opencover" --results-directory ./TestResults
 
