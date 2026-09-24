@@ -409,6 +409,13 @@ public static class SupplierEndpoints
         .WithFreshETag()
         .WithName("UnlinkCategory");
 
+        group.MapPut("/me/category-links/{categoryCode}/primary", async (string categoryCode, IManageCategoryLinkHandler handler, CancellationToken ct) =>
+            SupplierResults.MapMutation(await handler.SetPrimaryAsync(new SetPrimaryCategoryCommand(categoryCode), ct)))
+        .RequirePermission(Permissions.SupplierEdit)
+        .RequireIfMatch()
+        .WithFreshETag()
+        .WithName("SetPrimaryCategory");
+
         group.MapPost("/me/accept-terms", async (
             IAcceptTermsHandler handler,
             CancellationToken ct) =>

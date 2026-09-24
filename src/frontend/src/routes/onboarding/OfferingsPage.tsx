@@ -19,7 +19,7 @@ import {Card, PageHeading, QueryError, SkeletonList, useToast} from '../../compo
 import { FormMeasure } from '../../components/ui/FormMeasure'
 import { OnboardingStepNav } from '../../components/OnboardingStepNav'
 import { getOwnSupplier, type SupplierProfile } from '../../api/supplier'
-import { linkCategory, unlinkCategory } from '../../api/categoryLinks'
+import { linkCategory, unlinkCategory, setPrimaryCategory } from '../../api/categoryLinks'
 import { fetchCategories } from '../../api/reference'
 import { invalidateQuietly } from '../../lib/queryClient'
 
@@ -48,6 +48,15 @@ export function OfferingsPage() {
     onError: () => notify({ kind: 'danger', title: t('offerings.toggleFailed') }),
   })
 
+  const primaryMutation = useMutation({
+    mutationFn: (code: string) => setPrimaryCategory(code),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['own-supplier'], data)
+      void profileQuery.refetch()
+    },
+    onError: () => notify({ kind: 'danger', title: t('offerings.primaryFailed') }),
+  })
+
   if (profileQuery.isError || categoriesQuery.isError) {
     return <QueryError error={profileQuery.error} onRetry={() => { void profileQuery.refetch(); void categoriesQuery.refetch() }} />
   }
@@ -57,6 +66,7 @@ export function OfferingsPage() {
   }
 
   const linkedCodes = new Set(profile?.categories ?? [])
+  const primaryCode = profile?.primaryCategoryCode ?? null
   const categories = categoriesQuery.data ?? []
   const missingCategoryLink = (profile?.missingProfileFields ?? []).includes('categoryLink')
 
@@ -95,6 +105,19 @@ export function OfferingsPage() {
                     />
                     <span style={{ color: 'var(--color-text-primary)' }}>{isArabic ? c.nameAr : c.nameEn}</span>
                   </label>
+
+                  {linked ? (
+                    <label className="mt-1 flex cursor-pointer items-center gap-2 ps-3 text-[length:var(--text-caption)]">
+                      <input
+                        type="radio"
+                        name="primaryCategory"
+                        checked={primaryCode === c.code}
+                        disabled={!editable || primaryMutation.isPending}
+                        onChange={() => primaryMutation.mutate(c.code)}
+                      />
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{t('offerings.primaryLabel')}</span>
+                    </label>
+                  ) : null}
                 </li>
               )
             })}

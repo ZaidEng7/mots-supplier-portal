@@ -59,6 +59,7 @@ public static class SupplierDtoMapper
                     missingItems: supplier.GetMissingProfileFields().Count + missingRequiredDocumentTypeCodes.Count,
                     totalItems: Supplier.RequiredProfileFieldCodes.Count + requiredDocumentTypeCount),
             documentsSummary,
-            supplier.UpdatedAt);
+            supplier.UpdatedAt,
+            supplier.PrimaryCategoryCode);
     }
 }

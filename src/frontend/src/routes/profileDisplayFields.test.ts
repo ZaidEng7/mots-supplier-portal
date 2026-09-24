@@ -55,6 +55,7 @@ describe('reviewer profile display fields', () => {
     branches: [],
     bankAccounts: [],
     categories: [],
+    primaryCategoryCode: null,
     missingProfileFields: [],
     termsAcceptedVersion: null,
     termsAcceptedAt: null,

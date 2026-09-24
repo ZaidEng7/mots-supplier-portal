@@ -106,7 +106,8 @@ public sealed record SupplierDto(
     IReadOnlyList<string>? IncompleteDocumentTypeCodes = null,
     double? ProfileCompleteness = null,
     DocumentsSummaryDto? DocumentsSummary = null,
-    DateTimeOffset? UpdatedAt = null);
+    DateTimeOffset? UpdatedAt = null,
+    string? PrimaryCategoryCode = null);
 
 public abstract record GetSupplierResult
 {

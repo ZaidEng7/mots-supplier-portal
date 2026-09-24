@@ -797,6 +797,9 @@ const resources = {
       },
       offerings: {
         toggleFailed: 'تعذّر تحديث التصنيف',  // D-66: the toggle used to fail silently
+        primaryLabel: 'نشاطي الرئيسي',
+        primaryHint: 'اختر التصنيف الذي يمثل نشاطك الأساسي. تستخدمه الوزارة عندما تحتاج إلى تصنيف واحد لك.',
+        primaryFailed: 'تعذّر تحديد النشاط الرئيسي',
         title: 'الفئات المعروضة',
         subtitle: 'اختر الفئات التي يقدمها موردكم. مطلوبة فئة واحدة على الأقل لإرسال الطلب.',
         categoriesTitle: 'الفئات',
@@ -2700,6 +2703,9 @@ const resources = {
       },
       offerings: {
         toggleFailed: 'Could not update the category',
+        primaryLabel: 'My main activity',
+        primaryHint: 'Choose the category that best describes what you mainly supply. The ministry uses it when it needs a single category for you.',
+        primaryFailed: 'Could not set the main category',
         title: 'Offered Categories',
         subtitle: 'Select the categories your supplier offers. At least one is required to submit.',
         categoriesTitle: 'Categories',
