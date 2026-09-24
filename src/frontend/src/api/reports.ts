@@ -22,8 +22,8 @@
 // filename comes from Content-Disposition when the server sent one, so the name in the downloads folder is the
 // server's rather than a second copy of the naming rule maintained here.
 //
-// downloadSupplierRegistry is the same mechanism pointed at a different route, which is why the blob handling is
-// one function both call rather than two copies. It is not a report: it is the registry itself, one row per
+// downloadSupplierRegistry and downloadMinistrySupplierFeed are the same mechanism pointed at different routes,
+// which is why the blob handling is one function all three call rather than three copies. It is not a report: it is the registry itself, one row per
 // supplier, and it is gated on supplier.registry.export rather than report.read - the screen only offers it to
 // an account that holds that, because offering a download which can only answer 403 is the defect this same
 // screen was just fixed for.
@@ -96,6 +96,13 @@ export async function downloadSupplierRegistry(): Promise<void> {
   if (!response.ok) throw new Error(`suppliers.export ${response.status}`)
 
   await saveAsFile(response, 'mots-suppliers.csv')
+}
+
+export async function downloadMinistrySupplierFeed(): Promise<void> {
+  const response = await apiFetch('/api/v1/feeds/suppliers')
+  if (!response.ok) throw new Error(`feeds.suppliers ${response.status}`)
+
+  await saveAsFile(response, 'mots-feed-suppliers.csv')
 }
 
 async function saveAsFile(response: Response, fallbackName: string): Promise<void> {

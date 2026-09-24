@@ -646,7 +646,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         {
             throw new DomainException($"A supplier may link at most {MaxCategoryLinks} categories.");
         }
-        var link = new CategoryLink { Id = Guid.CreateVersion7(), SupplierId = Id, CategoryCode = categoryCode };
+        var link = new CategoryLink
+        {
+            Id = Guid.CreateVersion7(),
+            SupplierId = Id,
+            CategoryCode = categoryCode,
+            IsPrimary = _categoryLinks.Count == 0,
+        };
         _categoryLinks.Add(link);
         return (link, reTriggered);
     }
@@ -655,9 +661,28 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     {
         var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
         var link = _categoryLinks.FirstOrDefault(l => l.CategoryCode == categoryCode);
-        if (link is not null) _categoryLinks.Remove(link);
+        if (link is null) return reTriggered;
+
+        _categoryLinks.Remove(link);
+        if (link.IsPrimary && _categoryLinks.Count > 0)
+        {
+            _categoryLinks[0].IsPrimary = true;
+        }
         return reTriggered;
     }
+
+    public bool SetPrimaryCategory(string categoryCode, bool isComplianceCritical)
+    {
+        var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
+        var link = _categoryLinks.FirstOrDefault(l => l.CategoryCode == categoryCode)
+            ?? throw new DomainException("That category is not linked to this supplier.");
+
+        foreach (var l in _categoryLinks) l.IsPrimary = false;
+        link.IsPrimary = true;
+        return reTriggered;
+    }
+
+    public string? PrimaryCategoryCode => _categoryLinks.FirstOrDefault(l => l.IsPrimary)?.CategoryCode;
 
     public static readonly IReadOnlyList<string> RequiredProfileFieldCodes =
     [

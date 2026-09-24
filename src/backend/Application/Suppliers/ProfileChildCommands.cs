@@ -50,3 +50,5 @@ public sealed record RevealBankAccountCommand(Guid BankAccountId);
 public sealed record LinkCategoryCommand(string CategoryCode);
 
 public sealed record UnlinkCategoryCommand(string CategoryCode);
+
+public sealed record SetPrimaryCategoryCommand(string CategoryCode);

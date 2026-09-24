@@ -393,6 +393,11 @@ const resources = {
           documentsByState: 'المستندات حسب الحالة (أحدث الإصدارات)',
           registryScope: 'تشمل هذه الأعداد جميع الموردين المسجَّلين، وليست مقصورة على جهتك.',
         },
+        feed: {
+          title: 'تغذية لوحة الوزارة — المورّدون',
+          what: 'سجل المورّدين بأسماء أعمدة الوزارة، للوحة فنادق سوريا. اثنان وعشرون عموداً، سطر لكل مورّد، وفي جميع حالات التسجيل.',
+          shape: 'هذه التغذية الأولى من ملفهم. أوامر الشراء والفواتير والدفعات تغذيات يقدمها نظام الموارد لا نحن.',
+        },
         registry: {
           title: 'تصدير سجل المورّدين',
           what: 'سطر واحد لكل مورّد، بكل ما تحتفظ به البوابة عنه، وفي جميع حالات التسجيل. أُعدّ لبحيرة بيانات الوزارة.',
@@ -797,6 +802,9 @@ const resources = {
       },
       offerings: {
         toggleFailed: 'تعذّر تحديث التصنيف',  // D-66: the toggle used to fail silently
+        primaryLabel: 'نشاطي الرئيسي',
+        primaryHint: 'اختر التصنيف الذي يمثل نشاطك الأساسي. تستخدمه الوزارة عندما تحتاج إلى تصنيف واحد لك.',
+        primaryFailed: 'تعذّر تحديد النشاط الرئيسي',
         title: 'الفئات المعروضة',
         subtitle: 'اختر الفئات التي يقدمها موردكم. مطلوبة فئة واحدة على الأقل لإرسال الطلب.',
         categoriesTitle: 'الفئات',
@@ -2302,6 +2310,11 @@ const resources = {
           documentsByState: 'Documents by state (latest versions)',
           registryScope: 'These counts cover every registered supplier, not only your organization.',
         },
+        feed: {
+          title: 'Ministry dashboard feed — suppliers',
+          what: 'The supplier registry in the ministry\u2019s own column names, for the Syria Hotels Dashboard. Twenty-two columns, one row per supplier, every onboarding state.',
+          shape: 'This is feed 1 of their workbook. Purchase orders, invoices and payments are the ERP\u2019s feeds, not ours.',
+        },
         registry: {
           title: 'Supplier registry export',
           what: 'One row per supplier, every field the portal holds about them, at every onboarding state. Built for the ministry data lake.',
@@ -2700,6 +2713,9 @@ const resources = {
       },
       offerings: {
         toggleFailed: 'Could not update the category',
+        primaryLabel: 'My main activity',
+        primaryHint: 'Choose the category that best describes what you mainly supply. The ministry uses it when it needs a single category for you.',
+        primaryFailed: 'Could not set the main category',
         title: 'Offered Categories',
         subtitle: 'Select the categories your supplier offers. At least one is required to submit.',
         categoriesTitle: 'Categories',

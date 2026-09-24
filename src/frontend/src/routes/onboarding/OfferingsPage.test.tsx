@@ -15,6 +15,16 @@
 // alone, so the tick cannot depend on this particular response having carried the categories collection.
 //
 // The last test is the retryable failure rather than an empty category list.
+//
+// THE MAIN-ACTIVITY RADIO is asserted from both sides, because its absence is correct for most of the list: a
+// category the supplier has not linked has no main-activity choice to make, so the radio belongs only to the
+// linked ones. A test that only checked the radio appears would pass against one rendered on every row, which
+// would invite a supplier to nominate something they do not supply.
+//
+// Choosing one is asserted by the REQUEST it sends, not by the radio moving. The radio is controlled from the
+// profile, so it only moves once the write has come back - a test satisfied by the tick alone would pass against
+// a screen that ticked locally and sent nothing, which is the failure this screen has already had once with the
+// category checkboxes.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -158,5 +168,56 @@ describe('OfferingsPage', () => {
     renderPage(<OfferingsPage />)
 
     await expectRetryableFailure('/suppliers/me', recorded)
+  })
+})
+
+describe('the main activity', () => {
+  let restore: () => void
+  afterEach(() => restore?.())
+
+  const linkedTwo = {
+    '/api/v1/suppliers/me': profile({
+      categories: ['catering', 'logistics'],
+      primaryCategoryCode: 'catering',
+    }),
+    '/api/v1/reference/categories': CATEGORIES,
+  }
+
+  it('is offered on the categories the supplier supplies, and not on the others', async () => {
+    restore = mockFetch({
+      '/api/v1/suppliers/me': profile({ categories: ['catering'], primaryCategoryCode: 'catering' }),
+      '/api/v1/reference/categories': CATEGORIES,
+    })
+
+    renderPage(<OfferingsPage />)
+
+    await screen.findByRole('checkbox', { name: /catering|تموين/i })
+    expect(screen.getAllByRole('radio')).toHaveLength(1)
+  })
+
+  it('shows which category is the main one', async () => {
+    restore = mockFetch(linkedTwo)
+
+    renderPage(<OfferingsPage />)
+
+    const radios = await screen.findAllByRole('radio')
+    expect(radios).toHaveLength(2)
+    expect(radios.filter((r) => (r as HTMLInputElement).checked)).toHaveLength(1)
+  })
+
+  it('sends the choice rather than only ticking the radio', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(linkedTwo, recorded)
+
+    renderPage(<OfferingsPage />)
+
+    const radios = await screen.findAllByRole('radio')
+    const unchecked = radios.find((r) => !(r as HTMLInputElement).checked)!
+    await userEvent.click(unchecked)
+
+    await vi.waitFor(() => {
+      const put = recorded.find((r) => r.method === 'PUT' && r.url.includes('/primary'))
+      expect(put).toBeDefined()
+    })
   })
 })

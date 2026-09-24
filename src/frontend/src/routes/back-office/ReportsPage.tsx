@@ -43,6 +43,12 @@
 // administrator who has not read the API documentation has no other way to know that before clicking. Saying it
 // after the download is saying it too late.
 //
+// THE MINISTRY FEED IS A THIRD EXPORT AND NOT A FOURTH REPORT. It is the supplier registry again, but shaped
+// to a workbook the ministry sent: their twenty-two column names, their vocabulary, their file. It sits beside
+// the registry export because both are "take the registry out of the product", and it is separate from it
+// because the two answer to different people - ours changes when we have something new to say, theirs breaks a
+// dashboard if a column moves. The card says which is which, so nobody sends the wrong file.
+//
 // THE COVERAGE FLOOR is stated on the screen and not only in the export. Cycle time is derived from audit rows, which began
 // when that logging was added, so RFQs that moved earlier contribute to nothing and are silently absent - and without that
 // line a short history reads as a fast process.
@@ -61,7 +67,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { getComplianceReport, getProcurementReport, downloadReport, downloadSupplierRegistry } from '../../api/reports'
+import { getComplianceReport, getProcurementReport, downloadReport, downloadSupplierRegistry, downloadMinistrySupplierFeed } from '../../api/reports'
 import { usePermissions } from '../../lib/authStore'
 import type { ReportCount } from '../../api/reports'
 import { Card } from '../../components/ui/Card'
@@ -109,6 +115,15 @@ export function ReportsPage() {
     setDownloadError(false)
     try {
       await downloadSupplierRegistry()
+    } catch {
+      setDownloadError(true)
+    }
+  }
+
+  async function downloadFeed() {
+    setDownloadError(false)
+    try {
+      await downloadMinistrySupplierFeed()
     } catch {
       setDownloadError(true)
     }
@@ -229,6 +244,24 @@ export function ReportsPage() {
 
           <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-warning-fg)' }}>
             {t('reports.registry.sensitive')}
+          </p>
+        </Card>
+      ) : null}
+
+      {can('supplier.registry.export') ? (
+        <Card title={t('reports.feed.title')}>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="ghost" onClick={downloadFeed}>
+              {t('reports.exportCsv')}
+            </Button>
+          </div>
+
+          <p className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('reports.feed.what')}
+          </p>
+
+          <p className="mt-2 text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+            {t('reports.feed.shape')}
           </p>
         </Card>
       ) : null}

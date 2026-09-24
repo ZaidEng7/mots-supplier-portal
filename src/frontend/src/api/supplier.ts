@@ -134,6 +134,7 @@ export interface SupplierProfile {
   branches: Branch[]
   bankAccounts: BankAccount[]
   categories: string[]
+  primaryCategoryCode: string | null
   missingProfileFields: string[]
   termsAcceptedVersion: string | null
   termsAcceptedAt: string | null

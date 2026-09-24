@@ -1,6 +1,10 @@
 // A supplier's own category links: the sectors they declare they can serve.
 //
-// Both calls return the whole SupplierProfile rather than the link they changed, because the profile is the
+// setPrimaryCategory is a PUT on the link rather than a field on the profile, because it changes which link
+// holds the flag rather than changing the supplier: exactly one is primary, so setting one necessarily clears
+// another, and a PUT on the one being chosen says that better than a patch naming a value.
+//
+// All three calls return the whole SupplierProfile rather than the link they changed, because the profile is the
 // aggregate and its version moves with every child write - so the caller gets the fresh state and the transport
 // gets the fresh ETag. They throw SupplierApiError for the same reason: to a screen, a refused category link is
 // the profile refusing a write.
@@ -27,5 +31,13 @@ export async function linkCategory(categoryCode: string): Promise<SupplierProfil
 
 export async function unlinkCategory(categoryCode: string): Promise<SupplierProfile> {
   const res = await apiFetch(`/api/v1/suppliers/me/category-links/${encodeURIComponent(categoryCode)}`, { method: 'DELETE' })
+  return parseOrThrow(res)
+}
+
+export async function setPrimaryCategory(categoryCode: string): Promise<SupplierProfile> {
+  const res = await apiFetch(
+    `/api/v1/suppliers/me/category-links/${encodeURIComponent(categoryCode)}/primary`,
+    { method: 'PUT' },
+  )
   return parseOrThrow(res)
 }

@@ -6,6 +6,15 @@
 // A new link is added to the tracked set explicitly, because its identifier is assigned by us rather than by
 // the database and the graph-tracking heuristic would otherwise take it for an existing row. No link at all
 // means the claim was already recorded and the domain did nothing.
+//
+// SETTING THE PRIMARY CATEGORY RUNS THE SAME GUARDS as linking one, and that is the point of it living here
+// rather than in a route of its own: it is an edit to the same field. A supplier under review cannot change
+// which category is their main one any more than they can add a category, and if the switch says a category
+// change sends an approved supplier back for review, changing the main one does too - it is the answer the
+// ministry's dashboard groups by, so it is not a lesser edit.
+//
+// The audit row records both codes, the old primary and the new, because "primary category changed" without
+// saying from what is a line nobody can act on.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
@@ -78,6 +87,36 @@ public sealed class ManageCategoryLinkHandler(AppDbContext db, IScopeContext sco
         var changes = AuditChangeBuilder.Build(("categoryCode", command.CategoryCode, null));
 
         await auditLogger.LogAsync("Supplier", supplier.Id, "category_unlinked", scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
+        await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "categoryLink", scope.UserId, ct);
+        await db.SaveChangesAsync(ct);
+        return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));
+    }
+
+    public async Task<ProfileMutationResult> SetPrimaryAsync(SetPrimaryCategoryCommand command, CancellationToken ct)
+    {
+        if (scope.SupplierId is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+        var supplier = await db.Suppliers.IncludeProfile().FirstOrDefaultAsync(s => s.Id == scope.SupplierId, ct);
+        if (supplier is null) return new ProfileMutationResult.NotFoundOrOutOfScope();
+
+        var refusal = await FlaggedFieldGuard.RefusalReasonAsync(db, supplier, ProfileFieldCodes.CategoryLink, ct);
+        if (refusal is not null) return new ProfileMutationResult.NotEditable(refusal);
+
+        var previous = supplier.PrimaryCategoryCode;
+        var isComplianceCritical = await SupplierFieldConfigLookup.IsEnabledAsync(db, FieldConfigCategory.ComplianceRetrigger, "categoryLink", defaultValue: true, ct);
+
+        bool reTriggered;
+        try
+        {
+            reTriggered = supplier.SetPrimaryCategory(command.CategoryCode, isComplianceCritical);
+        }
+        catch (DomainException ex)
+        {
+            return new ProfileMutationResult.InvalidState(ex.Message);
+        }
+
+        var changes = AuditChangeBuilder.Build(("primaryCategoryCode", previous, command.CategoryCode));
+
+        await auditLogger.LogAsync("Supplier", supplier.Id, "primary_category_set", scope.UserId, reason: command.CategoryCode, referenceCode: supplier.ReferenceCode, changes: changes, ct: ct);
         await ComplianceReTrigger.LogIfReTriggeredAsync(db, auditLogger, supplier, reTriggered, "categoryLink", scope.UserId, ct);
         await db.SaveChangesAsync(ct);
         return new ProfileMutationResult.Success(SupplierDtoMapper.ToDto(supplier));

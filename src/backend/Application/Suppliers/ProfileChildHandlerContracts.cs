@@ -51,4 +51,5 @@ public interface IManageCategoryLinkHandler
 {
     Task<ProfileMutationResult> LinkAsync(LinkCategoryCommand command, CancellationToken ct);
     Task<ProfileMutationResult> UnlinkAsync(UnlinkCategoryCommand command, CancellationToken ct);
+    Task<ProfileMutationResult> SetPrimaryAsync(SetPrimaryCategoryCommand command, CancellationToken ct);
 }
