@@ -59,8 +59,12 @@ public sealed class ForwardedClientAddressTests : IAsyncLifetime
     private readonly PostgreSqlContainer _postgres =
         new PostgreSqlBuilder("postgres:16-alpine").Build();
 
-    private readonly MinioContainer _minio =
-        new MinioBuilder("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z").Build();
+    // The image name comes from the shared fixture rather than being written again here. This class needs its
+    // own host, so it builds its own containers - but a second copy of the image reference is a second thing to
+    // find when the image moves, and when MinIO withdrew its public images this file was the one that was
+    // missed: the suite went green everywhere except these two tests, which failed on a pull nobody was looking
+    // at any more.
+    private readonly MinioContainer _minio = new MinioBuilder(PostgresApiFixture.MinioImage).Build();
 
     public async Task InitializeAsync()
     {
