@@ -35,6 +35,7 @@ const LIVE = {
   name: 'Ministry dashboard',
   prefix: 'a1b2c3d4',
   permissions: ['supplier.registry.export'],
+  allowedIpRanges: [],
   createdAt: '2026-09-20T09:00:00Z',
   expiresAt: '2027-09-20T09:00:00Z',
   lastUsedAt: null,
@@ -87,6 +88,54 @@ describe('ApiKeysPage', () => {
     renderPage(<ApiKeysPage />)
 
     expect(await screen.findByText('No keys have been issued yet.')).toBeInTheDocument()
+  })
+
+  it('says a key with no address list works from anywhere, rather than leaving a blank', async () => {
+    restore = mockFetch({ '/api/v1/admin/api-keys': [LIVE] })
+
+    renderPage(<ApiKeysPage />)
+
+    expect(await screen.findByText('Anywhere')).toBeInTheDocument()
+  })
+
+  it('sends the addresses an administrator typed, split on commas', async () => {
+    const calls: { url: string; method: string; body: string }[] = []
+    restore = mockFetch({
+      '/api/v1/admin/api-keys': {
+        __byMethod: { GET: [], POST: { key: LIVE, secret: SECRET } },
+      },
+    }, calls)
+
+    renderPage(<ApiKeysPage />)
+
+    await userEvent.type(await screen.findByLabelText('Name'), 'Ministry dashboard')
+    await userEvent.type(screen.getByLabelText('Allowed addresses'), '10.42.0.0/24, 203.0.113.7')
+    await userEvent.click(screen.getByRole('button', { name: 'Issue' }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+
+    const sent = JSON.parse(calls.find((c) => c.method === 'POST')!.body)
+    expect(sent.allowedIpRanges).toEqual(['10.42.0.0/24', '203.0.113.7'])
+  })
+
+  // Blank has to travel as null rather than as an empty list, because the two would otherwise be one value
+  // meaning two things on the way out.
+  it('sends nothing at all when the field is left blank', async () => {
+    const calls: { url: string; method: string; body: string }[] = []
+    restore = mockFetch({
+      '/api/v1/admin/api-keys': {
+        __byMethod: { GET: [], POST: { key: LIVE, secret: SECRET } },
+      },
+    }, calls)
+
+    renderPage(<ApiKeysPage />)
+
+    await userEvent.type(await screen.findByLabelText('Name'), 'Ministry dashboard')
+    await userEvent.click(screen.getByRole('button', { name: 'Issue' }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST')).toBe(true))
+
+    expect(JSON.parse(calls.find((c) => c.method === 'POST')!.body).allowedIpRanges).toBeNull()
   })
 
   it('offers a retry instead of a blank page when the read fails', async () => {

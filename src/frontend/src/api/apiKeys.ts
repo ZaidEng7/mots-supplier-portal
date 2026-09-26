@@ -7,6 +7,10 @@
 //
 // REVOKE IS A POST rather than a DELETE, because the key row survives revocation: the audit trail names keys by
 // prefix and needs them to keep resolving.
+//
+// AN EMPTY ADDRESS LIST IS SENT AS null RATHER THAN AS AN EMPTY ARRAY, because the two would otherwise be one
+// value carrying two meanings on the way out. Nothing typed means "no restriction"; the server reads both the
+// same way, and sending null says which was meant.
 
 import { apiFetch } from './auth'
 
@@ -19,6 +23,7 @@ export interface ApiKeySummary {
   expiresAt: string
   lastUsedAt: string | null
   revokedAt: string | null
+  allowedIpRanges: string[]
 }
 
 export interface CreatedApiKey {
@@ -32,11 +37,19 @@ export async function getApiKeys(): Promise<ApiKeySummary[]> {
   return (await response.json()) as ApiKeySummary[]
 }
 
-export async function createApiKey(name: string, lifetimeDays?: number): Promise<CreatedApiKey> {
+export async function createApiKey(
+  name: string,
+  allowedIpRanges: string[] = [],
+  lifetimeDays?: number,
+): Promise<CreatedApiKey> {
   const response = await apiFetch('/api/v1/admin/api-keys', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, lifetimeDays: lifetimeDays ?? null }),
+    body: JSON.stringify({
+      name,
+      lifetimeDays: lifetimeDays ?? null,
+      allowedIpRanges: allowedIpRanges.length === 0 ? null : allowedIpRanges,
+    }),
   })
   if (!response.ok) throw new Error('api_key_not_created')
   return (await response.json()) as CreatedApiKey

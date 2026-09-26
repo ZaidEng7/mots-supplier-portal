@@ -28,8 +28,9 @@ using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Api.Errors;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Integration;
 
-public sealed record CreateApiKeyRequest(string Name, int? LifetimeDays);
+public sealed record CreateApiKeyRequest(string Name, int? LifetimeDays, IReadOnlyList<string>? AllowedIpRanges);
 
 public sealed class CreateApiKeyRequestValidator : AbstractValidator<CreateApiKeyRequest>
 {
@@ -37,6 +38,13 @@ public sealed class CreateApiKeyRequestValidator : AbstractValidator<CreateApiKe
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.LifetimeDays).InclusiveBetween(1, 1825).When(x => x.LifetimeDays is not null);
+
+        // A range that cannot be read would match nothing, so a key created with one would be a credential
+        // that authenticates from nowhere - refused everywhere, for a reason visible only in a warning log.
+        RuleForEach(x => x.AllowedIpRanges!)
+            .Must(IpAllowList.IsValidEntry)
+            .When(x => x.AllowedIpRanges is not null)
+            .WithMessage("AllowedIpRanges must each be an address or a CIDR range, for example 10.42.0.0/24.");
     }
 }
 
@@ -56,7 +64,8 @@ public static class ApiKeyEndpoints
             ICreateApiKeyHandler handler,
             CancellationToken ct) =>
         {
-            var result = await handler.HandleAsync(new CreateApiKeyCommand(request.Name, request.LifetimeDays), ct);
+            var result = await handler.HandleAsync(
+                new CreateApiKeyCommand(request.Name, request.LifetimeDays, request.AllowedIpRanges), ct);
 
             return result is ApiKeyMutationResult.Created created
                 ? Results.Created($"/api/v1/admin/api-keys/{created.Key.Key.Id}", created.Key)

@@ -17,6 +17,10 @@
 // is a real and useful answer: a key issued weeks ago that has never been used is either not yet configured or
 // forgotten, and both are worth seeing.
 //
+// THE ADDRESS LIST IS OPTIONAL AND SAYS SO. Leaving it blank means the key works from anywhere, which is what
+// every key carries today, and the listing prints that in words rather than as an empty cell - "anywhere" is a
+// decision somebody made, and a blank space looks like a value that failed to load.
+//
 // EXPIRY IS SHOWN AS A DATE, NOT A COUNTDOWN. The default is a year, and the failure this protects against is a
 // nightly load stopping at 3am on a date nobody wrote down. A date can be put in a calendar.
 
@@ -42,13 +46,19 @@ export function ApiKeysPage() {
   const query = useQuery({ queryKey: ['api-keys'], queryFn: getApiKeys })
 
   const [name, setName] = useState('')
+  const [addresses, setAddresses] = useState('')
   const [issued, setIssued] = useState<CreatedApiKey | null>(null)
 
+  // Typed as one line and sent as a list, because an administrator has one or two addresses to enter and a
+  // repeater for that is more machinery than the task deserves. Blank means no restriction.
+  const ranges = addresses.split(',').map((range) => range.trim()).filter((range) => range.length > 0)
+
   const create = useMutation({
-    mutationFn: () => createApiKey(name.trim()),
+    mutationFn: () => createApiKey(name.trim(), ranges),
     onSuccess: (result) => {
       setIssued(result)
       setName('')
+      setAddresses('')
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] })
     },
     onError: () => notify({ kind: 'danger', title: t('apiKeys.createFailed') }),
@@ -77,6 +87,18 @@ export function ApiKeysPage() {
                 {...inputProps}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label={t('apiKeys.addresses')} hint={t('apiKeys.addressesHint')}>
+            {(inputProps) => (
+              <Input
+                {...inputProps}
+                dir="ltr"
+                placeholder="10.42.0.0/24"
+                value={addresses}
+                onChange={(event) => setAddresses(event.target.value)}
               />
             )}
           </Field>
@@ -167,6 +189,13 @@ export function ApiKeysPage() {
 
                 <dt style={{ color: 'var(--color-text-secondary)' }}>{t('apiKeys.permissions')}</dt>
                 <dd dir="ltr">{key.permissions.join(', ')}</dd>
+
+                <dt style={{ color: 'var(--color-text-secondary)' }}>{t('apiKeys.addresses')}</dt>
+                <dd dir="ltr">
+                  {key.allowedIpRanges.length === 0
+                    ? t('apiKeys.addressesAny')
+                    : key.allowedIpRanges.join(', ')}
+                </dd>
               </dl>
 
               {state !== 'revoked' && (

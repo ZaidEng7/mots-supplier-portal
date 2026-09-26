@@ -384,6 +384,15 @@
       "CreateApiKeyRequest": {
         "additionalProperties": false,
         "properties": {
+          "allowedIpRanges": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "null",
+              "array"
+            ]
+          },
           "lifetimeDays": {
             "format": "int32",
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -399,7 +408,8 @@
         },
         "required": [
           "name",
-          "lifetimeDays"
+          "lifetimeDays",
+          "allowedIpRanges"
         ],
         "type": "object"
       },

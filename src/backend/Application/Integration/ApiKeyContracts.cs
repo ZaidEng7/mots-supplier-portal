@@ -16,10 +16,15 @@
 // LASTUSEDAT IS ON THE SUMMARY because it answers the only question that makes revoking safe: whether anything
 // is still calling with this key. A list without it invites either revoking something in use or leaving
 // something unaccounted for in place.
+//
+// THE ADDRESS LIST IS SET AT ISSUE AND SHOWN AFTERWARDS, like everything else about a key. It cannot be edited
+// for the same reason the permissions cannot: a credential whose reach can be widened in place is one nobody
+// can reason about from the audit trail. An empty list means the key may be used from anywhere, which is what
+// every key carries today - the ministry has not yet named the server that will run their nightly load.
 
 namespace MotsSupplierPortal.Application.Integration;
 
-public sealed record CreateApiKeyCommand(string Name, int? LifetimeDays);
+public sealed record CreateApiKeyCommand(string Name, int? LifetimeDays, IReadOnlyList<string>? AllowedIpRanges);
 
 public sealed record RevokeApiKeyCommand(Guid ApiKeyId);
 
@@ -31,7 +36,8 @@ public sealed record ApiKeySummary(
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
     DateTimeOffset? LastUsedAt,
-    DateTimeOffset? RevokedAt);
+    DateTimeOffset? RevokedAt,
+    IReadOnlyList<string> AllowedIpRanges);
 
 public sealed record CreatedApiKey(ApiKeySummary Key, string Secret);
 
