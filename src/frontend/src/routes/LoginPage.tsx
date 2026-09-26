@@ -54,6 +54,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AuthHeading, Button, Field, Input } from '../components/ui'
 import { ApiError, login } from '../api/auth'
+import { loginDestination } from './loginDestination'
 import { useAuthStore } from '../lib/authStore'
 
 const schema = z.object({
@@ -89,12 +90,7 @@ export function LoginPage() {
     setSession(tokens.accessToken)
     const claims = useAuthStore.getState().claims
 
-    const permissions = claims?.permissions ?? []
-    const isEvaluator = permissions.includes('evaluation.score') && !permissions.includes('rfq.read')
-    let defaultRoute = '/back-office/dashboard'
-    if (claims?.supplierId) defaultRoute = '/dashboard'
-    else if (isEvaluator) defaultRoute = '/evaluation'
-    await navigate({ to: search.redirect ?? defaultRoute })
+    await navigate({ to: loginDestination(claims, search.redirect) })
   }
 
   const onSubmit = async (values: FormValues) => {
