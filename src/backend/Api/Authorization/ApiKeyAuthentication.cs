@@ -26,6 +26,19 @@
 // that decides whether an unaccounted-for key can be revoked. It is deliberately not part of the caller's
 // transaction: a feed read has none, and a stamp that vanished when a request failed would under-report use.
 //
+//
+// THE ADDRESS IS CHECKED BEFORE THE KEY'S OWN STATE, and both before anything is stamped. A key restricted to
+// one server and presented from somewhere else is a credential being used where it should not be, and the
+// weakest useful response is to refuse without recording a use - a last-used stamp moved by a refused request
+// would report the key as live when the only thing touching it is whoever took it.
+//
+// THE ADDRESS IS THE CONNECTION'S, which is the real caller rather than a header anyone can write: this product
+// only rewrites it from X-Forwarded-For when the proxy sending it is one the deployment trusts, and that
+// decision is made once in ForwardedHeadersRegistration rather than here.
+//
+// AN EMPTY LIST ALLOWS EVERYTHING, which is every key today, because nobody yet knows the address of the server
+// that will run the ministry's nightly load.
+//
 // A REVOKED KEY STOPS WORKING ON THE NEXT REQUEST, because this reads the row every time rather than caching.
 // Caching would be faster and would mean a revoked credential kept working for the length of the cache, which
 // is the one property a revocation must not have.
@@ -81,6 +94,13 @@ public sealed class ApiKeyAuthenticationHandler(
         if (!ApiKeySecret.Verify(secret, key.Salt, key.SecretHash))
         {
             Logger.LogWarning("API key {Prefix} was presented with the wrong secret.", prefix);
+            return AuthenticateResult.NoResult();
+        }
+
+        if (!IpAllowList.Allows(key.AllowedIpRanges, Context.Connection.RemoteIpAddress))
+        {
+            Logger.LogWarning(
+                "API key {Prefix} was presented from an address its allow-list does not cover.", prefix);
             return AuthenticateResult.NoResult();
         }
 

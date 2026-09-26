@@ -58,6 +58,7 @@ public sealed class CreateApiKeyHandler(AppDbContext db, IScopeContext scope, IA
             CreatedByUserId = scope.UserId ?? Guid.Empty,
             CreatedAt = now,
             ExpiresAt = now.AddDays(command.LifetimeDays ?? ApiKey.DefaultLifetimeDays),
+            AllowedIpRanges = [.. (command.AllowedIpRanges ?? []).Select(r => r.Trim()).Where(r => r.Length > 0)],
         };
 
         db.ApiKeys.Add(key);
@@ -128,5 +129,6 @@ internal static class ApiKeyMapper
         key.CreatedAt,
         key.ExpiresAt,
         key.LastUsedAt,
-        key.RevokedAt);
+        key.RevokedAt,
+        key.AllowedIpRanges);
 }

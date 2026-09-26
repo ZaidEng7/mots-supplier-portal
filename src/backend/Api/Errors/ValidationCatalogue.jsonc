@@ -1121,6 +1121,14 @@
     "usedIn": "AddAddressRequest, UpdateAddressRequest"
   },
   {
+    "key": "AllowedIpRanges.Must",
+    "code": "API_KEY_ADDRESS_RANGE_INVALID",
+    "source": "drafted",
+    "ar": "كل عنوان مسموح به يجب أن يكون عنواناً أو نطاقاً، مثل 10.42.0.0/24.",
+    "en": "Each allowed address must be an address or a CIDR range, for example 10.42.0.0/24.",
+    "usedIn": "CreateApiKeyRequest"
+  },
+  {
     "key": "LifetimeDays.InclusiveBetween",
     "code": "API_KEY_LIFETIME_OUT_OF_RANGE",
     "source": "drafted",

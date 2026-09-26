@@ -146,6 +146,64 @@ public sealed class ApiKeyEndpointTests(PostgresApiFixture fixture)
             + "a read-only key that could mint keys would be read-only in name only");
     }
 
+    // THE ALLOW-LIST, AND WHAT THIS SUITE CAN HONESTLY PROVE ABOUT IT. The fixture's requests never travel over
+    // a socket, so the host sees no peer address at all - which is the same position it is in when a caller
+    // arrives from somewhere it cannot identify. That makes the refusal provable here and the acceptance not:
+    // a key WITH a list is refused because nothing can be shown to match, and a key WITHOUT one still works,
+    // which is the pair that matters at this level. Whether 10.42.0.9 matches 10.42.0.0/24 is arithmetic, and
+    // it is proven exhaustively in IpAllowListTests rather than guessed at through HTTP.
+    [Fact]
+    public async Task A_key_restricted_to_an_address_is_refused_from_an_unidentifiable_caller()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var response = await admin.PostAsJsonAsync("/api/v1/admin/api-keys", new
+        {
+            name = $"Restricted {Guid.NewGuid():N}"[..24],
+            allowedIpRanges = new[] { "10.42.0.0/24" },
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var secret = body.GetProperty("secret").GetString()!;
+
+        body.GetProperty("key").GetProperty("allowedIpRanges").EnumerateArray()
+            .Select(r => r.GetString()).Should().Equal("10.42.0.0/24");
+
+        using var feed = await KeyClient(fixture, secret).GetAsync(SupplierFeed);
+
+        feed.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "a credential restricted to one server must not work from a caller the server cannot place");
+    }
+
+    [Fact]
+    public async Task A_key_with_no_allow_list_is_usable_from_anywhere()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+        var (secret, _, _) = await IssueAsync(admin);
+
+        using var feed = await KeyClient(fixture, secret).GetAsync(SupplierFeed);
+
+        feed.StatusCode.Should().Be(HttpStatusCode.OK,
+            "no key carries a list yet, so an empty list meaning 'nowhere' would refuse every key in existence");
+    }
+
+    [Fact]
+    public async Task A_range_that_cannot_be_read_is_refused_when_the_key_is_created()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var response = await admin.PostAsJsonAsync("/api/v1/admin/api-keys", new
+        {
+            name = "Nonsense range",
+            allowedIpRanges = new[] { "10.42.0.0/33" },
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
+            "a key created with a range matching nothing would authenticate from nowhere, and the only "
+            + "evidence would be a warning in a log nobody reads");
+    }
+
     [Fact]
     public async Task The_secret_is_returned_once_and_never_listed()
     {
