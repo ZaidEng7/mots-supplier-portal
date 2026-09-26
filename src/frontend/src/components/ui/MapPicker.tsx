@@ -23,6 +23,17 @@
 // metre - far past what a pin dropped by hand is worth, but the ministry's field is decimal(9,6) and rounding
 // further would be us deciding their precision for them.
 //
+//
+// THE TILE ADDRESS IS ABSOLUTE, AND THAT IS A FIX. It was written as /api/v1/map/tiles/... on the assumption
+// that the page and the API share an origin. They do not in development: the SPA is served by its own dev
+// server on another port and every other call in this product goes to API_BASE_URL. So the browser asked the
+// dev server for tiles, got its 404 page, and every tile rendered as a broken image - which is what a supplier
+// saw, with no way to place a pin except by typing coordinates.
+//
+// Nothing caught it. The unit tests never load a tile, because Leaflet has no laid-out container in jsdom; the
+// accessibility sweep mocks every /api/v1 call, so tiles never load there either. The map's own loading path
+// had no test at all, and the first person to see it was the person using it.
+//
 // THE ATTRIBUTION IS NOT DECORATION. OpenStreetMap's data is under ODbL and the licence requires the credit be
 // shown wherever the map is. It stays whether the tiles load or not.
 
@@ -30,6 +41,7 @@ import { useEffect, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { API_BASE_URL } from '../../api/auth'
 import { useAuthStore } from '../../lib/authStore'
 import { Field } from './Field'
 import { Input } from './Input'
@@ -37,6 +49,8 @@ import { Input } from './Input'
 const SYRIA_CENTRE: L.LatLngTuple = [34.8, 38.0]
 const SYRIA_ZOOM = 6
 const PLACED_ZOOM = 14
+
+const TileUrlTemplate = `${API_BASE_URL}/api/v1/map/tiles/{z}/{x}/{y}.png`
 
 const AuthenticatedTileLayer = L.TileLayer.extend({
   createTile(coords: L.Coords, done: L.DoneCallback) {
@@ -70,6 +84,21 @@ const AuthenticatedTileLayer = L.TileLayer.extend({
   },
 })
 
+// The component and its test build the layer the same way, through here. A test that constructed its own would
+// be asserting against a URL it had just written down, which is the shape of a test that cannot fail.
+export function createTileLayer(): L.TileLayer & {
+  getTileUrl(coords: { x: number; y: number; z: number }): string
+  createTile(coords: L.Coords, done: L.DoneCallback): HTMLImageElement
+} {
+  const Layer = AuthenticatedTileLayer as unknown as new (url: string, options: L.TileLayerOptions) => L.TileLayer
+
+  return new Layer(TileUrlTemplate, {
+    maxZoom: 19,
+    minZoom: 3,
+    attribution: '&copy; OpenStreetMap contributors',
+  }) as ReturnType<typeof createTileLayer>
+}
+
 export function MapPicker({
   latitude,
   longitude,
@@ -101,11 +130,7 @@ export function MapPicker({
     const map = L.map(container, { attributionControl: true }).setView(SYRIA_CENTRE, SYRIA_ZOOM)
     mapRef.current = map
 
-    const layer = new (AuthenticatedTileLayer as unknown as new (url: string, options: L.TileLayerOptions) => L.TileLayer)(
-      '/api/v1/map/tiles/{z}/{x}/{y}.png',
-      { maxZoom: 19, minZoom: 3, attribution: '&copy; OpenStreetMap contributors' },
-    )
-    layer.addTo(map)
+    createTileLayer().addTo(map)
 
     map.on('click', (event: L.LeafletMouseEvent) => {
       onChangeRef.current(event.latlng.lat.toFixed(6), event.latlng.lng.toFixed(6))
