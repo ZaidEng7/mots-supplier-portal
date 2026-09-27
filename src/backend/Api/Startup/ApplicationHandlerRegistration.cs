@@ -465,6 +465,10 @@ internal static class ApplicationHandlerRegistration
         builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection(MinioOptions.SectionName));
         builder.Services.AddSingleton<MinioFileStorage>();
         builder.Services.AddScoped<IFileStorage>(sp => sp.GetRequiredService<MinioFileStorage>());
+        builder.Services.Configure<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions>(
+            builder.Configuration.GetSection(
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions.SectionName));
+        builder.AddErpSupplierSource();
         builder.Services.Configure<ClamAvOptions>(builder.Configuration.GetSection(ClamAvOptions.SectionName));
         builder.Services.AddScoped<IVirusScanner, ClamAvScanner>();
         builder.Services.AddScoped<AttachmentScanner>();
@@ -474,5 +478,33 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IConcurrencyContext, HttpConcurrencyContext>();
         builder.Services.AddScoped<IAuditContext, MotsSupplierPortal.Api.Authorization.HttpAuditContext>();
         builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestValidator>();
+    }
+
+    // The ERP client is registered only when it is configured and switched on.
+    //
+    // A typed client registered unconditionally would be built the moment anything resolved it, and with no
+    // configuration behind it that build throws on a null base address - at the first use, inside whatever job
+    // asked for it, rather than at startup where a configuration mistake belongs.
+    //
+    // Leaving it unregistered when disabled means a consumer added later fails loudly and immediately with
+    // "no service for IErpSupplierSource", which names the actual problem: the section is missing or Enabled is
+    // false. That is a better error than a null reference three layers down, and it is what keeps the test suite
+    // hermetic - nothing can reach the ERP by accident because nothing is there to reach it with.
+    private static void AddErpSupplierSource(this WebApplicationBuilder builder)
+    {
+        var section = builder.Configuration.GetSection(
+            MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions.SectionName);
+
+        if (!section.GetValue("Enabled", defaultValue: false)) return;
+
+        builder.Services
+            .AddHttpClient<
+                MotsSupplierPortal.Application.Integration.IErpSupplierSource,
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSource>((sp, client) =>
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSource.Configure(
+                    client,
+                    sp.GetRequiredService<
+                        Microsoft.Extensions.Options.IOptions<
+                            MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions>>().Value));
     }
 }
