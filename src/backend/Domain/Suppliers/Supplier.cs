@@ -232,6 +232,7 @@ public enum SupplierSyncStatus
     Pending,
     Synced,
     Failed,
+    RemovedFromErp,
 }
 
 public sealed class Supplier : IVersionedAggregate, ILastModified
@@ -997,6 +998,33 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    // Suspending a supplier because the ERP no longer returns it, and remembering why.
+    //
+    // THE REASON IS KEPT ON THE SUPPLIER, not only in the audit trail, because the next night's run has to know it.
+    // A person may reinstate the supplier; if nothing remembered that it had already been suspended for this same
+    // absence, the next run would suspend it again, every night, undoing their decision by a job nobody watches. The
+    // mark clears the moment the supplier reappears in the ERP, through MarkSynced, so a second disappearance later is
+    // treated as new.
+    public void SuspendAsRemovedFromErp()
+    {
+        if (LifecycleState != SupplierLifecycleState.Active)
+        {
+            throw new DomainException(
+                $"Cannot suspend from lifecycle state '{LifecycleState}'; only 'Active' is valid.");
+        }
+
+        LifecycleState = SupplierLifecycleState.Suspended;
+        SyncStatus = SupplierSyncStatus.RemovedFromErp;
+    }
+
+    // Moving a supplier onto the identifier the ERP now uses for it.
+    //
+    // The ERP lets a supplier be renamed, and the rename changes the identifier this import matches on. Moving the
+    // portal's record onto the new one keeps its reference code, tender history, documents and account; the
+    // alternative is suspending the real supplier and creating a stranger in its place. Whether two identifiers
+    // really are one company is ErpSyncPlan's decision, not this method's.
+    public void RelinkErpIdentity(string newExternalId) => MarkSynced(newExternalId);
 
     public void MarkSynced(string externalId)
     {

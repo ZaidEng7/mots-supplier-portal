@@ -20,6 +20,10 @@
 // the reader has no way to tell them apart. A sweep in this repository catches exactly that omission, and caught
 // this one.
 //
+// A RUN THAT HELD BACK ITS SUSPENSIONS IS NOT SHOWN AS A SUCCESS. The server records it as not succeeded, because an
+// empty or half-empty list from the ERP is what a broken read looks like, and a green badge over it would reassure
+// the one person who needs to look. "Needs attention" covers that and an outright failure; the summary says which.
+//
 // THE LAST IMPORT IS SHOWN ON THE CARD, because the nightly run happens when nobody is looking and a failure that is
 // never shown looks exactly like a night with nothing to do. This is where the person who would fix it already
 // comes, so this is where it goes.
@@ -176,8 +180,8 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <span style={{ fontWeight: 600 }}>{t('integrations.lastImport')}</span>
-              <Badge tone={integration.lastSyncSucceeded ? 'success' : 'danger'}>
-                {t(integration.lastSyncSucceeded ? 'integrations.importSucceeded' : 'integrations.importFailed')}
+              <Badge tone={integration.lastSyncSucceeded ? 'success' : 'warning'}>
+                {t(integration.lastSyncSucceeded ? 'integrations.importSucceeded' : 'integrations.importNeedsAttention')}
               </Badge>
               <span style={{ color: 'var(--color-text-secondary)' }}>
                 {formatDateTime(integration.lastSyncAt, locale)}

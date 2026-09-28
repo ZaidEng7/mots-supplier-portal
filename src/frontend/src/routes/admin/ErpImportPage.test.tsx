@@ -38,6 +38,8 @@ const OUTCOME = {
   updated: 0,
   refused: 1,
   failed: 0,
+  suspended: 0,
+  suspensionsHeldBack: null,
   rows: [
     {
       externalId: 'Damascus Supplies Co',
@@ -61,6 +63,8 @@ const REPORT = {
   wouldCreate: 1,
   wouldUpdate: 1,
   refused: 1,
+  wouldSuspend: 0,
+  suspensionsHeldBack: null,
   rows: [
     {
       externalId: 'Damascus Supplies Co',
@@ -228,6 +232,37 @@ describe('ErpImportPage', () => {
 
     expect(await screen.findByText('Nobody was suspended')).toBeInTheDocument()
     expect(screen.getByText(/returned no suppliers at all/)).toBeInTheDocument()
+  })
+
+  it('forecasts a held-back run in the future tense', async () => {
+    restore = mockFetch({
+      [PREVIEW]: {
+        __byMethod: {
+          POST: { ...REPORT, suspensionsHeldBack: '22 suppliers have disappeared from the ERP, more than the 20 one run may suspend.' },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the preview' }))
+
+    expect(await screen.findByText('Nobody would be suspended')).toBeInTheDocument()
+    expect(screen.queryByText('Nobody was suspended')).not.toBeInTheDocument()
+  })
+
+  it('says another import is running rather than that something broke', async () => {
+    restore = mockFetch({
+      [RUN]: { __byMethod: { POST: { __status: 409, detail: 'Another supplier import is already running.' } } },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('Another import is running')).toBeInTheDocument()
+    expect(screen.queryByText('The import could not be run')).not.toBeInTheDocument()
   })
 
   it('says it was the import that failed, not the preview', async () => {

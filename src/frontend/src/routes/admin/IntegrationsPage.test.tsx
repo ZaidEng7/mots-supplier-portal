@@ -96,7 +96,7 @@ describe('IntegrationsPage', () => {
     renderPage(<IntegrationsPage />)
 
     expect(await screen.findByText('Last import')).toBeInTheDocument()
-    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText(/No initial password is configured/)).toBeInTheDocument()
   })
 

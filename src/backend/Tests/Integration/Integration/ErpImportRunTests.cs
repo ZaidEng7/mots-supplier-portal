@@ -61,6 +61,7 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
             Options.Create(new ErpImportOptions { InitialPassword = password }),
             scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+            new TestScope(),
             NullLogger<RunErpImportHandler>.Instance);
 
         return await handler.HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
@@ -244,5 +245,14 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
 
         (await db.Suppliers.AnyAsync(s => s.ExternalId == externalId)).Should().BeFalse(
             "discovering this on the first account leaves the registry half-populated");
+    }
+
+    private sealed class TestScope(Guid? userId = null) : IScopeContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? SupplierId => null;
+        public Guid? OrganizationId => null;
+        public bool IsAuthenticated => UserId is not null;
+        public bool HasPermission(string permission) => true;
     }
 }

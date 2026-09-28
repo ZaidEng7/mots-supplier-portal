@@ -10,6 +10,11 @@
 // so a pass that treated absence as deletion without that distinction would suspend every supplier who ever signed
 // up on the portal. It is asserted by building one and checking it is still active afterwards.
 //
+// FOUR TESTS HERE ARE FINDINGS FROM A REVIEW OF THE FIRST VERSION: the run judged its limit after creating that
+// night's new suppliers and so could suspend what the preview promised to hold back; it suspended a supplier a person
+// had reinstated, every night; it treated an ERP rename as a deletion; and it named nobody on a manual run's
+// suspensions. Each is written so that the first version fails it.
+//
 // THE LOCK IS TESTED BY HOLDING IT, not by racing two runs and hoping they overlap. A test that raced them would pass
 // whenever the timing happened not to collide, which is the failure it exists to catch.
 //
@@ -59,19 +64,30 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}";
 
-    private static RunErpImportHandler Handler(AsyncServiceScope scope, IErpSupplierSource source) =>
+    private static RunErpImportHandler Handler(AsyncServiceScope scope, IErpSupplierSource source, Guid? userId = null) =>
         new(
             source,
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
             Options.Create(new ErpImportOptions { InitialPassword = Password }),
             scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+            new TestScope(userId),
             NullLogger<RunErpImportHandler>.Instance);
 
-    private async Task<ErpImportRunReport> RunAsync(IErpSupplierSource source)
+    private async Task<ErpImportRunReport> RunAsync(IErpSupplierSource source, Guid? userId = null)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
-        return await Handler(scope, source).HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
+        return await Handler(scope, source, userId).HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
+    }
+
+    private async Task<ErpImportPreviewReport> PreviewAsync(IErpSupplierSource source)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        return await new PreviewErpImportHandler(
+                source,
+                scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                scope.ServiceProvider.GetRequiredService<IAuditLogger>())
+            .HandleAsync(CancellationToken.None);
     }
 
     private async Task<SupplierLifecycleState> LifecycleOfAsync(string externalId)
@@ -182,6 +198,121 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     [Fact]
+    public async Task The_run_holds_back_exactly_when_the_preview_said_it_would_even_with_new_arrivals()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var existing = Enumerable.Range(0, 20).Select(_ => Unique("ERP-ARRIVALS-OLD")).ToList();
+        await RunAsync(new FixedSource([.. existing.Select(ErpRow)]));
+
+        var arrivals = Enumerable.Range(0, 12).Select(_ => Unique("ERP-ARRIVALS-NEW")).ToList();
+        var tonight = new FixedSource([.. existing.Skip(6).Select(ErpRow), .. arrivals.Select(ErpRow)]);
+
+        var preview = await PreviewAsync(tonight);
+        var run = await RunAsync(tonight);
+
+        preview.WouldSuspend.Should().Be(0, "6 of 20 active is above the limit of 5");
+        preview.SuspensionsHeldBack.Should().NotBeNull();
+
+        run.Suspended.Should().Be(
+            0,
+            "the first version counted tonight's 12 new suppliers into the limit, which rose to 8 and let all 6 through "
+            + "- the preview's promise must hold in the run");
+        run.SuspensionsHeldBack.Should().Be(preview.SuspensionsHeldBack);
+
+        foreach (var id in existing.Take(6))
+        {
+            (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Active);
+        }
+    }
+
+    [Fact]
+    public async Task A_supplier_a_person_reinstated_is_not_suspended_again_by_the_next_run()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-REINSTATE-KEEP");
+        var gone = Unique("ERP-REINSTATE-GONE");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
+        await RunAsync(new FixedSource(ErpRow(keep)));
+        (await LifecycleOfAsync(gone)).Should().Be(SupplierLifecycleState.Suspended);
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Suppliers.SingleAsync(s => s.ExternalId == gone)).Reactivate("Still works with us directly.");
+            await db.SaveChangesAsync();
+        }
+
+        var next = await RunAsync(new FixedSource(ErpRow(keep)));
+
+        next.Suspended.Should().Be(0);
+        (await LifecycleOfAsync(gone)).Should().Be(
+            SupplierLifecycleState.Active,
+            "a person reinstated it; a job nobody watches must not undo that every night");
+    }
+
+    [Fact]
+    public async Task A_supplier_renamed_in_the_erp_keeps_its_record_instead_of_being_suspended_and_duplicated()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-RENAME-KEEP");
+        var oldId = Unique("ERP-RENAME-OLD");
+        var newId = Unique("ERP-RENAME-NEW");
+        var email = $"{oldId.ToLowerInvariant()}@sgtest.example";
+
+        var first = await RunAsync(new FixedSource(ErpRow(keep), ErpRow(oldId) with { Email = email }));
+        var reference = first.Rows.Single(r => r.ExternalId == oldId).ReferenceCode;
+
+        var renamed = await RunAsync(new FixedSource(ErpRow(keep), ErpRow(newId) with { Email = email }));
+
+        renamed.Suspended.Should().Be(0, "a rename is not a deletion");
+        renamed.Created.Should().Be(0, "the same company must not become two records");
+        renamed.Rows.Single(r => r.ExternalId == newId).Notes.Should().ContainMatch("*Renamed in the ERP*");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplier = await db.Suppliers.AsNoTracking().SingleAsync(s => s.ReferenceCode == reference);
+
+        supplier.ExternalId.Should().Be(newId);
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
+        (await db.Suppliers.CountAsync(s => s.ExternalId == oldId)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task A_manual_run_names_the_person_who_ran_it_on_every_suspension()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-ACTOR-KEEP");
+        var gone = Unique("ERP-ACTOR-GONE");
+        var first = await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
+
+        Guid person;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            person = (await users.FindByEmailAsync($"{keep.ToLowerInvariant()}@sgtest.example"))!.Id;
+        }
+
+        await RunAsync(new FixedSource(ErpRow(keep)), userId: person);
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplierId = (await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == gone)).Id;
+
+            var row = await db.AuditLogs.AsNoTracking()
+                .SingleAsync(a => a.AggregateId == supplierId && a.Action == "supplier.suspended_missing_from_erp");
+
+            row.ActorUserId.Should().Be(
+                person,
+                "a suspension nobody can trace to the person who pressed the button is the kind somebody asks about");
+        }
+    }
+
+    [Fact]
     public async Task A_second_import_while_one_is_running_is_refused_rather_than_duplicating()
     {
         await using var holder = fixture.Services.CreateAsyncScope();
@@ -227,6 +358,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
                 scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
                 Options.Create(new ErpImportOptions { InitialPassword = null }),
                 scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+                new TestScope(),
                 NullLogger<RunErpImportHandler>.Instance);
 
             var act = () => failing.HandleAsync(ErpImportTrigger.Scheduled, CancellationToken.None);
@@ -284,5 +416,14 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             onRun();
             return Task.FromResult(new ErpImportRunReport(0, 0, 0, 0, 0, []));
         }
+    }
+
+    private sealed class TestScope(Guid? userId = null) : IScopeContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? SupplierId => null;
+        public Guid? OrganizationId => null;
+        public bool IsAuthenticated => UserId is not null;
+        public bool HasPermission(string permission) => true;
     }
 }

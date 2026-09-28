@@ -54,6 +54,12 @@ public sealed class PreviewErpImportHandler(
                 TaxId = s.LegalInfo!.TaxId,
                 s.DisplayNameEn,
                 s.LifecycleState,
+                s.SyncStatus,
+                Email = s.Representatives
+                    .OrderByDescending(r => r.IsPrimary)
+                    .ThenBy(r => r.Id)
+                    .Select(r => r.Email)
+                    .FirstOrDefault(),
             })
             .ToListAsync(ct);
 
@@ -66,7 +72,9 @@ public sealed class PreviewErpImportHandler(
                     group.First().ReferenceCode,
                     group.First().TaxId,
                     group.First().DisplayNameEn,
-                    group.First().LifecycleState == MotsSupplierPortal.Domain.Suppliers.SupplierLifecycleState.Active));
+                    group.First().LifecycleState == MotsSupplierPortal.Domain.Suppliers.SupplierLifecycleState.Active,
+                    group.First().Email,
+                    group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)

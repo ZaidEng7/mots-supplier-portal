@@ -199,7 +199,7 @@ export function ErpImportPage() {
                 tone={report.refused > 0 ? 'warning' : 'neutral'}
               />
             </MetricRow>
-            {report.suspensionsHeldBack ? <HeldBack reason={report.suspensionsHeldBack} /> : null}
+            {report.suspensionsHeldBack ? <HeldBack reason={report.suspensionsHeldBack} forecast /> : null}
           </Card>
 
           <Card title={t('erpImport.rowsTitle')}>
@@ -248,12 +248,12 @@ function PreviewRow({ row }: Readonly<{ row: ErpImportPreviewRow }>) {
 // When the ERP's list looks like a broken read rather than real deletions, nothing is suspended and the reason is
 // shown here in the server's own words - the numbers in it are the ones a person needs to decide whether Seven Gates
 // really removed those suppliers.
-function HeldBack({ reason }: Readonly<{ reason: string }>) {
+function HeldBack({ reason, forecast = false }: Readonly<{ reason: string; forecast?: boolean }>) {
   const { t } = useTranslation()
 
   return (
     <div role="status" className="mt-4 flex flex-col gap-1">
-      <Badge tone="warning">{t('erpImport.heldBackTitle')}</Badge>
+      <Badge tone="warning">{t(forecast ? 'erpImport.heldBackForecastTitle' : 'erpImport.heldBackTitle')}</Badge>
       <p style={{ color: 'var(--color-text-secondary)' }}>{reason}</p>
     </div>
   )
@@ -285,6 +285,10 @@ function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
   )
 }
 
+// A failure names the action that failed and, where the server said why, says it too. Another import already
+// running is not a failure of anything - it is somebody else's run, or tonight's scheduled one - so it gets its own
+// card rather than the portal-fault wording that used to tell the reader the import "did not finish".
+//
 // A failure names the action that failed and, where the server said why, says it too.
 //
 // The first version of this card said "the preview could not be produced" whichever button had been pressed, so a
@@ -294,6 +298,14 @@ function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
 // accounts it creates. The server names which; the card now passes that on instead of guessing.
 function Failure({ failure, action }: Readonly<{ failure: ErpPreviewError; action: 'preview' | 'import' }>) {
   const { t } = useTranslation()
+
+  if (failure.status === 409) {
+    return (
+      <Card title={t('erpImport.busyTitle')}>
+        <p style={{ color: 'var(--color-text-secondary)' }}>{t('erpImport.busy')}</p>
+      </Card>
+    )
+  }
 
   if (failure.status === 503) {
     return (

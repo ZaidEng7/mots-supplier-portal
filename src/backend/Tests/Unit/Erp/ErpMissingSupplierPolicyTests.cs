@@ -29,7 +29,7 @@ public sealed class ErpMissingSupplierPolicyTests
     [Fact]
     public void An_empty_list_from_the_erp_is_never_believed()
     {
-        var decision = ErpMissingSupplierPolicy.Decide(suppliersInErp: 0, linkedInPortal: 80, missingFromErp: 80);
+        var decision = ErpMissingSupplierPolicy.Decide(suppliersInErp: 0, activeLinkedInPortal: 80, missingFromErp: 80);
 
         decision.MaySuspend.Should().BeFalse(
             "an ERP does not lose every supplier overnight - this is a broken read, and believing it would suspend "
@@ -40,14 +40,14 @@ public sealed class ErpMissingSupplierPolicyTests
     [Fact]
     public void A_few_real_deletions_are_allowed()
     {
-        ErpMissingSupplierPolicy.Decide(suppliersInErp: 77, linkedInPortal: 80, missingFromErp: 3)
+        ErpMissingSupplierPolicy.Decide(suppliersInErp: 77, activeLinkedInPortal: 80, missingFromErp: 3)
             .MaySuspend.Should().BeTrue();
     }
 
     [Fact]
     public void A_cliff_is_held_back_and_the_message_says_what_and_why()
     {
-        var decision = ErpMissingSupplierPolicy.Decide(suppliersInErp: 40, linkedInPortal: 80, missingFromErp: 40);
+        var decision = ErpMissingSupplierPolicy.Decide(suppliersInErp: 40, activeLinkedInPortal: 80, missingFromErp: 40);
 
         decision.MaySuspend.Should().BeFalse("half the suppliers vanishing in one night is a fault, not a clear-out");
         decision.HeldBackBecause.Should().Contain("40 suppliers").And.Contain("20");
@@ -58,7 +58,7 @@ public sealed class ErpMissingSupplierPolicyTests
     [InlineData(6, false)]
     public void With_few_suppliers_the_floor_of_five_applies(int missing, bool allowed)
     {
-        ErpMissingSupplierPolicy.Decide(suppliersInErp: 10 - missing, linkedInPortal: 10, missingFromErp: missing)
+        ErpMissingSupplierPolicy.Decide(suppliersInErp: 10 - missing, activeLinkedInPortal: 10, missingFromErp: missing)
             .MaySuspend.Should().Be(
                 allowed,
                 "a quarter of ten rounds to two, and without the floor one genuine deletion could be refused forever");
