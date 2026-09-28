@@ -20,6 +20,10 @@
 // the reader has no way to tell them apart. A sweep in this repository catches exactly that omission, and caught
 // this one.
 //
+// THE LAST IMPORT IS SHOWN ON THE CARD, because the nightly run happens when nobody is looking and a failure that is
+// never shown looks exactly like a night with nothing to do. This is where the person who would fix it already
+// comes, so this is where it goes.
+//
 // THE SOURCE IS SHOWN ON EVERY ROW. A deployment can still be running from its own settings, and an administrator
 // who saves an address and sees nothing change needs to be told that rather than left to guess.
 
@@ -166,6 +170,23 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
 
         {(tested ?? lastTestOf(integration)) !== null && (
           <TestOutcome result={(tested ?? lastTestOf(integration))!} />
+        )}
+
+        {integration.lastSyncAt !== null && (
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span style={{ fontWeight: 600 }}>{t('integrations.lastImport')}</span>
+              <Badge tone={integration.lastSyncSucceeded ? 'success' : 'danger'}>
+                {t(integration.lastSyncSucceeded ? 'integrations.importSucceeded' : 'integrations.importFailed')}
+              </Badge>
+              <span style={{ color: 'var(--color-text-secondary)' }}>
+                {formatDateTime(integration.lastSyncAt, locale)}
+              </span>
+            </div>
+            {integration.lastSyncSummary !== null && (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{integration.lastSyncSummary}</p>
+            )}
+          </div>
         )}
 
         {integration.updatedAt !== null && (

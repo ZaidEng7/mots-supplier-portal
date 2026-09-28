@@ -28,6 +28,11 @@
 // AN ARABIC NAME IS NEVER PRESENT. The ERP has one name field, so the Arabic name starts as the English one.
 //
 //
+// A SUPPLIER THE ERP NO LONGER RETURNS WOULD BE SUSPENDED. Seven Gates deletes by removing, so absence is the
+// only signal a deletion leaves - and the same signal a broken read leaves, which is why ErpMissingSupplierPolicy
+// decides whether to believe it. Suspended, not deactivated: visible, not invitable, and reversible by a person.
+// A supplier that registered here itself carries no ERP identifier and is never a candidate.
+//
 // MATCHING
 //
 // THE ERP'S OWN IDENTIFIER IS THE MATCH, and nothing else is. A portal supplier carrying that identifier is the
@@ -40,7 +45,8 @@
 
 namespace MotsSupplierPortal.Application.Integration;
 
-public sealed record ErpImportCandidateMatch(string ReferenceCode, string? TaxId);
+public sealed record ErpImportCandidateMatch(
+    string ReferenceCode, string? TaxId, string? Name = null, bool IsActive = true);
 
 public static class ErpImportPreviewBuilder
 {
@@ -53,12 +59,33 @@ public static class ErpImportPreviewBuilder
             .Select(supplier => Row(supplier, byExternalId, unlinkedByTaxId))
             .ToList();
 
+        var inErp = erpSuppliers.Select(s => s.ExternalId).ToHashSet(StringComparer.Ordinal);
+
+        var missing = byExternalId
+            .Where(pair => pair.Value.IsActive && !inErp.Contains(pair.Key))
+            .OrderBy(pair => pair.Value.ReferenceCode, StringComparer.Ordinal)
+            .ToList();
+
+        var decision = ErpMissingSupplierPolicy.Decide(erpSuppliers.Count, byExternalId.Count, missing.Count);
+
+        if (decision.MaySuspend)
+        {
+            rows.AddRange(missing.Select(pair => new ErpImportPreviewRow(
+                pair.Key,
+                pair.Value.Name ?? pair.Key,
+                ErpImportAction.Suspend,
+                ["No longer in the ERP; would be suspended - kept in the registry, but cannot be invited to tenders."],
+                pair.Value.ReferenceCode)));
+        }
+
         return new ErpImportPreviewReport(
             erpSuppliers.Count,
             rows.Count(r => r.Action == ErpImportAction.Create),
             rows.Count(r => r.Action == ErpImportAction.Update),
             rows.Count(r => r.Action == ErpImportAction.Refuse),
-            rows);
+            rows,
+            rows.Count(r => r.Action == ErpImportAction.Suspend),
+            decision.HeldBackBecause);
     }
 
     private static ErpImportPreviewRow Row(

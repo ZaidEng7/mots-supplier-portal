@@ -63,7 +63,7 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
             NullLogger<RunErpImportHandler>.Instance);
 
-        return await handler.HandleAsync(CancellationToken.None);
+        return await handler.HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
     }
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}";

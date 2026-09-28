@@ -9,6 +9,9 @@
 // no change has to be told that the deployment's own settings still win, rather than left to conclude the save
 // did not work.
 //
+// THE LAST IMPORT IS SHOWN, FAILURE INCLUDED. The nightly run happens when nobody is watching, and a failure never
+// shown looks exactly like a night with nothing to do - so the card must put it in front of the next person to look.
+//
 // THE THIRD IS THAT A FAILED TEST READS AS AN ANSWER AND KEEPS THE DETAIL. The detail is the other system's own
 // words, and it is the part that says whether to check the address or to ring the other team.
 
@@ -34,6 +37,9 @@ const ERP = {
   lastTestedAt: null,
   lastTestSucceeded: null,
   lastTestDetail: null,
+  lastSyncAt: null,
+  lastSyncSucceeded: null,
+  lastSyncSummary: null,
 }
 
 describe('IntegrationsPage', () => {
@@ -69,6 +75,29 @@ describe('IntegrationsPage', () => {
 
     const put = recorded.find((request) => request.method === 'PUT')
     expect(JSON.parse(put!.body)).toMatchObject({ apiSecret: 'a-new-secret' })
+  })
+
+  it('shows how the last import went, including a failure nobody was awake to see', async () => {
+    restore = mockFetch({
+      [LIST]: {
+        __byMethod: {
+          GET: [
+            {
+              ...ERP,
+              lastSyncAt: '2026-09-29T23:00:00Z',
+              lastSyncSucceeded: false,
+              lastSyncSummary: 'The import failed: No initial password is configured.',
+            },
+          ],
+        },
+      },
+    })
+
+    renderPage(<IntegrationsPage />)
+
+    expect(await screen.findByText('Last import')).toBeInTheDocument()
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.getByText(/No initial password is configured/)).toBeInTheDocument()
   })
 
   it('says when the deployment settings are still in force', async () => {

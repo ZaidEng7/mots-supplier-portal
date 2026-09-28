@@ -44,6 +44,7 @@ const actionTone: Record<ErpImportAction, Tone> = {
   Create: 'success',
   Update: 'info',
   Refuse: 'danger',
+  Suspend: 'warning',
 }
 
 const outcomeTone: Record<ErpImportOutcome, Tone> = {
@@ -51,6 +52,7 @@ const outcomeTone: Record<ErpImportOutcome, Tone> = {
   Updated: 'info',
   Refused: 'warning',
   Failed: 'danger',
+  Suspended: 'warning',
 }
 
 export function ErpImportPage() {
@@ -151,6 +153,11 @@ export function ErpImportPage() {
               />
               <Metric label={t('erpImport.updated')} value={formatNumber(outcome.updated, locale, 0)} />
               <Metric
+                label={t('erpImport.suspendedCount')}
+                value={formatNumber(outcome.suspended, locale, 0)}
+                tone={outcome.suspended > 0 ? 'warning' : 'neutral'}
+              />
+              <Metric
                 label={t('erpImport.refused')}
                 value={formatNumber(outcome.refused, locale, 0)}
                 tone={outcome.refused > 0 ? 'warning' : 'neutral'}
@@ -161,6 +168,7 @@ export function ErpImportPage() {
                 tone={outcome.failed > 0 ? 'danger' : 'neutral'}
               />
             </MetricRow>
+            {outcome.suspensionsHeldBack ? <HeldBack reason={outcome.suspensionsHeldBack} /> : null}
           </Card>
 
           <Card title={t('erpImport.rowsTitle')}>
@@ -181,11 +189,17 @@ export function ErpImportPage() {
               <Metric label={t('erpImport.wouldCreate')} value={formatNumber(report.wouldCreate, locale, 0)} />
               <Metric label={t('erpImport.wouldUpdate')} value={formatNumber(report.wouldUpdate, locale, 0)} />
               <Metric
+                label={t('erpImport.wouldSuspend')}
+                value={formatNumber(report.wouldSuspend, locale, 0)}
+                tone={report.wouldSuspend > 0 ? 'warning' : 'neutral'}
+              />
+              <Metric
                 label={t('erpImport.refused')}
                 value={formatNumber(report.refused, locale, 0)}
                 tone={report.refused > 0 ? 'warning' : 'neutral'}
               />
             </MetricRow>
+            {report.suspensionsHeldBack ? <HeldBack reason={report.suspensionsHeldBack} /> : null}
           </Card>
 
           <Card title={t('erpImport.rowsTitle')}>
@@ -228,6 +242,20 @@ function PreviewRow({ row }: Readonly<{ row: ErpImportPreviewRow }>) {
         ))}
       </ul>
     </li>
+  )
+}
+
+// When the ERP's list looks like a broken read rather than real deletions, nothing is suspended and the reason is
+// shown here in the server's own words - the numbers in it are the ones a person needs to decide whether Seven Gates
+// really removed those suppliers.
+function HeldBack({ reason }: Readonly<{ reason: string }>) {
+  const { t } = useTranslation()
+
+  return (
+    <div role="status" className="mt-4 flex flex-col gap-1">
+      <Badge tone="warning">{t('erpImport.heldBackTitle')}</Badge>
+      <p style={{ color: 'var(--color-text-secondary)' }}>{reason}</p>
+    </div>
   )
 }
 

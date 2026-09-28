@@ -24,6 +24,7 @@ public enum ErpImportAction
     Create,
     Update,
     Refuse,
+    Suspend,
 }
 
 public sealed record ErpImportPreviewRow(
@@ -33,12 +34,17 @@ public sealed record ErpImportPreviewRow(
     IReadOnlyList<string> Notes,
     string? MatchedReferenceCode);
 
+// WouldSuspend counts portal suppliers the ERP no longer returns, which is why it sits outside the other three:
+// those count the ERP's rows, this counts the portal's. SuspensionsHeldBack is set when the run would refuse to
+// suspend them at all, and says why - see ErpMissingSupplierPolicy.
 public sealed record ErpImportPreviewReport(
     int ErpSupplierCount,
     int WouldCreate,
     int WouldUpdate,
     int Refused,
-    IReadOnlyList<ErpImportPreviewRow> Rows);
+    IReadOnlyList<ErpImportPreviewRow> Rows,
+    int WouldSuspend = 0,
+    string? SuspensionsHeldBack = null);
 
 public interface IPreviewErpImportHandler
 {

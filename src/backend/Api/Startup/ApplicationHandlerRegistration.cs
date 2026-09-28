@@ -323,6 +323,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IExecuteAwardHandler, ExecuteAwardHandler>();
         builder.Services.AddScoped<IRetryErpSyncHandler, RetryErpSyncHandler>();
         builder.Services.AddScoped<AwardErpSyncJob>();
+        builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSyncJob>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetMinistryAwardAnalyticsHandler, MotsSupplierPortal.Infrastructure.Governance.GetMinistryAwardAnalyticsHandler>();
     }
 

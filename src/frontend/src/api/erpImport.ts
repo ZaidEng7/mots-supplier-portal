@@ -18,7 +18,7 @@
 
 import { apiFetch } from './auth'
 
-export type ErpImportAction = 'Create' | 'Update' | 'Refuse'
+export type ErpImportAction = 'Create' | 'Update' | 'Refuse' | 'Suspend'
 
 export interface ErpImportPreviewRow {
   externalId: string
@@ -34,6 +34,8 @@ export interface ErpImportPreviewReport {
   wouldUpdate: number
   refused: number
   rows: ErpImportPreviewRow[]
+  wouldSuspend: number
+  suspensionsHeldBack: string | null
 }
 
 // The fields are declared and assigned rather than written as constructor parameter properties, because this
@@ -51,7 +53,7 @@ export class ErpPreviewError extends Error {
   }
 }
 
-export type ErpImportOutcome = 'Created' | 'Updated' | 'Refused' | 'Failed'
+export type ErpImportOutcome = 'Created' | 'Updated' | 'Refused' | 'Failed' | 'Suspended'
 
 export interface ErpImportResultRow {
   externalId: string
@@ -68,6 +70,8 @@ export interface ErpImportRunReport {
   refused: number
   failed: number
   rows: ErpImportResultRow[]
+  suspended: number
+  suspensionsHeldBack: string | null
 }
 
 export async function runErpImport(): Promise<ErpImportRunReport> {

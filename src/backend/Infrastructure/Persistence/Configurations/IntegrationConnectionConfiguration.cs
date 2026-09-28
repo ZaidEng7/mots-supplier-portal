@@ -26,6 +26,7 @@ internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfigurat
         entity.Property(c => c.ApiKey).HasMaxLength(200).IsRequired();
         entity.Property(c => c.SecretCipher).HasMaxLength(2000);
         entity.Property(c => c.LastTestDetail).HasMaxLength(1000);
+        entity.Property(c => c.LastSyncSummary).HasMaxLength(1000);
 
         entity.HasData(new
         {

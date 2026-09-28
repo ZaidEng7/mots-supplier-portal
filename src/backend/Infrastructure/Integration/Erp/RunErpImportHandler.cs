@@ -43,6 +43,7 @@ using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Integration;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
@@ -55,12 +56,47 @@ public sealed class RunErpImportHandler(
     IAuditLogger audit,
     ILogger<RunErpImportHandler> logger) : IRunErpImportHandler
 {
-    public async Task<ErpImportRunReport> HandleAsync(CancellationToken ct)
+    public async Task<ErpImportRunReport> HandleAsync(ErpImportTrigger trigger, CancellationToken ct)
+    {
+        var actor = trigger == ErpImportTrigger.Scheduled ? "system" : null;
+
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            if (!await ErpImportLock.TryAcquireAsync(db, ct))
+            {
+                throw new ErpImportBusyException();
+            }
+
+            try
+            {
+                var report = await RunLockedAsync(actor, ct);
+                await RecordAsync(report.Failed == 0, Summary(report), CancellationToken.None);
+                return report;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                await RecordFailureAsync(exception);
+                throw;
+            }
+            finally
+            {
+                await ReleaseQuietlyAsync();
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+    }
+
+    private async Task<ErpImportRunReport> RunLockedAsync(string? actor, CancellationToken ct)
     {
         await audit.LogAsync(
             aggregateType: "Supplier",
             aggregateId: Guid.Empty,
             action: "ErpImportRun",
+            actorLabel: actor,
             ct: ct);
 
         await db.SaveChangesAsync(ct);
@@ -82,20 +118,131 @@ public sealed class RunErpImportHandler(
             rows.Add(await ImportOneAsync(erpSupplier, password, ct));
         }
 
-        logger.LogInformation(
-            "ERP import finished: {Created} created, {Updated} updated, {Refused} refused, {Failed} failed.",
-            rows.Count(r => r.Outcome == ErpImportOutcome.Created),
-            rows.Count(r => r.Outcome == ErpImportOutcome.Updated),
-            rows.Count(r => r.Outcome == ErpImportOutcome.Refused),
-            rows.Count(r => r.Outcome == ErpImportOutcome.Failed));
+        var (suspended, heldBack) = await SuspendMissingAsync(erpSuppliers, actor, ct);
+        rows.AddRange(suspended);
 
-        return new ErpImportRunReport(
+        var report = new ErpImportRunReport(
             erpSuppliers.Count,
             rows.Count(r => r.Outcome == ErpImportOutcome.Created),
             rows.Count(r => r.Outcome == ErpImportOutcome.Updated),
             rows.Count(r => r.Outcome == ErpImportOutcome.Refused),
             rows.Count(r => r.Outcome == ErpImportOutcome.Failed),
-            rows);
+            rows,
+            rows.Count(r => r.Outcome == ErpImportOutcome.Suspended),
+            heldBack);
+
+        logger.LogInformation("ERP import finished: {Summary}", Summary(report));
+
+        return report;
+    }
+
+    // Suspending the suppliers the ERP no longer returns.
+    //
+    // ONLY SUPPLIERS THAT CAME FROM THE ERP ARE CANDIDATES. A supplier who registered on the portal carries no ERP
+    // identifier and is never in the ERP's list; treating its absence as a deletion would suspend every one of them.
+    //
+    // WHETHER TO BELIEVE THE ABSENCE AT ALL is ErpMissingSupplierPolicy's decision, because an empty or half-empty
+    // list is exactly what a broken read looks like. When it says no, nothing is suspended and the report says why.
+    //
+    // A SUPPLIER THAT COMES BACK IS NOT REINSTATED. Reinstating is a person's decision here; they may have been
+    // suspended for a reason the ERP knows nothing about.
+    private async Task<(List<ErpImportResultRow> Rows, string? HeldBack)> SuspendMissingAsync(
+        IReadOnlyList<ErpSupplier> erpSuppliers, string? actor, CancellationToken ct)
+    {
+        var inErp = erpSuppliers.Select(s => s.ExternalId).ToList();
+
+        var linked = await db.Suppliers.CountAsync(s => s.ExternalId != null, ct);
+
+        var missing = await db.Suppliers
+            .Where(s => s.ExternalId != null
+                && s.LifecycleState == SupplierLifecycleState.Active
+                && !inErp.Contains(s.ExternalId!))
+            .OrderBy(s => s.ReferenceCode)
+            .ToListAsync(ct);
+
+        var decision = ErpMissingSupplierPolicy.Decide(erpSuppliers.Count, linked, missing.Count);
+        if (!decision.MaySuspend)
+        {
+            logger.LogWarning("ERP import held back suspensions: {Reason}", decision.HeldBackBecause);
+            return ([], decision.HeldBackBecause);
+        }
+
+        const string Reason = "No longer in the ERP.";
+        var rows = new List<ErpImportResultRow>();
+
+        foreach (var supplier in missing)
+        {
+            supplier.Suspend(Reason);
+
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: supplier.Id,
+                action: "supplier.suspended_missing_from_erp",
+                actorLabel: actor,
+                fromState: nameof(SupplierLifecycleState.Active),
+                toState: nameof(SupplierLifecycleState.Suspended),
+                reason: Reason,
+                referenceCode: supplier.ReferenceCode,
+                ct: ct);
+
+            rows.Add(new ErpImportResultRow(
+                supplier.ExternalId!,
+                supplier.DisplayNameEn,
+                ErpImportOutcome.Suspended,
+                supplier.ReferenceCode,
+                ["No longer in the ERP; suspended - kept in the registry, but cannot be invited to tenders."]));
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        return (rows, null);
+    }
+
+    private static string Summary(ErpImportRunReport report)
+    {
+        var summary =
+            $"{report.ErpSupplierCount} in the ERP: {report.Created} created, {report.Updated} updated, "
+            + $"{report.Suspended} suspended, {report.Refused} refused, {report.Failed} failed.";
+
+        return report.SuspensionsHeldBack is null ? summary : $"{summary} {report.SuspensionsHeldBack}";
+    }
+
+    private async Task RecordAsync(bool succeeded, string summary, CancellationToken ct)
+    {
+        var connection = await db.IntegrationConnections
+            .FirstOrDefaultAsync(c => c.Key == IntegrationConnection.ErpKey, ct);
+        if (connection is null) return;
+
+        connection.RecordSync(succeeded, summary);
+        await db.SaveChangesAsync(ct);
+    }
+
+    // A failed run is recorded as failed, and recording it must never hide why it failed. So the tracker is cleared
+    // first - whatever half-finished change caused the failure must not ride along into this save - and any error
+    // while recording is logged and swallowed, leaving the original exception to reach whoever ran the import.
+    private async Task RecordFailureAsync(Exception exception)
+    {
+        try
+        {
+            db.ChangeTracker.Clear();
+            await RecordAsync(false, $"The import failed: {exception.Message}", CancellationToken.None);
+        }
+        catch (Exception recording)
+        {
+            logger.LogError(recording, "Could not record the failed ERP import.");
+        }
+    }
+
+    private async Task ReleaseQuietlyAsync()
+    {
+        try
+        {
+            await ErpImportLock.ReleaseAsync(db);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not release the ERP import lock; closing the connection releases it.");
+        }
     }
 
     private async Task<ErpImportResultRow> ImportOneAsync(
@@ -116,6 +263,10 @@ public sealed class RunErpImportHandler(
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Importing {Supplier} failed.", erpSupplier.ExternalId);
+
+            // Whatever this supplier left half-added in the tracker would otherwise be saved by the NEXT supplier's
+            // SaveChanges - outside any transaction - and fail again there, taking every remaining row down with it.
+            db.ChangeTracker.Clear();
 
             return new ErpImportResultRow(
                 erpSupplier.ExternalId, admitted.Name, ErpImportOutcome.Failed, null, [exception.Message]);

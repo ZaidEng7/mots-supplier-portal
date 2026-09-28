@@ -23,6 +23,9 @@ export interface Integration {
   lastTestedAt: string | null
   lastTestSucceeded: boolean | null
   lastTestDetail: string | null
+  lastSyncAt: string | null
+  lastSyncSucceeded: boolean | null
+  lastSyncSummary: string | null
 }
 
 export interface IntegrationTestResult {

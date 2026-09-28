@@ -40,6 +40,9 @@ public sealed class IntegrationConnection
     public DateTimeOffset? LastTestedAt { get; private set; }
     public bool? LastTestSucceeded { get; private set; }
     public string? LastTestDetail { get; private set; }
+    public DateTimeOffset? LastSyncAt { get; private set; }
+    public bool? LastSyncSucceeded { get; private set; }
+    public string? LastSyncSummary { get; private set; }
 
     public bool IsConfiguredHere => !string.IsNullOrWhiteSpace(BaseUrl);
 
@@ -76,6 +79,21 @@ public sealed class IntegrationConnection
 
         UpdatedAt = DateTimeOffset.UtcNow;
         UpdatedByUserId = updatedByUserId;
+    }
+
+    // The last import is recorded on the connection, whoever or whatever ran it.
+    //
+    // A nightly job that fails is silent by nature: nobody is watching at two in the morning, and a run that did
+    // nothing looks exactly like a run that found nothing to do. Putting the outcome where the connection is managed
+    // means the person who would fix it sees it the next time they look, without knowing a job exists.
+    //
+    // The summary is truncated rather than rejected, because losing the record of a failure over the length of its
+    // message would defeat the point of keeping it.
+    public void RecordSync(bool succeeded, string summary)
+    {
+        LastSyncAt = DateTimeOffset.UtcNow;
+        LastSyncSucceeded = succeeded;
+        LastSyncSummary = summary.Length <= 1000 ? summary : summary[..999] + "…";
     }
 
     public void RecordTest(bool succeeded, string? detail)

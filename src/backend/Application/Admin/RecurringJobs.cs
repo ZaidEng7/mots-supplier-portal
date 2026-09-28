@@ -20,5 +20,6 @@ public static class RecurringJobs
         "rfq-timeline",
         "award-erp-sync",
         "idempotency-cleanup",
+        "erp-supplier-sync",
     ];
 }

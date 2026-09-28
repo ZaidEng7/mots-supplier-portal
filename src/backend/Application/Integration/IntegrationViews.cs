@@ -8,6 +8,10 @@
 // every edit because nothing can prefill it, so treating empty as "clear it" would wipe the credential each time
 // somebody fixed a typo in the address - and nothing would fail until the next run.
 //
+// THE LAST IMPORT IS PART OF THE VIEW because the nightly run is unattended, and a failure nobody sees looks exactly
+// like a night with nothing to do. Showing it where the connection is managed puts it in front of the person who
+// would fix it.
+//
 // SOURCE IS PART OF THE VIEW because a deployment can still be running from its own settings, and an
 // administrator who saves an address and sees no change needs to be told why rather than left guessing.
 
@@ -25,7 +29,10 @@ public sealed record IntegrationView(
     DateTimeOffset? UpdatedAt,
     DateTimeOffset? LastTestedAt,
     bool? LastTestSucceeded,
-    string? LastTestDetail);
+    string? LastTestDetail,
+    DateTimeOffset? LastSyncAt = null,
+    bool? LastSyncSucceeded = null,
+    string? LastSyncSummary = null);
 
 public sealed record UpdateIntegrationRequest(
     string BaseUrl,

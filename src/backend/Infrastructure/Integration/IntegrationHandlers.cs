@@ -110,5 +110,8 @@ internal static class IntegrationMapping
         row.UpdatedAt,
         row.LastTestedAt,
         row.LastTestSucceeded,
-        row.LastTestDetail);
+        row.LastTestDetail,
+        row.LastSyncAt,
+        row.LastSyncSucceeded,
+        row.LastSyncSummary);
 }
