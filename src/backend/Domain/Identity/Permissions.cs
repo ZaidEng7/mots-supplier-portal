@@ -200,6 +200,12 @@
 // registry export is line-level personal data, which is exactly the risk the register names. Only the system
 // administrator holds it, through All.
 //
+// SupplierImportRun covers bringing suppliers in from the ministry's ERP, and the same permission gates the
+// preview as gates the eventual write. A preview is read-only, so it is tempting to hold it more loosely - but
+// it reads every supplier the ERP has, with their tax numbers and email addresses, and hands them back in one
+// report. That is the same line-level disclosure SupplierRegistryExport is restricted for, arriving from the
+// other direction. There is also nobody who should be deciding whether an import looks right but may not run it.
+//
 // The system administrator holds everything in the catalogue.
 
 namespace MotsSupplierPortal.Domain.Identity;
@@ -263,6 +269,7 @@ public static class Permissions
     public const string AdminRolesManage = "admin.roles.manage";
     public const string AdminOrganizationsManage = "admin.organizations.manage";
     public const string AdminApiKeysManage = "admin.apiKeys.manage";
+    public const string SupplierImportRun = "supplier.import.run";
     public const string ReferenceDataManage = "reference.manage";
     public const string AuditRead = "audit.read";
 
@@ -280,7 +287,7 @@ public static class Permissions
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
         RfqDeadlineShorten, ReferenceDataManage, GovernanceRead, RfqReassign, SupplierDirectoryRead,
-        SupplierRegistryExport, AdminApiKeysManage
+        SupplierRegistryExport, AdminApiKeysManage, SupplierImportRun
     ];
 }
 

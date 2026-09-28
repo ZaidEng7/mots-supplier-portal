@@ -468,6 +468,9 @@ internal static class ApplicationHandlerRegistration
         builder.Services.Configure<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions>(
             builder.Configuration.GetSection(
                 MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions.SectionName));
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.IPreviewErpImportHandler,
+            MotsSupplierPortal.Infrastructure.Integration.Erp.PreviewErpImportHandler>();
         builder.AddErpSupplierSource();
         builder.Services.Configure<ClamAvOptions>(builder.Configuration.GetSection(ClamAvOptions.SectionName));
         builder.Services.AddScoped<IVirusScanner, ClamAvScanner>();
@@ -486,16 +489,24 @@ internal static class ApplicationHandlerRegistration
     // configuration behind it that build throws on a null base address - at the first use, inside whatever job
     // asked for it, rather than at startup where a configuration mistake belongs.
     //
-    // Leaving it unregistered when disabled means a consumer added later fails loudly and immediately with
-    // "no service for IErpSupplierSource", which names the actual problem: the section is missing or Enabled is
-    // false. That is a better error than a null reference three layers down, and it is what keeps the test suite
-    // hermetic - nothing can reach the ERP by accident because nothing is there to reach it with.
+    // When it is off, a stand-in is registered that throws when called. Leaving the slot EMPTY was the first
+    // attempt and it breaks the API on boot: the preview handler depends on this client, the container validates
+    // every registration at startup, and a dependency nobody registered takes the whole product down over an
+    // integration meant to be optional. The stand-in also keeps the suite hermetic, because nothing it holds can
+    // reach a network.
     private static void AddErpSupplierSource(this WebApplicationBuilder builder)
     {
         var section = builder.Configuration.GetSection(
             MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions.SectionName);
 
-        if (!section.GetValue("Enabled", defaultValue: false)) return;
+        if (!section.GetValue("Enabled", defaultValue: false))
+        {
+            builder.Services.AddSingleton<
+                MotsSupplierPortal.Application.Integration.IErpSupplierSource,
+                MotsSupplierPortal.Infrastructure.Integration.Erp.DisabledErpSupplierSource>();
+            return;
+        }
+
 
         builder.Services
             .AddHttpClient<

@@ -72,6 +72,12 @@
 //       product, so also the set most worth scanning in Arabic as well as English
 //   70  the comp gives the tender workspace a tab strip, and two of its six tabs are new routes -
 //       Suppliers and Settings - carrying sections the workspace used to stack down one column
+//   71  /back-office/api-keys, the credentials other systems authenticate with. The count was moved and
+//       this log was not, which is the one thing this comment exists to prevent - recorded here after
+//       the fact rather than left as a gap
+//   72  /back-office/erp-import, the supplier import preview. The screen reads nothing until a button is
+//       pressed, so what axe scans is its resting state - which is what the first frame of any page
+//       should be, and is why this route needed no fixture of its own
 //
 // The scan itself runs every route in both locales, with two false-clean guards before axe sees the
 // page. First, no 404 or 500: a page that fell through to the error boundary (a mock gap, a route
@@ -90,7 +96,7 @@ import { extractRoutes } from './routes'
 const routes = extractRoutes()
 
 test('the route denominator is what the router actually declares, not what this file assumes', () => {
-  expect(routes.length).toBe(71)
+  expect(routes.length).toBe(72)
   expect(routes.map((r) => r.fullPath)).toEqual(
     expect.arrayContaining(['/login', '/dashboard', '/back-office/review']),
   )
