@@ -117,6 +117,15 @@
 // against it unchanged.
 //
 //
+// A HOST DERIVED FROM THIS ONE RUNS NO BACKGROUND JOBS. WithWebHostBuilder is hidden below so every test that derives
+// a host - to swap in a fake ERP adapter, a probe, a different rate limit - gets one that shares the job storage but
+// never takes a job from it. Each derived host used to start twenty workers of its own; disposed at the end of its
+// test, some of them kept taking jobs against a disposed service provider, and the job's retry landed forty seconds
+// later. That is how the upload tests, which wait thirty seconds for a virus scan, came to fail at random - on main
+// and on unrelated pull requests alike. Jobs are run by this fixture's own host, which lives for the whole suite. A
+// test that genuinely needs its derived host to run jobs can set Hangfire:RunServer back to true in its own
+// configuration, which runs after this.
+//
 // THE MAP TILE UPSTREAM POINTS AT A CLOSED PORT
 //
 // Map:TileBaseUrl is 127.0.0.1:1 rather than openstreetmap.org, because a test run must not depend on a third
@@ -175,6 +184,13 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
         CreateDefaultClient(new ETagAttachingHandler());
 
     public HttpClient CreateRawClient() => ((WebApplicationFactory<Program>)this).CreateClient();
+
+    public new WebApplicationFactory<Program> WithWebHostBuilder(Action<IWebHostBuilder> configuration) =>
+        base.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Hangfire:RunServer", "false");
+            configuration(builder);
+        });
 
     public HttpClient CreateClientWithoutRedirects() =>
         CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
