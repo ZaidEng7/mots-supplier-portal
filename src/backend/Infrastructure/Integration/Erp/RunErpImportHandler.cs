@@ -161,6 +161,7 @@ public sealed class RunErpImportHandler(
         }
 
         rows.AddRange(await SuspendPlannedAsync(plan.ToSuspend, actor, ct));
+        await MarkRemovedAsync(plan.ToMarkRemoved, actor, ct);
 
         var report = new ErpImportRunReport(
             erpSuppliers.Count,
@@ -262,6 +263,40 @@ public sealed class RunErpImportHandler(
         await db.SaveChangesAsync(ct);
 
         return rows;
+    }
+
+    // Suppliers already out of service that have now also left the ERP are marked, not suspended - they are suspended
+    // or deactivated already. The mark is what stops them standing in for a new company that shares their tax number
+    // on some later night. Re-checked under the lock, like the suspensions.
+    private async Task MarkRemovedAsync(IReadOnlyList<PortalLinkedSupplier> planned, Actor actor, CancellationToken ct)
+    {
+        if (planned.Count == 0) return;
+
+        var ids = planned.Select(p => p.ExternalId).ToList();
+
+        var suppliers = await db.Suppliers
+            .Where(s => s.ExternalId != null
+                && ids.Contains(s.ExternalId)
+                && s.LifecycleState != SupplierLifecycleState.Active
+                && s.SyncStatus != SupplierSyncStatus.RemovedFromErp)
+            .ToListAsync(ct);
+
+        foreach (var supplier in suppliers)
+        {
+            supplier.MarkRemovedFromErp();
+
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: supplier.Id,
+                action: "supplier.marked_removed_from_erp",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                reason: "No longer in the ERP; already out of service here, so only marked.",
+                referenceCode: supplier.ReferenceCode,
+                ct: ct);
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 
     private static string Summary(ErpImportRunReport report, int probableRenames)

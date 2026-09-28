@@ -1031,6 +1031,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         SyncStatus = SupplierSyncStatus.RemovedFromErp;
     }
 
+    // Marking a supplier that is already suspended or deactivated as gone from the ERP, without touching its lifecycle.
+    //
+    // It is the same memory SuspendAsRemovedFromErp keeps, for a supplier a person had already taken out of service.
+    // Without it, that supplier would count as "vanished tonight" on every run for as long as it stayed missing, and
+    // the plan could pair it with any new company that happened to share its tax number, months later.
+    public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.RemovedFromErp;
+
     public void MarkSynced(string externalId)
     {
         ExternalId = externalId;

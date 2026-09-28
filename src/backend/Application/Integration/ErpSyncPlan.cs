@@ -27,8 +27,17 @@
 // because the contact is editable by the supplier and the login is unique in this product. Placeholders never count:
 // they are built from the identifier, so they differ by construction.
 //
-// ONLY A SUPPLIER THAT VANISHED TONIGHT CAN BE THE OLD SIDE: one that is active and not already marked as removed. A
-// supplier removed months ago must not block a genuinely new company that happens to share its tax number forever.
+// ONLY A SUPPLIER THAT VANISHED TONIGHT CAN BE THE OLD SIDE: one not yet marked as removed from the ERP, WHATEVER its
+// lifecycle. A supplier marked months ago must not block a genuinely new company that shares its tax number forever -
+// but a supplier a person SUSPENDED is still the same company, and when the second version limited the old side to
+// active suppliers, a suspended company renamed in the ERP came straight back as a brand-new active one, undoing the
+// suspension with a green badge. So every vanished supplier is marked the first night it goes: active ones are
+// suspended as they are marked, inactive ones are only marked.
+//
+// A DISABLED ARRIVAL SHIELDS NOTHING. If the ERP has disabled the record, there is nothing to protect: if it is the
+// same company, the ERP has switched it off; if it is a different one, the vanished supplier really is gone. Either way
+// the old supplier must not stay invitable, so both sides follow the ordinary rules. The check comes after the
+// ambiguity checks, so a disabled arrival still counts when deciding whether a match is unique.
 //
 // AN AMBIGUOUS MATCH IS NO MATCH. If an arrival could be either of two vanished suppliers, or two arrivals claim one,
 // nothing is paired and the ordinary rules apply.
@@ -59,6 +68,7 @@ public sealed record ErpProbableRename(string OldExternalId, string NewExternalI
 public sealed record ErpSyncPlan(
     IReadOnlyList<ErpProbableRename> ProbableRenames,
     IReadOnlyList<PortalLinkedSupplier> ToSuspend,
+    IReadOnlyList<PortalLinkedSupplier> ToMarkRemoved,
     int ActiveLinked,
     string? SuspensionsHeldBack)
 {
@@ -68,7 +78,7 @@ public sealed record ErpSyncPlan(
         var inErp = erp.Select(e => e.ExternalId).ToHashSet(StringComparer.Ordinal);
 
         var vanishedTonight = portal
-            .Where(p => !inErp.Contains(p.ExternalId) && p.IsActive && !p.AlreadyRemovedFromErp)
+            .Where(p => !inErp.Contains(p.ExternalId) && !p.AlreadyRemovedFromErp)
             .ToList();
 
         var arrivals = erp
@@ -85,9 +95,18 @@ public sealed record ErpSyncPlan(
             .ToList();
 
         var activeLinked = portal.Count(p => p.IsActive);
-        var decision = ErpMissingSupplierPolicy.Decide(erp.Count, activeLinked, missing.Count);
+        var activeMissing = missing.Where(m => m.IsActive).ToList();
 
-        return new ErpSyncPlan(renames, decision.MaySuspend ? missing : [], activeLinked, decision.HeldBackBecause);
+        // The policy judges suspensions, so it sees active suppliers only. It also guards the marking of inactive
+        // ones: a read that is not believed must not mark anybody as gone either.
+        var decision = ErpMissingSupplierPolicy.Decide(erp.Count, activeLinked, activeMissing.Count);
+
+        return new ErpSyncPlan(
+            renames,
+            decision.MaySuspend ? activeMissing : [],
+            decision.MaySuspend ? [.. missing.Where(m => !m.IsActive)] : [],
+            activeLinked,
+            decision.HeldBackBecause);
     }
 
     private static string? Signal(ErpSupplier arrival, PortalLinkedSupplier vanished)
@@ -127,6 +146,8 @@ public sealed record ErpSyncPlan(
 
             var only = candidates[0];
             if (arrivals.Count(a => Signal(a, only) is not null) != 1) continue;
+
+            if (arrival.Disabled) continue;
 
             pairs.Add(new ErpProbableRename(only.ExternalId, arrival.ExternalId, only.ReferenceCode, Signal(arrival, only)!));
         }

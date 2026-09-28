@@ -315,6 +315,37 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     [Fact]
+    public async Task A_suspended_supplier_renamed_in_the_erp_does_not_come_back_as_a_new_active_one()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-SUSP-RENAME-KEEP");
+        var oldId = Unique("ERP-SUSP-RENAME-OLD");
+        var newId = Unique("ERP-SUSP-RENAME-NEW");
+        var taxId = $"TAX-{Guid.CreateVersion7():N}"[..16];
+
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(oldId) with { TaxId = taxId }));
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.Suppliers.SingleAsync(s => s.ExternalId == oldId)).Suspend("Suspended by the ministry for cause.");
+            await db.SaveChangesAsync();
+        }
+
+        var report = await RunAsync(new FixedSource(ErpRow(keep), ErpRow(newId) with { TaxId = taxId }));
+
+        report.Created.Should().Be(
+            0,
+            "the second version created it as a brand-new active supplier, silently undoing the ministry's suspension");
+
+        await using var check = fixture.Services.CreateAsyncScope();
+        var checkDb = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await checkDb.Suppliers.CountAsync(s => s.ExternalId == newId)).Should().Be(0);
+        (await LifecycleOfAsync(oldId)).Should().Be(SupplierLifecycleState.Suspended);
+    }
+
+    [Fact]
     public async Task A_supplier_disabled_in_the_erp_and_reinstated_by_a_person_is_not_suspended_again()
     {
         await SuspendEveryImportedSupplierAsync();
