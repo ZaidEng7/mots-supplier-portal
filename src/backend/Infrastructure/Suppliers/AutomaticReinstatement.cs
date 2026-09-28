@@ -7,9 +7,15 @@
 //
 // THE RULES
 //
-// "Objectively gone" is read narrowly: no award-critical document type on this supplier is left with an expired
-// latest version. Not "this document is fine". A supplier suspended for two expiries must not be reinstated by fixing
-// one of them.
+// "Objectively gone" is read narrowly: every award-critical document type on this supplier that has expired must now
+// have an approved latest version. Not "this document is fine", so a supplier suspended for two expiries is not
+// reinstated by fixing one of them. And not "the latest version is no longer expired", which is what this used to
+// check: an upload supersedes the expired version at once, so a replacement still waiting for review - or one a
+// reviewer rejected - read as fixed. Approving one renewal then reinstated a supplier whose other renewal nobody had
+// looked at, and the sync, asking on its own schedule, could reinstate on a replacement nobody had approved at all
+// while its audit row said one had been.
+//
+// The documents are read tracked, so the one a reviewer is approving in this same unit of work counts as approved.
 //
 // It reactivates only from suspended, and only when the suspension was this rule's. A supplier suspended by a person
 // for a reason of their own stays suspended: the last suspension in their audit trail is that person's, so this does
@@ -20,7 +26,10 @@
 // "disabled in the ERP" - that it could not see. A supplier suspended by the rule once, reinstated, and later
 // suspended by the sync was then reactivated by its next approved document, because the latest row the list could
 // see was the old automatic one; the sync read the result as a person's reinstatement and never suspended it again.
-// Every suspension writes its target state, so reading that finds whichever source suspended it last.
+// Every suspension writes its target state, so reading that finds whichever source suspended it last - including one
+// written earlier in this same unit of work and not saved yet. The sync suspends a supplier returned disabled and then,
+// in the same save, may ask this; a database read alone saw only the older expiry row, and lifted the suspension the
+// sync had just made.
 //
 // NOTHING AUTOMATIC BRINGS BACK A SUPPLIER THE ERP NO LONGER WANTS. When the ERP stops returning a supplier, or
 // disables it, while the supplier is already suspended, the sync has nothing to suspend and only marks it. Its expiry
@@ -42,6 +51,7 @@ namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Notifications;
@@ -62,7 +72,15 @@ internal static class AutomaticReinstatement
         if (supplier.LifecycleState != SupplierLifecycleState.Suspended) return false;
         if (supplier.IsMarkedAsUnwantedByErp) return false;
 
-        var lastSuspension = await db.AuditLogs.AsNoTracking()
+        var unsavedSuspension = db.ChangeTracker.Entries<AuditLog>()
+            .Where(e => e.State == EntityState.Added
+                        && e.Entity.AggregateId == supplier.Id
+                        && e.Entity.ToState == nameof(SupplierLifecycleState.Suspended))
+            .OrderByDescending(e => e.Entity.OccurredAt)
+            .Select(e => e.Entity.Action)
+            .FirstOrDefault();
+
+        var lastSuspension = unsavedSuspension ?? await db.AuditLogs.AsNoTracking()
             .Where(a => a.AggregateId == supplier.Id && a.ToState == nameof(SupplierLifecycleState.Suspended))
             .OrderByDescending(a => a.OccurredAt)
             .Select(a => a.Action)
@@ -75,13 +93,20 @@ internal static class AutomaticReinstatement
             .Select(t => t.Id)
             .ToListAsync(ct);
 
-        var stillExpired = await db.SupplierDocuments.AsNoTracking()
-            .AnyAsync(d => d.SupplierId == supplier.Id
-                           && d.IsLatestVersion
-                           && d.State == DocumentState.Expired
-                           && awardCriticalTypeIds.Contains(d.DocumentTypeId), ct);
+        var awardCritical = await db.SupplierDocuments
+            .Where(d => d.SupplierId == supplier.Id && awardCriticalTypeIds.Contains(d.DocumentTypeId))
+            .ToListAsync(ct);
 
-        if (stillExpired) return false;
+        var notYetRenewed = awardCritical
+            .Where(d => d.State == DocumentState.Expired)
+            .Select(d => d.DocumentTypeId)
+            .Distinct()
+            .Any(typeId => !awardCritical.Any(d =>
+                d.DocumentTypeId == typeId
+                && d.IsLatestVersion
+                && d.State is (DocumentState.Approved or DocumentState.ExpiringSoon)));
+
+        if (notYetRenewed) return false;
 
         supplier.Reactivate(reason);
 

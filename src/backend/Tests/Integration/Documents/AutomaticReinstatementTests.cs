@@ -21,6 +21,10 @@
 // otherwise. When the second is replaced too they come back, which is what stops this passing against a
 // reinstatement that never happens at all.
 //
+// A replacement that is only uploaded does not count. An upload supersedes the expired version at once, and the
+// check used to ask only whether the latest version was still expired - so a supplier who uploaded both renewals was
+// reinstated the moment either was approved, with the other one still waiting for anybody to look at it.
+//
 // And the one that matters most: a suspension a PERSON imposed for a reason of their own must not be overturned by
 // a document decision, and the audit trail is how the two are told apart.
 //
@@ -203,6 +207,27 @@ public sealed class AutomaticReinstatementTests(PostgresApiFixture fixture)
 
         var second = await UploadReplacementAsync(supplierId, TaxCertificate);
         (await ApproveAsync(reviewer, supplierCode, second)).IsSuccessStatusCode.Should().BeTrue();
+
+        (await LifecycleOfAsync(supplierId)).Should().Be(SupplierLifecycleState.Active);
+    }
+
+    [Fact]
+    public async Task Approving_one_renewal_while_the_other_waits_for_review_does_not_reinstate()
+    {
+        var supplierId = await SeedSupplierWithExpiredDocumentsAsync(CommercialRegistration, TaxCertificate);
+        var supplierCode = await SupplierCodeAsync(supplierId);
+
+        var registration = await UploadReplacementAsync(supplierId, CommercialRegistration);
+        var taxCertificate = await UploadReplacementAsync(supplierId, TaxCertificate);
+
+        var reviewer = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
+        (await ApproveAsync(reviewer, supplierCode, registration)).IsSuccessStatusCode.Should().BeTrue();
+
+        (await LifecycleOfAsync(supplierId)).Should().Be(SupplierLifecycleState.Suspended,
+            "the tax certificate's renewal is uploaded but nobody has approved it; the old check saw only that its "
+            + "latest version was no longer the expired one");
+
+        (await ApproveAsync(reviewer, supplierCode, taxCertificate)).IsSuccessStatusCode.Should().BeTrue();
 
         (await LifecycleOfAsync(supplierId)).Should().Be(SupplierLifecycleState.Active);
     }

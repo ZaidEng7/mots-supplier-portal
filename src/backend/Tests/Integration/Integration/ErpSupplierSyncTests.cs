@@ -164,41 +164,52 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             .Should().BeTrue("a reinstatement nobody can trace looks exactly like one somebody slipped through");
     }
 
-    private async Task ApproveNewDocumentAsync(string externalId, string typeCode)
+    private async Task<string> UploadNewDocumentAsync(string externalId, string typeCode)
     {
-        string documentCode;
-        await using (var scope = fixture.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var supplierId = await db.Suppliers.Where(s => s.ExternalId == externalId).Select(s => s.Id).SingleAsync();
-            var typeId = await db.DocumentTypes.Where(t => t.Code == typeCode).Select(t => t.Id).SingleAsync();
-            var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplierId = await db.Suppliers.Where(s => s.ExternalId == externalId).Select(s => s.Id).SingleAsync();
+        var typeId = await db.DocumentTypes.Where(t => t.Code == typeCode).Select(t => t.Id).SingleAsync();
+        var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
 
-            var previous = await db.SupplierDocuments
-                .Where(d => d.SupplierId == supplierId && d.DocumentTypeId == typeId && d.IsLatestVersion)
-                .ToListAsync();
-            foreach (var old in previous) old.SupersedeWithNewVersion();
+        var previous = await db.SupplierDocuments
+            .Where(d => d.SupplierId == supplierId && d.DocumentTypeId == typeId && d.IsLatestVersion)
+            .ToListAsync();
+        foreach (var old in previous) old.SupersedeWithNewVersion();
 
-            var document = SupplierDocument.CreatePendingScan(
-                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}", supplierId, typeId, previous.Count + 1,
-                "quarantine/key", $"{typeCode}-{Guid.NewGuid():N}.pdf", "application/pdf", 2048, Guid.CreateVersion7(),
-                issueDate: null, expiryDate: today.AddYears(1), expiryTracked: true, today: today);
-            document.MarkScanClean("clean/key");
-            db.SupplierDocuments.Add(document);
-            await db.SaveChangesAsync();
-            documentCode = document.ReferenceCode;
-        }
+        var document = SupplierDocument.CreatePendingScan(
+            $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}", supplierId, typeId, previous.Count + 1,
+            "quarantine/key", $"{typeCode}-{Guid.NewGuid():N}.pdf", "application/pdf", 2048, Guid.CreateVersion7(),
+            issueDate: null, expiryDate: today.AddYears(1), expiryTracked: true, today: today);
+        document.MarkScanClean("clean/key");
+        db.SupplierDocuments.Add(document);
+        await db.SaveChangesAsync();
 
-        await using (var scope = fixture.Services.CreateAsyncScope())
-        {
-            var result = await new ApproveDocumentHandler(
-                    scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-                    new TestScope(Guid.CreateVersion7()),
-                    scope.ServiceProvider.GetRequiredService<IAuditLogger>())
-                .HandleAsync(documentCode, CancellationToken.None);
+        return document.ReferenceCode;
+    }
 
-            result.Should().BeOfType<ReviewDocumentResult.Success>();
-        }
+    private async Task ApproveDocumentAsync(string documentCode)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var result = await new ApproveDocumentHandler(
+                scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                new TestScope(Guid.CreateVersion7()),
+                scope.ServiceProvider.GetRequiredService<IAuditLogger>())
+            .HandleAsync(documentCode, CancellationToken.None);
+
+        result.Should().BeOfType<ReviewDocumentResult.Success>();
+    }
+
+    private async Task ApproveNewDocumentAsync(string externalId, string typeCode) =>
+        await ApproveDocumentAsync(await UploadNewDocumentAsync(externalId, typeCode));
+
+    private async Task RejectDocumentAsync(string documentCode)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.SupplierDocuments.SingleAsync(d => d.ReferenceCode == documentCode))
+            .Reject(Guid.CreateVersion7(), "The scan is unreadable.");
+        await db.SaveChangesAsync();
     }
 
     // The whole portal's imported suppliers take part in every run, so each test first suspends any that earlier
@@ -503,21 +514,52 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     [Fact]
-    public async Task A_supplier_the_sync_suspended_is_not_reinstated_when_the_erp_offers_it_again()
+    public async Task A_supplier_the_sync_suspends_is_not_reinstated_by_the_same_run_or_the_next()
     {
         await SuspendEveryImportedSupplierAsync();
 
-        var id = Unique("ERP-NOT-REINSTATED");
-        await RunAsync(new FixedSource(ErpRow(id)));
-        await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+        var keep = Unique("ERP-SAME-RUN-KEEP");
+        var id = Unique("ERP-SAME-RUN");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id)));
         await ExpireAnAwardCriticalDocumentAsync(id);
+        await RunAsync(new FixedSource(ErpRow(keep)));
+        await ApproveNewDocumentAsync(id, CommercialRegistration);
+        await SetLifecycleAsync(id, supplier => supplier.Reactivate("The matter is closed."));
 
-        await RunAsync(new FixedSource(ErpRow(id)));
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id) with { Disabled = true }));
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the run suspended it for the disable and then asked whether to reinstate it; the reinstatement read only "
+            + "saved audit rows, missed the suspension it had just made, and lifted it in the same save");
+
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id)));
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "re-enabling does not reinstate a supplier the sync suspended; that is a person's decision");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_replacement_nobody_has_approved_does_not_bring_a_marked_supplier_back(bool rejected)
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-UNAPPROVED-KEEP");
+        var id = Unique("ERP-UNAPPROVED");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id)));
+        await ExpireAnAwardCriticalDocumentAsync(id);
+        await RunAsync(new FixedSource(ErpRow(keep)));
+
+        var replacement = await UploadNewDocumentAsync(id, CommercialRegistration);
+        if (rejected) await RejectDocumentAsync(replacement);
+
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id)));
 
         (await LifecycleOfAsync(id)).Should().Be(
             SupplierLifecycleState.Suspended,
-            "the second look is only for a reinstatement a mark held back; lifting the sync's own suspension is a "
-            + "person's decision");
+            "the upload superseded the expired version, so the old check - no latest version expired - read a "
+            + "replacement still waiting for review, or one a reviewer rejected, as fixed");
     }
 
     [Fact]
@@ -656,7 +698,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
 
         (await LifecycleOfAsync(id)).Should().Be(
             SupplierLifecycleState.Active,
-            "only a change from enabled to disabled suspends; a person's reinstatement is not undone every night");
+            "the sync suspends once for a disable, and a person's reinstatement after that is not undone every night");
     }
 
     [Fact]
