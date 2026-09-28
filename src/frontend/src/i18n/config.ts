@@ -258,6 +258,8 @@ const resources = {
         erpRefused: 'تعذّرت قراءة الموردين. الرسالة التالية من نظام الوزارة نفسه، ويمكن إرسالها إلى فريقه كما هي.',
         failedTitle: 'تعذّرت المعاينة',
         failed: 'حدث خطأ في البوابة أثناء تجهيز المعاينة. أعد المحاولة.',
+        importFailedTitle: 'تعذّر تنفيذ الاستيراد',
+        importFailed: 'حدث خطأ في البوابة أثناء الاستيراد، ولم يكتمل. تشغيله مرة أخرى آمن: الموجود يُحدَّث ولا يُكرَّر.',
       },
       apiKeys: {
         title: 'مفاتيح الواجهة البرمجية',
@@ -2283,6 +2285,8 @@ const resources = {
         erpRefused: 'The suppliers could not be read. The message below is the ministry system\'s own, and can be forwarded to its team as it stands.',
         failedTitle: 'The preview could not be produced',
         failed: 'Something went wrong in the portal while producing the preview. Try again.',
+        importFailedTitle: 'The import could not be run',
+        importFailed: 'Something went wrong in the portal during the import, and it did not finish. Running it again is safe: what exists is updated, not duplicated.',
       },
       apiKeys: {
         title: 'API keys',

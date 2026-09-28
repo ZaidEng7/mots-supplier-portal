@@ -59,7 +59,7 @@ export function ErpImportPage() {
   const [report, setReport] = useState<ErpImportPreviewReport | null>(null)
   const [outcome, setOutcome] = useState<ErpImportRunReport | null>(null)
   const [confirming, setConfirming] = useState(false)
-  const [failure, setFailure] = useState<ErpPreviewError | null>(null)
+  const [failure, setFailure] = useState<{ error: ErpPreviewError; action: 'preview' | 'import' } | null>(null)
 
   const preview = useMutation({
     mutationFn: previewErpImport,
@@ -70,7 +70,10 @@ export function ErpImportPage() {
     },
     onError: (error) => {
       setReport(null)
-      setFailure(error instanceof ErpPreviewError ? error : new ErpPreviewError(0, null))
+      setFailure({
+        error: error instanceof ErpPreviewError ? error : new ErpPreviewError(0, null),
+        action: 'preview',
+      })
     },
   })
 
@@ -85,7 +88,10 @@ export function ErpImportPage() {
     onError: (error) => {
       setConfirming(false)
       setOutcome(null)
-      setFailure(error instanceof ErpPreviewError ? error : new ErpPreviewError(0, null))
+      setFailure({
+        error: error instanceof ErpPreviewError ? error : new ErpPreviewError(0, null),
+        action: 'import',
+      })
     },
   })
 
@@ -131,7 +137,7 @@ export function ErpImportPage() {
         </div>
       </Dialog>
 
-      {failure !== null && <Failure failure={failure} />}
+      {failure !== null && <Failure failure={failure.error} action={failure.action} />}
 
       {outcome !== null && (
         <>
@@ -251,13 +257,25 @@ function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
   )
 }
 
-function Failure({ failure }: Readonly<{ failure: ErpPreviewError }>) {
+// A failure names the action that failed and, where the server said why, says it too.
+//
+// The first version of this card said "the preview could not be produced" whichever button had been pressed, so a
+// failed IMPORT read as a failed preview - and somebody who had just pressed "Run the import" could not tell
+// whether anything had been written. It also dropped the server's own explanation on a 503, which matters because
+// the import has two different ways of being unconfigured: no connection to the ERP, or no initial password for the
+// accounts it creates. The server names which; the card now passes that on instead of guessing.
+function Failure({ failure, action }: Readonly<{ failure: ErpPreviewError; action: 'preview' | 'import' }>) {
   const { t } = useTranslation()
 
   if (failure.status === 503) {
     return (
       <Card title={t('erpImport.notConfiguredTitle')}>
-        <p style={{ color: 'var(--color-text-secondary)' }}>{t('erpImport.notConfigured')}</p>
+        <div className="flex flex-col gap-2">
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('erpImport.notConfigured')}</p>
+          {failure.serverDetail !== null && (
+            <p style={{ fontFamily: 'var(--font-mono, monospace)' }}>{failure.serverDetail}</p>
+          )}
+        </div>
       </Card>
     )
   }
@@ -276,8 +294,10 @@ function Failure({ failure }: Readonly<{ failure: ErpPreviewError }>) {
   }
 
   return (
-    <Card title={t('erpImport.failedTitle')}>
-      <p style={{ color: 'var(--color-text-secondary)' }}>{t('erpImport.failed')}</p>
+    <Card title={t(action === 'import' ? 'erpImport.importFailedTitle' : 'erpImport.failedTitle')}>
+      <p style={{ color: 'var(--color-text-secondary)' }}>
+        {t(action === 'import' ? 'erpImport.importFailed' : 'erpImport.failed')}
+      </p>
     </Card>
   )
 }
