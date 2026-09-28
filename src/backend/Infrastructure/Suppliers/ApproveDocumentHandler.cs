@@ -24,9 +24,22 @@
 // reinstated by fixing one of them, and that is the case this test exists to refuse.
 //
 // It reactivates only from suspended, and only when the suspension was this rule's. A supplier suspended by
-// a person for a reason of their own stays suspended: their audit trail carries no automatic-suspension
-// row, so the last-suspension check finds nothing and this does nothing. Reinstating them would be a
-// document decision overturning a human one.
+// a person for a reason of their own stays suspended: the last suspension in their audit trail is that person's,
+// so this does nothing. Reinstating them would be a document decision overturning a human one.
+//
+// THE LAST SUSPENSION IS ANY ROW THAT SUSPENDED THE SUPPLIER, not a list of known actions. The list this used to
+// read named only the expiry rule and a person, and the ERP sync added two more sources - "no longer in the ERP"
+// and "disabled in the ERP" - that it could not see. A supplier suspended by the rule once, reinstated, and later
+// suspended by the sync was then reactivated by its next approved document, because the latest row the list could
+// see was the old automatic one; the sync read the result as a person's reinstatement and never suspended it again.
+// Every suspension writes its target state, so reading that finds whichever source acted last, including any added
+// after this.
+//
+// A SUPPLIER THAT LEFT THE ERP WHILE SUSPENDED IS NOT BROUGHT BACK BY A DOCUMENT. The sync only marks such a
+// supplier, because it was out of service already; its expiry suspension is still the last one, but a renewed
+// document says nothing about whether Seven Gates still has the company. Reinstating it would make it invitable for
+// a night until the sync suspended it again, with a "you are reinstated" message in between. It waits for a person,
+// and the sync respects what they decide after its one suspension - see ErpSyncPlan.
 //
 // The audit row names the replacement document and the reviewer whose approval triggered the
 // reinstatement. "Reactivated automatically" and nothing else would leave the next reader unable to tell
@@ -86,10 +99,10 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
     {
         var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == document.SupplierId, ct);
         if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Suspended) return;
+        if (supplier.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp) return;
 
         var lastSuspension = await db.AuditLogs.AsNoTracking()
-            .Where(a => a.AggregateId == supplier.Id
-                        && (a.Action == "supplier_auto_suspended" || a.Action == "supplier_suspended"))
+            .Where(a => a.AggregateId == supplier.Id && a.ToState == nameof(SupplierLifecycleState.Suspended))
             .OrderByDescending(a => a.OccurredAt)
             .Select(a => a.Action)
             .FirstOrDefaultAsync(ct);

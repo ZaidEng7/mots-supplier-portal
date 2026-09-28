@@ -15,8 +15,13 @@
 // reinstated, first through the "removed" route and then through the "disabled" one; it treated an ERP rename as a
 // deletion, and the first fix for that moved company histories between records; and it named nobody on a manual
 // run's suspensions. A later review found a supplier that left while suspended, and was reactivated afterwards,
-// never suspended for its absence, and an empty read marking every suspended supplier as gone. Each is written so
-// that the version it came from fails it.
+// never suspended for its absence, and an empty read marking every suspended supplier as gone. The one after that
+// found the automatic reinstatement on a document approval lifting the sync's own suspensions, because it could not
+// see them. Each is written so that the version it came from fails it.
+//
+// THE DOCUMENT TESTS GO THROUGH THE REVIEWER'S APPROVAL HANDLER, not through Reactivate, because the defect lived in
+// how that handler decides whose suspension came last. The expiry is produced the way time produces it: a document
+// approved while in date, its date then written in storage, and the expiry job run.
 //
 // THE LOCK IS TESTED BY HOLDING IT, not by racing two runs and hoping they overlap. A test that raced them would pass
 // whenever the timing happened not to collide, which is the failure it exists to catch.
@@ -37,14 +42,18 @@ using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Integration;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Infrastructure.Integration.Erp;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Suppliers;
 using MotsSupplierPortal.Tests.Integration;
 
 [Collection(IntegrationTestCollection.Name)]
 public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLifetime
 {
     private const string Password = "Wattle-Harbour-Quince-72";
+    private const string CommercialRegistration = "commercial_registration";
+    private const string TaxCertificate = "tax_certificate";
 
     public Task InitializeAsync() => IntegrationConnectionTests.ResetAsync(fixture);
 
@@ -113,6 +122,71 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         change(await db.Suppliers.SingleAsync(s => s.ExternalId == externalId));
         await db.SaveChangesAsync();
+    }
+
+    private async Task ExpireAnAwardCriticalDocumentAsync(string externalId)
+    {
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplierId = await db.Suppliers.Where(s => s.ExternalId == externalId).Select(s => s.Id).SingleAsync();
+            var typeId = await db.DocumentTypes.Where(t => t.Code == CommercialRegistration).Select(t => t.Id).SingleAsync();
+            var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
+
+            var document = SupplierDocument.CreatePendingScan(
+                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}", supplierId, typeId, 1, "quarantine/key",
+                $"registration-{Guid.NewGuid():N}.pdf", "application/pdf", 2048, Guid.CreateVersion7(),
+                issueDate: null, expiryDate: today.AddDays(1), expiryTracked: true, today: today);
+            document.MarkScanClean("clean/key");
+            document.Approve(Guid.CreateVersion7());
+            db.SupplierDocuments.Add(document);
+            await db.SaveChangesAsync();
+
+            await db.Database.ExecuteSqlAsync(
+                $"UPDATE supplier.supplier_document SET \"ExpiryDate\" = {today.AddDays(-1)} WHERE \"Id\" = {document.Id}");
+        }
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<DocumentExpiryJob>().RunAsync(CancellationToken.None);
+        }
+    }
+
+    private async Task ApproveNewDocumentAsync(string externalId, string typeCode)
+    {
+        string documentCode;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplierId = await db.Suppliers.Where(s => s.ExternalId == externalId).Select(s => s.Id).SingleAsync();
+            var typeId = await db.DocumentTypes.Where(t => t.Code == typeCode).Select(t => t.Id).SingleAsync();
+            var today = DateOnly.FromDateTime(DateTimeOffset.UtcNow.Date);
+
+            var previous = await db.SupplierDocuments
+                .Where(d => d.SupplierId == supplierId && d.DocumentTypeId == typeId && d.IsLatestVersion)
+                .ToListAsync();
+            foreach (var old in previous) old.SupersedeWithNewVersion();
+
+            var document = SupplierDocument.CreatePendingScan(
+                $"DOC-2026-{Guid.NewGuid().ToString("N")[..6]}", supplierId, typeId, previous.Count + 1,
+                "quarantine/key", $"{typeCode}-{Guid.NewGuid():N}.pdf", "application/pdf", 2048, Guid.CreateVersion7(),
+                issueDate: null, expiryDate: today.AddYears(1), expiryTracked: true, today: today);
+            document.MarkScanClean("clean/key");
+            db.SupplierDocuments.Add(document);
+            await db.SaveChangesAsync();
+            documentCode = document.ReferenceCode;
+        }
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var result = await new ApproveDocumentHandler(
+                    scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                    new TestScope(Guid.CreateVersion7()),
+                    scope.ServiceProvider.GetRequiredService<IAuditLogger>())
+                .HandleAsync(documentCode, CancellationToken.None);
+
+            result.Should().BeOfType<ReviewDocumentResult.Success>();
+        }
     }
 
     // The whole portal's imported suppliers take part in every run, so each test first suspends any that earlier
@@ -278,19 +352,20 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         var keep = Unique("ERP-MARKED-KEEP");
         var gone = Unique("ERP-MARKED-GONE");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
-        await SetLifecycleAsync(gone, supplier => supplier.Suspend("A licence expired."));
+        await SetLifecycleAsync(gone, supplier => supplier.Suspend("Suspended by the ministry for cause."));
 
         await RunAsync(new FixedSource(ErpRow(keep)));
         (await SyncStatusOfAsync(gone)).Should().Be(SupplierSyncStatus.MarkedRemovedFromErp);
 
-        await SetLifecycleAsync(gone, supplier => supplier.Reactivate("The licence was renewed."));
+        await SetLifecycleAsync(gone, supplier => supplier.Reactivate("The matter is closed."));
         var afterReactivation = await RunAsync(new FixedSource(ErpRow(keep)));
 
         afterReactivation.Suspended.Should().Be(1);
         (await LifecycleOfAsync(gone)).Should().Be(
             SupplierLifecycleState.Suspended,
-            "it was suspended when it left, so nobody decided anything about its absence; the first version shared "
-            + "the reinstated memory and left it active and invitable");
+            "it was suspended for another reason when it left, so the sync never suspended it for its absence and "
+            + "the person who reactivated it may not know; the first version shared the reinstated memory and left it "
+            + "active and invitable");
         (await SyncStatusOfAsync(gone)).Should().Be(SupplierSyncStatus.RemovedFromErp);
 
         await SetLifecycleAsync(gone, supplier => supplier.Reactivate("Still works with us directly."));
@@ -299,6 +374,53 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         (await LifecycleOfAsync(gone)).Should().Be(
             SupplierLifecycleState.Active,
             "now a person has decided, and a job nobody watches must not undo that every night");
+    }
+
+    [Fact]
+    public async Task A_sync_suspension_is_not_lifted_by_a_later_document_approval()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-DOC-KEEP");
+        var gone = Unique("ERP-DOC-GONE");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
+
+        await ExpireAnAwardCriticalDocumentAsync(gone);
+        (await LifecycleOfAsync(gone)).Should().Be(SupplierLifecycleState.Suspended, "the control: the expiry rule acted");
+        await ApproveNewDocumentAsync(gone, CommercialRegistration);
+        (await LifecycleOfAsync(gone)).Should().Be(SupplierLifecycleState.Active, "the control: the renewal lifted it");
+
+        await RunAsync(new FixedSource(ErpRow(keep)));
+        (await LifecycleOfAsync(gone)).Should().Be(SupplierLifecycleState.Suspended);
+
+        await ApproveNewDocumentAsync(gone, TaxCertificate);
+
+        (await LifecycleOfAsync(gone)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the last suspension is the sync's; the first version looked only for the expiry rule's rows and a "
+            + "person's, found the old expiry row, and reinstated a supplier the ERP no longer has - which the sync "
+            + "then read as a person's decision and never suspended again");
+    }
+
+    [Fact]
+    public async Task A_supplier_that_left_the_erp_while_suspended_is_not_brought_back_by_a_document()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-DOC-MARK-KEEP");
+        var gone = Unique("ERP-DOC-MARK-GONE");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
+
+        await ExpireAnAwardCriticalDocumentAsync(gone);
+        await RunAsync(new FixedSource(ErpRow(keep)));
+        (await SyncStatusOfAsync(gone)).Should().Be(SupplierSyncStatus.MarkedRemovedFromErp);
+
+        await ApproveNewDocumentAsync(gone, CommercialRegistration);
+
+        (await LifecycleOfAsync(gone)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "a renewed document says nothing about whether Seven Gates still has the company; reinstating it made it "
+            + "invitable for a night, with a 'you are reinstated' message, until the sync suspended it again");
     }
 
     [Fact]

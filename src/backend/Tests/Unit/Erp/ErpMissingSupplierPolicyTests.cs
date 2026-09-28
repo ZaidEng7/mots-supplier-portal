@@ -8,9 +8,10 @@
 // single genuine deletion would be refused on every run forever; the test shows five is allowed and six is not when
 // a quarter would be smaller.
 //
-// SUPPLIERS ALREADY OUT OF SERVICE ARE ONLY MARKED, and only the empty read stops that. The quarter is not applied to
-// them on purpose: suspending held-back suppliers here is how a person confirms a real clear-out, and a limit on the
-// marks would hold that confirmation back every night. Both halves are asserted.
+// SUPPLIERS ALREADY OUT OF SERVICE ARE ONLY MARKED, and only a read that is not believed stops that: an empty one,
+// or one over the quarter for ACTIVE suppliers. The quarter is never applied to the count of marks, on purpose:
+// suspending held-back suppliers here is how a person confirms a real clear-out, and a limit on the marks would hold
+// that confirmation back every night. Both halves are asserted, here and in ErpSyncPlanTests.
 //
 // THE CONTROL IS NOTHING MISSING, which must always be allowed - including against an empty ERP and an empty portal,
 // the state of every fresh deployment. A policy that refused there would put a warning on the first run anyone sees.

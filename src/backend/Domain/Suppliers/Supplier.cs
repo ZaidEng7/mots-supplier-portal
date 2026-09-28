@@ -1039,9 +1039,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //
     // IT IS A DIFFERENT MEMORY FROM SuspendAsRemovedFromErp, and the first version got that wrong by sharing one. That
     // one means "the sync suspended it, so a person's reinstatement must be respected". This one means only "it was
-    // already out of service when it left". Sharing them meant a supplier reactivated later - by a person, or by the
-    // automatic reinstatement when it replaces an expired document - was never suspended for its absence, although
-    // nobody had decided anything about it. With its own status, such a supplier is suspended the next night.
+    // already out of service when it left", and the sync has not yet suspended it for that. Sharing them meant a
+    // supplier reactivated later was never suspended for its absence. With its own status, the automatic reinstatement
+    // after a document renewal leaves it alone, and one a person reactivates is suspended once the next night.
     public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.MarkedRemovedFromErp;
 
     public void MarkSynced(string externalId)

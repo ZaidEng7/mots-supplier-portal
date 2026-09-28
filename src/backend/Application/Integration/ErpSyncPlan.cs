@@ -52,11 +52,18 @@
 // night would suspend it again, forever. It becomes a candidate again only after it reappears in the ERP and
 // disappears a second time.
 //
-// A SUPPLIER ONLY MARKED AS GONE, AND SINCE BACK IN SERVICE, IS SUSPENDED. It was already suspended or deactivated
-// when it left, so the run marked it and nobody decided anything about its absence. The fourth review found the mark
-// had been sharing the reinstated memory above, so a supplier reactivated by the automatic reinstatement after a
-// document renewal stayed active and invitable although the ERP no longer had it. It is not a rename candidate: it left
-// on an earlier night, and the same months-later reasoning applies. It counts against the same limit as tonight's.
+// A SUPPLIER ONLY MARKED AS GONE, AND SINCE BACK IN SERVICE, IS SUSPENDED ONCE. It was already suspended or
+// deactivated when it left, so the run only marked it and never suspended it for its absence. The fourth review found
+// the mark had been sharing the reinstated memory above, so a supplier reactivated afterwards stayed active and
+// invitable although the ERP no longer had it. The automatic reinstatement after a document renewal no longer
+// reactivates such a supplier at all (see ApproveDocumentHandler), so what is left is a person reactivating it.
+//
+// THE SYNC SUSPENDS EVERY SUPPLIER ONCE FOR AN ABSENCE, and a person's reinstatement after that stands. That holds
+// here too, deliberately, including for a supplier the person had suspended to confirm a held-back clear-out: a mark
+// cannot tell that confirmation from a suspension for some unrelated cause, and a person reactivating a supplier they
+// suspended for another reason may not know it has left the ERP - the suspension, and the audit row naming the reason,
+// is how they find out. Reinstating it a second time is respected. It is not a rename candidate: it left on an earlier
+// night, and the same months-later reasoning applies. It counts against the same limit as tonight's.
 //
 // A READ THAT IS NOT BELIEVED MARKS NOBODY, and an empty read is never believed even when only suppliers already out
 // of service are missing. Why the quarter limit applies to suspensions only is in ErpMissingSupplierPolicy.

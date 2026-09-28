@@ -158,8 +158,8 @@ public sealed class ErpSyncPlanTests
             [Portal("Stays"), Portal("Reactivated After It Left", taxId: "0200-4455", marked: true)]);
 
         plan.ToSuspend.Should().ContainSingle(
-                "it was out of service when it left, so nobody decided anything about its absence; sharing the "
-                + "reinstated memory kept it active and invitable after the automatic reinstatement")
+                "it was out of service when it left, so the sync never suspended it for its absence; sharing the "
+                + "reinstated memory kept it active and invitable once it was reactivated")
             .Which.ExternalId.Should().Be("Reactivated After It Left");
         plan.ProbableRenames.Should().BeEmpty("it left on an earlier night, so it is not tonight's rename");
     }
@@ -194,6 +194,7 @@ public sealed class ErpSyncPlanTests
 
         plan.ActiveLinked.Should().Be(50);
         plan.ToSuspend.Should().BeEmpty("20 of 50 active is 40%; counting the 30 already suspended hid that");
+        plan.ToMarkRemoved.Should().BeEmpty("a read that is not believed marks nobody either");
         plan.SuspensionsHeldBack.Should().Contain("12");
     }
 

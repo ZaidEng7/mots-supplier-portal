@@ -29,7 +29,8 @@
 //
 // THE QUARTER IS NOT APPLIED TO THEM, deliberately. When a real clear-out is held back, the way a person confirms it
 // is to suspend those suppliers here; the next run then finds them out of service and only marks them. A limit on
-// marks would hold that confirmation back too, every night, with nothing left a person could do to clear it. A mark
+// marks would hold that confirmation back too, every night, with nothing left a person could do to clear it. If that
+// person later reinstates one of them, the next run suspends it once more, as ErpSyncPlan explains. A mark
 // changes no lifecycle, and the next run that sees the supplier in the ERP again clears it, so a narrowed read that
 // slips under the limit leaves bookkeeping the next complete read undoes.
 //
