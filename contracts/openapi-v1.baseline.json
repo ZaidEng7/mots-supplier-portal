@@ -1964,6 +1964,26 @@
         ]
       }
     },
+    "/api/v1/admin/erp-import/preview": {
+      "post": {
+        "description": "Requires the `supplier.import.run` permission.",
+        "operationId": "PreviewErpImport",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "ErpImport"
+        ],
+        "x-required-permissions": [
+          "supplier.import.run"
+        ]
+      }
+    },
     "/api/v1/admin/erp-sync": {
       "get": {
         "description": "Requires the `admin.users.manage` permission.",
@@ -11547,6 +11567,9 @@
     },
     {
       "name": "Map"
+    },
+    {
+      "name": "ErpImport"
     },
     {
       "name": "Staff"
