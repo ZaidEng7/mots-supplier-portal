@@ -9,6 +9,10 @@
 // be imported; the sentence tells them why, and the why is the thing they act on - no email means asking the other
 // team for addresses, not retrying anything here.
 //
+// A FAILED IMPORT MUST SAY IT WAS THE IMPORT. The first version reused the preview's wording for every failure, so
+// somebody who had just pressed "Run the import" read "the preview could not be produced" and could not tell
+// whether anything had been written. That happened for real, against an API that did not have the route yet.
+//
 // THE THREE FAILURES ARE ASSERTED SEPARATELY because they are three different jobs, and a screen that collapsed
 // them into "could not load" would send an administrator to read logs for a problem the server already named. The
 // 502 case also asserts the ERP's own words survive to the screen: they are what gets forwarded to the team who
@@ -166,6 +170,35 @@ describe('ErpImportPage', () => {
     // fails on the ambiguity rather than on the behaviour, which is a test reporting a problem that is not there.
     expect(screen.getAllByText('Created')).toHaveLength(2)
     expect(screen.getByText(/no email address/)).toBeInTheDocument()
+  })
+
+  it('says it was the import that failed, not the preview', async () => {
+    restore = mockFetch({ [RUN]: { __byMethod: { POST: { __status: 404 } } } })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('The import could not be run')).toBeInTheDocument()
+    expect(screen.queryByText('The preview could not be produced')).not.toBeInTheDocument()
+  })
+
+  it('passes on the server\'s reason when the import is not configured', async () => {
+    restore = mockFetch({
+      [RUN]: {
+        __byMethod: {
+          POST: { __status: 503, detail: 'No initial password is configured: set ErpImport:InitialPassword.' },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText(/ErpImport:InitialPassword/)).toBeInTheDocument()
   })
 
   it('reports a portal fault as ours', async () => {
