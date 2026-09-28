@@ -27,6 +27,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
 import { Badge, Button, Card, Metric, MetricRow, PageHeading, type Tone } from '../../components/ui'
+import { formatNumber } from '../../lib/datetime'
 import {
   ErpPreviewError,
   previewErpImport,
@@ -42,7 +43,8 @@ const actionTone: Record<ErpImportAction, Tone> = {
 }
 
 export function ErpImportPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
   const [report, setReport] = useState<ErpImportPreviewReport | null>(null)
   const [failure, setFailure] = useState<ErpPreviewError | null>(null)
 
@@ -79,12 +81,12 @@ export function ErpImportPage() {
         <>
           <Card title={t('erpImport.summaryTitle')}>
             <MetricRow>
-              <Metric label={t('erpImport.inErp')} value={report.erpSupplierCount} />
-              <Metric label={t('erpImport.wouldCreate')} value={report.wouldCreate} />
-              <Metric label={t('erpImport.wouldUpdate')} value={report.wouldUpdate} />
+              <Metric label={t('erpImport.inErp')} value={formatNumber(report.erpSupplierCount, locale, 0)} />
+              <Metric label={t('erpImport.wouldCreate')} value={formatNumber(report.wouldCreate, locale, 0)} />
+              <Metric label={t('erpImport.wouldUpdate')} value={formatNumber(report.wouldUpdate, locale, 0)} />
               <Metric
                 label={t('erpImport.refused')}
-                value={report.refused}
+                value={formatNumber(report.refused, locale, 0)}
                 tone={report.refused > 0 ? 'warning' : 'neutral'}
               />
             </MetricRow>

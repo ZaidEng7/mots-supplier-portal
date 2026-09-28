@@ -35,12 +35,18 @@ export interface ErpImportPreviewReport {
   rows: ErpImportPreviewRow[]
 }
 
+// The fields are declared and assigned rather than written as constructor parameter properties, because this
+// project compiles with erasableSyntaxOnly: parameter properties emit real assignments, so TypeScript refuses
+// them. It is the same class either way, spelled the way this build allows.
 export class ErpPreviewError extends Error {
-  constructor(
-    readonly status: number,
-    readonly serverDetail: string | null,
-  ) {
+  readonly status: number
+
+  readonly serverDetail: string | null
+
+  constructor(status: number, serverDetail: string | null) {
     super(`erp_preview_failed_${status}`)
+    this.status = status
+    this.serverDetail = serverDetail
   }
 }
 
