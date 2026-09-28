@@ -18,6 +18,14 @@
 // exactly as before; a least-privilege deployment sets it false and prepares the schema once as the
 // owner. Getting this wrong fails loudly at start-up rather than quietly at the first queued job,
 // because Hangfire touches its storage while the host is building.
+//
+// Whether this host also RUNS jobs is configuration too, and for the test suite's sake. Every host on the same
+// storage competes for the same queue, and the integration tests start extra hosts to swap in a fake ERP or a
+// probe - each with twenty workers of its own. When a test disposed such a host, some of its workers went on
+// taking jobs from the shared queue against a disposed service provider: the job failed, Hangfire scheduled the
+// retry forty seconds out, and the upload tests waiting thirty seconds for a virus scan failed at random. A host
+// holding a fake ERP adapter could also have run a real sync job with it. It defaults to true, so every
+// deployment runs jobs exactly as before; only the suite's extra hosts set it false.
 
 namespace MotsSupplierPortal.Api.Startup;
 
@@ -51,7 +59,10 @@ internal static class PersistenceRegistration
                     PrepareSchemaIfNecessary = prepareHangfireSchema,
                 }));
 
-        builder.Services.AddHangfireServer();
+        if (builder.Configuration.GetValue("Hangfire:RunServer", defaultValue: true))
+        {
+            builder.Services.AddHangfireServer();
+        }
 
         return builder;
     }
