@@ -258,6 +258,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public SupplierLifecycleState LifecycleState { get; private set; } = SupplierLifecycleState.None;
     public string? ExternalId { get; private set; }
     public SupplierSyncStatus SyncStatus { get; private set; } = SupplierSyncStatus.Pending;
+    public bool DisabledInErp { get; private set; }
     public DateTimeOffset? LastSyncedAt { get; private set; }
     public string? TermsAcceptedVersion { get; private set; }
     public DateTimeOffset? TermsAcceptedAt { get; private set; }
@@ -928,6 +929,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             CurrencyCode = currencyCode,
             OnboardingState = SupplierOnboardingState.Approved,
             LifecycleState = suspended ? SupplierLifecycleState.Suspended : SupplierLifecycleState.Active,
+            DisabledInErp = suspended,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -964,7 +966,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // invited to a tender Seven Gates would not honour. A supplier the ERP re-enables stays as it is: reinstating
     // somebody is a decision a person makes on this side, and they may have been suspended here for a reason the
     // ERP knows nothing about.
-    public void ApplyErpSnapshot(
+    //
+    // IT SUSPENDS ON THE CHANGE, NOT ON THE STATE. The first version suspended whenever the ERP said "disabled", so a
+    // supplier a person reinstated here - because the ministry still works with them directly - was suspended again
+    // the next night, and every night after, by a job nobody watches. Remembering what the ERP said last time means
+    // only a supplier that has just BECOME disabled is suspended; the flag clears when the ERP re-enables it, so a
+    // later disable counts as new. It returns whether it suspended, so the caller can record who did it.
+    public bool ApplyErpSnapshot(
         string displayNameEn,
         string? taxId,
         SupplierLegalType legalType,
@@ -991,12 +999,17 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             if (representativePhone is not null) representative.Phone = representativePhone;
         }
 
-        if (disabledInErp && LifecycleState == SupplierLifecycleState.Active)
+        var newlyDisabled = disabledInErp && !DisabledInErp;
+        DisabledInErp = disabledInErp;
+
+        var suspendedNow = newlyDisabled && LifecycleState == SupplierLifecycleState.Active;
+        if (suspendedNow)
         {
             LifecycleState = SupplierLifecycleState.Suspended;
         }
 
         UpdatedAt = DateTimeOffset.UtcNow;
+        return suspendedNow;
     }
 
     // Suspending a supplier because the ERP no longer returns it, and remembering why.
@@ -1017,14 +1030,6 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LifecycleState = SupplierLifecycleState.Suspended;
         SyncStatus = SupplierSyncStatus.RemovedFromErp;
     }
-
-    // Moving a supplier onto the identifier the ERP now uses for it.
-    //
-    // The ERP lets a supplier be renamed, and the rename changes the identifier this import matches on. Moving the
-    // portal's record onto the new one keeps its reference code, tender history, documents and account; the
-    // alternative is suspending the real supplier and creating a stranger in its place. Whether two identifiers
-    // really are one company is ErpSyncPlan's decision, not this method's.
-    public void RelinkErpIdentity(string newExternalId) => MarkSynced(newExternalId);
 
     public void MarkSynced(string externalId)
     {

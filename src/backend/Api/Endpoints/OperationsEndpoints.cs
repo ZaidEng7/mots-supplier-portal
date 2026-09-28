@@ -49,7 +49,16 @@ public static class OperationsEndpoints
             .WithName("GetJobsMonitor");
 
         group.MapPost("/jobs/{jobId}/trigger", (string jobId, ITriggerRecurringJobHandler handler) =>
-            handler.Handle(jobId) ? Results.Accepted() : Results.NotFound())
+            handler.Handle(jobId) switch
+            {
+                TriggerRecurringJobResult.Triggered => Results.Accepted(),
+                TriggerRecurringJobResult.UseItsOwnScreen => Results.Problem(
+                    title: "This job is started from its own screen.",
+                    detail: $"Start it from {RecurringJobs.StartedFromTheirOwnScreen[jobId]}, where its permission is "
+                        + "checked and the person who starts it is recorded.",
+                    statusCode: StatusCodes.Status409Conflict),
+                _ => Results.NotFound(),
+            })
             .RequirePermission(Permissions.AdminUsersManage)
             .WithName("TriggerRecurringJob");
 

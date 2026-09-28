@@ -1,18 +1,15 @@
-// Deciding who is re-linked, held or suspended, before anything is written.
+// Deciding who is held for a person or suspended, before anything is written.
 //
-// EACH TEST HERE IS A FINDING FROM THE REVIEW OF THE FIRST VERSION, which got every one of them wrong:
+// EVERY TEST HERE CAME OUT OF A REVIEW. The first version judged the suspension limit against every linked supplier,
+// re-suspended suppliers people had reinstated, and treated an ERP rename as a deletion. The second version fixed the
+// rename by re-linking automatically, and the next review showed three ways that moved one company's history onto
+// another: a purchasing email two ERP suppliers share, a contact email the supplier can edit, and a tax number shared
+// by a company and its subsidiary.
 //
-//   the limit was judged against every linked supplier, including already-suspended ones, so "a quarter" grew with
-//   each night's suspensions;
-//   a supplier a person reinstated was suspended again the next night, and every night after;
-//   a supplier renamed in the ERP was suspended as deleted and replaced by a stranger or a refusal.
-//
-// THE RENAME TESTS PIN BOTH SIDES OF A JUDGEMENT CALL. A shared real email re-links, because logins are unique by
-// email. A shared tax number alone only holds, because a company and its subsidiary can share one - and moving a
-// supplier's history onto the wrong company is worse than asking a person. Placeholders never match, because they are
-// built from the identifier and so differ by construction.
-//
-// AMBIGUITY PAIRS NOTHING. One arrival that could be either of two vanished suppliers must not be guessed at.
+// SO THE RENAME TESTS PIN A REFUSAL TO GUESS. A probable rename holds both sides - the vanished supplier is not
+// suspended, the arrival is not created - and nothing is ever moved. The tests check the signals (sign-in address or
+// tax number), that placeholders never count, that ambiguity pairs nothing, and that only a supplier which vanished
+// TONIGHT can be the old side, so one removed months ago cannot block a new company forever.
 
 namespace MotsSupplierPortal.Tests.Unit.Erp;
 
@@ -26,63 +23,68 @@ public sealed class ErpSyncPlanTests
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
     private static PortalLinkedSupplier Portal(
-        string id, string? email = null, string? taxId = null, bool active = true, bool removed = false) =>
-        new(id, "REF-" + id, id, taxId, email, active, removed);
+        string id, string? login = null, string? taxId = null, bool active = true, bool removed = false) =>
+        new(id, "REF-" + id, id, taxId, login, active, removed);
 
     [Fact]
-    public void A_supplier_renamed_in_the_erp_with_the_same_real_email_is_relinked_not_suspended()
+    public void A_probable_rename_by_sign_in_address_is_held_and_nothing_is_moved_or_suspended()
     {
         var plan = ErpSyncPlan.Build(
             [Erp("Al-Sham Trading LLC", email: "sales@alsham.example")],
-            [Portal("Al Sham Trading", email: "sales@alsham.example")]);
+            [Portal("Al Sham Trading", login: "sales@alsham.example")]);
 
-        plan.Relinks.Should().ContainSingle()
-            .Which.Should().Be(new ErpRename("Al Sham Trading", "Al-Sham Trading LLC", "REF-Al Sham Trading", ErpRenameKind.SameEmail));
-        plan.ToSuspend.Should().BeEmpty("a rename is not a deletion - the supplier's history must survive it");
+        plan.ProbableRenames.Should().ContainSingle()
+            .Which.Should().Be(new ErpProbableRename(
+                "Al Sham Trading", "Al-Sham Trading LLC", "REF-Al Sham Trading", "the same sign-in address"));
+        plan.ToSuspend.Should().BeEmpty("the existing supplier carries on while a person checks");
     }
 
     [Fact]
-    public void A_placeholder_email_never_makes_two_suppliers_one()
-    {
-        var placeholder = ErpImportAdmission.PlaceholderEmail("Old Name");
-
-        var plan = ErpSyncPlan.Build([Erp("New Name", email: placeholder)], [Portal("Old Name", email: placeholder)]);
-
-        plan.Relinks.Should().BeEmpty("placeholders are not anybody's real address");
-    }
-
-    [Fact]
-    public void A_matching_tax_number_alone_holds_both_rather_than_guessing()
+    public void A_probable_rename_by_tax_number_is_held_the_same_way()
     {
         var plan = ErpSyncPlan.Build(
             [Erp("Homs Linen Group", taxId: "0200-4455")],
             [Portal("Homs Linen Mills", taxId: "0200-4455")]);
 
-        plan.Relinks.Should().BeEmpty("a company and its subsidiary can share a tax number");
-        plan.HeldRenames.Should().ContainSingle().Which.Kind.Should().Be(ErpRenameKind.SameTaxNumberOnly);
-        plan.ToSuspend.Should().BeEmpty("the old record must not be suspended while a person decides");
+        plan.ProbableRenames.Should().ContainSingle().Which.Signal.Should().Be("the same tax number");
+        plan.ToSuspend.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_placeholder_address_never_makes_two_suppliers_look_like_one()
+    {
+        var placeholder = ErpImportAdmission.PlaceholderEmail("Old Name");
+
+        ErpSyncPlan.Build([Erp("New Name", email: placeholder)], [Portal("Old Name", login: placeholder)])
+            .ProbableRenames.Should().BeEmpty();
     }
 
     [Fact]
     public void An_arrival_that_could_be_either_of_two_vanished_suppliers_is_not_paired()
     {
-        var plan = ErpSyncPlan.Build(
-            [Erp("Merged Co", taxId: "T-1")],
-            [Portal("Old A", taxId: "T-1"), Portal("Old B", taxId: "T-1")]);
+        ErpSyncPlan.Build([Erp("Merged Co", taxId: "T-1")], [Portal("Old A", taxId: "T-1"), Portal("Old B", taxId: "T-1")])
+            .ProbableRenames.Should().BeEmpty("guessing between two companies is how history ends up on the wrong one");
+    }
 
-        plan.Relinks.Should().BeEmpty();
-        plan.HeldRenames.Should().BeEmpty("guessing between two companies is how history ends up on the wrong one");
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void A_supplier_that_did_not_vanish_tonight_cannot_hold_a_new_company(bool active, bool alreadyRemoved)
+    {
+        var plan = ErpSyncPlan.Build(
+            [Erp("New Subsidiary", taxId: "0200-4455")],
+            [Portal("Parent Removed Months Ago", taxId: "0200-4455", active: active, removed: alreadyRemoved)]);
+
+        plan.ProbableRenames.Should().BeEmpty(
+            "a supplier gone for months would otherwise block a genuinely new company that shares its tax number, "
+            + "every night, forever");
     }
 
     [Fact]
     public void A_supplier_already_suspended_as_removed_and_since_reinstated_is_not_suspended_again()
     {
-        var plan = ErpSyncPlan.Build(
-            [Erp("Stays")],
-            [Portal("Stays"), Portal("Reinstated By A Person", removed: true)]);
-
-        plan.ToSuspend.Should().BeEmpty(
-            "a person reinstated it; suspending it again every night would undo their decision forever");
+        ErpSyncPlan.Build([Erp("Stays")], [Portal("Stays"), Portal("Reinstated By A Person", removed: true)])
+            .ToSuspend.Should().BeEmpty("a person reinstated it; suspending it every night would undo that forever");
     }
 
     [Fact]
@@ -92,23 +94,17 @@ public sealed class ErpSyncPlanTests
             .Concat(Enumerable.Range(0, 30).Select(i => Portal($"suspended-{i}", active: false)))
             .ToList();
 
-        var erp = Enumerable.Range(20, 30).Select(i => Erp($"active-{i}")).ToList();
-
-        var plan = ErpSyncPlan.Build(erp, portal);
+        var plan = ErpSyncPlan.Build([.. Enumerable.Range(20, 30).Select(i => Erp($"active-{i}"))], portal);
 
         plan.ActiveLinked.Should().Be(50);
-        plan.ToSuspend.Should().BeEmpty(
-            "20 of 50 active suppliers is 40%; counting the 30 already suspended made it look like a quarter");
+        plan.ToSuspend.Should().BeEmpty("20 of 50 active is 40%; counting the 30 already suspended hid that");
         plan.SuspensionsHeldBack.Should().Contain("12");
     }
 
     [Fact]
     public void Ordinary_deletions_are_still_suspended()
     {
-        var plan = ErpSyncPlan.Build(
-            [Erp("A"), Erp("B"), Erp("C")],
-            [Portal("A"), Portal("B"), Portal("C"), Portal("Gone")]);
-
-        plan.ToSuspend.Should().ContainSingle().Which.ExternalId.Should().Be("Gone");
+        ErpSyncPlan.Build([Erp("A"), Erp("B"), Erp("C")], [Portal("A"), Portal("B"), Portal("C"), Portal("Gone")])
+            .ToSuspend.Should().ContainSingle().Which.ExternalId.Should().Be("Gone");
     }
 }

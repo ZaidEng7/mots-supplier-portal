@@ -217,6 +217,7 @@ const resources = {
         lastImport: 'آخر استيراد',
         importSucceeded: 'نجح',
         importNeedsAttention: 'يحتاج إلى مراجعة',
+        importFailed: 'فشل',
       },
       erpImport: {
         title: 'استيراد الموردين',
@@ -2008,6 +2009,7 @@ const resources = {
         retryErp: 'إعادة المزامنة',
         erpRetryQueued: 'أُعيد طلب المزامنة',
         runNow: 'تشغيل الآن',
+        runFromItsScreen: 'شغّله من صفحة الاستيراد',
         jobTriggered: 'تم إرسال المهمة للتشغيل',
         notRegistered: 'غير مُسجَّلة',
         never: 'لم تُشغَّل بعد',
@@ -2255,6 +2257,7 @@ const resources = {
         lastImport: 'Last import',
         importSucceeded: 'Succeeded',
         importNeedsAttention: 'Needs attention',
+        importFailed: 'Failed',
       },
       erpImport: {
         title: 'Supplier import',
@@ -4040,6 +4043,7 @@ const resources = {
         retryErp: 'Retry sync',
         erpRetryQueued: 'Sync requested again',
         runNow: 'Run now',
+        runFromItsScreen: 'Run it from the import page',
         jobTriggered: 'Job queued to run',
         notRegistered: 'Not registered',
         never: 'Never run',

@@ -41,7 +41,7 @@ public sealed class IntegrationConnection
     public bool? LastTestSucceeded { get; private set; }
     public string? LastTestDetail { get; private set; }
     public DateTimeOffset? LastSyncAt { get; private set; }
-    public bool? LastSyncSucceeded { get; private set; }
+    public IntegrationSyncOutcome? LastSyncOutcome { get; private set; }
     public string? LastSyncSummary { get; private set; }
 
     public bool IsConfiguredHere => !string.IsNullOrWhiteSpace(BaseUrl);
@@ -87,12 +87,17 @@ public sealed class IntegrationConnection
     // nothing looks exactly like a run that found nothing to do. Putting the outcome where the connection is managed
     // means the person who would fix it sees it the next time they look, without knowing a job exists.
     //
+    // THREE OUTCOMES, NOT TWO. A run that could not finish and a run that finished but left something for a person -
+    // suspensions held back over a suspicious list, a probable rename, a supplier that failed - are different mornings
+    // for whoever reads the card. With only succeeded-or-not, both showed the same warning and the outright failure
+    // looked no more urgent than a rename waiting to be checked.
+    //
     // The summary is truncated rather than rejected, because losing the record of a failure over the length of its
     // message would defeat the point of keeping it.
-    public void RecordSync(bool succeeded, string summary)
+    public void RecordSync(IntegrationSyncOutcome outcome, string summary)
     {
         LastSyncAt = DateTimeOffset.UtcNow;
-        LastSyncSucceeded = succeeded;
+        LastSyncOutcome = outcome;
         LastSyncSummary = summary.Length <= 1000 ? summary : summary[..999] + "…";
     }
 
@@ -102,4 +107,11 @@ public sealed class IntegrationConnection
         LastTestSucceeded = succeeded;
         LastTestDetail = detail;
     }
+}
+
+public enum IntegrationSyncOutcome
+{
+    Succeeded,
+    NeedsAttention,
+    Failed,
 }

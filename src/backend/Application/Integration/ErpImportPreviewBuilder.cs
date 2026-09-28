@@ -28,7 +28,7 @@
 // AN ARABIC NAME IS NEVER PRESENT. The ERP has one name field, so the Arabic name starts as the English one.
 //
 //
-// WHO IS RE-LINKED, HELD OR SUSPENDED IS DECIDED BY ErpSyncPlan, which the run calls too, on data read before the
+// WHO IS HELD FOR A PERSON OR SUSPENDED IS DECIDED BY ErpSyncPlan, which the run calls too, on data read before the
 // first write. The first version computed the suspension limit separately here and in the run, and the run's
 // version counted that night's new suppliers - so this forecast could say "held back" while the run suspended.
 //
@@ -54,7 +54,7 @@ public sealed record ErpImportCandidateMatch(
     string? TaxId,
     string? Name = null,
     bool IsActive = true,
-    string? Email = null,
+    string? LoginEmail = null,
     bool AlreadyRemovedFromErp = false);
 
 public static class ErpImportPreviewBuilder
@@ -69,25 +69,16 @@ public static class ErpImportPreviewBuilder
             pair.Value.ReferenceCode,
             pair.Value.Name,
             pair.Value.TaxId,
-            pair.Value.Email,
+            pair.Value.LoginEmail,
             pair.Value.IsActive,
             pair.Value.AlreadyRemovedFromErp))]);
 
-        // A renamed supplier is matched to the portal record it was re-linked to, so it forecasts as an update of
-        // that record rather than as a new supplier.
-        var matches = new Dictionary<string, ErpImportCandidateMatch>(byExternalId, StringComparer.Ordinal);
-        foreach (var relink in plan.Relinks)
-        {
-            matches[relink.NewExternalId] = byExternalId[relink.OldExternalId];
-        }
-
-        var relinkedFrom = plan.Relinks.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
-        var heldFrom = plan.HeldRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
+        var heldFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
 
         var rows = erpSuppliers
             .Select(supplier => heldFrom.TryGetValue(supplier.ExternalId, out var held)
                 ? HeldRow(supplier, held)
-                : Row(supplier, matches, unlinkedByTaxId, relinkedFrom.GetValueOrDefault(supplier.ExternalId)))
+                : Row(supplier, byExternalId, unlinkedByTaxId))
             .ToList();
 
         rows.AddRange(plan.ToSuspend.Select(missing => new ErpImportPreviewRow(
@@ -107,36 +98,32 @@ public static class ErpImportPreviewBuilder
             plan.SuspensionsHeldBack);
     }
 
-    public static string HeldRenameNote(ErpRename held) =>
-        $"Probably renamed in the ERP from '{held.OldExternalId}' - it has the same tax number as "
-        + $"{held.ReferenceCode}. Neither created nor suspended, because a tax number can be shared by a company and "
-        + "its subsidiary. If it is the same company, ask Seven Gates to give it the same email as "
-        + $"{held.ReferenceCode}; the next run will then link them.";
+    // What a person is told about a probable rename, in the preview and in the run alike.
+    //
+    // It says what was NOT done, because the reader's first question is whether anything is broken: nothing was
+    // suspended and nothing was created, and the existing supplier carries on as before. It names the signal, because
+    // "the same tax number" and "the same sign-in address" call for different checks. And it says plainly that the
+    // portal will not decide this, so nobody waits for the next run to sort it out.
+    public static string ProbableRenameNote(ErpProbableRename held) =>
+        $"Possibly the same company as {held.ReferenceCode} ('{held.OldExternalId}' in the ERP, which no longer "
+        + $"returns it) - they share {held.Signal}. Not created, and {held.ReferenceCode} was not suspended: it carries "
+        + "on as before. The portal will not decide whether these are one company, because a wrong guess would move one "
+        + "company's history onto another. Check with Seven Gates.";
 
-    public static string RelinkNote(ErpRename relink) =>
-        $"Renamed in the ERP from '{relink.OldExternalId}'; linked to the same supplier, {relink.ReferenceCode}, "
-        + "so its history, documents and account are kept.";
-
-    private static ErpImportPreviewRow HeldRow(ErpSupplier supplier, ErpRename held) => new(
+    private static ErpImportPreviewRow HeldRow(ErpSupplier supplier, ErpProbableRename held) => new(
         supplier.ExternalId,
         ErpImportAdmission.Admit(supplier).Name,
         ErpImportAction.Refuse,
-        [HeldRenameNote(held)],
+        [ProbableRenameNote(held)],
         held.ReferenceCode);
 
     private static ErpImportPreviewRow Row(
         ErpSupplier supplier,
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
-        IReadOnlyDictionary<string, string> unlinkedByTaxId,
-        ErpRename? relinkedFrom)
+        IReadOnlyDictionary<string, string> unlinkedByTaxId)
     {
         var admitted = ErpImportAdmission.Admit(supplier);
         var notes = new List<string>(admitted.Notes);
-
-        if (relinkedFrom is not null)
-        {
-            notes.Insert(0, RelinkNote(relinkedFrom));
-        }
 
         notes.Add(
             supplier.SupplierGroup is null

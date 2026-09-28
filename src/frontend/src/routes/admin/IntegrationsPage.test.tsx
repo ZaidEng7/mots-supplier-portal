@@ -38,7 +38,7 @@ const ERP = {
   lastTestSucceeded: null,
   lastTestDetail: null,
   lastSyncAt: null,
-  lastSyncSucceeded: null,
+  lastSyncOutcome: null,
   lastSyncSummary: null,
 }
 
@@ -85,7 +85,7 @@ describe('IntegrationsPage', () => {
             {
               ...ERP,
               lastSyncAt: '2026-09-29T23:00:00Z',
-              lastSyncSucceeded: false,
+              lastSyncOutcome: 'Failed',
               lastSyncSummary: 'The import failed: No initial password is configured.',
             },
           ],
@@ -96,8 +96,31 @@ describe('IntegrationsPage', () => {
     renderPage(<IntegrationsPage />)
 
     expect(await screen.findByText('Last import')).toBeInTheDocument()
-    expect(screen.getByText('Needs attention')).toBeInTheDocument()
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.queryByText('Needs attention')).not.toBeInTheDocument()
     expect(screen.getByText(/No initial password is configured/)).toBeInTheDocument()
+  })
+
+  it('shows a run that finished but left something for a person as needing attention, not as failed', async () => {
+    restore = mockFetch({
+      [LIST]: {
+        __byMethod: {
+          GET: [
+            {
+              ...ERP,
+              lastSyncAt: '2026-09-29T23:00:00Z',
+              lastSyncOutcome: 'NeedsAttention',
+              lastSyncSummary: '80 in the ERP: 0 created. 1 possible rename(s) held for a person.',
+            },
+          ],
+        },
+      },
+    })
+
+    renderPage(<IntegrationsPage />)
+
+    expect(await screen.findByText('Needs attention')).toBeInTheDocument()
+    expect(screen.queryByText('Failed')).not.toBeInTheDocument()
   })
 
   it('says when the deployment settings are still in force', async () => {

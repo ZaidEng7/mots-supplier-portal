@@ -1,4 +1,4 @@
-// Deciding, before anything is written, which portal suppliers a run will re-link, hold back or suspend.
+// Deciding, before anything is written, which portal suppliers a run will hold for a person or suspend.
 //
 // THIS IS ONE PLACE BECAUSE THE PREVIEW AND THE RUN MUST AGREE, and they did not. The first version worked out the
 // suspension limit inside the run, after that night's new suppliers had been created - each new supplier raised the
@@ -7,36 +7,41 @@
 // before the first write.
 //
 //
-// RENAMES
+// PROBABLE RENAMES ARE DETECTED ONLY TO PROTECT, NEVER TO RE-LINK
 //
-// ERPNext lets a supplier be renamed, and the rename changes its identifier - the only key this import matches on.
-// Without this, a rename looked exactly like a deletion followed by a new supplier: the portal suspended the real
-// one, with its tender history and documents, and then either refused the "new" one because its email was taken or
-// created a duplicate on a placeholder.
+// ERPNext can rename a supplier, and a rename changes the identifier this import matches on. Left alone, a rename
+// looks like a deletion plus a stranger: the real supplier is suspended and the "new" one is refused because its
+// email is taken, or duplicated on a placeholder.
 //
-// THE SAME REAL EMAIL MEANS THE SAME SUPPLIER, and the portal re-links it. Logins are unique by email in this
-// product, so two ERP identifiers carrying one real address are one company. Placeholders never count: they are
-// built from the identifier, so a renamed supplier's placeholder is by construction a different string.
+// THE SECOND VERSION RE-LINKED AUTOMATICALLY, and a review showed three ways it moved one company's history onto
+// another: two ERP suppliers sharing a purchasing email (the ERP does not enforce unique addresses), a contact email
+// the supplier can edit themselves, and a tax number shared by a company and its subsidiary. Each wrong guess was
+// silent and each moved awards, documents and a login onto a different legal entity, with an audit entry claiming a
+// rename that never happened. There is no signal in this data strong enough to justify that, so nothing is moved.
 //
-// A MATCHING TAX NUMBER ALONE IS NOT ENOUGH TO ACT ON. A company and its subsidiary can share one, and re-linking the
-// wrong pair would move a supplier's history onto a stranger. So that pair is held: the new one is not created, the
-// old one is not suspended, and the report says how to resolve it - ask Seven Gates to put the same email on both,
-// and the next run links them itself.
+// INSTEAD, A PROBABLE RENAME HOLDS BOTH SIDES: the supplier that vanished is not suspended, the arrival is not created,
+// and the run is flagged for a person. Nothing is lost while they look - the existing supplier keeps working exactly
+// as before - and a wrong guess costs one supplier waiting rather than one company wearing another's history.
 //
-// AN AMBIGUOUS MATCH IS NO MATCH. If one new identifier could be two vanished suppliers, or two new identifiers
-// claim one vanished supplier, nothing is paired and the ordinary rules apply. Guessing between them is how history
-// ends up on the wrong company.
+// THE SIGNALS ARE THE SIGN-IN ADDRESS AND THE TAX NUMBER. The sign-in address, not the representative's contact email,
+// because the contact is editable by the supplier and the login is unique in this product. Placeholders never count:
+// they are built from the identifier, so they differ by construction.
+//
+// ONLY A SUPPLIER THAT VANISHED TONIGHT CAN BE THE OLD SIDE: one that is active and not already marked as removed. A
+// supplier removed months ago must not block a genuinely new company that happens to share its tax number forever.
+//
+// AN AMBIGUOUS MATCH IS NO MATCH. If an arrival could be either of two vanished suppliers, or two arrivals claim one,
+// nothing is paired and the ordinary rules apply.
 //
 //
 // SUSPENSIONS
 //
 // THE LIMIT IS JUDGED AGAINST ACTIVE SUPPLIERS, because only active ones can be suspended. Counting every linked
-// supplier - including the ones already suspended - made "a quarter" mean more each night, as each night's
-// suspensions grew the number the next night was measured against.
+// supplier made "a quarter" grow with each night's suspensions.
 //
 // A SUPPLIER ALREADY SUSPENDED FOR BEING GONE, AND SINCE REINSTATED BY A PERSON, IS LEFT ALONE. Otherwise the next
-// night would suspend it again, and the night after that, and a person's decision would be undone forever by a job
-// nobody watches. It becomes a candidate again only after it reappears in the ERP and disappears a second time.
+// night would suspend it again, forever. It becomes a candidate again only after it reappears in the ERP and
+// disappears a second time.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -45,21 +50,14 @@ public sealed record PortalLinkedSupplier(
     string ReferenceCode,
     string? Name,
     string? TaxId,
-    string? Email,
+    string? LoginEmail,
     bool IsActive,
     bool AlreadyRemovedFromErp);
 
-public enum ErpRenameKind
-{
-    SameEmail,
-    SameTaxNumberOnly,
-}
-
-public sealed record ErpRename(string OldExternalId, string NewExternalId, string ReferenceCode, ErpRenameKind Kind);
+public sealed record ErpProbableRename(string OldExternalId, string NewExternalId, string ReferenceCode, string Signal);
 
 public sealed record ErpSyncPlan(
-    IReadOnlyList<ErpRename> Relinks,
-    IReadOnlyList<ErpRename> HeldRenames,
+    IReadOnlyList<ErpProbableRename> ProbableRenames,
     IReadOnlyList<PortalLinkedSupplier> ToSuspend,
     int ActiveLinked,
     string? SuspensionsHeldBack)
@@ -69,73 +67,68 @@ public sealed record ErpSyncPlan(
         var inPortal = portal.Select(p => p.ExternalId).ToHashSet(StringComparer.Ordinal);
         var inErp = erp.Select(e => e.ExternalId).ToHashSet(StringComparer.Ordinal);
 
-        var vanished = portal.Where(p => !inErp.Contains(p.ExternalId)).ToList();
-        var arrivals = erp.Where(e => !inPortal.Contains(e.ExternalId)).OrderBy(e => e.ExternalId, StringComparer.Ordinal).ToList();
+        var vanishedTonight = portal
+            .Where(p => !inErp.Contains(p.ExternalId) && p.IsActive && !p.AlreadyRemovedFromErp)
+            .ToList();
 
-        var relinks = Pair(arrivals, vanished, ByEmail, ErpRenameKind.SameEmail);
+        var arrivals = erp
+            .Where(e => !inPortal.Contains(e.ExternalId))
+            .OrderBy(e => e.ExternalId, StringComparer.Ordinal)
+            .ToList();
 
-        var pairedOld = relinks.Select(r => r.OldExternalId).ToHashSet(StringComparer.Ordinal);
-        var pairedNew = relinks.Select(r => r.NewExternalId).ToHashSet(StringComparer.Ordinal);
+        var renames = Pair(arrivals, vanishedTonight);
+        var heldOld = renames.Select(r => r.OldExternalId).ToHashSet(StringComparer.Ordinal);
 
-        var held = Pair(
-            [.. arrivals.Where(a => !pairedNew.Contains(a.ExternalId))],
-            [.. vanished.Where(v => !pairedOld.Contains(v.ExternalId))],
-            ByTaxNumber,
-            ErpRenameKind.SameTaxNumberOnly);
-
-        var renamedOld = pairedOld.Concat(held.Select(r => r.OldExternalId)).ToHashSet(StringComparer.Ordinal);
-
-        var missing = vanished
-            .Where(v => v.IsActive && !v.AlreadyRemovedFromErp && !renamedOld.Contains(v.ExternalId))
+        var missing = vanishedTonight
+            .Where(v => !heldOld.Contains(v.ExternalId))
             .OrderBy(v => v.ReferenceCode, StringComparer.Ordinal)
             .ToList();
 
         var activeLinked = portal.Count(p => p.IsActive);
         var decision = ErpMissingSupplierPolicy.Decide(erp.Count, activeLinked, missing.Count);
 
-        return new ErpSyncPlan(
-            relinks,
-            held,
-            decision.MaySuspend ? missing : [],
-            activeLinked,
-            decision.HeldBackBecause);
+        return new ErpSyncPlan(renames, decision.MaySuspend ? missing : [], activeLinked, decision.HeldBackBecause);
     }
 
-    private static bool ByEmail(ErpSupplier arrival, PortalLinkedSupplier vanished)
+    private static string? Signal(ErpSupplier arrival, PortalLinkedSupplier vanished)
     {
         var email = arrival.Email?.Trim().ToLowerInvariant();
 
-        return email is not null
+        if (email is not null
             && !ErpImportAdmission.IsPlaceholder(email)
-            && vanished.Email is not null
-            && !ErpImportAdmission.IsPlaceholder(vanished.Email)
-            && string.Equals(email, vanished.Email.Trim(), StringComparison.OrdinalIgnoreCase);
-    }
+            && vanished.LoginEmail is not null
+            && !ErpImportAdmission.IsPlaceholder(vanished.LoginEmail)
+            && string.Equals(email, vanished.LoginEmail.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return "the same sign-in address";
+        }
 
-    private static bool ByTaxNumber(ErpSupplier arrival, PortalLinkedSupplier vanished) =>
-        !string.IsNullOrWhiteSpace(arrival.TaxId)
-        && !string.IsNullOrWhiteSpace(vanished.TaxId)
-        && string.Equals(arrival.TaxId.Trim(), vanished.TaxId.Trim(), StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(arrival.TaxId)
+            && !string.IsNullOrWhiteSpace(vanished.TaxId)
+            && string.Equals(arrival.TaxId.Trim(), vanished.TaxId.Trim(), StringComparison.Ordinal))
+        {
+            return "the same tax number";
+        }
+
+        return null;
+    }
 
     // A pair is made only when the match is unique in BOTH directions: this arrival matches exactly one vanished
     // supplier, and that supplier is matched by exactly one arrival.
-    private static List<ErpRename> Pair(
-        IReadOnlyList<ErpSupplier> arrivals,
-        IReadOnlyList<PortalLinkedSupplier> vanished,
-        Func<ErpSupplier, PortalLinkedSupplier, bool> matches,
-        ErpRenameKind kind)
+    private static List<ErpProbableRename> Pair(
+        IReadOnlyList<ErpSupplier> arrivals, IReadOnlyList<PortalLinkedSupplier> vanished)
     {
-        var pairs = new List<ErpRename>();
+        var pairs = new List<ErpProbableRename>();
 
         foreach (var arrival in arrivals)
         {
-            var candidates = vanished.Where(v => matches(arrival, v)).ToList();
+            var candidates = vanished.Where(v => Signal(arrival, v) is not null).ToList();
             if (candidates.Count != 1) continue;
 
             var only = candidates[0];
-            if (arrivals.Count(a => matches(a, only)) != 1) continue;
+            if (arrivals.Count(a => Signal(a, only) is not null) != 1) continue;
 
-            pairs.Add(new ErpRename(only.ExternalId, arrival.ExternalId, only.ReferenceCode, kind));
+            pairs.Add(new ErpProbableRename(only.ExternalId, arrival.ExternalId, only.ReferenceCode, Signal(arrival, only)!));
         }
 
         return pairs;

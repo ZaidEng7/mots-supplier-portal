@@ -20,9 +20,10 @@
 // the reader has no way to tell them apart. A sweep in this repository catches exactly that omission, and caught
 // this one.
 //
-// A RUN THAT HELD BACK ITS SUSPENSIONS IS NOT SHOWN AS A SUCCESS. The server records it as not succeeded, because an
-// empty or half-empty list from the ERP is what a broken read looks like, and a green badge over it would reassure
-// the one person who needs to look. "Needs attention" covers that and an outright failure; the summary says which.
+// THREE OUTCOMES, EACH ITS OWN COLOUR. A run that finished but left something for a person - suspensions held back
+// over a list that looked broken, a possible rename, a supplier that failed - is amber. A run that could not finish
+// is red. A green badge over the first would reassure the one person who needs to look, and one shared amber made an
+// outright failure look no more urgent than a rename waiting to be checked.
 //
 // THE LAST IMPORT IS SHOWN ON THE CARD, because the nightly run happens when nobody is looking and a failure that is
 // never shown looks exactly like a night with nothing to do. This is where the person who would fix it already
@@ -45,6 +46,14 @@ import {
   type Integration,
   type IntegrationTestResult,
 } from '../../api/integrations'
+
+const OUTCOME_TONE = { Succeeded: 'success', NeedsAttention: 'warning', Failed: 'danger' } as const
+
+const OUTCOME_LABEL = {
+  Succeeded: 'integrations.importSucceeded',
+  NeedsAttention: 'integrations.importNeedsAttention',
+  Failed: 'integrations.importFailed',
+} as const
 
 export function IntegrationsPage() {
   const { t } = useTranslation()
@@ -180,9 +189,11 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
           <div className="flex flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <span style={{ fontWeight: 600 }}>{t('integrations.lastImport')}</span>
-              <Badge tone={integration.lastSyncSucceeded ? 'success' : 'warning'}>
-                {t(integration.lastSyncSucceeded ? 'integrations.importSucceeded' : 'integrations.importNeedsAttention')}
-              </Badge>
+              {integration.lastSyncOutcome !== null && (
+                <Badge tone={OUTCOME_TONE[integration.lastSyncOutcome]}>
+                  {t(OUTCOME_LABEL[integration.lastSyncOutcome])}
+                </Badge>
+              )}
               <span style={{ color: 'var(--color-text-secondary)' }}>
                 {formatDateTime(integration.lastSyncAt, locale)}
               </span>

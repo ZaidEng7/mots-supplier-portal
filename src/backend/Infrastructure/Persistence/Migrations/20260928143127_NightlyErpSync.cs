@@ -6,11 +6,19 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class IntegrationLastSync : Migration
+    public partial class NightlyErpSync : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<bool>(
+                name: "DisabledInErp",
+                schema: "supplier",
+                table: "supplier",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "LastSyncAt",
                 schema: "ops",
@@ -18,11 +26,12 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                 type: "timestamp with time zone",
                 nullable: true);
 
-            migrationBuilder.AddColumn<bool>(
-                name: "LastSyncSucceeded",
+            migrationBuilder.AddColumn<string>(
+                name: "LastSyncOutcome",
                 schema: "ops",
                 table: "integration_connection",
-                type: "boolean",
+                type: "character varying(20)",
+                maxLength: 20,
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
@@ -38,7 +47,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                 table: "integration_connection",
                 keyColumn: "Id",
                 keyValue: new Guid("00000000-0000-0000-0000-000000000901"),
-                columns: new[] { "LastSyncAt", "LastSyncSucceeded", "LastSyncSummary" },
+                columns: new[] { "LastSyncAt", "LastSyncOutcome", "LastSyncSummary" },
                 values: new object[] { null, null, null });
         }
 
@@ -46,12 +55,17 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
+                name: "DisabledInErp",
+                schema: "supplier",
+                table: "supplier");
+
+            migrationBuilder.DropColumn(
                 name: "LastSyncAt",
                 schema: "ops",
                 table: "integration_connection");
 
             migrationBuilder.DropColumn(
-                name: "LastSyncSucceeded",
+                name: "LastSyncOutcome",
                 schema: "ops",
                 table: "integration_connection");
 

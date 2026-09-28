@@ -1247,8 +1247,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastSyncAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool?>("LastSyncSucceeded")
-                        .HasColumnType("boolean");
+                    b.Property<string>("LastSyncOutcome")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("LastSyncSummary")
                         .HasMaxLength(1000)
@@ -3178,6 +3179,9 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("DisabledInErp")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("DisplayNameAr")
                         .IsRequired()

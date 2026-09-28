@@ -41,10 +41,15 @@
 // means Hangfire does not hold the job rather than that the run failed, and those are different things for an operator - one
 // is a deployment problem, the other is a job problem. A queued replay is confirmed, and a refused one says so.
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderPage, mockFetch, type RecordedRequest } from '../../test/renderPage'
+
+vi.mock('@tanstack/react-router', async () => {
+  const actual = await vi.importActual<typeof import('@tanstack/react-router')>('@tanstack/react-router')
+  return { ...actual, Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a> }
+})
 
 const { OperationsPage } = await import('./OperationsPage')
 
@@ -93,6 +98,22 @@ function healthy(overrides: Record<string, unknown> = {}) {
 describe('OperationsPage (SCR-721)', () => {
   let restore: () => void
   afterEach(() => restore?.())
+
+  it('sends the supplier import to its own page instead of offering Run now', async () => {
+    restore = mockFetch(healthy({
+      [JOBS]: jobs({
+        jobs: [
+          { id: 'erp-supplier-sync', cron: '0 2 * * *', registered: true, lastExecution: null, lastState: null, nextExecution: null },
+        ],
+      }),
+    }))
+
+    renderPage(<OperationsPage />)
+
+    const link = await screen.findByRole('link', { name: 'Run it from the import page' })
+    expect(link).toHaveAttribute('href', '/back-office/erp-import')
+    expect(screen.queryByRole('button', { name: 'Run now' })).not.toBeInTheDocument()
+  })
 
   it('lists the recurring jobs with their schedule and last state', async () => {
     restore = mockFetch(healthy())

@@ -10,9 +10,16 @@ public interface IGetJobsMonitorHandler
     JobsMonitorDto Handle();
 }
 
+public enum TriggerRecurringJobResult
+{
+    Triggered,
+    NotFound,
+    UseItsOwnScreen,
+}
+
 public interface ITriggerRecurringJobHandler
 {
-    bool Handle(string jobId);
+    TriggerRecurringJobResult Handle(string jobId);
 }
 
 public interface IGetOutboxMonitorHandler

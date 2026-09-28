@@ -31,7 +31,7 @@ public sealed record IntegrationView(
     bool? LastTestSucceeded,
     string? LastTestDetail,
     DateTimeOffset? LastSyncAt = null,
-    bool? LastSyncSucceeded = null,
+    string? LastSyncOutcome = null,
     string? LastSyncSummary = null);
 
 public sealed record UpdateIntegrationRequest(

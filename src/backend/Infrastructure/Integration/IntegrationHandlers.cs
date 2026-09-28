@@ -112,6 +112,6 @@ internal static class IntegrationMapping
         row.LastTestSucceeded,
         row.LastTestDetail,
         row.LastSyncAt,
-        row.LastSyncSucceeded,
+        row.LastSyncOutcome?.ToString(),
         row.LastSyncSummary);
 }

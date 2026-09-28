@@ -53,6 +53,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import {Badge, Button, Card, PageHeading, Select, SkeletonTable, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, toneFor, useToast} from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
 import {
@@ -64,6 +65,13 @@ import { retryAwardErpSync } from '../../api/awards'
 const JOB_TONES = { Succeeded: 'success', Failed: 'danger' } as const
 const SYNC_TONES = { Sent: 'success', Failed: 'danger' } as const
 const ERP_TONES = { Synced: 'success', Failed: 'danger' } as const
+
+// Jobs the generic "Run now" must not start, with the screen that starts them properly. Mirrors
+// RecurringJobs.StartedFromTheirOwnScreen on the server, which refuses them anyway: the supplier import checks its own
+// permission and names who ran it only when started from its own page, and from here it ran as "system".
+const STARTED_FROM_THEIR_OWN_SCREEN: Readonly<Record<string, '/back-office/erp-import'>> = {
+  'erp-supplier-sync': '/back-office/erp-import',
+}
 
 export function OperationsPage() {
   const { t, i18n } = useTranslation()
@@ -164,13 +172,17 @@ export function OperationsPage() {
                     </TableCell>
                     <TableCell>{job.nextExecution ? formatDateTime(job.nextExecution, locale) : '—'}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        disabled={!job.registered || triggerMutation.isPending}
-                        onClick={() => triggerMutation.mutate(job.id)}
-                      >
-                        {t('operations.runNow')}
-                      </Button>
+                      {STARTED_FROM_THEIR_OWN_SCREEN[job.id] ? (
+                        <Link to={STARTED_FROM_THEIR_OWN_SCREEN[job.id]}>{t('operations.runFromItsScreen')}</Link>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          disabled={!job.registered || triggerMutation.isPending}
+                          onClick={() => triggerMutation.mutate(job.id)}
+                        >
+                          {t('operations.runNow')}
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

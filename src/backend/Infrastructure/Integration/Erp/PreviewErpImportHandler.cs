@@ -55,10 +55,11 @@ public sealed class PreviewErpImportHandler(
                 s.DisplayNameEn,
                 s.LifecycleState,
                 s.SyncStatus,
-                Email = s.Representatives
+                LoginEmail = s.Representatives
+                    .Where(r => r.UserId != null)
                     .OrderByDescending(r => r.IsPrimary)
                     .ThenBy(r => r.Id)
-                    .Select(r => r.Email)
+                    .Select(r => db.Users.Where(u => u.Id == r.UserId).Select(u => u.Email).FirstOrDefault())
                     .FirstOrDefault(),
             })
             .ToListAsync(ct);
@@ -73,7 +74,7 @@ public sealed class PreviewErpImportHandler(
                     group.First().TaxId,
                     group.First().DisplayNameEn,
                     group.First().LifecycleState == MotsSupplierPortal.Domain.Suppliers.SupplierLifecycleState.Active,
-                    group.First().Email,
+                    group.First().LoginEmail,
                     group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp));
 
         var unlinkedByTaxId = existing

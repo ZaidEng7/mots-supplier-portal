@@ -24,7 +24,7 @@ export interface Integration {
   lastTestSucceeded: boolean | null
   lastTestDetail: string | null
   lastSyncAt: string | null
-  lastSyncSucceeded: boolean | null
+  lastSyncOutcome: 'Succeeded' | 'NeedsAttention' | 'Failed' | null
   lastSyncSummary: string | null
 }
 
