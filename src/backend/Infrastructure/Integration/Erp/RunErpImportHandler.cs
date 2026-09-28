@@ -125,6 +125,7 @@ public sealed class RunErpImportHandler(
             var existing = await db.Suppliers
                 .Include(s => s.Representatives)
                 .Include(s => s.Addresses)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(s => s.ExternalId == erpSupplier.ExternalId, ct);
 
             return existing is null
