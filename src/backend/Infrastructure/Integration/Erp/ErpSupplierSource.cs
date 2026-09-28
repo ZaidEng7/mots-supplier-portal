@@ -35,6 +35,7 @@
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -77,6 +78,37 @@ public sealed class ErpSupplierSource(
         return request;
     }
 
+    // A server that is down or unreachable has to read as the ERP's failure, not ours.
+    //
+    // The first version handled only a server that ANSWERED with an error. One that did not answer at all - a
+    // refused connection, an address that does not resolve, a timeout - threw a transport exception straight past
+    // every handler and surfaced as a 500, which tells an administrator the portal is broken. That is the most
+    // likely failure of all right after somebody changes the address on the integrations screen, so it is the
+    // worst one to misreport. It was found because a test left the address pointing at a closed port and the next
+    // test class inherited it.
+    //
+    // A timeout that is really the caller cancelling is left alone: that is not the ERP failing.
+    private async Task<HttpResponseMessage> SendAsync(ErpConnection connection, string url, CancellationToken ct)
+    {
+        using var request = Request(connection, url);
+
+        try
+        {
+            return await client.SendAsync(request, ct);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw Unreachable(connection, exception);
+        }
+        catch (TaskCanceledException exception) when (!ct.IsCancellationRequested)
+        {
+            throw Unreachable(connection, exception);
+        }
+    }
+
+    private static ErpRequestException Unreachable(ErpConnection connection, Exception exception) =>
+        new(HttpStatusCode.BadGateway, null, $"The ERP at {connection.BaseUrl} could not be reached: {exception.Message}");
+
     private async Task<ErpConnection> RequireConnectionAsync(CancellationToken ct)
     {
         var connection = await connections.CurrentAsync(ct);
@@ -95,8 +127,7 @@ public sealed class ErpSupplierSource(
         var zone = ErpServerTime.Zone(options.Value.ServerTimeZone);
         var url = ErpQuery.List("Supplier", SupplierFields, orderBy: "name asc");
 
-        using var request = Request(connection, url);
-        using var response = await client.SendAsync(request, ct);
+        using var response = await SendAsync(connection, url, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -128,8 +159,7 @@ public sealed class ErpSupplierSource(
             ContactFields,
             [["Dynamic Link", "link_doctype", "=", "Supplier"]]);
 
-        using var request = Request(connection, url);
-        using var response = await client.SendAsync(request, ct);
+        using var response = await SendAsync(connection, url, ct);
 
         if (!response.IsSuccessStatusCode)
         {

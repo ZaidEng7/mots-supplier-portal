@@ -9,6 +9,11 @@
 // of the response rather than trusting that - because the way a secret leaks is somebody adding a field to a view
 // model months later without knowing why it was absent.
 //
+// EVERY TEST PUTS THE ROW BACK WHEN IT FINISHES. The row is shared by every test class in the collection, and the
+// first version of this file only reset it at the start of each of its own tests - so the last one left the ERP
+// pointed at a closed port, and the next class to ask whether an ERP was configured was told yes. That is how a
+// preview test that had passed for a week started failing on a change that never touched it.
+//
 // THE THIRD IS THAT AN EMPTY SECRET FIELD LEAVES THE STORED ONE ALONE. The screen cannot prefill it, so it
 // arrives empty on every edit, and treating that as "clear it" would wipe the credential each time somebody
 // corrected a typo in the address - with nothing failing until the next run.
@@ -27,11 +32,15 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Tests.Integration;
 
 [Collection(IntegrationTestCollection.Name)]
-public sealed class IntegrationConnectionTests(PostgresApiFixture fixture)
+public sealed class IntegrationConnectionTests(PostgresApiFixture fixture) : IAsyncLifetime
 {
     private const string Erp = "/api/v1/admin/integrations/erp";
 
-    private static async Task ResetAsync(PostgresApiFixture fixture)
+    public Task InitializeAsync() => ResetAsync(fixture);
+
+    public Task DisposeAsync() => ResetAsync(fixture);
+
+    internal static async Task ResetAsync(PostgresApiFixture fixture)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

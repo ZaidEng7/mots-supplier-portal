@@ -10,6 +10,14 @@
 // status. "0 suppliers, nothing to import" is what an unconfigured integration looks like if the stand-in returns
 // an empty list instead of throwing, and it reads like success - somebody would forward it to the ministry.
 //
+// IT STATES ITS OWN PRECONDITION rather than trusting the collection. "No ERP configured" is shared state now that
+// the connection lives in a table, and a test that relies on every other class having tidied up is a test whose
+// result depends on the order xUnit picks - which is how this one first failed.
+//
+// AN UNREACHABLE ERP IS A 502, NOT A 500. A server that does not answer at all - a refused connection, an address
+// that no longer resolves - is the most likely failure right after somebody changes the address on the
+// integrations screen. It used to escape as a 500, which tells an administrator the portal is broken.
+//
 // THE PERMISSION IS ASSERTED SEPARATELY because this route hands back every supplier the ERP has, with their tax
 // numbers and email addresses, and it is gated on the same permission as running the import for that reason.
 
@@ -23,9 +31,13 @@ using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Tests.Integration;
 
 [Collection(IntegrationTestCollection.Name)]
-public sealed class ErpImportPreviewEndpointTests(PostgresApiFixture fixture)
+public sealed class ErpImportPreviewEndpointTests(PostgresApiFixture fixture) : IAsyncLifetime
 {
     private const string Preview = "/api/v1/admin/erp-import/preview";
+
+    public Task InitializeAsync() => IntegrationConnectionTests.ResetAsync(fixture);
+
+    public Task DisposeAsync() => IntegrationConnectionTests.ResetAsync(fixture);
 
     [Fact]
     public async Task With_no_erp_configured_the_preview_says_so_rather_than_reporting_nothing_to_import()
@@ -41,9 +53,33 @@ public sealed class ErpImportPreviewEndpointTests(PostgresApiFixture fixture)
 
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("detail").GetString().Should().Contain(
-            "Erp:Enabled",
-            "the person reading this is an administrator looking at a deployment, so the message names the "
-            + "setting rather than describing the shape of the problem");
+            "integrations screen",
+            "the person reading this is an administrator, and there are now two places a connection can come "
+            + "from - the message has to name the one they can change without a deployment");
+    }
+
+    [Fact]
+    public async Task An_erp_that_does_not_answer_is_reported_as_the_erps_failure_not_ours()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        await admin.PutAsJsonAsync("/api/v1/admin/integrations/erp", new
+        {
+            baseUrl = "http://127.0.0.1:9",
+            apiKey = "k",
+            apiSecret = "s",
+            isEnabled = true,
+        });
+
+        var response = await admin.PostAsync(Preview, content: null);
+
+        response.StatusCode.Should().Be(
+            HttpStatusCode.BadGateway,
+            "a closed port is the other system not answering, and a 500 would tell the administrator the portal "
+            + "is broken - on exactly the day they changed the address and most need to know otherwise");
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("detail").GetString().Should().Contain("could not be reached");
     }
 
     [Fact]
