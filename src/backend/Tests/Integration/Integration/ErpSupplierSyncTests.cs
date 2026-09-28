@@ -14,7 +14,9 @@
 // suppliers and so could suspend what the preview promised to hold back; it re-suspended suppliers people had
 // reinstated, first through the "removed" route and then through the "disabled" one; it treated an ERP rename as a
 // deletion, and the first fix for that moved company histories between records; and it named nobody on a manual
-// run's suspensions. Each is written so that the version it came from fails it.
+// run's suspensions. A later review found a supplier that left while suspended, and was reactivated afterwards,
+// never suspended for its absence, and an empty read marking every suspended supplier as gone. Each is written so
+// that the version it came from fails it.
 //
 // THE LOCK IS TESTED BY HOLDING IT, not by racing two runs and hoping they overlap. A test that raced them would pass
 // whenever the timing happened not to collide, which is the failure it exists to catch.
@@ -96,6 +98,21 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return (await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == externalId)).LifecycleState;
+    }
+
+    private async Task<SupplierSyncStatus> SyncStatusOfAsync(string externalId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return (await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == externalId)).SyncStatus;
+    }
+
+    private async Task SetLifecycleAsync(string externalId, Action<Supplier> change)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        change(await db.Suppliers.SingleAsync(s => s.ExternalId == externalId));
+        await db.SaveChangesAsync();
     }
 
     // The whole portal's imported suppliers take part in every run, so each test first suspends any that earlier
@@ -251,6 +268,55 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         (await LifecycleOfAsync(gone)).Should().Be(
             SupplierLifecycleState.Active,
             "a person reinstated it; a job nobody watches must not undo that every night");
+    }
+
+    [Fact]
+    public async Task A_supplier_that_left_while_suspended_and_was_reactivated_later_is_suspended_once()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-MARKED-KEEP");
+        var gone = Unique("ERP-MARKED-GONE");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
+        await SetLifecycleAsync(gone, supplier => supplier.Suspend("A licence expired."));
+
+        await RunAsync(new FixedSource(ErpRow(keep)));
+        (await SyncStatusOfAsync(gone)).Should().Be(SupplierSyncStatus.MarkedRemovedFromErp);
+
+        await SetLifecycleAsync(gone, supplier => supplier.Reactivate("The licence was renewed."));
+        var afterReactivation = await RunAsync(new FixedSource(ErpRow(keep)));
+
+        afterReactivation.Suspended.Should().Be(1);
+        (await LifecycleOfAsync(gone)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "it was suspended when it left, so nobody decided anything about its absence; the first version shared "
+            + "the reinstated memory and left it active and invitable");
+        (await SyncStatusOfAsync(gone)).Should().Be(SupplierSyncStatus.RemovedFromErp);
+
+        await SetLifecycleAsync(gone, supplier => supplier.Reactivate("Still works with us directly."));
+        await RunAsync(new FixedSource(ErpRow(keep)));
+
+        (await LifecycleOfAsync(gone)).Should().Be(
+            SupplierLifecycleState.Active,
+            "now a person has decided, and a job nobody watches must not undo that every night");
+    }
+
+    [Fact]
+    public async Task An_empty_list_from_the_erp_marks_no_suspended_supplier_as_gone()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-EMPTY-MARK");
+        await RunAsync(new FixedSource(ErpRow(id)));
+        await SetLifecycleAsync(id, supplier => supplier.Suspend("Suspended by the ministry for cause."));
+
+        var report = await RunAsync(new FixedSource());
+
+        report.SuspensionsHeldBack.Should().Contain("returned no suppliers");
+        (await SyncStatusOfAsync(id)).Should().Be(
+            SupplierSyncStatus.Synced,
+            "the first version judged only active suppliers, so with none missing it believed the empty read and "
+            + "marked every suspended supplier as gone");
     }
 
     [Fact]

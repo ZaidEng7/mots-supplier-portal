@@ -9,6 +9,9 @@
 // A THIRD REVIEW FOUND TWO MORE: a disabled arrival shielded the old supplier and kept it invitable, and limiting
 // the old side to active suppliers let a suspended company come back as a new active one when it was renamed.
 //
+// A FOURTH FOUND THE MARK FOR A SUPPLIER ALREADY OUT OF SERVICE sharing the "a person reinstated it" memory, so one
+// reactivated later stayed active although the ERP no longer had it; and an empty read marking every such supplier.
+//
 // SO THE RENAME TESTS PIN A REFUSAL TO GUESS. A probable rename holds both sides - the vanished supplier is not
 // suspended, the arrival is not created - and nothing is ever moved. The tests check the signals (sign-in address or
 // tax number), that placeholders never count, that ambiguity pairs nothing, and that only a supplier which vanished
@@ -26,8 +29,13 @@ public sealed class ErpSyncPlanTests
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
     private static PortalLinkedSupplier Portal(
-        string id, string? login = null, string? taxId = null, bool active = true, bool removed = false) =>
-        new(id, "REF-" + id, id, taxId, login, active, removed);
+        string id,
+        string? login = null,
+        string? taxId = null,
+        bool active = true,
+        bool suspendedAsRemoved = false,
+        bool marked = false) =>
+        new(id, "REF-" + id, id, taxId, login, active, suspendedAsRemoved, marked);
 
     [Fact]
     public void A_probable_rename_by_sign_in_address_is_held_and_nothing_is_moved_or_suspended()
@@ -70,13 +78,21 @@ public sealed class ErpSyncPlanTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void A_supplier_already_marked_as_removed_cannot_hold_a_new_company(bool active)
+    [InlineData(true, true, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, true)]
+    public void A_supplier_already_recorded_as_gone_cannot_hold_a_new_company(
+        bool active, bool suspendedAsRemoved, bool marked)
     {
         var plan = ErpSyncPlan.Build(
             [Erp("New Subsidiary", taxId: "0200-4455")],
-            [Portal("Parent Removed Months Ago", taxId: "0200-4455", active: active, removed: true)]);
+            [Portal(
+                "Parent Removed Months Ago",
+                taxId: "0200-4455",
+                active: active,
+                suspendedAsRemoved: suspendedAsRemoved,
+                marked: marked)]);
 
         plan.ProbableRenames.Should().BeEmpty(
             "a supplier marked gone long ago would otherwise block a genuinely new company that shares its tax number, "
@@ -130,8 +146,41 @@ public sealed class ErpSyncPlanTests
     [Fact]
     public void A_supplier_already_suspended_as_removed_and_since_reinstated_is_not_suspended_again()
     {
-        ErpSyncPlan.Build([Erp("Stays")], [Portal("Stays"), Portal("Reinstated By A Person", removed: true)])
+        ErpSyncPlan.Build([Erp("Stays")], [Portal("Stays"), Portal("Reinstated By A Person", suspendedAsRemoved: true)])
             .ToSuspend.Should().BeEmpty("a person reinstated it; suspending it every night would undo that forever");
+    }
+
+    [Fact]
+    public void A_supplier_only_marked_as_gone_and_since_back_in_service_is_suspended_and_holds_nobody()
+    {
+        var plan = ErpSyncPlan.Build(
+            [Erp("Stays"), Erp("Shares Its Tax Number", taxId: "0200-4455")],
+            [Portal("Stays"), Portal("Reactivated After It Left", taxId: "0200-4455", marked: true)]);
+
+        plan.ToSuspend.Should().ContainSingle(
+                "it was out of service when it left, so nobody decided anything about its absence; sharing the "
+                + "reinstated memory kept it active and invitable after the automatic reinstatement")
+            .Which.ExternalId.Should().Be("Reactivated After It Left");
+        plan.ProbableRenames.Should().BeEmpty("it left on an earlier night, so it is not tonight's rename");
+    }
+
+    [Fact]
+    public void A_supplier_only_marked_as_gone_and_still_out_of_service_is_left_alone()
+    {
+        var plan = ErpSyncPlan.Build([Erp("Stays")], [Portal("Stays"), Portal("Still Suspended", active: false, marked: true)]);
+
+        plan.ToSuspend.Should().BeEmpty();
+        plan.ToMarkRemoved.Should().BeEmpty("it is marked already");
+    }
+
+    [Fact]
+    public void An_empty_read_marks_nobody_even_when_nothing_active_is_missing()
+    {
+        var plan = ErpSyncPlan.Build([], [Portal("Suspended A", active: false), Portal("Suspended B", active: false)]);
+
+        plan.ToMarkRemoved.Should().BeEmpty(
+            "the first version checked only active suppliers, so an empty read marked every suspended one as gone");
+        plan.SuspensionsHeldBack.Should().Contain("returned no suppliers");
     }
 
     [Fact]

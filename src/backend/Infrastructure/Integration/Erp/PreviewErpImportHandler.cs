@@ -75,7 +75,9 @@ public sealed class PreviewErpImportHandler(
                     group.First().DisplayNameEn,
                     group.First().LifecycleState == MotsSupplierPortal.Domain.Suppliers.SupplierLifecycleState.Active,
                     group.First().LoginEmail,
-                    group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp));
+                    group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp,
+                    group.First().SyncStatus
+                        == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.MarkedRemovedFromErp));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)

@@ -23,6 +23,16 @@
 // forever. Both numbers are stated in the message the run produces, so whoever reads it knows what was held back and
 // why.
 //
+// THE EMPTY LIST ALSO STOPS THE MARKING of suppliers already out of service. The run does not suspend those, it only
+// marks them as gone, and the first version let the marking through whenever nothing active was missing - so on a
+// portal whose ERP suppliers were all suspended, an empty read marked every one of them.
+//
+// THE QUARTER IS NOT APPLIED TO THEM, deliberately. When a real clear-out is held back, the way a person confirms it
+// is to suspend those suppliers here; the next run then finds them out of service and only marks them. A limit on
+// marks would hold that confirmation back too, every night, with nothing left a person could do to clear it. A mark
+// changes no lifecycle, and the next run that sees the supplier in the ERP again clears it, so a narrowed read that
+// slips under the limit leaves bookkeeping the next complete read undoes.
+//
 // HELD BACK IS NOT FAILED. The rest of the import still runs - new suppliers are created, changed ones updated - and
 // only the suspensions wait. Refusing the whole run would stop the useful work to protect against a danger that only
 // the suspensions carry.
@@ -36,9 +46,13 @@ public static class ErpMissingSupplierPolicy
     public const double LargestShareSuspendedInOneRun = 0.25;
     public const int AlwaysAllowed = 5;
 
-    public static ErpMissingSupplierDecision Decide(int suppliersInErp, int activeLinkedInPortal, int missingFromErp)
+    public static ErpMissingSupplierDecision Decide(
+        int suppliersInErp,
+        int activeLinkedInPortal,
+        int missingFromErp,
+        int outOfServiceMissingFromErp = 0)
     {
-        if (missingFromErp == 0)
+        if (missingFromErp + outOfServiceMissingFromErp == 0)
         {
             return new ErpMissingSupplierDecision(true, null);
         }
@@ -47,8 +61,9 @@ public static class ErpMissingSupplierPolicy
         {
             return new ErpMissingSupplierDecision(
                 false,
-                $"The ERP returned no suppliers at all, so the {missingFromErp} the portal holds from it were not "
-                + "suspended. An ERP does not lose every supplier overnight; check the connection and its permissions.");
+                $"The ERP returned no suppliers at all, so the {missingFromErp + outOfServiceMissingFromErp} the "
+                + "portal holds from it were left as they were. An ERP does not lose every supplier overnight; check "
+                + "the connection and its permissions.");
         }
 
         var limit = Math.Max(AlwaysAllowed, (int)Math.Floor(activeLinkedInPortal * LargestShareSuspendedInOneRun));

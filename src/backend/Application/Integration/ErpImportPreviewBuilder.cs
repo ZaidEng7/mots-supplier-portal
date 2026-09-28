@@ -55,7 +55,8 @@ public sealed record ErpImportCandidateMatch(
     string? Name = null,
     bool IsActive = true,
     string? LoginEmail = null,
-    bool AlreadyRemovedFromErp = false);
+    bool SuspendedAsRemovedFromErp = false,
+    bool MarkedRemovedFromErp = false);
 
 public static class ErpImportPreviewBuilder
 {
@@ -71,7 +72,8 @@ public static class ErpImportPreviewBuilder
             pair.Value.TaxId,
             pair.Value.LoginEmail,
             pair.Value.IsActive,
-            pair.Value.AlreadyRemovedFromErp))]);
+            pair.Value.SuspendedAsRemovedFromErp,
+            pair.Value.MarkedRemovedFromErp))]);
 
         var heldFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
 

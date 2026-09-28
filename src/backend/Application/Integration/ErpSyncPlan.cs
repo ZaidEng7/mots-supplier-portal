@@ -27,7 +27,7 @@
 // because the contact is editable by the supplier and the login is unique in this product. Placeholders never count:
 // they are built from the identifier, so they differ by construction.
 //
-// ONLY A SUPPLIER THAT VANISHED TONIGHT CAN BE THE OLD SIDE: one not yet marked as removed from the ERP, WHATEVER its
+// ONLY A SUPPLIER THAT VANISHED TONIGHT CAN BE THE OLD SIDE: one not yet recorded as gone from the ERP, WHATEVER its
 // lifecycle. A supplier marked months ago must not block a genuinely new company that shares its tax number forever -
 // but a supplier a person SUSPENDED is still the same company, and when the second version limited the old side to
 // active suppliers, a suspended company renamed in the ERP came straight back as a brand-new active one, undoing the
@@ -51,6 +51,15 @@
 // A SUPPLIER ALREADY SUSPENDED FOR BEING GONE, AND SINCE REINSTATED BY A PERSON, IS LEFT ALONE. Otherwise the next
 // night would suspend it again, forever. It becomes a candidate again only after it reappears in the ERP and
 // disappears a second time.
+//
+// A SUPPLIER ONLY MARKED AS GONE, AND SINCE BACK IN SERVICE, IS SUSPENDED. It was already suspended or deactivated
+// when it left, so the run marked it and nobody decided anything about its absence. The fourth review found the mark
+// had been sharing the reinstated memory above, so a supplier reactivated by the automatic reinstatement after a
+// document renewal stayed active and invitable although the ERP no longer had it. It is not a rename candidate: it left
+// on an earlier night, and the same months-later reasoning applies. It counts against the same limit as tonight's.
+//
+// A READ THAT IS NOT BELIEVED MARKS NOBODY, and an empty read is never believed even when only suppliers already out
+// of service are missing. Why the quarter limit applies to suspensions only is in ErpMissingSupplierPolicy.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -61,7 +70,11 @@ public sealed record PortalLinkedSupplier(
     string? TaxId,
     string? LoginEmail,
     bool IsActive,
-    bool AlreadyRemovedFromErp);
+    bool SuspendedAsRemovedFromErp,
+    bool MarkedRemovedFromErp = false)
+{
+    public bool RecordedAsGone => SuspendedAsRemovedFromErp || MarkedRemovedFromErp;
+}
 
 public sealed record ErpProbableRename(string OldExternalId, string NewExternalId, string ReferenceCode, string Signal);
 
@@ -78,7 +91,11 @@ public sealed record ErpSyncPlan(
         var inErp = erp.Select(e => e.ExternalId).ToHashSet(StringComparer.Ordinal);
 
         var vanishedTonight = portal
-            .Where(p => !inErp.Contains(p.ExternalId) && !p.AlreadyRemovedFromErp)
+            .Where(p => !inErp.Contains(p.ExternalId) && !p.RecordedAsGone)
+            .ToList();
+
+        var backInServiceWhileGone = portal
+            .Where(p => !inErp.Contains(p.ExternalId) && p.MarkedRemovedFromErp && p.IsActive)
             .ToList();
 
         var arrivals = erp
@@ -95,16 +112,21 @@ public sealed record ErpSyncPlan(
             .ToList();
 
         var activeLinked = portal.Count(p => p.IsActive);
-        var activeMissing = missing.Where(m => m.IsActive).ToList();
+        var activeMissing = missing
+            .Where(m => m.IsActive)
+            .Concat(backInServiceWhileGone)
+            .OrderBy(m => m.ReferenceCode, StringComparer.Ordinal)
+            .ToList();
 
-        // The policy judges suspensions, so it sees active suppliers only. It also guards the marking of inactive
-        // ones: a read that is not believed must not mark anybody as gone either.
-        var decision = ErpMissingSupplierPolicy.Decide(erp.Count, activeLinked, activeMissing.Count);
+        var outOfServiceMissing = missing.Where(m => !m.IsActive).ToList();
+
+        var decision = ErpMissingSupplierPolicy.Decide(
+            erp.Count, activeLinked, activeMissing.Count, outOfServiceMissing.Count);
 
         return new ErpSyncPlan(
             renames,
             decision.MaySuspend ? activeMissing : [],
-            decision.MaySuspend ? [.. missing.Where(m => !m.IsActive)] : [],
+            decision.MaySuspend ? outOfServiceMissing : [],
             activeLinked,
             decision.HeldBackBecause);
     }

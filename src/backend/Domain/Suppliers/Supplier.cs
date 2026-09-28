@@ -233,6 +233,7 @@ public enum SupplierSyncStatus
     Synced,
     Failed,
     RemovedFromErp,
+    MarkedRemovedFromErp,
 }
 
 public sealed class Supplier : IVersionedAggregate, ILastModified
@@ -1033,10 +1034,15 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // Marking a supplier that is already suspended or deactivated as gone from the ERP, without touching its lifecycle.
     //
-    // It is the same memory SuspendAsRemovedFromErp keeps, for a supplier a person had already taken out of service.
     // Without it, that supplier would count as "vanished tonight" on every run for as long as it stayed missing, and
     // the plan could pair it with any new company that happened to share its tax number, months later.
-    public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.RemovedFromErp;
+    //
+    // IT IS A DIFFERENT MEMORY FROM SuspendAsRemovedFromErp, and the first version got that wrong by sharing one. That
+    // one means "the sync suspended it, so a person's reinstatement must be respected". This one means only "it was
+    // already out of service when it left". Sharing them meant a supplier reactivated later - by a person, or by the
+    // automatic reinstatement when it replaces an expired document - was never suspended for its absence, although
+    // nobody had decided anything about it. With its own status, such a supplier is suspended the next night.
+    public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.MarkedRemovedFromErp;
 
     public void MarkSynced(string externalId)
     {

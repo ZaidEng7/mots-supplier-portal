@@ -212,11 +212,13 @@ public sealed class RunErpImportHandler(
                 r.TaxId,
                 r.LoginEmail,
                 r.LifecycleState == SupplierLifecycleState.Active,
-                r.SyncStatus == SupplierSyncStatus.RemovedFromErp))];
+                r.SyncStatus == SupplierSyncStatus.RemovedFromErp,
+                r.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp))];
     }
 
     // Suspending what the plan decided, re-checked under the lock: a supplier a person reinstated, or one already
-    // marked as removed, between the plan and this moment is left alone.
+    // suspended as removed, between the plan and this moment is left alone. One only marked as removed while it was
+    // out of service, and since back in service, is suspended like any other - see ErpSyncPlan.
     private async Task<List<ErpImportResultRow>> SuspendPlannedAsync(
         IReadOnlyList<PortalLinkedSupplier> planned, Actor actor, CancellationToken ct)
     {
@@ -278,7 +280,8 @@ public sealed class RunErpImportHandler(
             .Where(s => s.ExternalId != null
                 && ids.Contains(s.ExternalId)
                 && s.LifecycleState != SupplierLifecycleState.Active
-                && s.SyncStatus != SupplierSyncStatus.RemovedFromErp)
+                && s.SyncStatus != SupplierSyncStatus.RemovedFromErp
+                && s.SyncStatus != SupplierSyncStatus.MarkedRemovedFromErp)
             .ToListAsync(ct);
 
         foreach (var supplier in suppliers)

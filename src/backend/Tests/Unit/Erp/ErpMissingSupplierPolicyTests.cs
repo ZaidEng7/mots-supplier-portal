@@ -8,6 +8,10 @@
 // single genuine deletion would be refused on every run forever; the test shows five is allowed and six is not when
 // a quarter would be smaller.
 //
+// SUPPLIERS ALREADY OUT OF SERVICE ARE ONLY MARKED, and only the empty read stops that. The quarter is not applied to
+// them on purpose: suspending held-back suppliers here is how a person confirms a real clear-out, and a limit on the
+// marks would hold that confirmation back every night. Both halves are asserted.
+//
 // THE CONTROL IS NOTHING MISSING, which must always be allowed - including against an empty ERP and an empty portal,
 // the state of every fresh deployment. A policy that refused there would put a warning on the first run anyone sees.
 
@@ -35,6 +39,26 @@ public sealed class ErpMissingSupplierPolicyTests
             "an ERP does not lose every supplier overnight - this is a broken read, and believing it would suspend "
             + "the ministry's whole supplier base");
         decision.HeldBackBecause.Should().Contain("returned no suppliers");
+    }
+
+    [Fact]
+    public void An_empty_list_is_not_believed_even_when_only_suppliers_already_out_of_service_are_missing()
+    {
+        var decision = ErpMissingSupplierPolicy.Decide(
+            suppliersInErp: 0, activeLinkedInPortal: 0, missingFromErp: 0, outOfServiceMissingFromErp: 12);
+
+        decision.MaySuspend.Should().BeFalse("an empty read would otherwise mark every suspended supplier as gone");
+        decision.HeldBackBecause.Should().Contain("returned no suppliers").And.Contain("12");
+    }
+
+    [Fact]
+    public void Suppliers_already_out_of_service_are_not_held_to_the_quarter()
+    {
+        ErpMissingSupplierPolicy.Decide(
+                suppliersInErp: 20, activeLinkedInPortal: 20, missingFromErp: 0, outOfServiceMissingFromErp: 30)
+            .MaySuspend.Should().BeTrue(
+                "a person confirms a held-back clear-out by suspending those suppliers here; holding their marks too "
+                + "would leave nothing that could clear it");
     }
 
     [Fact]
