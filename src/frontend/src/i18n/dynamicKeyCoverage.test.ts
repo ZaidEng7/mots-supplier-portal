@@ -48,6 +48,14 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     keys: LEGAL_INFO_FIELDS,
   },
   {
+    // The action names come from ErpImportAction in api/erpImport.ts, which mirrors the server's own enum. Three
+    // names, all enumerable, so a fourth outcome added on the server without a label here fails at this sweep
+    // rather than printing "erpImport.action.Whatever" on an administrator's screen.
+    site: 'ErpImportPage - the outcome badge on each supplier',
+    namespace: 'erpImport.action',
+    keys: ['Create', 'Update', 'Refuse'],
+  },
+  {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',
     namespace: 'onboarding.fields',
     keys: [

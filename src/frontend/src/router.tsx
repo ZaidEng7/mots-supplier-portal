@@ -106,6 +106,7 @@ import { PageOutlet } from './components/PageOutlet'
 const AdminOverviewPage = lazyRouteComponent(() => import('./routes/admin/AdminOverviewPage'), 'AdminOverviewPage')
 const SystemSettingsPage = lazyRouteComponent(() => import('./routes/admin/SystemSettingsPage'), 'SystemSettingsPage')
 const ApiKeysPage = lazyRouteComponent(() => import('./routes/admin/ApiKeysPage'), 'ApiKeysPage')
+const ErpImportPage = lazyRouteComponent(() => import('./routes/admin/ErpImportPage'), 'ErpImportPage')
 const NotificationTemplatesPage = lazyRouteComponent(() => import('./routes/admin/NotificationTemplatesPage'), 'NotificationTemplatesPage')
 const ProfilePage = lazyRouteComponent(() => import('./routes/ProfilePage'), 'ProfilePage')
 const DocumentsPage = lazyRouteComponent(() => import('./routes/DocumentsPage'), 'DocumentsPage')
@@ -498,6 +499,12 @@ const apiKeysRoute = createRoute({
   component: ApiKeysPage,
 })
 
+const erpImportRoute = createRoute({
+  getParentRoute: () => backOfficeLayoutRoute,
+  path: '/erp-import',
+  component: ErpImportPage,
+})
+
 const notificationTemplatesRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/notification-templates',
@@ -778,7 +785,7 @@ const routeTree = rootRoute.addChildren([
     supplierRfqDetailRoute,
     supplierProposalRoute,
   ]),
-  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, apiKeysRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, ministryRfqMonitorRoute, ministryRfqDetailRoute, ministrySupplierRegistryRoute, ministryAwardAnalyticsRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, tenderSuppliersRoute, tenderSettingsRoute, rfqDetailRoute]),
+  backOfficeLayoutRoute.addChildren([adminOverviewRoute, systemSettingsRoute, apiKeysRoute, erpImportRoute, notificationTemplatesRoute, referenceDataRoute, auditExplorerRoute, ministryOverviewRoute, categoryCoverageRoute, ministryRfqMonitorRoute, ministryRfqDetailRoute, ministrySupplierRegistryRoute, ministryAwardAnalyticsRoute, reportsRoute, procurementDashboardRoute, approvalQueuesRoute, reviewDashboardRoute, backOfficeNotificationsRoute, backOfficeAccountRoute, backOfficeNotificationPreferencesRoute, backOfficeHelpRoute, operationsRoute, uiStringsRoute, searchRoute, emailTemplatesRoute, backOfficeDashboardRoute, reviewQueueRoute, complianceDirectoryRoute, reviewApplicationRoute, supplierDirectoryRoute, organizationsRoute, staffRoute, rolesRoute, offeringSearchRoute, evaluationTemplatesRoute, rfqListRoute, myEvaluationRoute, myEvaluationBriefRoute, comparisonRoute, awardRoute, receivedProposalsRoute, tenderSuppliersRoute, tenderSettingsRoute, rfqDetailRoute]),
 ])
 
 export const router = createRouter({
