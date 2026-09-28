@@ -125,6 +125,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Domain.ReferenceData.UnitOfMeasure> UnitsOfMeasure => Set<Domain.ReferenceData.UnitOfMeasure>();
     public DbSet<Domain.ReferenceData.Incoterm> Incoterms => Set<Domain.ReferenceData.Incoterm>();
     public DbSet<Offering> Offerings => Set<Offering>();
+    public DbSet<MotsSupplierPortal.Domain.Integration.IntegrationConnection> IntegrationConnections =>
+        Set<MotsSupplierPortal.Domain.Integration.IntegrationConnection>();
+
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<Representative> Representatives => Set<Representative>();
     public DbSet<Address> Addresses => Set<Address>();

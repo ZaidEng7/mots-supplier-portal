@@ -206,6 +206,11 @@
 // report. That is the same line-level disclosure SupplierRegistryExport is restricted for, arriving from the
 // other direction. There is also nobody who should be deciding whether an import looks right but may not run it.
 //
+// AdminIntegrationsManage covers where this product sends its outbound credentials - the address of another
+// ministry's server and the key that opens it. It is deliberately not AdminApiKeysManage, which is the mirror
+// image: keys other systems use to call US. Somebody who may issue a read-only feed key has not thereby been
+// trusted to point this product's credential at a server of their choosing.
+//
 // The system administrator holds everything in the catalogue.
 
 namespace MotsSupplierPortal.Domain.Identity;
@@ -270,6 +275,7 @@ public static class Permissions
     public const string AdminOrganizationsManage = "admin.organizations.manage";
     public const string AdminApiKeysManage = "admin.apiKeys.manage";
     public const string SupplierImportRun = "supplier.import.run";
+    public const string AdminIntegrationsManage = "admin.integrations.manage";
     public const string ReferenceDataManage = "reference.manage";
     public const string AuditRead = "audit.read";
 
@@ -287,7 +293,7 @@ public static class Permissions
         EvaluationOpen, EvaluationAssign, EvaluationSubmit, EvaluationConsolidate, EvaluationFinalize, EvaluationReopen,
         ComparisonView, AwardReject, AwardRecommend, IntegrationRetry, ReportRead, ProposalRevise, ProposalDecline,
         RfqDeadlineShorten, ReferenceDataManage, GovernanceRead, RfqReassign, SupplierDirectoryRead,
-        SupplierRegistryExport, AdminApiKeysManage, SupplierImportRun
+        SupplierRegistryExport, AdminApiKeysManage, SupplierImportRun, AdminIntegrationsManage
     ];
 }
 

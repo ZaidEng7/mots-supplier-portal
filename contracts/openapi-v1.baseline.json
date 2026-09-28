@@ -1559,6 +1559,33 @@
         ],
         "type": "object"
       },
+      "UpdateIntegrationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          },
+          "apiSecret": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "baseUrl",
+          "apiKey",
+          "apiSecret",
+          "isEnabled"
+        ],
+        "type": "object"
+      },
       "UpdateLegalInfoRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2174,6 +2201,96 @@
         ],
         "x-required-permissions": [
           "admin.users.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/integrations": {
+      "get": {
+        "description": "Requires the `admin.integrations.manage` permission.",
+        "operationId": "ListIntegrations",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-required-permissions": [
+          "admin.integrations.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/integrations/{key}": {
+      "put": {
+        "description": "Requires the `admin.integrations.manage` permission.",
+        "operationId": "UpdateIntegration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIntegrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-required-permissions": [
+          "admin.integrations.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/integrations/{key}/test": {
+      "post": {
+        "description": "Requires the `admin.integrations.manage` permission.",
+        "operationId": "TestIntegration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-required-permissions": [
+          "admin.integrations.manage"
         ]
       }
     },
@@ -11626,6 +11743,9 @@
     },
     {
       "name": "ApiKeys"
+    },
+    {
+      "name": "Integrations"
     },
     {
       "name": "EvaluationTemplates"

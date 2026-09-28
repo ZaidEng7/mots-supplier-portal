@@ -477,6 +477,18 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<
             MotsSupplierPortal.Application.Integration.IRunErpImportHandler,
             MotsSupplierPortal.Infrastructure.Integration.Erp.RunErpImportHandler>();
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.IListIntegrationsHandler,
+            MotsSupplierPortal.Infrastructure.Integration.ListIntegrationsHandler>();
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.IUpdateIntegrationHandler,
+            MotsSupplierPortal.Infrastructure.Integration.UpdateIntegrationHandler>();
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.ITestIntegrationHandler,
+            MotsSupplierPortal.Infrastructure.Integration.TestIntegrationHandler>();
+        builder.Services.AddHttpClient<
+            MotsSupplierPortal.Infrastructure.Integration.Erp.IErpSupplierSourceProbe,
+            MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSourceProbe>();
         builder.AddErpSupplierSource();
         builder.Services.Configure<ClamAvOptions>(builder.Configuration.GetSection(ClamAvOptions.SectionName));
         builder.Services.AddScoped<IVirusScanner, ClamAvScanner>();
@@ -489,39 +501,22 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestValidator>();
     }
 
-    // The ERP client is registered only when it is configured and switched on.
+    // The ERP client is always registered, and decides at CALL time whether there is a connection to use.
     //
-    // A typed client registered unconditionally would be built the moment anything resolved it, and with no
-    // configuration behind it that build throws on a null base address - at the first use, inside whatever job
-    // asked for it, rather than at startup where a configuration mistake belongs.
-    //
-    // When it is off, a stand-in is registered that throws when called. Leaving the slot EMPTY was the first
-    // attempt and it breaks the API on boot: the preview handler depends on this client, the container validates
-    // every registration at startup, and a dependency nobody registered takes the whole product down over an
-    // integration meant to be optional. The stand-in also keeps the suite hermetic, because nothing it holds can
-    // reach a network.
+    // It used to be registered only when configuration said the ERP existed, which was reasonable while the
+    // address lived in configuration and became wrong the moment it moved into a table an administrator edits:
+    // they would save an address and the application would carry on as though there were none until somebody
+    // restarted it. The screen exists precisely to avoid that restart.
     private static void AddErpSupplierSource(this WebApplicationBuilder builder)
     {
-        var section = builder.Configuration.GetSection(
-            MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions.SectionName);
-
-        if (!section.GetValue("Enabled", defaultValue: false))
-        {
-            builder.Services.AddSingleton<
-                MotsSupplierPortal.Application.Integration.IErpSupplierSource,
-                MotsSupplierPortal.Infrastructure.Integration.Erp.DisabledErpSupplierSource>();
-            return;
-        }
-
+        builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Integration.SecretCipher>();
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Infrastructure.Integration.Erp.IErpConnectionProvider,
+            MotsSupplierPortal.Infrastructure.Integration.Erp.ErpConnectionProvider>();
 
         builder.Services
             .AddHttpClient<
                 MotsSupplierPortal.Application.Integration.IErpSupplierSource,
-                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSource>((sp, client) =>
-                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSource.Configure(
-                    client,
-                    sp.GetRequiredService<
-                        Microsoft.Extensions.Options.IOptions<
-                            MotsSupplierPortal.Infrastructure.Integration.Erp.ErpOptions>>().Value));
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSource>();
     }
 }
