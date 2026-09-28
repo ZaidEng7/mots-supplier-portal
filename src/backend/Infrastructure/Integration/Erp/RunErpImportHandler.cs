@@ -22,9 +22,13 @@
 // A SUPPLIER ALREADY CARRYING THIS ERP'S IDENTIFIER IS UPDATED, NEVER DUPLICATED, and its account is left alone -
 // no second user, no password reset. Pressing this button twice is a thing that will happen.
 //
-// REFUSALS AND FAILURES ARE COUNTED SEPARATELY. A refusal is this product declining a supplier it cannot
-// represent; a failure is the import going wrong. One number for both would hide a defect inside an expected
-// result.
+// EVERY SUPPLIER IS ADMITTED. Gaps are filled - a placeholder email, an empty currency, suspension for a supplier
+// the ERP has disabled - by ErpImportAdmission, which the preview also uses, and every filled gap is written into
+// the row's notes. The one refusal left is an address that already belongs to another account, because two
+// suppliers cannot share one login.
+//
+// REFUSALS AND FAILURES ARE STILL COUNTED SEPARATELY. A refusal is a supplier the portal declined for a stated
+// reason; a failure is the import going wrong. One number for both would hide a defect inside an expected result.
 //
 // THE AUDIT ROW IS WRITTEN AND SAVED BEFORE THE FIRST SUPPLIER IS TOUCHED. Three export routes in this product
 // logged without saving for months and wrote nothing at all; the shape of that bug was a LogAsync with no
@@ -97,12 +101,7 @@ public sealed class RunErpImportHandler(
     private async Task<ErpImportResultRow> ImportOneAsync(
         ErpSupplier erpSupplier, string password, CancellationToken ct)
     {
-        var refusals = ErpImportAdmission.Refusals(erpSupplier);
-        if (refusals.Count > 0)
-        {
-            return new ErpImportResultRow(
-                erpSupplier.ExternalId, erpSupplier.Name, ErpImportOutcome.Refused, null, refusals);
-        }
+        var admitted = ErpImportAdmission.Admit(erpSupplier);
 
         try
         {
@@ -111,32 +110,30 @@ public sealed class RunErpImportHandler(
                 .FirstOrDefaultAsync(s => s.ExternalId == erpSupplier.ExternalId, ct);
 
             return existing is null
-                ? await CreateAsync(erpSupplier, password, ct)
-                : await UpdateAsync(existing, erpSupplier, ct);
+                ? await CreateAsync(erpSupplier, admitted, password, ct)
+                : await UpdateAsync(existing, erpSupplier, admitted, ct);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Importing {Supplier} failed.", erpSupplier.ExternalId);
 
             return new ErpImportResultRow(
-                erpSupplier.ExternalId, erpSupplier.Name, ErpImportOutcome.Failed, null, [exception.Message]);
+                erpSupplier.ExternalId, admitted.Name, ErpImportOutcome.Failed, null, [exception.Message]);
         }
     }
 
     private async Task<ErpImportResultRow> CreateAsync(
-        ErpSupplier erpSupplier, string password, CancellationToken ct)
+        ErpSupplier erpSupplier, AdmittedSupplier admitted, string password, CancellationToken ct)
     {
-        var email = erpSupplier.Email!.Trim().ToLowerInvariant();
-
-        var taken = await userManager.FindByEmailAsync(email);
+        var taken = await userManager.FindByEmailAsync(admitted.Email);
         if (taken is not null)
         {
             return new ErpImportResultRow(
                 erpSupplier.ExternalId,
-                erpSupplier.Name,
+                admitted.Name,
                 ErpImportOutcome.Refused,
                 null,
-                [$"The address {email} already belongs to another account in the portal."]);
+                [$"The address {admitted.Email} already belongs to another account in the portal.", .. admitted.Notes]);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -146,13 +143,14 @@ public sealed class RunErpImportHandler(
         var supplier = Supplier.ImportFromErp(
             referenceCode,
             erpSupplier.ExternalId,
-            erpSupplier.Name!,
+            admitted.Name,
             erpSupplier.TaxId,
             LegalTypeOf(erpSupplier.LegalType),
-            erpSupplier.Currency,
-            erpSupplier.Name!,
-            email,
-            erpSupplier.Phone);
+            admitted.Currency,
+            admitted.Name,
+            admitted.Email,
+            erpSupplier.Phone,
+            admitted.Suspended);
 
         db.Suppliers.Add(supplier);
         await db.SaveChangesAsync(ct);
@@ -160,9 +158,9 @@ public sealed class RunErpImportHandler(
         var user = new AppUser
         {
             Id = Guid.CreateVersion7(),
-            UserName = email,
-            Email = email,
-            FullName = erpSupplier.Name!,
+            UserName = admitted.Email,
+            Email = admitted.Email,
+            FullName = admitted.Name,
             SupplierId = supplier.Id,
             EmailConfirmed = true,
         };
@@ -174,7 +172,7 @@ public sealed class RunErpImportHandler(
 
             return new ErpImportResultRow(
                 erpSupplier.ExternalId,
-                erpSupplier.Name,
+                admitted.Name,
                 ErpImportOutcome.Failed,
                 null,
                 [.. created.Errors.Select(error => error.Description)]);
@@ -188,32 +186,83 @@ public sealed class RunErpImportHandler(
 
         return new ErpImportResultRow(
             erpSupplier.ExternalId,
-            erpSupplier.Name,
+            admitted.Name,
             ErpImportOutcome.Created,
             referenceCode,
-            [$"Approved without portal review, imported from the ERP. Account created for {email}."]);
+            [$"Approved without portal review, imported from the ERP. Account created for {admitted.Email}.",
+             .. admitted.Notes]);
     }
 
+    // Updating a supplier the portal already holds.
+    //
+    // A PLACEHOLDER NEVER OVERWRITES A REAL ADDRESS. If the ERP still has no email, the one on file stays - it may
+    // be a real address the supplier gave the portal since.
+    //
+    // A REAL ADDRESS REPLACES A PLACEHOLDER ON THE LOGIN TOO, not only on the contact record. The account was made
+    // on the placeholder, and a contact updated while the login stayed on the .invalid address would leave the
+    // supplier's actual person unable to sign in with the address everyone now has on file. Only a placeholder
+    // login is moved: an account somebody has already changed to a real address is theirs.
     private async Task<ErpImportResultRow> UpdateAsync(
-        Supplier existing, ErpSupplier erpSupplier, CancellationToken ct)
+        Supplier existing, ErpSupplier erpSupplier, AdmittedSupplier admitted, CancellationToken ct)
     {
+        var notes = new List<string>
+        {
+            "Updated from the ERP. Documents, bank details and anything else the portal holds were left alone.",
+        };
+
+        var realEmail = admitted.EmailIsPlaceholder ? null : admitted.Email;
+
         existing.ApplyErpSnapshot(
-            erpSupplier.Name!,
+            admitted.Name,
             erpSupplier.TaxId,
             LegalTypeOf(erpSupplier.LegalType),
-            erpSupplier.Currency,
-            erpSupplier.Email!.Trim().ToLowerInvariant(),
-            erpSupplier.Phone);
+            admitted.Currency,
+            realEmail,
+            erpSupplier.Phone,
+            admitted.Suspended);
+
+        if (realEmail is not null)
+        {
+            var moved = await MoveLoginOffPlaceholderAsync(existing, realEmail);
+            if (moved is not null) notes.Add(moved);
+        }
 
         existing.MarkSynced(erpSupplier.ExternalId);
         await db.SaveChangesAsync(ct);
 
+        notes.AddRange(admitted.Notes);
+
         return new ErpImportResultRow(
             erpSupplier.ExternalId,
-            erpSupplier.Name,
+            admitted.Name,
             ErpImportOutcome.Updated,
             existing.ReferenceCode,
-            ["Updated from the ERP. The account, documents and anything the portal holds were left alone."]);
+            notes);
+    }
+
+    private async Task<string?> MoveLoginOffPlaceholderAsync(Supplier supplier, string realEmail)
+    {
+        var userId = supplier.Representatives.FirstOrDefault(r => r.IsPrimary)?.UserId
+            ?? supplier.Representatives.FirstOrDefault()?.UserId;
+        if (userId is null) return null;
+
+        var user = await userManager.FindByIdAsync(userId.Value.ToString());
+        if (user is null || !ErpImportAdmission.IsPlaceholder(user.Email)) return null;
+
+        if (await userManager.FindByEmailAsync(realEmail) is not null)
+        {
+            return $"The ERP now has {realEmail}, but another account already uses it; the login stays on the placeholder.";
+        }
+
+        var previous = user.Email;
+
+        await userManager.SetEmailAsync(user, realEmail);
+        await userManager.SetUserNameAsync(user, realEmail);
+
+        user.EmailConfirmed = true;
+        await userManager.UpdateAsync(user);
+
+        return $"The login moved from placeholder {previous} to {realEmail}.";
     }
 
     // A throwaway account is never saved: CreateAsync is not called, only the validators are, so nothing reaches

@@ -4,16 +4,16 @@
 // suppliers given, because a rule that quietly dropped a row would otherwise show up as a smaller number that
 // still looks plausible - and an import whose preview undercounts is worse than no preview.
 //
-// THE CONTROL IS A SUPPLIER WITH EVERYTHING. If the fully-populated case did not come back as Create with no
-// refusal, every refusal test below would be passing for the wrong reason.
+// NOBODY IS REFUSED. Every supplier in the ERP is meant to appear in the portal, so the tests that used to expect
+// a refusal - no email, no name, an unknown currency - now expect a create with the gap filled and noted. How
+// each gap is filled is tested directly in ErpImportAdmissionTests; these check the forecast carries it.
 //
 // THE NULL-TAX-NUMBER CASE IS NOT PEDANTRY. Most suppliers have no tax number, and a duplicate check that
 // grouped them under an empty key would flag a possible duplicate on every single row - which is how a warning
 // becomes something people scroll past.
 //
-// A MISSING CURRENCY AND AN UNKNOWN ONE ARE DELIBERATELY DIFFERENT. One is a supplier nobody has given a
-// currency, which is ordinary; the other is a currency the portal cannot represent, where defaulting to SYP
-// would silently reprice a relationship and the ministry's feed would report that price as fact.
+// AN UNKNOWN CURRENCY IS LEFT EMPTY, NOT DEFAULTED. Defaulting to SYP would silently reprice a relationship and
+// the ministry's feed would report that price as fact; empty says "not known", which is true.
 
 namespace MotsSupplierPortal.Tests.Unit.Erp;
 
@@ -72,43 +72,32 @@ public sealed class ErpImportPreviewBuilderTests
     }
 
     [Fact]
-    public void A_supplier_with_no_email_is_refused_because_no_account_could_be_created()
+    public void A_supplier_with_no_email_would_be_created_with_a_placeholder_rather_than_refused()
     {
         var report = ErpImportPreviewBuilder.Build([Supplier(email: null)], NoMatches, NoUnlinked);
 
         CountsAddUp(report);
-        report.Refused.Should().Be(1);
-        report.Rows[0].Action.Should().Be(ErpImportAction.Refuse);
-        report.Rows[0].Notes.Should().ContainMatch("*no email address*password link*");
+        report.WouldCreate.Should().Be(1, "every supplier in the ERP is meant to appear in the portal");
+        report.Refused.Should().Be(0);
+        report.Rows[0].Notes.Should().ContainMatch("*placeholder*@erp-import.invalid*");
     }
 
     [Fact]
-    public void A_supplier_with_no_name_is_refused()
+    public void A_supplier_with_no_name_would_be_created_under_its_identifier()
     {
         var report = ErpImportPreviewBuilder.Build([Supplier(name: "  ")], NoMatches, NoUnlinked);
 
-        report.Rows[0].Action.Should().Be(ErpImportAction.Refuse);
-        report.Rows[0].Notes.Should().ContainMatch("*no name*");
+        report.Rows[0].Action.Should().Be(ErpImportAction.Create);
+        report.Rows[0].Name.Should().Be("Damascus Supplies Co");
     }
 
     [Fact]
-    public void A_currency_the_portal_does_not_know_refuses_the_row_rather_than_defaulting_to_syp()
+    public void A_currency_the_portal_does_not_know_is_left_empty_rather_than_defaulted_to_syp()
     {
         var report = ErpImportPreviewBuilder.Build([Supplier(currency: "EUR")], NoMatches, NoUnlinked);
 
-        report.Rows[0].Action.Should().Be(ErpImportAction.Refuse);
-        report.Rows[0].Notes.Should().ContainMatch("*'EUR' is not one the portal knows*");
-    }
-
-    [Fact]
-    public void A_supplier_with_no_currency_at_all_is_ordinary_and_is_only_noted()
-    {
-        var report = ErpImportPreviewBuilder.Build([Supplier(currency: null)], NoMatches, NoUnlinked);
-
-        report.Rows[0].Action.Should().Be(
-            ErpImportAction.Create,
-            "the portal's own currency field is optional; a supplier nobody gave one is not a problem");
-        report.Rows[0].Notes.Should().ContainMatch("*No currency*");
+        report.Rows[0].Action.Should().Be(ErpImportAction.Create);
+        report.Rows[0].Notes.Should().ContainMatch("*'EUR'*left empty*");
     }
 
     [Fact]
@@ -173,15 +162,15 @@ public sealed class ErpImportPreviewBuilderTests
     }
 
     [Fact]
-    public void A_supplier_disabled_in_the_erp_is_noted_as_arriving_deactivated()
+    public void A_supplier_disabled_in_the_erp_is_noted_as_arriving_suspended()
     {
         var report = ErpImportPreviewBuilder.Build([Supplier(disabled: true)], NoMatches, NoUnlinked);
 
-        report.Rows[0].Notes.Should().ContainMatch("*Disabled in the ERP*deactivated*");
+        report.Rows[0].Notes.Should().ContainMatch("*Disabled in the ERP*suspended*");
     }
 
     [Fact]
-    public void A_mixed_run_reports_each_outcome_and_finishes_all_of_them()
+    public void A_mixed_run_leaves_nobody_out()
     {
         ErpSupplier[] suppliers =
         [
@@ -200,8 +189,8 @@ public sealed class ErpImportPreviewBuilderTests
 
         CountsAddUp(report);
         report.ErpSupplierCount.Should().Be(4);
-        report.WouldCreate.Should().Be(1);
+        report.WouldCreate.Should().Be(3, "the two with gaps are filled in, not left out");
         report.WouldUpdate.Should().Be(1);
-        report.Refused.Should().Be(2, "an unusable supplier is an outcome of the run, not the end of it");
+        report.Refused.Should().Be(0);
     }
 }

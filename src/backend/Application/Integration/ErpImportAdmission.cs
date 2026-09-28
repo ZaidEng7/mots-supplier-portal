@@ -1,51 +1,117 @@
-// Whether the portal can represent a supplier the ERP sent, and why not when it cannot.
+// Turning whatever the ERP sent into a supplier the portal can hold.
 //
-// THIS IS ONE PLACE BECAUSE IT IS ASKED TWICE. The preview forecasts what the import would do, and the import
-// then does it. If those two carried their own copies of the rules, the day they drifted is the day the preview
-// promises eighty accounts and the run produces sixty - and the preview is the thing somebody read before
-// agreeing. A forecast that disagrees with the outcome is worse than no forecast, because it was believed.
+// EVERY SUPPLIER GETS IN. The first version refused a supplier with no email, an unknown currency or no name,
+// which is the careful answer for an import and the wrong one for this ministry: the point is that the portal shows
+// the whole of Seven Gates' supplier base, and a supplier left out is a supplier nobody can see, invite or
+// correct. So gaps are filled with values that are visibly placeholders, and every one is noted, rather than the
+// supplier being dropped.
 //
-// NO EMAIL IS THE REFUSAL THAT MATTERS. Supplier.Register requires a representative email, and an account
-// somebody can sign into needs an address to reach them at. It is also the field most likely to be missing in
-// bulk, which is why its count is the number that says whether an import is worth running at all.
+// THIS IS ONE PLACE BECAUSE IT IS ASKED TWICE. The preview forecasts what the import will do and the import then
+// does it. Two copies would drift, and the day they drift is the day the forecast promises one thing and the run
+// does another - which is worse than no forecast, because it was believed. That already happened once, over
+// disabled suppliers, and it is why this file now decides the lifecycle too.
 //
-// A CURRENCY THE PORTAL DOES NOT KNOW REFUSES THE ROW rather than defaulting to the local one. Defaulting would
-// silently reprice a supplier's whole relationship and the ministry's feed would then report that price as fact.
-// A refused row is a question; a defaulted one is a wrong answer nobody asked for.
 //
-// A MISSING CURRENCY IS NOT THE SAME THING. The portal's own field is optional, and a supplier nobody has given
-// one is ordinary rather than broken.
+// THE PLACEHOLDER EMAIL
+//
+// ON THE .invalid DOMAIN, which the internet's own standards reserve so that it can never deliver. An account
+// created on it can receive nothing: no password link, no tender invitation, nothing that could reach a stranger.
+//
+// BUILT FROM THE ERP'S IDENTIFIER, SO IT IS THE SAME ON EVERY RUN. A random one would change each time the import
+// ran, and each change would look like a real update to somebody reading the report.
+//
+// WITH A SHORT HASH OF THAT IDENTIFIER ON THE END, because turning "A & B Trading" and "A-B Trading" into
+// something an address can hold makes them the same text, and two suppliers cannot share one account.
+//
+// IT NEVER REPLACES A REAL ADDRESS. That rule is enforced where the import updates a supplier, and the flag on the
+// result is what lets it: a supplier who later gave the portal a real email must not have it overwritten by a
+// placeholder because the ERP still has none.
+//
+//
+// THE OTHER GAPS
+//
+// A CURRENCY THE PORTAL DOES NOT KNOW IS LEFT EMPTY, not defaulted to SYP. Defaulting would silently reprice the
+// supplier and the ministry's feed would report that price as fact; empty says "not known", which is true.
+//
+// A MISSING NAME FALLS BACK TO THE ERP'S IDENTIFIER, which in this ERP is itself the supplier's name as first
+// entered, so it is a reasonable name rather than a code.
+//
+// A SUPPLIER DISABLED IN THE ERP ARRIVES SUSPENDED: visible in the registry, excluded from invitations, and
+// reversible, which is what "disabled" means there. Deactivated would have been the wrong word - in this product
+// that state is permanent.
 
 namespace MotsSupplierPortal.Application.Integration;
 
-public static class ErpImportAdmission
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+
+public sealed record AdmittedSupplier(
+    string Name,
+    string Email,
+    bool EmailIsPlaceholder,
+    string? Currency,
+    bool Suspended,
+    IReadOnlyList<string> Notes);
+
+public static partial class ErpImportAdmission
 {
+    public const string PlaceholderDomain = "erp-import.invalid";
+
     public static readonly IReadOnlyList<string> KnownCurrencies = ["SYP", "USD"];
 
-    public static IReadOnlyList<string> Refusals(ErpSupplier supplier)
+    public static AdmittedSupplier Admit(ErpSupplier supplier)
     {
-        var refusals = new List<string>();
+        var notes = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(supplier.Name))
+        var name = supplier.Name;
+        if (string.IsNullOrWhiteSpace(name))
         {
-            refusals.Add("The supplier has no name.");
+            name = supplier.ExternalId;
+            notes.Add("No name in the ERP; its identifier is used as the name.");
         }
 
-        if (supplier.Email is null)
+        var email = supplier.Email?.Trim().ToLowerInvariant();
+        var placeholder = email is null;
+        if (placeholder)
         {
-            refusals.Add(
-                "The supplier has no email address, so no account can be created: a login needs a mailbox for "
-                + "the password link.");
+            email = PlaceholderEmail(supplier.ExternalId);
+            notes.Add(
+                $"No email in the ERP; placeholder {email} assigned. It cannot receive mail - replace it once the "
+                + "real contact is known.");
         }
 
-        if (supplier.Currency is not null
-            && !KnownCurrencies.Contains(supplier.Currency, StringComparer.OrdinalIgnoreCase))
+        var currency = supplier.Currency;
+        if (currency is not null && !KnownCurrencies.Contains(currency, StringComparer.OrdinalIgnoreCase))
         {
-            refusals.Add(
-                $"The currency '{supplier.Currency}' is not one the portal knows "
-                + $"({string.Join(", ", KnownCurrencies)}).");
+            notes.Add(
+                $"The currency '{currency}' is not one the portal knows ({string.Join(", ", KnownCurrencies)}); "
+                + "left empty rather than guessed.");
+            currency = null;
         }
 
-        return refusals;
+        if (supplier.Disabled)
+        {
+            notes.Add("Disabled in the ERP; arrives suspended - visible, but cannot be invited to tenders.");
+        }
+
+        return new AdmittedSupplier(name!, email!, placeholder, currency?.ToUpperInvariant(), supplier.Disabled, notes);
     }
+
+    public static bool IsPlaceholder(string? email) =>
+        email is not null && email.EndsWith("@" + PlaceholderDomain, StringComparison.OrdinalIgnoreCase);
+
+    public static string PlaceholderEmail(string externalId)
+    {
+        var slug = NotAddressable().Replace(externalId.ToLowerInvariant(), "-").Trim('-');
+        if (slug.Length > 40) slug = slug[..40].TrimEnd('-');
+        if (slug.Length == 0) slug = "supplier";
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(externalId)))[..6].ToLowerInvariant();
+
+        return $"{slug}-{hash}@{PlaceholderDomain}";
+    }
+
+    [GeneratedRegex("[^a-z0-9]+")]
+    private static partial Regex NotAddressable();
 }

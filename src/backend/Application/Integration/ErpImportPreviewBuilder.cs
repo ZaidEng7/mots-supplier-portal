@@ -1,47 +1,31 @@
 // Deciding, for each supplier the ERP sent, what importing it would do.
 //
-// THIS IS PURE ON PURPOSE. Every rule worth arguing about lives here - what makes a supplier unusable, what is
-// merely worth knowing, how a row is matched to one the portal already has - and none of it needs a database to
-// exercise. The handler around it does two reads and calls this, which keeps the reads boring and the rules
-// testable.
+// THIS IS PURE ON PURPOSE. Every rule worth arguing about lives here or in ErpImportAdmission - how gaps are
+// filled, what is worth telling somebody, how a row is matched to one the portal already has - and none of it
+// needs a database to exercise. The handler around it does two reads and calls this.
 //
 //
-// THE REFUSALS THEMSELVES LIVE IN ErpImportAdmission, because the import asks the same question when it runs.
-// Two copies of these rules would drift, and the day they drift is the day this forecast promises accounts the
-// run then refuses - a forecast that disagrees with the outcome is worse than none, because it was believed.
+// NO SUPPLIER IS REFUSED. The portal is meant to show the whole of Seven Gates' supplier base, so a supplier with
+// no email gets a placeholder, an unknown currency is left empty, and a disabled one arrives suspended. How each
+// gap is filled, and why, lives in ErpImportAdmission, which the import itself also uses: two copies of those
+// rules would drift, and a forecast that disagrees with the outcome is worse than none, because it was believed.
 //
-// THE TWO REFUSALS
-//
-// NO EMAIL IS THE ONE THAT MATTERS. Supplier.Register takes a representative email as a required argument, and
-// an account somebody can sign into needs a mailbox for the password link to arrive at. A supplier with no email
-// is therefore not a supplier this product can create, whatever else is known about them. It is also the field
-// most likely to be missing in bulk, which is why the count of refusals is the number that tells an operator
-// whether this import is worth running at all.
-//
-// A CURRENCY THE PORTAL DOES NOT KNOW REFUSES THE ROW rather than falling back to the local one. The portal
-// knows SYP and USD. Defaulting an unrecognised currency to SYP would silently reprice a supplier's whole
-// relationship, and the ministry's feed would report that price as fact. A refused row is a question; a
-// defaulted one is a wrong answer nobody asked.
-//
-// A MISSING currency is NOT the same thing and is not refused - the portal's own field is optional, and a
-// supplier who simply has not been given one is ordinary.
+// THE NOTES ARE THE DELIVERABLE. With nothing refused, the count of creates says how big the job is and the notes
+// say what is being agreed to - which suppliers have a placeholder instead of a real address, which have no
+// currency, which arrive suspended. A summary cannot carry that.
 //
 //
-// WHAT IS A NOTE RATHER THAN A REFUSAL
+// WHAT IS NOTED BUT CANNOT BE FILLED
 //
 // THE CATEGORY CANNOT BE TRANSLATED AND IS LEFT UNSET. The ERP's supplier groups are its factory defaults -
 // Distributor, Electrical, Raw Material, Local - and the portal's are the ministry's tourism taxonomy. There is
-// no honest mapping between those two lists, and inventing one would file every supplier under a category
-// somebody would later have to correct without knowing it was a guess. Unset is recoverable; wrongly set is not,
-// because nothing distinguishes it from a real choice.
+// no honest mapping, and a guess would be indistinguishable from a real choice once written.
 //
-// NO ADDRESS IS EXPECTED, NOT EXCEPTIONAL. A supplier's street lives in a separate record in the ERP, reachable
-// only through a join table the current credential cannot read. Until that is granted, every supplier arrives
-// with no address, which costs the ministry's feed its city, governorate and coordinates. Saying so on every row
-// is the point: it is a gap in the data, not a gap in this code.
+// NO ADDRESS IS IMPORTED YET. A supplier's street lives in a separate record in the ERP and that half of the
+// mapping has never been tested against real data. Saying so on every row is the point: it is a gap in what this
+// import does, not in the supplier.
 //
-// AN ARABIC NAME IS NEVER PRESENT. The ERP has one name field. Every imported supplier's Arabic name starts as
-// the English one, and somebody has to fix it by hand later.
+// AN ARABIC NAME IS NEVER PRESENT. The ERP has one name field, so the Arabic name starts as the English one.
 //
 //
 // MATCHING
@@ -50,9 +34,9 @@
 // same supplier, and the import updates it; one that is not is new.
 //
 // A TAX NUMBER SHARED WITH A SUPPLIER THAT HAS NO ERP IDENTIFIER IS REPORTED, NOT MATCHED. That is almost
-// certainly the same company having registered on the portal themselves, and merging them automatically would
-// join two records on a field that is sometimes blank, sometimes mistyped, and occasionally shared between a
-// company and its subsidiary. So it is flagged for a person, which is the only safe answer available.
+// certainly the same company having registered on the portal themselves, and merging automatically would join two
+// records on a field that is sometimes blank, sometimes mistyped, and occasionally shared between a company and
+// its subsidiary. So it is flagged for a person.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -82,13 +66,8 @@ public static class ErpImportPreviewBuilder
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
         IReadOnlyDictionary<string, string> unlinkedByTaxId)
     {
-        var notes = new List<string>();
-        var refusals = ErpImportAdmission.Refusals(supplier);
-
-        if (supplier.Currency is null)
-        {
-            notes.Add("No currency; the supplier's currency is left unset.");
-        }
+        var admitted = ErpImportAdmission.Admit(supplier);
+        var notes = new List<string>(admitted.Notes);
 
         notes.Add(
             supplier.SupplierGroup is null
@@ -108,11 +87,6 @@ public static class ErpImportPreviewBuilder
             notes.Add("No phone number.");
         }
 
-        if (supplier.Disabled)
-        {
-            notes.Add("Disabled in the ERP; the supplier would be created deactivated.");
-        }
-
         var matched = byExternalId.TryGetValue(supplier.ExternalId, out var existing) ? existing : null;
 
         if (matched is null
@@ -124,15 +98,11 @@ public static class ErpImportPreviewBuilder
                 + "probably the same company having registered on the portal. Needs a person to decide.");
         }
 
-        var action = refusals.Count > 0
-            ? ErpImportAction.Refuse
-            : matched is null ? ErpImportAction.Create : ErpImportAction.Update;
-
         return new ErpImportPreviewRow(
             supplier.ExternalId,
-            supplier.Name,
-            action,
-            [.. refusals, .. notes],
+            admitted.Name,
+            matched is null ? ErpImportAction.Create : ErpImportAction.Update,
+            notes,
             matched?.ReferenceCode);
     }
 }
