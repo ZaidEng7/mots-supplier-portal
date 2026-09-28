@@ -22,6 +22,31 @@ import { mockFetch, renderPage } from '../../test/renderPage'
 const { ErpImportPage } = await import('./ErpImportPage')
 
 const PREVIEW = '/api/v1/admin/erp-import/preview'
+const RUN = '/api/v1/admin/erp-import/run'
+
+const OUTCOME = {
+  erpSupplierCount: 2,
+  created: 1,
+  updated: 0,
+  refused: 1,
+  failed: 0,
+  rows: [
+    {
+      externalId: 'Damascus Supplies Co',
+      name: 'Damascus Supplies Co',
+      outcome: 'Created',
+      referenceCode: 'SUP-2026-000001',
+      notes: ['Approved without portal review, imported from the ERP.'],
+    },
+    {
+      externalId: 'Tartous Beverages',
+      name: 'Tartous Beverages',
+      outcome: 'Refused',
+      referenceCode: null,
+      notes: ['The supplier has no email address, so no account can be created.'],
+    },
+  ],
+}
 
 const REPORT = {
   erpSupplierCount: 3,
@@ -110,6 +135,37 @@ describe('ErpImportPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Run the preview' }))
 
     expect(await screen.findByText(/403 Forbidden \(PermissionError\)/)).toBeInTheDocument()
+  })
+
+  it('asks before importing, and imports nothing until the confirmation is accepted', async () => {
+    restore = mockFetch({ [RUN]: { __byMethod: { POST: OUTCOME } } })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+
+    expect(await screen.findByText('Confirm the import')).toBeInTheDocument()
+    expect(screen.queryByText('What the import did')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText('What the import did')).not.toBeInTheDocument()
+  })
+
+  it('reports what the import actually did, row by row', async () => {
+    restore = mockFetch({ [RUN]: { __byMethod: { POST: OUTCOME } } })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('What the import did')).toBeInTheDocument()
+    expect(screen.getByText('SUP-2026-000001')).toBeInTheDocument()
+    // Twice on purpose: once as the count's label, once as this row's badge. Asserting one of them with getByText
+    // fails on the ambiguity rather than on the behaviour, which is a test reporting a problem that is not there.
+    expect(screen.getAllByText('Created')).toHaveLength(2)
+    expect(screen.getByText(/no email address/)).toBeInTheDocument()
   })
 
   it('reports a portal fault as ours', async () => {

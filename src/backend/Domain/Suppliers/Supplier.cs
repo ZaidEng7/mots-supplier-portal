@@ -883,6 +883,104 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.Resubmitted;
     }
 
+    // A supplier that arrived from the ministry's ERP rather than through registration.
+    //
+    // IT LANDS APPROVED AND ACTIVE WITHOUT PASSING THROUGH REVIEW, and that is the whole reason this exists as
+    // its own factory. Approve() requires the state to be UnderReview with every required document present, and
+    // an imported supplier has uploaded nothing - they never registered here. The alternative was to walk the
+    // nine states with the document check suppressed, which works and writes an audit trail claiming a reviewer
+    // reviewed them. No reviewer did. This says what actually happened instead.
+    //
+    // THE ARABIC NAME IS THE ENGLISH ONE because the ERP has a single name field. It is wrong and it is visible,
+    // which is the right kind of wrong: somebody correcting supplier names can see which ones still need it.
+    //
+    // NO CATEGORY IS SET. The ERP's supplier groups are its own accounting vocabulary and the portal's are the
+    // ministry's tourism taxonomy; there is no honest mapping, and a guess is indistinguishable from a choice
+    // once it is written.
+    //
+    // THE REPRESENTATIVE IS NAMED AFTER THE COMPANY when the ERP gives no person, because the field is required
+    // and inventing a human being's name is worse than repeating the company's.
+    public static Supplier ImportFromErp(
+        string referenceCode,
+        string externalId,
+        string displayNameEn,
+        string? taxId,
+        SupplierLegalType legalType,
+        string? currencyCode,
+        string representativeName,
+        string representativeEmail,
+        string? representativePhone)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        var supplier = new Supplier
+        {
+            Id = Guid.CreateVersion7(),
+            ReferenceCode = referenceCode,
+            DisplayNameAr = displayNameEn,
+            DisplayNameEn = displayNameEn,
+            CurrencyCode = currencyCode,
+            OnboardingState = SupplierOnboardingState.Approved,
+            LifecycleState = SupplierLifecycleState.Active,
+            CreatedAt = now,
+            UpdatedAt = now,
+        };
+
+        supplier.LegalInfo = Domain.Suppliers.LegalInfo.Create(
+            displayNameEn, displayNameEn, registrationNumber: null, taxId, legalType, establishedOn: null);
+
+        supplier._representatives.Add(new Representative
+        {
+            Id = Guid.CreateVersion7(),
+            SupplierId = supplier.Id,
+            FullName = representativeName,
+            Email = representativeEmail,
+            Phone = representativePhone,
+            IsPrimary = true,
+        });
+
+        supplier.MarkSynced(externalId);
+
+        return supplier;
+    }
+
+    // What a later run of the import may change on a supplier it has seen before.
+    //
+    // THE ERP WINS ONLY ON THE FIELDS IT SENDS. Everything else - the map pin somebody placed, the bank details
+    // they entered, the documents they uploaded, the category the ministry assigned - is the portal's and is not
+    // touched. A null arriving from the ERP means "this system does not know", not "delete what you have".
+    //
+    // THE ONBOARDING AND LIFECYCLE STATES ARE NOT TOUCHED EITHER. A supplier suspended here stays suspended
+    // whatever the ERP thinks; reinstating somebody is a decision a person makes on this side.
+    public void ApplyErpSnapshot(
+        string displayNameEn,
+        string? taxId,
+        SupplierLegalType legalType,
+        string? currencyCode,
+        string representativeEmail,
+        string? representativePhone)
+    {
+        DisplayNameEn = displayNameEn;
+        if (currencyCode is not null) CurrencyCode = currencyCode;
+
+        LegalInfo = Domain.Suppliers.LegalInfo.Create(
+            LegalInfo?.LegalNameAr ?? displayNameEn,
+            displayNameEn,
+            LegalInfo?.RegistrationNumber,
+            taxId ?? LegalInfo?.TaxId,
+            legalType,
+            LegalInfo?.EstablishedOn);
+
+        var representative = _representatives.FirstOrDefault(r => r.IsPrimary) ?? _representatives.FirstOrDefault();
+        if (representative is not null)
+        {
+            representative.Email = representativeEmail;
+            if (representativePhone is not null) representative.Phone = representativePhone;
+        }
+
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void MarkSynced(string externalId)
     {
         ExternalId = externalId;

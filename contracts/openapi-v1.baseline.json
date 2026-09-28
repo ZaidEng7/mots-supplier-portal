@@ -1984,6 +1984,26 @@
         ]
       }
     },
+    "/api/v1/admin/erp-import/run": {
+      "post": {
+        "description": "Requires the `supplier.import.run` permission.",
+        "operationId": "RunErpImport",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "ErpImport"
+        ],
+        "x-required-permissions": [
+          "supplier.import.run"
+        ]
+      }
+    },
     "/api/v1/admin/erp-sync": {
       "get": {
         "description": "Requires the `admin.users.manage` permission.",

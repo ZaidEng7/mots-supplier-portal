@@ -6,6 +6,10 @@
 // testable.
 //
 //
+// THE REFUSALS THEMSELVES LIVE IN ErpImportAdmission, because the import asks the same question when it runs.
+// Two copies of these rules would drift, and the day they drift is the day this forecast promises accounts the
+// run then refuses - a forecast that disagrees with the outcome is worse than none, because it was believed.
+//
 // THE TWO REFUSALS
 //
 // NO EMAIL IS THE ONE THAT MATTERS. Supplier.Register takes a representative email as a required argument, and
@@ -56,8 +60,6 @@ public sealed record ErpImportCandidateMatch(string ReferenceCode, string? TaxId
 
 public static class ErpImportPreviewBuilder
 {
-    public static readonly IReadOnlyList<string> KnownCurrencies = ["SYP", "USD"];
-
     public static ErpImportPreviewReport Build(
         IReadOnlyList<ErpSupplier> erpSuppliers,
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
@@ -81,26 +83,7 @@ public static class ErpImportPreviewBuilder
         IReadOnlyDictionary<string, string> unlinkedByTaxId)
     {
         var notes = new List<string>();
-        var refusals = new List<string>();
-
-        if (string.IsNullOrWhiteSpace(supplier.Name))
-        {
-            refusals.Add("The supplier has no name.");
-        }
-
-        if (supplier.Email is null)
-        {
-            refusals.Add(
-                "The supplier has no email address, so no account can be created: a login needs a mailbox for "
-                + "the password link.");
-        }
-
-        if (supplier.Currency is not null
-            && !KnownCurrencies.Contains(supplier.Currency, StringComparer.OrdinalIgnoreCase))
-        {
-            refusals.Add(
-                $"The currency '{supplier.Currency}' is not one the portal knows ({string.Join(", ", KnownCurrencies)}).");
-        }
+        var refusals = ErpImportAdmission.Refusals(supplier);
 
         if (supplier.Currency is null)
         {

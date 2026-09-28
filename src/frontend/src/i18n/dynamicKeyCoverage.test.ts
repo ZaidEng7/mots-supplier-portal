@@ -56,6 +56,14 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     keys: ['Create', 'Update', 'Refuse'],
   },
   {
+    // The run's outcomes, from ErpImportOutcome. Separate from the preview's actions on purpose: a forecast says
+    // what WOULD happen and a result says what DID, and Refused means the same thing in both while Failed has no
+    // forecast equivalent at all.
+    site: 'ErpImportPage - the outcome badge on each imported supplier',
+    namespace: 'erpImport.outcome',
+    keys: ['Created', 'Updated', 'Refused', 'Failed'],
+  },
+  {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',
     namespace: 'onboarding.fields',
     keys: [

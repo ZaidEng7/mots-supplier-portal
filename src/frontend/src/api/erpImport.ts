@@ -1,8 +1,9 @@
 // What importing the ministry's ERP suppliers would do.
 //
-// THE REPORT IS A PREVIEW AND NOTHING ELSE. There is no route here that performs the import, because there is no
-// such route on the server yet. When there is, it belongs beside this one so that both sit in front of a reader
-// at once - a preview whose write lives somewhere else invites somebody to run one and forget the other.
+// THE PREVIEW AND THE RUN SIT TOGETHER, because the forecast is only worth anything if the thing it forecasts is
+// one click away, and a write that lived elsewhere invites somebody to read one and press the other without
+// looking. They share their failure type for the same reason: the three ways either call can fail are the same
+// three, and an operator should not have to learn them twice.
 //
 // THE STATUS CODES ARE CARRIED, NOT FLATTENED, and that is the only unusual thing in this file. Three refusals
 // mean three different things to the person reading the screen: 503 is nobody configured the integration, 502 is
@@ -48,6 +49,35 @@ export class ErpPreviewError extends Error {
     this.status = status
     this.serverDetail = serverDetail
   }
+}
+
+export type ErpImportOutcome = 'Created' | 'Updated' | 'Refused' | 'Failed'
+
+export interface ErpImportResultRow {
+  externalId: string
+  name: string | null
+  outcome: ErpImportOutcome
+  referenceCode: string | null
+  notes: string[]
+}
+
+export interface ErpImportRunReport {
+  erpSupplierCount: number
+  created: number
+  updated: number
+  refused: number
+  failed: number
+  rows: ErpImportResultRow[]
+}
+
+export async function runErpImport(): Promise<ErpImportRunReport> {
+  const response = await apiFetch('/api/v1/admin/erp-import/run', { method: 'POST' })
+
+  if (!response.ok) {
+    throw new ErpPreviewError(response.status, await detailOf(response))
+  }
+
+  return (await response.json()) as ErpImportRunReport
 }
 
 export async function previewErpImport(): Promise<ErpImportPreviewReport> {

@@ -1,4 +1,7 @@
-// Previewing the supplier import: /api/v1/admin/erp-import/preview.
+// The supplier import: /api/v1/admin/erp-import/preview forecasts it, /api/v1/admin/erp-import/run performs it.
+//
+// THE TWO SIT TOGETHER ON PURPOSE. A preview whose write lives somewhere else invites somebody to bookmark one
+// and forget the other, and the forecast is only worth anything if the thing it forecasts is one click away.
 //
 // IT IS A POST ALTHOUGH IT WRITES NOTHING. Two reasons, and the weaker one is that it takes minutes and calls
 // another ministry's server, which is not what a cache or a link-prefetcher should be free to trigger. The
@@ -7,6 +10,9 @@
 //
 // THE WHOLE REPORT COMES BACK IN ONE RESPONSE, unpaged. Eighty rows is a list a person reads before agreeing to
 // an import, and the rows that matter are the unusual ones - a page boundary is exactly where those would hide.
+//
+// A MISSING IMPORT PASSWORD IS ALSO A 503, and it is a separate exception from a missing ERP because it names a
+// different setting. The run refuses before it writes anything rather than discovering it on the first account.
 //
 // AN UNCONFIGURED INTEGRATION IS 503 AND SAYS WHICH SETTING IS MISSING. It is not a 500, because nothing is
 // broken, and it is not an empty report, because "0 suppliers, nothing to import" reads like success and somebody
@@ -53,6 +59,40 @@ public static class ErpImportEndpoints
         })
         .RequirePermission(Permissions.SupplierImportRun)
         .WithName("PreviewErpImport")
+        .WithTags("ErpImport");
+
+        app.MapPost("/api/v1/admin/erp-import/run", async (
+            IRunErpImportHandler handler,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await handler.HandleAsync(ct));
+            }
+            catch (ErpNotConfiguredException notConfigured)
+            {
+                return Results.Problem(
+                    title: "The ERP integration is not configured.",
+                    detail: notConfigured.Message,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (ErpImportNotConfiguredException notConfigured)
+            {
+                return Results.Problem(
+                    title: "The import is not configured.",
+                    detail: notConfigured.Message,
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+            catch (ErpRequestException failure)
+            {
+                return Results.Problem(
+                    title: "The ERP could not be read.",
+                    detail: failure.Message,
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+        })
+        .RequirePermission(Permissions.SupplierImportRun)
+        .WithName("RunErpImport")
         .WithTags("ErpImport");
 
         return app;
