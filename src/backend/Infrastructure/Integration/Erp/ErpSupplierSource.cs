@@ -45,6 +45,7 @@ using MotsSupplierPortal.Application.Integration;
 
 public sealed class ErpSupplierSource(
     HttpClient client,
+    IErpConnectionProvider connections,
     IOptions<ErpOptions> options,
     ILogger<ErpSupplierSource> logger) : IErpSupplierSource
 {
@@ -62,20 +63,40 @@ public sealed class ErpSupplierSource(
         "modified",
     ];
 
-    public static void Configure(HttpClient client, ErpOptions options)
+    // The address and credential are attached to each request rather than to the client, because they now come
+    // from a row an administrator can edit while the application is running. A client carrying them on its
+    // DefaultRequestHeaders would keep using whatever it was built with until something restarted it - which is
+    // exactly the behaviour the integrations screen exists to remove.
+    private static HttpRequestMessage Request(ErpConnection connection, string path)
     {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("token", $"{options.ApiKey}:{options.ApiSecret}");
+        var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(connection.BaseUrl.TrimEnd('/') + "/"), path));
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("token", $"{connection.ApiKey}:{connection.ApiSecret}");
+
+        return request;
+    }
+
+    private async Task<ErpConnection> RequireConnectionAsync(CancellationToken ct)
+    {
+        var connection = await connections.CurrentAsync(ct);
+
+        if (connection is null || !connection.IsEnabled)
+        {
+            throw new ErpNotConfiguredException();
+        }
+
+        return connection;
     }
 
     public async Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct)
     {
-        var settings = options.Value;
-        var zone = ErpServerTime.Zone(settings.ServerTimeZone);
+        var connection = await RequireConnectionAsync(ct);
+        var zone = ErpServerTime.Zone(options.Value.ServerTimeZone);
         var url = ErpQuery.List("Supplier", SupplierFields, orderBy: "name asc");
 
-        using var response = await client.GetAsync(url, ct);
+        using var request = Request(connection, url);
+        using var response = await client.SendAsync(request, ct);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -90,7 +111,7 @@ public sealed class ErpSupplierSource(
 
         if (suppliers.Any(supplier => supplier.Email is null || supplier.Phone is null))
         {
-            var contacts = await ReadSupplierContactsAsync(ct);
+            var contacts = await ReadSupplierContactsAsync(connection, ct);
             logger.LogInformation("Read {Count} linked contact(s) from the ERP.", contacts.Count);
 
             return ErpContactMerge.Fill(suppliers, contacts);
@@ -99,14 +120,16 @@ public sealed class ErpSupplierSource(
         return suppliers;
     }
 
-    private async Task<IReadOnlyList<ErpSupplierContact>> ReadSupplierContactsAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<ErpSupplierContact>> ReadSupplierContactsAsync(
+        ErpConnection connection, CancellationToken ct)
     {
         var url = ErpQuery.List(
             "Contact",
             ContactFields,
             [["Dynamic Link", "link_doctype", "=", "Supplier"]]);
 
-        using var response = await client.GetAsync(url, ct);
+        using var request = Request(connection, url);
+        using var response = await client.SendAsync(request, ct);
 
         if (!response.IsSuccessStatusCode)
         {

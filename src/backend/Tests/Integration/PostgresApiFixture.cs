@@ -188,6 +188,12 @@ public sealed class PostgresApiFixture : WebApplicationFactory<Program>, IAsyncL
 
         builder.UseSetting("Jobs:EnableRecurring", "false");
 
+        // The integrations screen stores credentials encrypted, and refuses to store one when no key is
+        // configured - which is the behaviour worth having, and means the suite needs a key of its own. A fixed
+        // value rather than a random one, so a row written by one test can still be read by the next.
+        builder.UseSetting(
+            "Integrations:EncryptionKey", "bW90cy10ZXN0LW9ubHktaW50ZWdyYXRpb24ta2V5MzI=");
+
         var minioEndpoint = new Uri(_minio.GetConnectionString());
         builder.UseSetting("Minio:Endpoint", $"{minioEndpoint.Host}:{minioEndpoint.Port}");
         builder.UseSetting("Minio:AccessKey", _minio.GetAccessKey());

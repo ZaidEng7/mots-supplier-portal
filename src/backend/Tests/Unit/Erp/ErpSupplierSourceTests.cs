@@ -71,10 +71,19 @@ public sealed class ErpSupplierSourceTests
             Company = "Seven Gates",
         };
 
-        var client = new HttpClient(handler);
-        ErpSupplierSource.Configure(client, options);
+        var connection = new ErpConnection(
+            "http://erp.example:8001", "key", "secret", IsEnabled: true, ErpConnectionSource.Configuration);
 
-        return new ErpSupplierSource(client, Options.Create(options), NullLogger<ErpSupplierSource>.Instance);
+        return new ErpSupplierSource(
+            new HttpClient(handler),
+            new FixedConnection(connection),
+            Options.Create(options),
+            NullLogger<ErpSupplierSource>.Instance);
+    }
+
+    private sealed class FixedConnection(ErpConnection? connection) : IErpConnectionProvider
+    {
+        public Task<ErpConnection?> CurrentAsync(CancellationToken ct) => Task.FromResult(connection);
     }
 
     [Fact]
