@@ -17,7 +17,9 @@
 // run's suspensions. A later review found a supplier that left while suspended, and was reactivated afterwards,
 // never suspended for its absence, and an empty read marking every suspended supplier as gone. The one after that
 // found the automatic reinstatement on a document approval lifting the sync's own suspensions, because it could not
-// see them. Each is written so that the version it came from fails it.
+// see them. The next found the same hole on the disabled path, where a disable landing on a suspended supplier left no
+// trace, and a renewal approved while a mark held it back never being honoured once the mark cleared. Each is written
+// so that the version it came from fails it.
 //
 // THE DOCUMENT TESTS GO THROUGH THE REVIEWER'S APPROVAL HANDLER, not through Reactivate, because the defect lived in
 // how that handler decides whose suspension came last. The expiry is produced the way time produces it: a document
@@ -150,6 +152,16 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         {
             await scope.ServiceProvider.GetRequiredService<DocumentExpiryJob>().RunAsync(CancellationToken.None);
         }
+    }
+
+    private async Task AssertReinstatedAutomaticallyAsync(string externalId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplierId = await db.Suppliers.Where(s => s.ExternalId == externalId).Select(s => s.Id).SingleAsync();
+
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a => a.AggregateId == supplierId && a.Action == "supplier_auto_reinstated"))
+            .Should().BeTrue("a reinstatement nobody can trace looks exactly like one somebody slipped through");
     }
 
     private async Task ApproveNewDocumentAsync(string externalId, string typeCode)
@@ -421,6 +433,91 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             SupplierLifecycleState.Suspended,
             "a renewed document says nothing about whether Seven Gates still has the company; reinstating it made it "
             + "invitable for a night, with a 'you are reinstated' message, until the sync suspended it again");
+    }
+
+    [Fact]
+    public async Task A_supplier_disabled_while_suspended_is_not_brought_back_by_a_document_and_a_person_is_overruled_once()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-DISABLED-WHILE-SUSPENDED");
+        await RunAsync(new FixedSource(ErpRow(id)));
+        await ExpireAnAwardCriticalDocumentAsync(id);
+        await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+
+        await ApproveNewDocumentAsync(id, CommercialRegistration);
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the disable arrived while it was suspended; the second version kept no trace of it, so the renewal "
+            + "reactivated a supplier Seven Gates had disabled, and no run ever suspended it for that");
+
+        await SetLifecycleAsync(id, supplier => supplier.Reactivate("The matter is closed."));
+        await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+        (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Suspended, "suspended once for the disable");
+
+        await SetLifecycleAsync(id, supplier => supplier.Reactivate("Still works with us directly."));
+        await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+        (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Active, "and a person's decision after that stands");
+    }
+
+    [Fact]
+    public async Task A_renewal_approved_while_a_supplier_was_missing_is_honoured_when_the_erp_offers_it_again()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var keep = Unique("ERP-RETURN-KEEP");
+        var back = Unique("ERP-RETURN-BACK");
+        await RunAsync(new FixedSource(ErpRow(keep), ErpRow(back)));
+        await ExpireAnAwardCriticalDocumentAsync(back);
+        await RunAsync(new FixedSource(ErpRow(keep)));
+
+        await ApproveNewDocumentAsync(back, CommercialRegistration);
+        (await LifecycleOfAsync(back)).Should().Be(SupplierLifecycleState.Suspended, "the control: the mark held it back");
+
+        var report = await RunAsync(new FixedSource(ErpRow(keep), ErpRow(back)));
+
+        (await LifecycleOfAsync(back)).Should().Be(
+            SupplierLifecycleState.Active,
+            "its documents are fixed and the ERP has it again; the approval was the only trigger and had passed, so "
+            + "without a second look it stayed locked out of tenders until somebody noticed");
+        report.Rows.Single(r => r.ExternalId == back).Notes.Should().ContainMatch("*reinstated automatically*");
+        await AssertReinstatedAutomaticallyAsync(back);
+    }
+
+    [Fact]
+    public async Task A_renewal_approved_while_a_supplier_was_disabled_is_honoured_when_the_erp_re_enables_it()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-REENABLED");
+        await RunAsync(new FixedSource(ErpRow(id)));
+        await ExpireAnAwardCriticalDocumentAsync(id);
+        await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+        await ApproveNewDocumentAsync(id, CommercialRegistration);
+        (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Suspended, "the control: the mark held it back");
+
+        await RunAsync(new FixedSource(ErpRow(id)));
+
+        (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Active);
+        await AssertReinstatedAutomaticallyAsync(id);
+    }
+
+    [Fact]
+    public async Task A_supplier_the_sync_suspended_is_not_reinstated_when_the_erp_offers_it_again()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-NOT-REINSTATED");
+        await RunAsync(new FixedSource(ErpRow(id)));
+        await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+        await ExpireAnAwardCriticalDocumentAsync(id);
+
+        await RunAsync(new FixedSource(ErpRow(id)));
+
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the second look is only for a reinstatement a mark held back; lifting the sync's own suspension is a "
+            + "person's decision");
     }
 
     [Fact]

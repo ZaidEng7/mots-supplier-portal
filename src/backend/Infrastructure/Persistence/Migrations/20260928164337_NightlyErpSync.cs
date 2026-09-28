@@ -11,13 +11,14 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "DisabledInErp",
+            migrationBuilder.AddColumn<string>(
+                name: "ErpDisabledState",
                 schema: "supplier",
                 table: "supplier",
-                type: "boolean",
+                type: "character varying(20)",
+                maxLength: 20,
                 nullable: false,
-                defaultValue: false);
+                defaultValue: "NotDisabled");
 
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "LastSyncAt",
@@ -55,7 +56,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "DisabledInErp",
+                name: "ErpDisabledState",
                 schema: "supplier",
                 table: "supplier");
 

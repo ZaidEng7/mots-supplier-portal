@@ -13,7 +13,7 @@ using NpgsqlTypes;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260928143127_NightlyErpSync")]
+    [Migration("20260928164337_NightlyErpSync")]
     partial class NightlyErpSync
     {
         /// <inheritdoc />
@@ -3183,9 +3183,6 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<bool>("DisabledInErp")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("DisplayNameAr")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3195,6 +3192,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ErpDisabledState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("ExternalId")
                         .HasMaxLength(100)

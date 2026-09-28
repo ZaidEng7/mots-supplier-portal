@@ -30,9 +30,14 @@
 // THE QUARTER IS NOT APPLIED TO THEM, deliberately. When a real clear-out is held back, the way a person confirms it
 // is to suspend those suppliers here; the next run then finds them out of service and only marks them. A limit on
 // marks would hold that confirmation back too, every night, with nothing left a person could do to clear it. If that
-// person later reinstates one of them, the next run suspends it once more, as ErpSyncPlan explains. A mark
-// changes no lifecycle, and the next run that sees the supplier in the ERP again clears it, so a narrowed read that
-// slips under the limit leaves bookkeeping the next complete read undoes.
+// person later reinstates one of them, the next run suspends it once more, as ErpSyncPlan explains.
+//
+// WHAT A WRONG MARK COSTS, since a narrowed read under the limit can make one. A mark changes no lifecycle itself,
+// and the next run that finds the supplier in the ERP clears it. While it stands, two things wait: the automatic
+// reinstatement after a document renewal, which the sync asks again the moment the mark clears (see
+// AutomaticReinstatement), and the protection against a rename, which cannot be given back - a supplier the ERP
+// renamed in the very window a bad read had hidden it is treated as new, as it would be months later. That needs a
+// narrowed read and a rename of the same supplier together, and a limit on marks would cost more than it saves.
 //
 // HELD BACK IS NOT FAILED. The rest of the import still runs - new suppliers are created, changed ones updated - and
 // only the suspensions wait. Refusing the whole run would stop the useful work to protect against a danger that only

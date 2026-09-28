@@ -50,9 +50,11 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Integration;
+using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
+using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class RunErpImportHandler(
     IErpSupplierSource source,
@@ -468,6 +470,15 @@ public sealed class RunErpImportHandler(
     // on the placeholder, and a contact updated while the login stayed on the .invalid address would leave the
     // supplier's actual person unable to sign in with the address everyone now has on file. Only a placeholder
     // login is moved: an account somebody has already changed to a real address is theirs.
+    //
+    // A DISABLE IS RECORDED THE WAY AN ABSENCE IS: suspended once if the supplier is active, only marked if it is out
+    // of service already, and a person's reinstatement after the one suspension stands - see RecordErpDisabled.
+    //
+    // WHEN A MARK CLEARS, THE AUTOMATIC REINSTATEMENT IS ASKED AGAIN. A marked supplier - missing on an earlier night,
+    // or disabled while suspended - may have had its renewed document approved while the mark held the reinstatement
+    // back. The ERP returning it, or re-enabling it, is the moment that hold ends, and nothing else would look again;
+    // AutomaticReinstatement explains the rest. The sync's own suspensions are never lifted this way: reinstating
+    // somebody the ERP turned away is a person's decision.
     private async Task<ErpImportResultRow> UpdateAsync(
         Supplier existing, ErpSupplier erpSupplier, AdmittedSupplier admitted, Actor actor, CancellationToken ct)
     {
@@ -478,16 +489,19 @@ public sealed class RunErpImportHandler(
 
         var realEmail = admitted.EmailIsPlaceholder ? null : admitted.Email;
 
-        var suspendedNow = existing.ApplyErpSnapshot(
+        var wasMarkedGone = existing.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp;
+
+        existing.ApplyErpSnapshot(
             admitted.Name,
             erpSupplier.TaxId,
             LegalTypeOf(erpSupplier.LegalType),
             admitted.Currency,
             realEmail,
-            erpSupplier.Phone,
-            admitted.Suspended);
+            erpSupplier.Phone);
 
-        if (suspendedNow)
+        var disabled = existing.RecordErpDisabled(admitted.Suspended);
+
+        if (disabled == ErpDisabledChange.Suspended)
         {
             await audit.LogAsync(
                 aggregateType: "Supplier",
@@ -501,7 +515,23 @@ public sealed class RunErpImportHandler(
                 referenceCode: existing.ReferenceCode,
                 ct: ct);
 
-            notes.Add("Disabled in the ERP since the last run; suspended. A person who reinstates it will not be overruled.");
+            notes.Add("Disabled in the ERP; suspended. A person who reinstates it will not be overruled.");
+        }
+
+        if (disabled == ErpDisabledChange.Marked)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: "supplier.marked_disabled_in_erp",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                reason: "Disabled in the ERP; already out of service here, so only marked.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+
+            notes.Add("Disabled in the ERP while already out of service here; marked, so it will not come back "
+                      + "into service automatically.");
         }
 
         if (realEmail is not null)
@@ -511,6 +541,23 @@ public sealed class RunErpImportHandler(
         }
 
         existing.MarkSynced(erpSupplier.ExternalId);
+
+        if ((wasMarkedGone || disabled == ErpDisabledChange.Cleared)
+            && await AutomaticReinstatement.TryAsync(
+                db,
+                audit,
+                existing,
+                "Automatic reinstatement (BRULE-023/D-67): the award-critical document that expired was replaced and "
+                + "approved while the ERP was not offering this supplier, and the ERP offers it again.",
+                actor.UserId,
+                actor.Label,
+                $"{NotificationTypes.SupplierReinstated}:{existing.Id}:erp:{existing.LastSyncedAt?.UtcTicks}",
+                ct))
+        {
+            notes.Add("Offered by the ERP again, and the expired document that suspended it has since been replaced "
+                      + "and approved; reinstated automatically.");
+        }
+
         await db.SaveChangesAsync(ct);
 
         notes.AddRange(admitted.Notes);

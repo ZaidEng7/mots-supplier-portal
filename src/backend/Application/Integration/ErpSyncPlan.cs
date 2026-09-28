@@ -65,6 +65,9 @@
 // is how they find out. Reinstating it a second time is respected. It is not a rename candidate: it left on an earlier
 // night, and the same months-later reasoning applies. It counts against the same limit as tonight's.
 //
+// A DISABLE IS REMEMBERED THE SAME WAY, on the supplier rather than here, because a disabled supplier is still in
+// the list and so never reaches this plan - see Supplier.RecordErpDisabled.
+//
 // A READ THAT IS NOT BELIEVED MARKS NOBODY, and an empty read is never believed even when only suppliers already out
 // of service are missing. Why the quarter limit applies to suspensions only is in ErpMissingSupplierPolicy.
 
