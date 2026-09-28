@@ -471,6 +471,12 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<
             MotsSupplierPortal.Application.Integration.IPreviewErpImportHandler,
             MotsSupplierPortal.Infrastructure.Integration.Erp.PreviewErpImportHandler>();
+        builder.Services.Configure<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpImportOptions>(
+            builder.Configuration.GetSection(
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpImportOptions.SectionName));
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.IRunErpImportHandler,
+            MotsSupplierPortal.Infrastructure.Integration.Erp.RunErpImportHandler>();
         builder.AddErpSupplierSource();
         builder.Services.Configure<ClamAvOptions>(builder.Configuration.GetSection(ClamAvOptions.SectionName));
         builder.Services.AddScoped<IVirusScanner, ClamAvScanner>();

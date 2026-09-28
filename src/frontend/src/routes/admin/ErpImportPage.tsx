@@ -26,14 +26,18 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation } from '@tanstack/react-query'
-import { Badge, Button, Card, Metric, MetricRow, PageHeading, type Tone } from '../../components/ui'
+import { Badge, Button, Card, Dialog, Metric, MetricRow, PageHeading, type Tone } from '../../components/ui'
 import { formatNumber } from '../../lib/datetime'
 import {
   ErpPreviewError,
   previewErpImport,
+  runErpImport,
   type ErpImportAction,
+  type ErpImportOutcome,
   type ErpImportPreviewReport,
   type ErpImportPreviewRow,
+  type ErpImportResultRow,
+  type ErpImportRunReport,
 } from '../../api/erpImport'
 
 const actionTone: Record<ErpImportAction, Tone> = {
@@ -42,20 +46,45 @@ const actionTone: Record<ErpImportAction, Tone> = {
   Refuse: 'danger',
 }
 
+const outcomeTone: Record<ErpImportOutcome, Tone> = {
+  Created: 'success',
+  Updated: 'info',
+  Refused: 'warning',
+  Failed: 'danger',
+}
+
 export function ErpImportPage() {
   const { t, i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
   const [report, setReport] = useState<ErpImportPreviewReport | null>(null)
+  const [outcome, setOutcome] = useState<ErpImportRunReport | null>(null)
+  const [confirming, setConfirming] = useState(false)
   const [failure, setFailure] = useState<ErpPreviewError | null>(null)
 
   const preview = useMutation({
     mutationFn: previewErpImport,
     onSuccess: (result) => {
       setFailure(null)
+      setOutcome(null)
       setReport(result)
     },
     onError: (error) => {
       setReport(null)
+      setFailure(error instanceof ErpPreviewError ? error : new ErpPreviewError(0, null))
+    },
+  })
+
+  const run = useMutation({
+    mutationFn: runErpImport,
+    onSuccess: (result) => {
+      setFailure(null)
+      setConfirming(false)
+      setReport(null)
+      setOutcome(result)
+    },
+    onError: (error) => {
+      setConfirming(false)
+      setOutcome(null)
       setFailure(error instanceof ErpPreviewError ? error : new ErpPreviewError(0, null))
     },
   })
@@ -75,7 +104,68 @@ export function ErpImportPage() {
         </div>
       </Card>
 
+      <Card title={t('erpImport.runTitle')}>
+        <div className="flex flex-col gap-3">
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('erpImport.runHelp')}</p>
+          <div>
+            <Button onClick={() => setConfirming(true)} disabled={run.isPending}>
+              {run.isPending ? t('erpImport.importing') : t('erpImport.runImport')}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <Dialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t('erpImport.confirmTitle')}
+        description={t('erpImport.confirmBody')}
+      >
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => run.mutate()} disabled={run.isPending}>
+            {t('erpImport.confirmRun')}
+          </Button>
+          <Button variant="secondary" onClick={() => setConfirming(false)}>
+            {t('erpImport.cancel')}
+          </Button>
+        </div>
+      </Dialog>
+
       {failure !== null && <Failure failure={failure} />}
+
+      {outcome !== null && (
+        <>
+          <Card title={t('erpImport.outcomeTitle')}>
+            <MetricRow>
+              <Metric label={t('erpImport.inErp')} value={formatNumber(outcome.erpSupplierCount, locale, 0)} />
+              <Metric
+                label={t('erpImport.created')}
+                value={formatNumber(outcome.created, locale, 0)}
+                tone={outcome.created > 0 ? 'success' : 'neutral'}
+              />
+              <Metric label={t('erpImport.updated')} value={formatNumber(outcome.updated, locale, 0)} />
+              <Metric
+                label={t('erpImport.refused')}
+                value={formatNumber(outcome.refused, locale, 0)}
+                tone={outcome.refused > 0 ? 'warning' : 'neutral'}
+              />
+              <Metric
+                label={t('erpImport.failedCount')}
+                value={formatNumber(outcome.failed, locale, 0)}
+                tone={outcome.failed > 0 ? 'danger' : 'neutral'}
+              />
+            </MetricRow>
+          </Card>
+
+          <Card title={t('erpImport.rowsTitle')}>
+            <ul className="flex flex-col gap-4" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {outcome.rows.map((row) => (
+                <OutcomeRow key={row.externalId} row={row} />
+              ))}
+            </ul>
+          </Card>
+        </>
+      )}
 
       {report !== null && (
         <>
@@ -120,6 +210,32 @@ function PreviewRow({ row }: Readonly<{ row: ErpImportPreviewRow }>) {
         {row.matchedReferenceCode !== null && (
           <span style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-numeric)' }}>
             {row.matchedReferenceCode}
+          </span>
+        )}
+      </div>
+      <ul
+        className="flex flex-col gap-1"
+        style={{ color: 'var(--color-text-secondary)', paddingInlineStart: '1.25rem', margin: 0 }}
+      >
+        {row.notes.map((note) => (
+          <li key={note}>{note}</li>
+        ))}
+      </ul>
+    </li>
+  )
+}
+
+function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
+  const { t } = useTranslation()
+
+  return (
+    <li className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span style={{ fontWeight: 600 }}>{row.name ?? row.externalId}</span>
+        <Badge tone={outcomeTone[row.outcome]}>{t(`erpImport.outcome.${row.outcome}`)}</Badge>
+        {row.referenceCode !== null && (
+          <span style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-numeric)' }}>
+            {row.referenceCode}
           </span>
         )}
       </div>

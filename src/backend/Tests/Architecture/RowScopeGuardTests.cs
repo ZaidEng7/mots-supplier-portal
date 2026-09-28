@@ -144,6 +144,7 @@ public sealed class RowScopeGuardTests
         ["StorageSettingsHandler"] = "system_admin: storage totals for the deployment, not for a tenant",
         ["GetErpSyncMonitorHandler"] = "system_admin: the ERP queue is one queue for the deployment",
         ["PreviewErpImportHandler"] = "supplier.import.run, system_admin only: it matches the ERP against the whole national registry, and a scoped view would report every supplier it could not see as new",
+        ["RunErpImportHandler"] = "supplier.import.run, system_admin only: it writes the national registry from the ERP, and a scoped view would create a duplicate of every supplier it could not see",
     };
 
     private sealed record HandlerScan(string File, string Name, bool Scoped, string[] Tables);
