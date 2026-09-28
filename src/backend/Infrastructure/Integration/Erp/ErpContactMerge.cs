@@ -26,6 +26,12 @@
 //
 // A CONTACT WITH NO EMAIL IS NOT USELESS - it may still carry the phone - so it is skipped for one pass and
 // considered for the other rather than filtered out at the top.
+//
+// THE CONTACT'S NAME BECOMES THE PERSON, but only when it is a person. The ERP creates a contact of its own when a
+// supplier is saved with a phone, and names it "<supplier> Contact"; on the real server a quarter of the contacts are
+// those. Taking that as a representative's name would address letters to "AL-OMAR CO Contact". So a name that is the
+// supplier's own name, with or without " Contact", or its identifier, counts as no person at all - and the supplier's
+// representative is then named after the company, which the admission says in its notes.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -36,7 +42,8 @@ public sealed record ErpSupplierContact(
     string SupplierName,
     string? Email,
     string? Phone,
-    bool IsPrimary);
+    bool IsPrimary,
+    string? FullName = null);
 
 public static class ErpContactMerge
 {
@@ -63,13 +70,27 @@ public static class ErpContactMerge
         ErpSupplier supplier,
         IReadOnlyDictionary<string, List<ErpSupplierContact>> bySupplier)
     {
-        if (supplier.Email is not null && supplier.Phone is not null) return supplier;
         if (!bySupplier.TryGetValue(supplier.ExternalId, out var candidates)) return supplier;
 
         return supplier with
         {
             Email = supplier.Email ?? candidates.Select(c => c.Email).FirstOrDefault(e => e is not null),
             Phone = supplier.Phone ?? candidates.Select(c => c.Phone).FirstOrDefault(p => p is not null),
+            ContactPersonName = candidates
+                .Select(c => c.FullName?.Trim())
+                .FirstOrDefault(name => IsPerson(name, supplier)),
         };
+    }
+
+    public static bool IsPerson(string? name, ErpSupplier supplier)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+
+        var own = supplier.Name?.Trim() ?? supplier.ExternalId;
+
+        return !string.Equals(name, own, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(name, own + " Contact", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(name, supplier.ExternalId, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(name, supplier.ExternalId + " Contact", StringComparison.OrdinalIgnoreCase);
     }
 }

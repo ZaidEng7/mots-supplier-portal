@@ -4,6 +4,10 @@
 // nobody anticipated, and a single transaction would throw away seventy-nine good rows because of the eightieth.
 // It also means a re-run after a fix has less to redo, which matters because the first real run will be re-run.
 //
+// A FAILED SUPPLIER IS FORGOTTEN BEFORE THE NEXT ONE. The run shares one database context, and a supplier whose save
+// failed stays in it, waiting to be saved again - so without clearing it every later supplier's save retried the
+// failed one and failed with it. One value too long for its column emptied the rest of the run.
+//
 // THE PASSWORD IS CHECKED ONCE, BEFORE ANYTHING IS WRITTEN. The identity framework enforces twelve characters and
 // refuses passwords found in public breaches, and discovering that on the first account leaves a supplier row
 // with no account attached and seventy-nine to go. So a throwaway validation runs first and the whole run stops
@@ -74,12 +78,14 @@ public sealed class RunErpImportHandler(
 
         await EnsurePasswordIsAcceptableAsync(password);
 
+        var registrationNumbersInPortal = await RegistrationNumbersInPortal.ReadAsync(db, ct);
         var erpSuppliers = await source.ListSuppliersAsync(ct);
+        var registrationNumbers = ErpRegistrationNumbers.Decide(erpSuppliers, registrationNumbersInPortal);
         var rows = new List<ErpImportResultRow>();
 
         foreach (var erpSupplier in erpSuppliers)
         {
-            rows.Add(await ImportOneAsync(erpSupplier, password, ct));
+            rows.Add(await ImportOneAsync(erpSupplier, registrationNumbers[erpSupplier.ExternalId], password, ct));
         }
 
         logger.LogInformation(
@@ -99,23 +105,36 @@ public sealed class RunErpImportHandler(
     }
 
     private async Task<ErpImportResultRow> ImportOneAsync(
-        ErpSupplier erpSupplier, string password, CancellationToken ct)
+        ErpSupplier erpSupplier, ErpRegistrationNumberDecision registrationNumber, string password, CancellationToken ct)
     {
         var admitted = ErpImportAdmission.Admit(erpSupplier);
+        if (registrationNumber.Note is not null)
+        {
+            admitted = admitted with { Notes = [.. admitted.Notes, registrationNumber.Note] };
+        }
+
+        var details = new ErpSupplierDetails(
+            admitted.ArabicName,
+            registrationNumber.Number,
+            admitted.RegistrationType,
+            admitted.SupplierGroup,
+            admitted.Description);
 
         try
         {
             var existing = await db.Suppliers
                 .Include(s => s.Representatives)
+                .Include(s => s.Addresses)
                 .FirstOrDefaultAsync(s => s.ExternalId == erpSupplier.ExternalId, ct);
 
             return existing is null
-                ? await CreateAsync(erpSupplier, admitted, password, ct)
-                : await UpdateAsync(existing, erpSupplier, admitted, ct);
+                ? await CreateAsync(erpSupplier, admitted, details, password, ct)
+                : await UpdateAsync(existing, erpSupplier, admitted, details, ct);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Importing {Supplier} failed.", erpSupplier.ExternalId);
+            db.ChangeTracker.Clear();
 
             return new ErpImportResultRow(
                 erpSupplier.ExternalId, admitted.Name, ErpImportOutcome.Failed, null, [exception.Message]);
@@ -123,7 +142,11 @@ public sealed class RunErpImportHandler(
     }
 
     private async Task<ErpImportResultRow> CreateAsync(
-        ErpSupplier erpSupplier, AdmittedSupplier admitted, string password, CancellationToken ct)
+        ErpSupplier erpSupplier,
+        AdmittedSupplier admitted,
+        ErpSupplierDetails details,
+        string password,
+        CancellationToken ct)
     {
         var taken = await userManager.FindByEmailAsync(admitted.Email);
         if (taken is not null)
@@ -147,10 +170,14 @@ public sealed class RunErpImportHandler(
             erpSupplier.TaxId,
             LegalTypeOf(erpSupplier.LegalType),
             admitted.Currency,
-            admitted.Name,
+            admitted.RepresentativeName,
             admitted.Email,
             erpSupplier.Phone,
-            admitted.Suspended);
+            admitted.Suspended,
+            details);
+
+        var address = ErpImportAdmission.AddressOutcome(admitted, isNew: true, addressesInPortal: 0, blockedByState: null);
+        if (address.Write) AddAddress(supplier, admitted.Address!.Address);
 
         db.Suppliers.Add(supplier);
         await db.SaveChangesAsync(ct);
@@ -160,7 +187,7 @@ public sealed class RunErpImportHandler(
             Id = Guid.CreateVersion7(),
             UserName = admitted.Email,
             Email = admitted.Email,
-            FullName = admitted.Name,
+            FullName = admitted.RepresentativeName,
             SupplierId = supplier.Id,
             EmailConfirmed = true,
         };
@@ -169,6 +196,7 @@ public sealed class RunErpImportHandler(
         if (!created.Succeeded)
         {
             await transaction.RollbackAsync(ct);
+            db.ChangeTracker.Clear();
 
             return new ErpImportResultRow(
                 erpSupplier.ExternalId,
@@ -190,7 +218,8 @@ public sealed class RunErpImportHandler(
             ErpImportOutcome.Created,
             referenceCode,
             [$"Approved without portal review, imported from the ERP. Account created for {admitted.Email}.",
-             .. admitted.Notes]);
+             .. admitted.Notes,
+             address.Note]);
     }
 
     // Updating a supplier the portal already holds.
@@ -202,8 +231,16 @@ public sealed class RunErpImportHandler(
     // on the placeholder, and a contact updated while the login stayed on the .invalid address would leave the
     // supplier's actual person unable to sign in with the address everyone now has on file. Only a placeholder
     // login is moved: an account somebody has already changed to a real address is theirs.
+    //
+    // THE ADDRESS IS ADDED ONLY TO A SUPPLIER THAT HAS NONE. Once there is an address the supplier or the ministry may
+    // have corrected it - placed the pin, fixed the governorate the ERP's city field got wrong - and the ERP's version
+    // is the older truth. Every other field the ERP sends is refreshed, and nothing it lacks is blanked.
     private async Task<ErpImportResultRow> UpdateAsync(
-        Supplier existing, ErpSupplier erpSupplier, AdmittedSupplier admitted, CancellationToken ct)
+        Supplier existing,
+        ErpSupplier erpSupplier,
+        AdmittedSupplier admitted,
+        ErpSupplierDetails details,
+        CancellationToken ct)
     {
         var notes = new List<string>
         {
@@ -219,7 +256,17 @@ public sealed class RunErpImportHandler(
             admitted.Currency,
             realEmail,
             erpSupplier.Phone,
-            admitted.Suspended);
+            admitted.Suspended,
+            details,
+            admitted.ContactPerson);
+
+        var address = ErpImportAdmission.AddressOutcome(
+            admitted,
+            isNew: false,
+            existing.Addresses.Count,
+            Supplier.AllowsContactEdits(existing.OnboardingState) ? null : $"in state '{existing.OnboardingState}'");
+        if (address.Write) AddAddress(existing, admitted.Address!.Address);
+        notes.Add(address.Note);
 
         if (realEmail is not null)
         {
@@ -238,6 +285,25 @@ public sealed class RunErpImportHandler(
             ErpImportOutcome.Updated,
             existing.ReferenceCode,
             notes);
+    }
+
+    // The new address is added to the context explicitly, as ManageAddressHandler does. Its identifier is set by the
+    // domain, so on a supplier that is already tracked the change tracker takes it for an existing row and issues an
+    // update that touches nothing - the save then fails as a concurrency conflict, and the supplier with it.
+    private void AddAddress(Supplier supplier, MappedErpAddress? address)
+    {
+        if (address is null) return;
+
+        db.Addresses.Add(supplier.AddAddress(
+            AddressKind.Billing,
+            address.Line1,
+            address.Line2,
+            address.City,
+            address.RegionCode,
+            address.Country,
+            postalCode: null,
+            latitude: null,
+            longitude: null));
     }
 
     private async Task<string?> MoveLoginOffPlaceholderAsync(Supplier supplier, string realEmail)
