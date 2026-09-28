@@ -138,6 +138,44 @@ public sealed class ErpSupplierSourceTests
     }
 
     [Fact]
+    public async Task Contacts_are_asked_for_when_a_supplier_arrives_without_an_email()
+    {
+        var source = SourceReturning(HttpStatusCode.OK, LiveSupplierResponse, out var handler);
+
+        await source.ListSuppliersAsync(CancellationToken.None);
+
+        handler.Requests.Should().HaveCount(
+            2,
+            "none of the three suppliers carries an email, and the addresses may be one table over");
+        handler.Requests[1].RequestUri!.AbsolutePath.Should().Be("/api/resource/Contact");
+        Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query).Should().Contain(
+            "[[\"Dynamic Link\",\"link_doctype\",\"=\",\"Supplier\"]]",
+            "listing Dynamic Link is refused to this credential, but filtering Contact on its child rows is not");
+    }
+
+    [Fact]
+    public async Task Contacts_are_not_asked_for_when_every_supplier_already_has_what_is_needed()
+    {
+        const string complete = """
+        {"data": [
+          {"name": "A", "supplier_name": "A", "supplier_group": "Local", "supplier_type": "Company",
+           "tax_id": "T1", "country": "Syria", "email_id": "a@example.com", "mobile_no": "+963 11 1",
+           "disabled": 0, "default_currency": "SYP", "supplier_primary_address": null,
+           "supplier_primary_contact": null, "creation": "2026-09-16 12:33:48", "modified": "2026-09-16 12:33:48"}
+        ]}
+        """;
+
+        var source = SourceReturning(HttpStatusCode.OK, complete, out var handler);
+
+        var suppliers = await source.ListSuppliersAsync(CancellationToken.None);
+
+        suppliers[0].Email.Should().Be("a@example.com");
+        handler.Requests.Should().HaveCount(
+            1,
+            "a second call that could change nothing is a call on somebody else's server for no reason");
+    }
+
+    [Fact]
     public async Task A_refusal_carries_its_status_its_exc_type_and_what_to_do_about_it()
     {
         var source = SourceReturning(HttpStatusCode.Forbidden, LivePermissionRefusal, out _);
@@ -164,14 +202,22 @@ public sealed class ErpSupplierSourceTests
         thrown.Which.Kind.Should().Be(ErpFailureKind.Transient);
     }
 
+    // Every request is recorded, not just the last one. The client makes a second call for contacts whenever a
+    // supplier arrives without an email, and a handler that remembered only the most recent request reported the
+    // contact call as though it were the supplier one - which is how the assertion about the supplier URL started
+    // failing while the client was behaving correctly.
     private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {
-        public HttpRequestMessage? Request { get; private set; }
+        private readonly List<HttpRequestMessage> _requests = [];
+
+        public IReadOnlyList<HttpRequestMessage> Requests => _requests;
+
+        public HttpRequestMessage? Request => _requests.Count == 0 ? null : _requests[0];
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Request = request;
+            _requests.Add(request);
 
             return Task.FromResult(new HttpResponseMessage(status)
             {
