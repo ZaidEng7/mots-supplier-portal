@@ -900,6 +900,10 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //
     // THE REPRESENTATIVE IS NAMED AFTER THE COMPANY when the ERP gives no person, because the field is required
     // and inventing a human being's name is worse than repeating the company's.
+    //
+    // A SUPPLIER DISABLED IN THE ERP ARRIVES SUSPENDED, not active and not deactivated. Active would let a company
+    // Seven Gates has stopped using be invited to tenders; deactivated is permanent in this product, and
+    // "disabled" in the ERP is not.
     public static Supplier ImportFromErp(
         string referenceCode,
         string externalId,
@@ -909,7 +913,8 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         string? currencyCode,
         string representativeName,
         string representativeEmail,
-        string? representativePhone)
+        string? representativePhone,
+        bool suspended = false)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -921,7 +926,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             DisplayNameEn = displayNameEn,
             CurrencyCode = currencyCode,
             OnboardingState = SupplierOnboardingState.Approved,
-            LifecycleState = SupplierLifecycleState.Active,
+            LifecycleState = suspended ? SupplierLifecycleState.Suspended : SupplierLifecycleState.Active,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -950,15 +955,22 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // they entered, the documents they uploaded, the category the ministry assigned - is the portal's and is not
     // touched. A null arriving from the ERP means "this system does not know", not "delete what you have".
     //
-    // THE ONBOARDING AND LIFECYCLE STATES ARE NOT TOUCHED EITHER. A supplier suspended here stays suspended
-    // whatever the ERP thinks; reinstating somebody is a decision a person makes on this side.
+    // A NULL EMAIL MEANS "THE ERP HAS NONE", and the one on file is kept. That matters because the import fills a
+    // missing email with a placeholder: passing the placeholder through here would overwrite a real address a
+    // supplier later gave the portal, just because the ERP still has nothing.
+    //
+    // THE ERP MAY SUSPEND, BUT IT NEVER REINSTATES. A supplier the ERP disables is suspended here, so it cannot be
+    // invited to a tender Seven Gates would not honour. A supplier the ERP re-enables stays as it is: reinstating
+    // somebody is a decision a person makes on this side, and they may have been suspended here for a reason the
+    // ERP knows nothing about.
     public void ApplyErpSnapshot(
         string displayNameEn,
         string? taxId,
         SupplierLegalType legalType,
         string? currencyCode,
-        string representativeEmail,
-        string? representativePhone)
+        string? representativeEmail,
+        string? representativePhone,
+        bool disabledInErp = false)
     {
         DisplayNameEn = displayNameEn;
         if (currencyCode is not null) CurrencyCode = currencyCode;
@@ -974,8 +986,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         var representative = _representatives.FirstOrDefault(r => r.IsPrimary) ?? _representatives.FirstOrDefault();
         if (representative is not null)
         {
-            representative.Email = representativeEmail;
+            if (representativeEmail is not null) representative.Email = representativeEmail;
             if (representativePhone is not null) representative.Phone = representativePhone;
+        }
+
+        if (disabledInErp && LifecycleState == SupplierLifecycleState.Active)
+        {
+            LifecycleState = SupplierLifecycleState.Suspended;
         }
 
         UpdatedAt = DateTimeOffset.UtcNow;

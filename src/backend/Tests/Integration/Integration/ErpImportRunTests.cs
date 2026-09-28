@@ -10,8 +10,10 @@
 // would ever confirm it. That would be an import that reports eighty accounts created and delivers eighty
 // accounts nobody can enter. The role matters for the same reason: a supplier with no role sees nothing.
 //
-// THE REFUSAL TEST CHECKS THAT NOTHING WAS WRITTEN, not just that the row said Refused. A refusal that still left
-// a half-made supplier behind would be worse than a failure, because the report would read clean.
+// NOBODY IS LEFT OUT. A supplier with no email arrives with a placeholder login that cannot deliver, a disabled
+// one arrives suspended, and a later run that brings a real address moves the LOGIN onto it, not just the contact -
+// otherwise the supplier's actual person could never sign in. The reverse is guarded too: a run where the ERP has
+// lost the address must not replace a real one with a placeholder.
 //
 // THE PASSWORD IS CHECKED BEFORE THE FIRST WRITE, so a misconfigured one costs nothing rather than leaving the
 // registry half-populated. The test uses a password the product's own rules reject, rather than a made-up
@@ -44,8 +46,8 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             Task.FromResult<IReadOnlyList<ErpSupplier>>(suppliers);
     }
 
-    private static ErpSupplier Supplier(string id, string? email, string? name = null) =>
-        new(id, name ?? id, "Local", "Company", "TAX-" + id, "Syria", email, "+963 11 555 0000", false, "SYP",
+    private static ErpSupplier Supplier(string id, string? email, string? name = null, bool disabled = false) =>
+        new(id, name ?? id, "Local", "Company", "TAX-" + id, "Syria", email, "+963 11 555 0000", disabled, "SYP",
             null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
     private static async Task<ErpImportRunReport> RunAsync(
@@ -122,21 +124,90 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task A_supplier_with_no_email_is_refused_and_nothing_is_written()
+    public async Task A_supplier_with_no_email_arrives_with_a_placeholder_login()
     {
         var externalId = Unique("ERP-NOEMAIL");
 
         var report = await RunAsync(fixture, new FixedSource(Supplier(externalId, email: null)));
 
-        report.Refused.Should().Be(1);
-        report.Created.Should().Be(0);
-        report.Rows[0].Notes.Should().ContainMatch("*no email address*");
+        report.Created.Should().Be(1, "every supplier in the ERP is meant to appear in the portal");
+        report.Refused.Should().Be(0);
+        report.Rows[0].Notes.Should().ContainMatch("*placeholder*");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+        var supplier = await db.Suppliers.Include(s => s.Representatives).SingleAsync(s => s.ExternalId == externalId);
+        var user = await users.FindByIdAsync(supplier.Representatives[0].UserId!.Value.ToString());
+
+        user!.Email.Should().EndWith("@erp-import.invalid", "a placeholder must never be able to deliver");
+        ErpImportAdmission.IsPlaceholder(supplier.Representatives[0].Email).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_supplier_disabled_in_the_erp_arrives_suspended()
+    {
+        var externalId = Unique("ERP-DISABLED");
+
+        await RunAsync(fixture, new FixedSource(
+            Supplier(externalId, $"{externalId.ToLowerInvariant()}@sgtest.example", disabled: true)));
 
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        (await db.Suppliers.AnyAsync(s => s.ExternalId == externalId)).Should().BeFalse(
-            "a refusal that left a half-made supplier behind would read as clean in the report");
+        var supplier = await db.Suppliers.SingleAsync(s => s.ExternalId == externalId);
+        supplier.LifecycleState.Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the preview promised this, and an active one could be invited to a tender Seven Gates would not honour");
+    }
+
+    [Fact]
+    public async Task A_real_email_arriving_later_moves_the_login_off_the_placeholder()
+    {
+        var externalId = Unique("ERP-LATEREMAIL");
+        var realEmail = $"{externalId.ToLowerInvariant()}@sgtest.example";
+
+        await RunAsync(fixture, new FixedSource(Supplier(externalId, email: null)));
+        var second = await RunAsync(fixture, new FixedSource(Supplier(externalId, realEmail)));
+
+        second.Updated.Should().Be(1);
+        second.Rows[0].Notes.Should().ContainMatch("*login moved from placeholder*");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+        var supplier = await db.Suppliers.Include(s => s.Representatives).SingleAsync(s => s.ExternalId == externalId);
+        var user = await users.FindByIdAsync(supplier.Representatives[0].UserId!.Value.ToString());
+
+        user!.Email.Should().Be(
+            realEmail,
+            "a contact updated while the login stayed on .invalid would leave the real person unable to sign in");
+        user.UserName.Should().Be(realEmail);
+        user.EmailConfirmed.Should().BeTrue("changing the address resets confirmation, and sign-in refuses without it");
+        supplier.Representatives[0].Email.Should().Be(realEmail);
+        (await users.CheckPasswordAsync(user, Password)).Should().BeTrue("moving the login must not lose the password");
+    }
+
+    [Fact]
+    public async Task A_placeholder_never_overwrites_a_real_address_already_on_file()
+    {
+        var externalId = Unique("ERP-KEEPREAL");
+        var realEmail = $"{externalId.ToLowerInvariant()}@sgtest.example";
+
+        await RunAsync(fixture, new FixedSource(Supplier(externalId, realEmail)));
+        await RunAsync(fixture, new FixedSource(Supplier(externalId, email: null)));
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+        var supplier = await db.Suppliers.Include(s => s.Representatives).SingleAsync(s => s.ExternalId == externalId);
+        supplier.Representatives[0].Email.Should().Be(
+            realEmail,
+            "the ERP losing an address is not a reason to replace a real one with an address that cannot deliver");
+        (await users.FindByEmailAsync(realEmail)).Should().NotBeNull();
     }
 
     [Fact]
@@ -150,8 +221,8 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             Supplier(bad, email: null)));
 
         report.ErpSupplierCount.Should().Be(2);
-        report.Created.Should().Be(1);
-        report.Refused.Should().Be(1);
+        report.Created.Should().Be(2, "the one with no email gets a placeholder instead of being left out");
+        report.Refused.Should().Be(0);
         report.Failed.Should().Be(0);
         (report.Created + report.Updated + report.Refused + report.Failed).Should().Be(report.ErpSupplierCount);
     }
