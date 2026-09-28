@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Local development secrets - the ERP credential and the import password - live outside the repository.
+         Without this identifier "dotnet user-secrets" refuses to run and the host never loads the store, so the
+         advice in appsettings.Development.json would send somebody to a command that cannot work. -->
+    <UserSecretsId>mots-supplier-portal-api</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
