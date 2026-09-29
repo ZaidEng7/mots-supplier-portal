@@ -71,8 +71,14 @@
 //
 // A READ THAT IS NOT BELIEVED MARKS NOBODY, and an empty read is never believed even when only suppliers already out
 // of service are missing. Why the quarter limit applies to suspensions only is in ErpMissingSupplierPolicy.
+//
+// SUPPLIERS THE ERP TURNS AWAY ARE HELD TO THE SAME QUARTER. They are in the list, so they are not "missing", but a
+// run that would suspend most of them at once is decided here too, from the same read, so the preview and the run
+// agree on who is held back; why is in ErpMissingSupplierPolicy.TurnedAwayHeldBack.
 
 namespace MotsSupplierPortal.Application.Integration;
+
+using MotsSupplierPortal.Domain.Suppliers;
 
 public sealed record PortalLinkedSupplier(
     string ExternalId,
@@ -82,7 +88,8 @@ public sealed record PortalLinkedSupplier(
     string? LoginEmail,
     bool IsActive,
     bool SuspendedAsRemovedFromErp,
-    bool MarkedRemovedFromErp = false)
+    bool MarkedRemovedFromErp = false,
+    SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled)
 {
     public bool RecordedAsGone => SuspendedAsRemovedFromErp || MarkedRemovedFromErp;
 }
@@ -94,8 +101,11 @@ public sealed record ErpSyncPlan(
     IReadOnlyList<PortalLinkedSupplier> ToSuspend,
     IReadOnlyList<PortalLinkedSupplier> ToMarkRemoved,
     int ActiveLinked,
-    string? SuspensionsHeldBack)
+    string? SuspensionsHeldBack,
+    IReadOnlySet<string>? TurnedAwayHeld = null)
 {
+    public bool HoldsTurnedAway(string externalId) => TurnedAwayHeld?.Contains(externalId) == true;
+
     public static ErpSyncPlan Build(IReadOnlyList<ErpSupplier> erp, IReadOnlyList<PortalLinkedSupplier> portal)
     {
         var inPortal = portal.Select(p => p.ExternalId).ToHashSet(StringComparer.Ordinal);
@@ -134,12 +144,26 @@ public sealed record ErpSyncPlan(
         var decision = ErpMissingSupplierPolicy.Decide(
             erp.Count, activeLinked, activeMissing.Count, outOfServiceMissing.Count);
 
+        var byExternalId = portal
+            .GroupBy(p => p.ExternalId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var turnedAway = erp
+            .Where(e => byExternalId.TryGetValue(e.ExternalId, out var linked)
+                && Supplier.ErpDisabledChangeFor(
+                    linked.ErpDisabledState, linked.IsActive, ErpImportAdmission.StandingOf(e)) == ErpDisabledChange.Suspended)
+            .Select(e => e.ExternalId)
+            .ToHashSet(StringComparer.Ordinal);
+        var turnedAwayHeldBack = ErpMissingSupplierPolicy.TurnedAwayHeldBack(activeLinked, turnedAway.Count);
+
+        var heldBack = string.Join(" ", new[] { decision.HeldBackBecause, turnedAwayHeldBack }.Where(m => m is not null));
+
         return new ErpSyncPlan(
             renames,
             decision.MaySuspend ? activeMissing : [],
             decision.MaySuspend ? outOfServiceMissing : [],
             activeLinked,
-            decision.HeldBackBecause);
+            heldBack.Length == 0 ? null : heldBack,
+            turnedAwayHeldBack is null ? null : turnedAway);
     }
 
     private static string? Signal(ErpSupplier arrival, PortalLinkedSupplier vanished)

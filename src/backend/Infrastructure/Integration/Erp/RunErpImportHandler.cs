@@ -167,7 +167,13 @@ public sealed class RunErpImportHandler(
                 continue;
             }
 
-            rows.Add(await ImportOneAsync(erpSupplier, registrationNumbers[erpSupplier.ExternalId], password, actor, ct));
+            rows.Add(await ImportOneAsync(
+                erpSupplier,
+                registrationNumbers[erpSupplier.ExternalId],
+                password,
+                actor,
+                plan.HoldsTurnedAway(erpSupplier.ExternalId),
+                ct));
         }
 
         rows.AddRange(await SuspendPlannedAsync(plan.ToSuspend, actor, ct));
@@ -209,6 +215,7 @@ public sealed class RunErpImportHandler(
                     .FirstOrDefault(),
                 s.LifecycleState,
                 s.SyncStatus,
+                s.ErpDisabledState,
             })
             .ToListAsync(ct);
 
@@ -223,7 +230,8 @@ public sealed class RunErpImportHandler(
                 r.LoginEmail,
                 r.LifecycleState == SupplierLifecycleState.Active,
                 r.SyncStatus == SupplierSyncStatus.RemovedFromErp,
-                r.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp))];
+                r.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp,
+                r.ErpDisabledState))];
     }
 
     // Suspending what the plan decided, re-checked under the lock: a supplier a person reinstated, or one already
@@ -375,6 +383,7 @@ public sealed class RunErpImportHandler(
         ErpRegistrationNumberDecision registrationNumber,
         string password,
         Actor actor,
+        bool holdTurnedAway,
         CancellationToken ct)
     {
         var admitted = ErpImportAdmission.Admit(erpSupplier);
@@ -400,7 +409,7 @@ public sealed class RunErpImportHandler(
 
             return existing is null
                 ? await CreateAsync(erpSupplier, admitted, details, password, ct)
-                : await UpdateAsync(existing, erpSupplier, admitted, details, actor, ct);
+                : await UpdateAsync(existing, erpSupplier, admitted, details, actor, holdTurnedAway, ct);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -444,7 +453,7 @@ public sealed class RunErpImportHandler(
             admitted.RepresentativeName,
             admitted.Email,
             erpSupplier.Phone,
-            admitted.Suspended,
+            admitted.Standing,
             details);
 
         var address = ErpImportAdmission.AddressOutcome(admitted, isNew: true, addressesInPortal: 0, blockedByState: null);
@@ -523,6 +532,7 @@ public sealed class RunErpImportHandler(
         AdmittedSupplier admitted,
         ErpSupplierDetails details,
         Actor actor,
+        bool holdTurnedAway,
         CancellationToken ct)
     {
         var notes = new List<string>
@@ -552,7 +562,12 @@ public sealed class RunErpImportHandler(
         if (address.Write) AddAddress(existing, admitted.Address!.Address);
         notes.Add(address.Note);
 
-        var disabled = existing.RecordErpDisabled(admitted.Suspended);
+        var held = holdTurnedAway
+            && Supplier.ErpDisabledChangeFor(
+                existing.ErpDisabledState,
+                existing.LifecycleState == SupplierLifecycleState.Active,
+                admitted.Standing) == ErpDisabledChange.Suspended;
+        var disabled = held ? ErpDisabledChange.None : existing.RecordErpStanding(admitted.Standing);
 
         if (disabled == ErpDisabledChange.Suspended)
         {
@@ -582,9 +597,28 @@ public sealed class RunErpImportHandler(
                 ct: ct);
         }
 
+        if (disabled == ErpDisabledChange.Released)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: "supplier.reactivated_approved_in_erp",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                fromState: nameof(SupplierLifecycleState.Suspended),
+                toState: nameof(SupplierLifecycleState.Active),
+                reason: "Approved in the ERP; it had been suspended here only while it waited for that.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+
+            notes.Add(ErpImportAdmission.ReleasedNote);
+        }
+
         if (admitted.TurnedAway is not null)
         {
-            notes.Add(ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, disabled));
+            notes.Add(held
+                ? ErpImportAdmission.HeldBackNote(admitted.TurnedAway)
+                : ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, disabled));
         }
 
         if (realEmail is not null)

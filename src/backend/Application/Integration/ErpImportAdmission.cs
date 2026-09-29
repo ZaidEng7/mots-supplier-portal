@@ -80,7 +80,8 @@ public sealed record AdmittedSupplier(
     string? SupplierGroup = null,
     string? RegistrationType = null,
     string? TurnedAway = null,
-    string? ArrivalNote = null)
+    string? ArrivalNote = null,
+    ErpStanding Standing = ErpStanding.Usable)
 {
     public string RepresentativeName => ContactPerson ?? Name;
 }
@@ -160,7 +161,21 @@ public static partial class ErpImportAdmission
             ErpFieldLimits.DropIfTooLong(
                 supplier.RegistrationType, ErpFieldLimits.RegistrationType, "registration type", notes),
             turnedAway,
-            arrivalNote);
+            arrivalNote,
+            StandingOf(supplier));
+    }
+
+    // Whether the ERP lets this supplier be used, is still approving it, or has disabled it. Disabled wins when both
+    // are true: a disabled record is not waiting for anything, and the sync never lifts a disable by itself.
+    public static ErpStanding StandingOf(ErpSupplier supplier)
+    {
+        if (supplier.Disabled) return ErpStanding.Disabled;
+
+        var workflowState = supplier.WorkflowState?.Trim();
+        var notApproved = !string.IsNullOrEmpty(workflowState)
+            && !string.Equals(workflowState, ApprovedWorkflowState, StringComparison.OrdinalIgnoreCase);
+
+        return notApproved ? ErpStanding.AwaitingApproval : ErpStanding.Usable;
     }
 
     // Why the ERP is turning this supplier away - disabled, or not approved - or null if it is not.
@@ -168,16 +183,20 @@ public static partial class ErpImportAdmission
     // ONE RULE FOR EVERY PLACE THAT ASKS. A new supplier arrives suspended on it, an existing one is suspended once on
     // it, and a probable rename is not held for it. Three copies would drift, and the first one already had: renames
     // looked only at "disabled" after "not approved" had been added everywhere else.
-    public static string? TurnedAwayReason(ErpSupplier supplier)
+    public static string? TurnedAwayReason(ErpSupplier supplier) => StandingOf(supplier) switch
     {
-        if (supplier.Disabled) return "Disabled in the ERP";
+        ErpStanding.Disabled => "Disabled in the ERP",
+        ErpStanding.AwaitingApproval => $"Not approved in the ERP ('{supplier.WorkflowState?.Trim()}')",
+        _ => null,
+    };
 
-        var workflowState = supplier.WorkflowState?.Trim();
-        var notApproved = !string.IsNullOrEmpty(workflowState)
-            && !string.Equals(workflowState, ApprovedWorkflowState, StringComparison.OrdinalIgnoreCase);
+    public const string ReleasedNote =
+        "Approved in the ERP now. It was suspended here only while it waited for that, and nobody has changed it since, "
+        + "so it is back in service.";
 
-        return notApproved ? $"Not approved in the ERP ('{workflowState}')" : null;
-    }
+    // What an update row says when the ERP turned the supplier away but this run held the suspension back.
+    public static string HeldBackNote(string reason) =>
+        $"{reason}; not suspended in this run, because too many suppliers were turned away at once - see the summary.";
 
     // What an update row says about a supplier the ERP is turning away, for the preview and the run alike.
     //

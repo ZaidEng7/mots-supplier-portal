@@ -78,7 +78,8 @@ public static class ErpImportPreviewBuilder
             pair.Value.LoginEmail,
             pair.Value.IsActive,
             pair.Value.SuspendedAsRemovedFromErp,
-            pair.Value.MarkedRemovedFromErp))]);
+            pair.Value.MarkedRemovedFromErp,
+            pair.Value.ErpDisabledState))]);
 
         var heldFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
 
@@ -89,7 +90,7 @@ public static class ErpImportPreviewBuilder
         var rows = erpSuppliers
             .Select(supplier => heldFrom.TryGetValue(supplier.ExternalId, out var held)
                 ? HeldRow(supplier, held)
-                : Row(supplier, byExternalId, unlinkedByTaxId, registrationNumbers[supplier.ExternalId]))
+                : Row(supplier, byExternalId, unlinkedByTaxId, registrationNumbers[supplier.ExternalId], plan))
             .ToList();
 
         rows.AddRange(plan.ToSuspend.Select(missing => new ErpImportPreviewRow(
@@ -132,7 +133,8 @@ public static class ErpImportPreviewBuilder
         ErpSupplier supplier,
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
         IReadOnlyDictionary<string, string> unlinkedByTaxId,
-        ErpRegistrationNumberDecision registrationNumber)
+        ErpRegistrationNumberDecision registrationNumber,
+        ErpSyncPlan plan)
     {
         var admitted = ErpImportAdmission.Admit(supplier);
         var notes = new List<string>(admitted.Notes);
@@ -146,9 +148,10 @@ public static class ErpImportPreviewBuilder
         notes.Add(ErpImportAdmission.AddressOutcome(
             admitted, candidate is null, candidate?.AddressCount ?? 0, candidate?.BlockedByState).Note);
 
-        var turnedAway = candidate is null
+        var standing = candidate is null
             ? ErpDisabledChange.None
-            : Supplier.ErpDisabledChangeFor(candidate.ErpDisabledState, candidate.IsActive, admitted.Suspended);
+            : Supplier.ErpDisabledChangeFor(candidate.ErpDisabledState, candidate.IsActive, admitted.Standing);
+        var held = standing == ErpDisabledChange.Suspended && plan.HoldsTurnedAway(supplier.ExternalId);
 
         if (candidate is null && admitted.ArrivalNote is not null)
         {
@@ -157,7 +160,14 @@ public static class ErpImportPreviewBuilder
 
         if (candidate is not null && admitted.TurnedAway is not null)
         {
-            notes.Add(ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, turnedAway));
+            notes.Add(held
+                ? ErpImportAdmission.HeldBackNote(admitted.TurnedAway)
+                : ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, standing));
+        }
+
+        if (standing == ErpDisabledChange.Released)
+        {
+            notes.Add(ErpImportAdmission.ReleasedNote);
         }
 
         notes.Add(
@@ -187,7 +197,7 @@ public static class ErpImportPreviewBuilder
             admitted.Name,
             matched is null
                 ? ErpImportAction.Create
-                : turnedAway == ErpDisabledChange.Suspended ? ErpImportAction.Suspend : ErpImportAction.Update,
+                : standing == ErpDisabledChange.Suspended && !held ? ErpImportAction.Suspend : ErpImportAction.Update,
             notes,
             matched?.ReferenceCode);
     }

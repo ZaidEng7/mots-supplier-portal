@@ -5,6 +5,12 @@
 // a person's suspension, or the expiry rule's, always does. Starting such a supplier as NotDisabled would have the
 // first run take it for one already out of service for another reason and only mark it, and a person who then
 // reinstated it would be overruled within the hour.
+//
+// IT IS RECORDED AS WAITING FOR APPROVAL, the one memory the ERP's approval may lift. The import could not tell a
+// disable from a pending approval afterwards, but the first run can: a supplier the ERP still disables is moved to
+// SuspendedAsDisabled then, and one it has approved comes into service. The only case this gets wrong is a supplier
+// disabled when it was imported and both re-enabled and approved before the first run - which the one supplier this
+// applies to today, still pending in the ERP, is not.
 
 using System;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -31,7 +37,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql(
                 """
                 UPDATE supplier.supplier s
-                SET "ErpDisabledState" = 'SuspendedAsDisabled'
+                SET "ErpDisabledState" = 'SuspendedAsPending'
                 WHERE s."ExternalId" IS NOT NULL
                   AND s."LifecycleState" = 'Suspended'
                   AND NOT EXISTS (

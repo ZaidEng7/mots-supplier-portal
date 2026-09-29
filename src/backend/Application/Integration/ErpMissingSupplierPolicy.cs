@@ -86,4 +86,22 @@ public static class ErpMissingSupplierPolicy
 
         return new ErpMissingSupplierDecision(true, null);
     }
+
+    // Whether this run may suspend the active suppliers the ERP now turns away - disables, or has not approved.
+    //
+    // THE SAME QUARTER, FOR THE SAME REASON. A handful of suppliers turned away is Seven Gates' ordinary work; most of
+    // them at once is a change on their side - a workflow renamed, re-saved, or reset to its first state - and an hourly
+    // run nobody watches would otherwise suspend the ministry's whole supplier base and leave a person to reinstate
+    // every one by hand, even after the ERP is put right. Above the limit nothing is suspended and the run says so.
+    public static string? TurnedAwayHeldBack(int activeLinkedInPortal, int turnedAway)
+    {
+        var limit = Math.Max(AlwaysAllowed, (int)Math.Floor(activeLinkedInPortal * LargestShareSuspendedInOneRun));
+
+        return turnedAway <= limit
+            ? null
+            : $"The ERP turned away {turnedAway} active suppliers at once - disabled, or not approved - more than the "
+              + $"{limit} one run may suspend (a quarter of the {activeLinkedInPortal} active suppliers imported from it, "
+              + $"and never fewer than {AlwaysAllowed}). None were suspended for it. Check with Seven Gates whether "
+              + "something changed on their side before anyone suspends them.";
+    }
 }

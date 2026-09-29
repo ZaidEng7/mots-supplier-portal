@@ -19,14 +19,14 @@ public sealed class ErpDisabledMemoryTests
     private static Supplier Imported(bool disabled = false) =>
         Supplier.ImportFromErp(
             "SUP-2026-000001", "Homs Linen Mills", "Homs Linen Mills", null, SupplierLegalType.Company, "SYP",
-            "Homs Linen Mills", "sales@homslinen.example", null, disabled);
+            "Homs Linen Mills", "sales@homslinen.example", null, disabled ? ErpStanding.Disabled : ErpStanding.Usable);
 
     [Fact]
     public void An_active_supplier_the_erp_disables_is_suspended()
     {
         var supplier = Imported();
 
-        supplier.RecordErpDisabled(true).Should().Be(ErpDisabledChange.Suspended);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.Suspended);
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
         supplier.ErpDisabledState.Should().Be(SupplierErpDisabledState.SuspendedAsDisabled);
     }
@@ -37,7 +37,7 @@ public sealed class ErpDisabledMemoryTests
         var supplier = Imported(disabled: true);
         supplier.Reactivate("The ministry still works with them directly.");
 
-        supplier.RecordErpDisabled(true).Should().Be(ErpDisabledChange.None);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.None);
         supplier.LifecycleState.Should().Be(
             SupplierLifecycleState.Active,
             "it arrived suspended for the disable, so a person's reinstatement stands");
@@ -47,10 +47,10 @@ public sealed class ErpDisabledMemoryTests
     public void A_person_who_reinstates_a_supplier_suspended_for_a_disable_is_not_overruled()
     {
         var supplier = Imported();
-        supplier.RecordErpDisabled(true);
+        supplier.RecordErpStanding(ErpStanding.Disabled);
         supplier.Reactivate("The ministry still works with them directly.");
 
-        supplier.RecordErpDisabled(true).Should().Be(ErpDisabledChange.None);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.None);
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
     }
 
@@ -60,7 +60,7 @@ public sealed class ErpDisabledMemoryTests
         var supplier = Imported();
         supplier.Suspend("A licence expired.");
 
-        supplier.RecordErpDisabled(true).Should().Be(ErpDisabledChange.Marked);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.Marked);
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
         supplier.IsMarkedAsUnwantedByErp.Should().BeTrue(
             "the second version kept no trace of this disable, so a document approval brought the supplier back");
@@ -71,17 +71,17 @@ public sealed class ErpDisabledMemoryTests
     {
         var supplier = Imported();
         supplier.Suspend("A licence expired.");
-        supplier.RecordErpDisabled(true);
+        supplier.RecordErpStanding(ErpStanding.Disabled);
         supplier.Reactivate("The matter is closed.");
 
-        supplier.RecordErpDisabled(true).Should().Be(
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(
             ErpDisabledChange.Suspended,
             "the second version only suspended on the change to disabled, which had already passed, so it never did");
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
 
         supplier.Reactivate("Still works with us directly.");
 
-        supplier.RecordErpDisabled(true).Should().Be(ErpDisabledChange.None);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.None);
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
     }
 
@@ -90,16 +90,16 @@ public sealed class ErpDisabledMemoryTests
     {
         var marked = Imported();
         marked.Suspend("A licence expired.");
-        marked.RecordErpDisabled(true);
+        marked.RecordErpStanding(ErpStanding.Disabled);
 
-        marked.RecordErpDisabled(false).Should().Be(ErpDisabledChange.Cleared);
+        marked.RecordErpStanding(ErpStanding.Usable).Should().Be(ErpDisabledChange.Cleared);
         marked.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
         marked.IsMarkedAsUnwantedByErp.Should().BeFalse();
 
         var suspended = Imported();
-        suspended.RecordErpDisabled(true);
+        suspended.RecordErpStanding(ErpStanding.Disabled);
 
-        suspended.RecordErpDisabled(false).Should().Be(
+        suspended.RecordErpStanding(ErpStanding.Usable).Should().Be(
             ErpDisabledChange.None,
             "the sync suspended it, and reinstating somebody the ERP turned away is a person's decision");
         suspended.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
@@ -109,10 +109,98 @@ public sealed class ErpDisabledMemoryTests
     public void A_later_disable_after_re_enabling_counts_as_new()
     {
         var supplier = Imported();
-        supplier.RecordErpDisabled(true);
+        supplier.RecordErpStanding(ErpStanding.Disabled);
         supplier.Reactivate("The ministry still works with them directly.");
-        supplier.RecordErpDisabled(false);
+        supplier.RecordErpStanding(ErpStanding.Usable);
 
-        supplier.RecordErpDisabled(true).Should().Be(ErpDisabledChange.Suspended);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.Suspended);
+    }
+
+    [Fact]
+    public void A_supplier_the_sync_suspended_only_while_the_erp_approved_it_comes_back_when_the_erp_does()
+    {
+        var supplier = Imported();
+
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval).Should().Be(ErpDisabledChange.Suspended);
+        supplier.ErpDisabledState.Should().Be(SupplierErpDisabledState.SuspendedAsPending);
+
+        supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(
+            ErpDisabledChange.Released,
+            "otherwise every new supplier the hourly sync meets while it waits for Seven Gates stays suspended by hand");
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
+        supplier.ErpDisabledState.Should().Be(SupplierErpDisabledState.NotDisabled);
+    }
+
+    [Fact]
+    public void A_new_supplier_that_arrives_waiting_for_approval_comes_into_service_when_approved()
+    {
+        var supplier = Supplier.ImportFromErp(
+            "SUP-2026-000002", "Damascus Bakeries", "Damascus Bakeries", null, SupplierLegalType.Company, "SYP",
+            "Damascus Bakeries", "orders@dambakeries.example", null, ErpStanding.AwaitingApproval);
+
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+        supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(ErpDisabledChange.Released);
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
+    }
+
+    [Fact]
+    public void A_pending_suspension_a_person_has_acted_on_is_never_lifted_by_the_erp()
+    {
+        var supplier = Imported();
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+        supplier.Reactivate("The ministry needs them for an urgent tender.");
+        supplier.Suspend("Suspended by the ministry for cause.");
+
+        supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(
+            ErpDisabledChange.None,
+            "the suspension is a person's now; the ERP approving the record says nothing about their reason");
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+    }
+
+    [Fact]
+    public void A_person_who_reinstates_a_pending_supplier_is_not_overruled_while_it_is_still_pending()
+    {
+        var supplier = Imported();
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+        supplier.Reactivate("The ministry needs them for an urgent tender.");
+
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval).Should().Be(ErpDisabledChange.None);
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
+    }
+
+    [Fact]
+    public void A_pending_supplier_the_erp_then_disables_is_not_released_if_it_is_later_enabled_again()
+    {
+        var supplier = Imported();
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.None);
+
+        supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(
+            ErpDisabledChange.None, "the ERP may lift only its own wait; a disable is lifted by a person here");
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+    }
+
+    [Theory]
+    [InlineData(SupplierErpDisabledState.NotDisabled, true, ErpStanding.AwaitingApproval)]
+    [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Usable)]
+    [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Disabled)]
+    [InlineData(SupplierErpDisabledState.MarkedDisabled, false, ErpStanding.Usable)]
+    [InlineData(SupplierErpDisabledState.NotDisabled, false, ErpStanding.Disabled)]
+    public void The_forecast_the_preview_uses_is_what_recording_does(
+        SupplierErpDisabledState state, bool active, ErpStanding standing)
+    {
+        var supplier = Imported();
+        if (state == SupplierErpDisabledState.SuspendedAsPending) supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+        if (state == SupplierErpDisabledState.MarkedDisabled || (!active && state == SupplierErpDisabledState.NotDisabled))
+        {
+            supplier.Suspend("Out of service for an unrelated reason.");
+        }
+
+        if (state == SupplierErpDisabledState.MarkedDisabled) supplier.RecordErpStanding(ErpStanding.Disabled);
+
+        var forecast = Supplier.ErpDisabledChangeFor(
+            supplier.ErpDisabledState, supplier.LifecycleState == SupplierLifecycleState.Active, standing);
+
+        supplier.RecordErpStanding(standing).Should().Be(forecast);
     }
 }

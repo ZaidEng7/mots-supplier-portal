@@ -21,6 +21,7 @@ namespace MotsSupplierPortal.Tests.Unit.Erp;
 
 using FluentAssertions;
 using MotsSupplierPortal.Application.Integration;
+using MotsSupplierPortal.Domain.Suppliers;
 
 public sealed class ErpSyncPlanTests
 {
@@ -35,8 +36,9 @@ public sealed class ErpSyncPlanTests
         string? taxId = null,
         bool active = true,
         bool suspendedAsRemoved = false,
-        bool marked = false) =>
-        new(id, "REF-" + id, id, taxId, login, active, suspendedAsRemoved, marked);
+        bool marked = false,
+        SupplierErpDisabledState erpState = SupplierErpDisabledState.NotDisabled) =>
+        new(id, "REF-" + id, id, taxId, login, active, suspendedAsRemoved, marked, erpState);
 
     [Fact]
     public void A_probable_rename_by_sign_in_address_is_held_and_nothing_is_moved_or_suspended()
@@ -217,5 +219,44 @@ public sealed class ErpSyncPlanTests
     {
         ErpSyncPlan.Build([Erp("A"), Erp("B"), Erp("C")], [Portal("A"), Portal("B"), Portal("C"), Portal("Gone")])
             .ToSuspend.Should().ContainSingle().Which.ExternalId.Should().Be("Gone");
+    }
+
+    [Fact]
+    public void More_active_suppliers_turned_away_at_once_than_a_quarter_are_all_held_back()
+    {
+        var portal = Enumerable.Range(1, 8).Select(i => Portal($"S{i}")).ToList();
+        var erp = portal.Select((p, i) => Erp(p.ExternalId, workflowState: i < 6 ? "Pending Chief Accountant Approval" : null))
+            .ToList();
+
+        var plan = ErpSyncPlan.Build(erp, portal);
+
+        plan.TurnedAwayHeld.Should().HaveCount(
+            6, "six of eight at once is a change on Seven Gates' side, not six companies each being turned away");
+        plan.SuspensionsHeldBack.Should().Contain("turned away 6");
+    }
+
+    [Fact]
+    public void Suppliers_turned_away_within_the_limit_are_not_held()
+    {
+        var portal = Enumerable.Range(1, 8).Select(i => Portal($"S{i}")).ToList();
+        var erp = portal.Select((p, i) => Erp(p.ExternalId, disabled: i < 5)).ToList();
+
+        var plan = ErpSyncPlan.Build(erp, portal);
+
+        plan.TurnedAwayHeld.Should().BeNull("five is always allowed; holding them would stop ordinary work");
+        plan.SuspensionsHeldBack.Should().BeNull();
+    }
+
+    [Fact]
+    public void Suppliers_already_suspended_for_the_same_reason_do_not_count_towards_the_limit()
+    {
+        var portal = Enumerable.Range(1, 8)
+            .Select(i => Portal($"S{i}", active: i > 6, erpState: i <= 6 ? SupplierErpDisabledState.SuspendedAsPending
+                : SupplierErpDisabledState.NotDisabled))
+            .ToList();
+        var erp = portal.Select(p => Erp(p.ExternalId, workflowState: "Pending Chief Accountant Approval")).ToList();
+
+        ErpSyncPlan.Build(erp, portal).TurnedAwayHeld.Should().BeNull(
+            "six were suspended on earlier runs and nothing happens to them now; only two would be suspended in this one");
     }
 }

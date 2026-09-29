@@ -777,6 +777,65 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     [Fact]
+    public async Task A_new_supplier_waiting_for_erp_approval_comes_into_service_when_the_erp_approves_it()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-AWAITING");
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
+        (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Suspended);
+
+        var approved = new FixedSource(ErpRow(id) with { WorkflowState = "Approved" });
+        var preview = await PreviewAsync(approved);
+        var run = await RunAsync(approved);
+
+        preview.Rows.Single(r => r.ExternalId == id).Notes.Should().Contain(ErpImportAdmission.ReleasedNote);
+        run.Rows.Single(r => r.ExternalId == id).Notes.Should().Contain(ErpImportAdmission.ReleasedNote);
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Active,
+            "hourly, most new suppliers are met while Seven Gates is still approving them; left suspended, every one "
+            + "needed a person to notice and reinstate it");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplierId = await db.Suppliers.Where(s => s.ExternalId == id).Select(s => s.Id).SingleAsync();
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a =>
+                a.AggregateId == supplierId && a.Action == "supplier.reactivated_approved_in_erp" && a.ToState == "Active"))
+            .Should().BeTrue("bringing a supplier into service is a lifecycle change and says who did it and why");
+    }
+
+    [Fact]
+    public async Task Most_suppliers_turned_away_at_once_are_held_back_and_a_few_are_suspended()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var ids = Enumerable.Range(1, 8).Select(i => Unique($"ERP-TURNED-{i}")).ToList();
+        await RunAsync(new FixedSource([.. ids.Select(ErpRow)]));
+
+        ErpSupplier Pending(string id) => ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" };
+
+        var many = new FixedSource([.. ids.Take(6).Select(Pending), .. ids.Skip(6).Select(ErpRow)]);
+        var preview = await PreviewAsync(many);
+        var held = await RunAsync(many);
+
+        held.SuspensionsHeldBack.Should().Contain("turned away 6");
+        preview.SuspensionsHeldBack.Should().Be(held.SuspensionsHeldBack, "the preview must warn of the same hold");
+        held.Suspended.Should().Be(0);
+        foreach (var id in ids)
+        {
+            (await LifecycleOfAsync(id)).Should().Be(
+                SupplierLifecycleState.Active,
+                "six of eight at once is a change on Seven Gates' side; suspending them all in a run nobody watches "
+                + "would leave a person to reinstate every one by hand");
+        }
+
+        var few = await RunAsync(new FixedSource([.. ids.Take(5).Select(Pending), .. ids.Skip(5).Select(ErpRow)]));
+
+        few.SuspensionsHeldBack.Should().BeNull();
+        few.Suspended.Should().Be(5, "the control: five at once is ordinary, and they are suspended");
+    }
+
+    [Fact]
     public async Task A_manual_run_names_the_person_who_ran_it_on_every_suspension()
     {
         await SuspendEveryImportedSupplierAsync();
