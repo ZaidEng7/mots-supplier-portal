@@ -104,6 +104,7 @@ const resources = {
   ar: {
     translation: {
       appName: 'بوابة الموردين',
+      brand: { emblem: 'شعار وزارة السياحة' },
       nav: {
         skipToContent: 'تخطَّ إلى المحتوى',
         groupBidding: 'المناقصات',
@@ -2131,6 +2132,7 @@ const resources = {
   en: {
     translation: {
       appName: 'Supplier Portal',
+      brand: { emblem: 'Ministry of Tourism emblem' },
       nav: {
         skipToContent: 'Skip to content',
         groupBidding: 'Bidding',
