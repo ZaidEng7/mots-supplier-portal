@@ -654,7 +654,9 @@ public sealed class RunErpImportHandler(
 
         if (!(held && wasMarkedGone))
         {
-            existing.MarkSynced(erpSupplier.ExternalId, changed || address.Write || disabled != ErpDisabledChange.None);
+            existing.MarkSynced(
+                erpSupplier.ExternalId,
+                changed || address.Write || disabled is not (ErpDisabledChange.None or ErpDisabledChange.ReleaseWaitsForDocuments));
         }
 
         if ((wasMarkedGone || disabled == ErpDisabledChange.Cleared)

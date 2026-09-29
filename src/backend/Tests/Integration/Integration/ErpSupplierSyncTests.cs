@@ -821,6 +821,13 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             + "be invited with an expired commercial registration and nothing would ever look again");
         approved.Rows.Single(r => r.ExternalId == id).Notes.Should().Contain(ErpImportAdmission.ReleaseWaitsNote);
 
+        var waiting = await VersionOfAsync(id);
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
+        (await VersionOfAsync(id)).Should().Be(
+            waiting,
+            "waiting changes nothing; a version moved every hour made the reviewer's approval of the very renewal it "
+            + "waits for fail as a conflict");
+
         await ApproveNewDocumentAsync(id, CommercialRegistration);
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
 
