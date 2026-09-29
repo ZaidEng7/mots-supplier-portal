@@ -1,5 +1,8 @@
 // Running a scheduled job now.
 //
+// SOME JOBS ARE NOT STARTED FROM HERE. The supplier import names who ran it and checks its own permission; started
+// from this generic button it did neither. RecurringJobs.StartedFromTheirOwnScreen lists them and where to go instead.
+//
 //
 // THERE IS NO PAUSE, DELIBERATELY
 //
@@ -29,15 +32,20 @@ using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class TriggerRecurringJobHandler(JobStorage jobStorage, IRecurringJobManager jobs) : ITriggerRecurringJobHandler
 {
-    public bool Handle(string jobId)
+    public TriggerRecurringJobResult Handle(string jobId)
     {
+        if (RecurringJobs.StartedFromTheirOwnScreen.ContainsKey(jobId))
+        {
+            return TriggerRecurringJobResult.UseItsOwnScreen;
+        }
+
         using var connection = jobStorage.GetConnection();
         if (!connection.GetRecurringJobs().Any(job => string.Equals(job.Id, jobId, StringComparison.Ordinal)))
         {
-            return false;
+            return TriggerRecurringJobResult.NotFound;
         }
 
         jobs.Trigger(jobId);
-        return true;
+        return TriggerRecurringJobResult.Triggered;
     }
 }

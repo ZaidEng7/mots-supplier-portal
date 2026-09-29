@@ -45,4 +45,16 @@ public sealed class LegalInfo
             SupplierType = supplierType,
             EstablishedOn = establishedOn,
         };
+
+    // Whether another set of legal details says the same thing. The import builds a fresh set on every run; replacing
+    // this one with an identical copy would still count as an edit, and every run would then change every supplier's
+    // version for nothing.
+    public bool Matches(LegalInfo other) =>
+        LegalNameAr == other.LegalNameAr
+        && LegalNameEn == other.LegalNameEn
+        && RegistrationNumber == other.RegistrationNumber
+        && RegistrationType == other.RegistrationType
+        && TaxId == other.TaxId
+        && SupplierType == other.SupplierType
+        && EstablishedOn == other.EstablishedOn;
 }

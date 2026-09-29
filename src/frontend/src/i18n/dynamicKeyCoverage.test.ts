@@ -53,7 +53,7 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     // rather than printing "erpImport.action.Whatever" on an administrator's screen.
     site: 'ErpImportPage - the outcome badge on each supplier',
     namespace: 'erpImport.action',
-    keys: ['Create', 'Update', 'Refuse'],
+    keys: ['Create', 'Update', 'Refuse', 'Suspend'],
   },
   {
     // The run's outcomes, from ErpImportOutcome. Separate from the preview's actions on purpose: a forecast says
@@ -61,7 +61,7 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     // forecast equivalent at all.
     site: 'ErpImportPage - the outcome badge on each imported supplier',
     namespace: 'erpImport.outcome',
-    keys: ['Created', 'Updated', 'Refused', 'Failed'],
+    keys: ['Created', 'Updated', 'Refused', 'Failed', 'Suspended'],
   },
   {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',

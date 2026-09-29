@@ -71,9 +71,10 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
             Options.Create(new ErpImportOptions { InitialPassword = password }),
             scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+            new TestScope(),
             NullLogger<RunErpImportHandler>.Instance);
 
-        return await handler.HandleAsync(CancellationToken.None);
+        return await handler.HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
     }
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}";
@@ -424,5 +425,14 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             "adding the address threw 'Cannot edit contact details from state UnderReview' and failed the whole update");
         report.Rows[0].Notes.Should().Contain(n => n.Contains("UnderReview"));
         (await LoadAsync(id)).Addresses.Should().BeEmpty();
+    }
+
+    private sealed class TestScope(Guid? userId = null) : IScopeContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? SupplierId => null;
+        public Guid? OrganizationId => null;
+        public bool IsAuthenticated => UserId is not null;
+        public bool HasPermission(string permission) => true;
     }
 }

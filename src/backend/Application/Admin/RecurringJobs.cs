@@ -20,5 +20,18 @@ public static class RecurringJobs
         "rfq-timeline",
         "award-erp-sync",
         "idempotency-cleanup",
+        "erp-supplier-sync",
     ];
+
+    // Jobs the generic "Run now" button must not start, each with the screen that starts it properly instead.
+    //
+    // The supplier import changes the registry the ministry reads - it creates suppliers and suspends them - so it is
+    // started only where its own permission is checked and the person who pressed the button is named on every row it
+    // writes. Run from the operations screen it ran as "system" under a different permission, and nothing recorded
+    // who had clicked.
+    public static readonly IReadOnlyDictionary<string, string> StartedFromTheirOwnScreen =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["erp-supplier-sync"] = "/back-office/erp-import",
+        };
 }

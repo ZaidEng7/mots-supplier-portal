@@ -70,7 +70,7 @@ public sealed class RecurringJobSuppressionTests(PostgresApiFixture fixture)
     [
         "document-expiry-lifecycle", "draft-registration-cleanup",
         "outbox-dispatch", "rfq-timeline", "award-erp-sync",
-        "idempotency-cleanup",
+        "idempotency-cleanup", "erp-supplier-sync",
     ];
 
     [Fact]

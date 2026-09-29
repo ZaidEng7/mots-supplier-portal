@@ -24,6 +24,15 @@
 // the reader has no way to tell them apart. A sweep in this repository catches exactly that omission, and caught
 // this one.
 //
+// THREE OUTCOMES, EACH ITS OWN COLOUR. A run that finished but left something for a person - suspensions held back
+// over a list that looked broken, a possible rename, a supplier that failed - is amber. A run that could not finish
+// is red. A green badge over the first would reassure the one person who needs to look, and one shared amber made an
+// outright failure look no more urgent than a rename waiting to be checked.
+//
+// THE LAST IMPORT IS SHOWN ON THE CARD, because the hourly run happens when nobody is looking and a failure that is
+// never shown looks exactly like a run with nothing to do. This is where the person who would fix it already
+// comes, so this is where it goes.
+//
 // THE SOURCE IS SHOWN ON EVERY ROW. A deployment can still be running from its own settings, and an administrator
 // who saves an address and sees nothing change needs to be told that rather than left to guess.
 
@@ -41,6 +50,14 @@ import {
   type Integration,
   type IntegrationTestResult,
 } from '../../api/integrations'
+
+const OUTCOME_TONE = { Succeeded: 'success', NeedsAttention: 'warning', Failed: 'danger' } as const
+
+const OUTCOME_LABEL = {
+  Succeeded: 'integrations.importSucceeded',
+  NeedsAttention: 'integrations.importNeedsAttention',
+  Failed: 'integrations.importFailed',
+} as const
 
 export function IntegrationsPage() {
   const { t } = useTranslation()
@@ -170,6 +187,25 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
 
         {(tested ?? lastTestOf(integration)) !== null && (
           <TestOutcome result={(tested ?? lastTestOf(integration))!} />
+        )}
+
+        {integration.lastSyncAt !== null && (
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span style={{ fontWeight: 600 }}>{t('integrations.lastImport')}</span>
+              {integration.lastSyncOutcome !== null && (
+                <Badge tone={OUTCOME_TONE[integration.lastSyncOutcome]}>
+                  {t(OUTCOME_LABEL[integration.lastSyncOutcome])}
+                </Badge>
+              )}
+              <span style={{ color: 'var(--color-text-secondary)' }}>
+                {formatDateTime(integration.lastSyncAt, locale)}
+              </span>
+            </div>
+            {integration.lastSyncSummary !== null && (
+              <p style={{ color: 'var(--color-text-secondary)' }}>{integration.lastSyncSummary}</p>
+            )}
+          </div>
         )}
 
         {integration.updatedAt !== null && (

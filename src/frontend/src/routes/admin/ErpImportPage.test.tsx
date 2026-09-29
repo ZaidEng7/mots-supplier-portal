@@ -9,6 +9,10 @@
 // be imported; the sentence tells them why, and the why is the thing they act on - no email means asking the other
 // team for addresses, not retrying anything here.
 //
+// SUSPENSIONS ARE FORECAST, AND A HELD-BACK RUN SAYS SO. A supplier the ERP stops returning is suspended, and the
+// preview must show it before the run does; when the ERP's list looks like a broken read, nothing is suspended and
+// the screen shows the server's reason, because its numbers are what a person needs to decide what really happened.
+//
 // A FAILED IMPORT MUST SAY IT WAS THE IMPORT. The first version reused the preview's wording for every failure, so
 // somebody who had just pressed "Run the import" read "the preview could not be produced" and could not tell
 // whether anything had been written. That happened for real, against an API that did not have the route yet.
@@ -34,6 +38,8 @@ const OUTCOME = {
   updated: 0,
   refused: 1,
   failed: 0,
+  suspended: 0,
+  suspensionsHeldBack: null,
   rows: [
     {
       externalId: 'Damascus Supplies Co',
@@ -57,6 +63,8 @@ const REPORT = {
   wouldCreate: 1,
   wouldUpdate: 1,
   refused: 1,
+  wouldSuspend: 0,
+  suspensionsHeldBack: null,
   rows: [
     {
       externalId: 'Damascus Supplies Co',
@@ -170,6 +178,113 @@ describe('ErpImportPage', () => {
     // fails on the ambiguity rather than on the behaviour, which is a test reporting a problem that is not there.
     expect(screen.getAllByText('Created')).toHaveLength(2)
     expect(screen.getByText(/no email address/)).toBeInTheDocument()
+  })
+
+  it('forecasts the suppliers the ERP no longer returns', async () => {
+    restore = mockFetch({
+      [PREVIEW]: {
+        __byMethod: {
+          POST: {
+            ...REPORT,
+            wouldSuspend: 1,
+            suspensionsHeldBack: null,
+            rows: [
+              ...REPORT.rows,
+              {
+                externalId: 'Gone Supplier',
+                name: 'Gone Supplier',
+                action: 'Suspend',
+                notes: ['No longer in the ERP; would be suspended.'],
+                matchedReferenceCode: 'SUP-2026-000009',
+              },
+            ],
+          },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the preview' }))
+
+    expect(await screen.findByText('Would be suspended')).toBeInTheDocument()
+    expect(screen.getByText('Gone Supplier')).toBeInTheDocument()
+    expect(screen.getByText('SUP-2026-000009')).toBeInTheDocument()
+  })
+
+  it('says plainly when suspensions were held back, in the server\'s own words', async () => {
+    restore = mockFetch({
+      [RUN]: {
+        __byMethod: {
+          POST: {
+            ...OUTCOME,
+            suspended: 0,
+            suspensionsHeldBack: 'The ERP returned no suppliers at all, so the 80 the portal holds from it were not suspended.',
+          },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('Nobody was suspended')).toBeInTheDocument()
+    expect(screen.getByText(/returned no suppliers at all/)).toBeInTheDocument()
+  })
+
+  it('does not say nobody was suspended when a hold stood beside suspensions that went ahead', async () => {
+    restore = mockFetch({
+      [RUN]: {
+        __byMethod: {
+          POST: {
+            ...OUTCOME,
+            suspended: 2,
+            suspensionsHeldBack: 'The ERP returned no suppliers at all, so the 80 the portal holds from it were not suspended.',
+          },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('Some suspensions were held back')).toBeInTheDocument()
+    expect(screen.queryByText('Nobody was suspended')).not.toBeInTheDocument()
+  })
+
+  it('forecasts a held-back run in the future tense', async () => {
+    restore = mockFetch({
+      [PREVIEW]: {
+        __byMethod: {
+          POST: { ...REPORT, suspensionsHeldBack: '22 suppliers have disappeared from the ERP, more than the 20 one run may suspend.' },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the preview' }))
+
+    expect(await screen.findByText('Nobody would be suspended')).toBeInTheDocument()
+    expect(screen.queryByText('Nobody was suspended')).not.toBeInTheDocument()
+  })
+
+  it('says another import is running rather than that something broke', async () => {
+    restore = mockFetch({
+      [RUN]: { __byMethod: { POST: { __status: 409, detail: 'Another supplier import is already running.' } } },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('Another import is running')).toBeInTheDocument()
+    expect(screen.queryByText('The import could not be run')).not.toBeInTheDocument()
   })
 
   it('says it was the import that failed, not the preview', async () => {

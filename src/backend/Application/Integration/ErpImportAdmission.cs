@@ -64,6 +64,7 @@ namespace MotsSupplierPortal.Application.Integration;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using MotsSupplierPortal.Domain.Suppliers;
 
 public sealed record AdmittedSupplier(
     string Name,
@@ -77,7 +78,10 @@ public sealed record AdmittedSupplier(
     ErpAddressMapping? Address = null,
     string? Description = null,
     string? SupplierGroup = null,
-    string? RegistrationType = null)
+    string? RegistrationType = null,
+    string? TurnedAway = null,
+    string? ArrivalNote = null,
+    ErpStanding Standing = ErpStanding.Usable)
 {
     public string RepresentativeName => ContactPerson ?? Name;
 }
@@ -120,20 +124,14 @@ public static partial class ErpImportAdmission
             currency = null;
         }
 
-        if (supplier.Disabled)
-        {
-            notes.Add("Disabled in the ERP; arrives suspended - visible, but cannot be invited to tenders.");
-        }
-
-        var workflowState = supplier.WorkflowState?.Trim();
-        var notApproved = !string.IsNullOrEmpty(workflowState)
-            && !string.Equals(workflowState, ApprovedWorkflowState, StringComparison.OrdinalIgnoreCase);
-        if (notApproved)
-        {
-            notes.Add(
-                $"Not yet approved in the ERP ('{workflowState}'); arrives suspended - visible, but cannot be invited "
-                + "to tenders until a person reinstates it.");
-        }
+        var turnedAway = TurnedAwayReason(supplier);
+        var arrivalNote = supplier.Disabled
+            ? "Disabled in the ERP; arrives suspended - visible, but cannot be invited to tenders."
+            : turnedAway is null
+                ? null
+                : $"Not yet approved in the ERP ('{supplier.WorkflowState?.Trim()}'); arrives suspended - visible, but "
+                  + "cannot be invited to tenders - and comes into service by itself once the ERP approves it, unless "
+                  + "a person acts on it first.";
 
         var arabicName = string.IsNullOrWhiteSpace(supplier.ArabicName) ? null : supplier.ArabicName.Trim();
         if (arabicName is null)
@@ -154,7 +152,7 @@ public static partial class ErpImportAdmission
             email!,
             placeholder,
             currency?.ToUpperInvariant(),
-            supplier.Disabled || notApproved,
+            turnedAway is not null,
             notes,
             ErpFieldLimits.Cut(arabicName, ErpFieldLimits.Name, "Arabic name", notes),
             ErpFieldLimits.Cut(person, ErpFieldLimits.PersonName, "contact person's name", notes),
@@ -162,8 +160,64 @@ public static partial class ErpImportAdmission
             ErpFieldLimits.Cut(supplier.Description, ErpFieldLimits.Description, "description", notes),
             ErpFieldLimits.DropIfTooLong(supplier.SupplierGroup, ErpFieldLimits.SupplierGroup, "supplier group", notes),
             ErpFieldLimits.DropIfTooLong(
-                supplier.RegistrationType, ErpFieldLimits.RegistrationType, "registration type", notes));
+                supplier.RegistrationType, ErpFieldLimits.RegistrationType, "registration type", notes),
+            turnedAway,
+            arrivalNote,
+            StandingOf(supplier));
     }
+
+    // Whether the ERP lets this supplier be used, is still approving it, or has disabled it. Disabled wins when both
+    // are true: a disabled record is not waiting for anything, and the sync never lifts a disable by itself.
+    public static ErpStanding StandingOf(ErpSupplier supplier)
+    {
+        if (supplier.Disabled) return ErpStanding.Disabled;
+
+        var workflowState = supplier.WorkflowState?.Trim();
+        var notApproved = !string.IsNullOrEmpty(workflowState)
+            && !string.Equals(workflowState, ApprovedWorkflowState, StringComparison.OrdinalIgnoreCase);
+
+        return notApproved ? ErpStanding.AwaitingApproval : ErpStanding.Usable;
+    }
+
+    // Why the ERP is turning this supplier away - disabled, or not approved - or null if it is not.
+    //
+    // ONE RULE FOR EVERY PLACE THAT ASKS. A new supplier arrives suspended on it, an existing one is suspended once on
+    // it, and a probable rename is not held for it. Three copies would drift, and the first one already had: renames
+    // looked only at "disabled" after "not approved" had been added everywhere else.
+    public static string? TurnedAwayReason(ErpSupplier supplier) => StandingOf(supplier) switch
+    {
+        ErpStanding.Disabled => "Disabled in the ERP",
+        ErpStanding.AwaitingApproval => $"Not approved in the ERP ('{supplier.WorkflowState?.Trim()}')",
+        _ => null,
+    };
+
+    public const string ReleasedNote =
+        "Approved in the ERP now. It was suspended here only while it waited for that, and nobody has changed it since, "
+        + "so it is back in service.";
+
+    public const string ReleaseWaitsNote =
+        "Approved in the ERP now, but an award-critical document expired while it waited and has no approved renewal "
+        + "yet; it comes into service on the first run after the renewal is approved.";
+
+    // What an update row says when the ERP turned the supplier away but this run held back the change it would have made.
+    public static string HeldBackNote(string reason) =>
+        $"{reason}; not changed in this run, because the run would have suspended more suppliers at once than one run "
+        + "may - see the summary.";
+
+    // What an update row says about a supplier the ERP is turning away, for the preview and the run alike.
+    //
+    // THE NOTE FOLLOWS WHAT WAS DONE. A new supplier "arrives suspended"; one the portal already has is suspended only
+    // once, so on later runs the same ERP state does nothing, and a note still saying "suspended" would report a
+    // suspension that did not happen - to a person reading a run nobody watched.
+    public static string TurnedAwayNote(string reason, ErpDisabledChange change) => change switch
+    {
+        ErpDisabledChange.Suspended => $"{reason}; suspended. A person who reinstates it will not be overruled.",
+        ErpDisabledChange.Marked =>
+            $"{reason} while already out of service here; marked, so it will not come back into service automatically.",
+        ErpDisabledChange.ReleaseWithdrawn =>
+            $"{reason} while it waited for approval; the ERP's approval will no longer bring it back into service.",
+        _ => $"{reason}; already dealt with on an earlier run, so left as it is.",
+    };
 
     // What becomes of the ERP's address for one supplier, and the note that says so.
     //

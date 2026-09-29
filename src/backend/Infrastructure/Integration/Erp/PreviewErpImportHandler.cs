@@ -29,6 +29,7 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class PreviewErpImportHandler(
     IErpSupplierSource source,
@@ -49,13 +50,27 @@ public sealed class PreviewErpImportHandler(
             .AsNoTracking()
             .Select(s => new
             {
+                s.Id,
                 s.ExternalId,
                 s.ReferenceCode,
                 TaxId = s.LegalInfo!.TaxId,
+                s.DisplayNameEn,
+                s.LifecycleState,
+                s.SyncStatus,
+                LoginEmail = s.Representatives
+                    .Where(r => r.UserId != null)
+                    .OrderByDescending(r => r.IsPrimary)
+                    .ThenBy(r => r.Id)
+                    .Select(r => db.Users.Where(u => u.Id == r.UserId).Select(u => u.Email).FirstOrDefault())
+                    .FirstOrDefault(),
                 AddressCount = s.Addresses.Count,
                 s.OnboardingState,
+                s.ErpDisabledState,
             })
             .ToListAsync(ct);
+
+        var awaitingRenewal = await AwardCriticalRenewal.SuppliersAwaitingRenewalAsync(
+            db, [.. existing.Where(s => s.ExternalId != null).Select(s => s.Id)], ct);
 
         var byExternalId = existing
             .Where(s => s.ExternalId != null)
@@ -65,10 +80,18 @@ public sealed class PreviewErpImportHandler(
                 group => new ErpImportCandidateMatch(
                     group.First().ReferenceCode,
                     group.First().TaxId,
+                    group.First().DisplayNameEn,
+                    group.First().LifecycleState == MotsSupplierPortal.Domain.Suppliers.SupplierLifecycleState.Active,
+                    group.First().LoginEmail,
+                    group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp,
+                    group.First().SyncStatus
+                        == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.MarkedRemovedFromErp,
                     group.First().AddressCount,
                     Domain.Suppliers.Supplier.AllowsContactEdits(group.First().OnboardingState)
                         ? null
-                        : $"in state '{group.First().OnboardingState}'"));
+                        : $"in state '{group.First().OnboardingState}'",
+                    group.First().ErpDisabledState,
+                    awaitingRenewal.Contains(group.First().Id)));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)

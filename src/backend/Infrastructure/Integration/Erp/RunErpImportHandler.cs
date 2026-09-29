@@ -34,6 +34,12 @@
 // REFUSALS AND FAILURES ARE STILL COUNTED SEPARATELY. A refusal is a supplier the portal declined for a stated
 // reason; a failure is the import going wrong. One number for both would hide a defect inside an expected result.
 //
+// IT READS THE WHOLE REGISTRY ON PURPOSE, AND IT IS NOT ROW-SCOPED. It matches the ERP against every supplier the
+// portal holds; a view limited to one organisation would report every supplier it could not see as missing, and
+// suspend them. It does read the caller's scope - but only to name the person who pressed the button on the audit
+// trail. RowScopeGuardTests matches on that token, so it counts this handler as scoped and its exemption had to go;
+// that verdict is about attribution, not about which rows are read.
+//
 // THE AUDIT ROW IS WRITTEN AND SAVED BEFORE THE FIRST SUPPLIER IS TOUCHED. Three export routes in this product
 // logged without saving for months and wrote nothing at all; the shape of that bug was a LogAsync with no
 // SaveChangesAsync after it.
@@ -47,9 +53,12 @@ using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Domain.Integration;
+using MotsSupplierPortal.Domain.Notifications;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Registrations;
+using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class RunErpImportHandler(
     IErpSupplierSource source,
@@ -57,14 +66,69 @@ public sealed class RunErpImportHandler(
     UserManager<AppUser> userManager,
     IOptions<ErpImportOptions> options,
     IAuditLogger audit,
+    IScopeContext scope,
     ILogger<RunErpImportHandler> logger) : IRunErpImportHandler
 {
-    public async Task<ErpImportRunReport> HandleAsync(CancellationToken ct)
+    private const string ImportedAction = "supplier.imported_from_erp";
+    private const string SuspendedAsRemovedAction = "supplier.suspended_missing_from_erp";
+    private const string SuspendedAsDisabledAction = "supplier.suspended_disabled_in_erp";
+
+    private const string SuspendedAsNotApprovedAction = "supplier.suspended_not_approved_in_erp";
+
+    // WHO IS ACCOUNTABLE FOR A RUN IS RECORDED. A person pressing the button is named on every audit row the run
+    // writes, including the suppliers it suspends; a scheduled run has nobody to name, so it is attributed to the
+    // system rather than left blank. A suspension nobody can trace is the kind of change somebody asks about later.
+    public async Task<ErpImportRunReport> HandleAsync(ErpImportTrigger trigger, CancellationToken ct)
+    {
+        var actor = new Actor(
+            trigger == ErpImportTrigger.Manual ? scope.UserId : null,
+            trigger == ErpImportTrigger.Scheduled ? "system" : null);
+
+        await db.Database.OpenConnectionAsync(ct);
+        try
+        {
+            if (!await ErpImportLock.TryAcquireAsync(db, ct))
+            {
+                throw new ErpImportBusyException();
+            }
+
+            try
+            {
+                var (report, probableRenames) = await RunLockedAsync(actor, ct);
+                await RecordAsync(OutcomeOf(report, probableRenames), Summary(report, probableRenames), CancellationToken.None);
+                return report;
+            }
+            catch (OperationCanceledException)
+            {
+                await RecordFailureAsync("The import was interrupted before it finished.");
+                throw;
+            }
+            catch (Exception exception)
+            {
+                await RecordFailureAsync($"The import failed: {exception.Message}");
+                throw;
+            }
+            finally
+            {
+                await ReleaseQuietlyAsync();
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+    }
+
+    private sealed record Actor(Guid? UserId, string? Label);
+
+    private async Task<(ErpImportRunReport Report, int ProbableRenames)> RunLockedAsync(Actor actor, CancellationToken ct)
     {
         await audit.LogAsync(
             aggregateType: "Supplier",
             aggregateId: Guid.Empty,
             action: "ErpImportRun",
+            actorUserId: actor.UserId,
+            actorLabel: actor.Label,
             ct: ct);
 
         await db.SaveChangesAsync(ct);
@@ -81,31 +145,247 @@ public sealed class RunErpImportHandler(
         var registrationNumbersInPortal = await RegistrationNumbersInPortal.ReadAsync(db, ct);
         var erpSuppliers = await source.ListSuppliersAsync(ct);
         var registrationNumbers = ErpRegistrationNumbers.Decide(erpSuppliers, registrationNumbersInPortal);
+
+        // Everything the plan decides is decided HERE, from the portal as it stood before this run wrote anything -
+        // the same data the preview reads. The first version decided suspensions after creating that run's new
+        // suppliers, and every new one raised the limit the same read was judged against. Probable renames are held
+        // for a person rather than re-linked; why is in ErpSyncPlan.
+        var plan = ErpSyncPlan.Build(erpSuppliers, await LoadPortalLinkedAsync(ct));
+
+        var heldFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
         var rows = new List<ErpImportResultRow>();
 
         foreach (var erpSupplier in erpSuppliers)
         {
-            rows.Add(await ImportOneAsync(erpSupplier, registrationNumbers[erpSupplier.ExternalId], password, ct));
+            if (heldFrom.TryGetValue(erpSupplier.ExternalId, out var held))
+            {
+                rows.Add(new ErpImportResultRow(
+                    erpSupplier.ExternalId,
+                    ErpImportAdmission.Admit(erpSupplier).Name,
+                    ErpImportOutcome.Refused,
+                    held.ReferenceCode,
+                    [ErpImportPreviewBuilder.ProbableRenameNote(held)]));
+                continue;
+            }
+
+            rows.Add(await ImportOneAsync(
+                erpSupplier,
+                registrationNumbers[erpSupplier.ExternalId],
+                password,
+                actor,
+                plan.HoldsTurnedAway,
+                ct));
         }
 
-        logger.LogInformation(
-            "ERP import finished: {Created} created, {Updated} updated, {Refused} refused, {Failed} failed.",
-            rows.Count(r => r.Outcome == ErpImportOutcome.Created),
-            rows.Count(r => r.Outcome == ErpImportOutcome.Updated),
-            rows.Count(r => r.Outcome == ErpImportOutcome.Refused),
-            rows.Count(r => r.Outcome == ErpImportOutcome.Failed));
+        rows.AddRange(await SuspendPlannedAsync(plan.ToSuspend, actor, ct));
+        await MarkRemovedAsync(plan.ToMarkRemoved, actor, ct);
 
-        return new ErpImportRunReport(
+        var report = new ErpImportRunReport(
             erpSuppliers.Count,
             rows.Count(r => r.Outcome == ErpImportOutcome.Created),
             rows.Count(r => r.Outcome == ErpImportOutcome.Updated),
             rows.Count(r => r.Outcome == ErpImportOutcome.Refused),
             rows.Count(r => r.Outcome == ErpImportOutcome.Failed),
-            rows);
+            rows,
+            rows.Count(r => r.Outcome == ErpImportOutcome.Suspended),
+            plan.SuspensionsHeldBack);
+
+        logger.LogInformation("ERP import finished: {Summary}", Summary(report, plan.ProbableRenames.Count));
+
+        return (report, plan.ProbableRenames.Count);
+    }
+
+    // The portal's ERP-linked suppliers, read once and projected rather than loaded, in the same shape the preview
+    // reads them - so the plan the run acts on is the plan the preview showed.
+    private async Task<IReadOnlyList<PortalLinkedSupplier>> LoadPortalLinkedAsync(CancellationToken ct)
+    {
+        var rows = await db.Suppliers
+            .AsNoTracking()
+            .Where(s => s.ExternalId != null)
+            .Select(s => new
+            {
+                s.ExternalId,
+                s.ReferenceCode,
+                s.DisplayNameEn,
+                TaxId = s.LegalInfo!.TaxId,
+                LoginEmail = s.Representatives
+                    .Where(r => r.UserId != null)
+                    .OrderByDescending(r => r.IsPrimary)
+                    .ThenBy(r => r.Id)
+                    .Select(r => db.Users.Where(u => u.Id == r.UserId).Select(u => u.Email).FirstOrDefault())
+                    .FirstOrDefault(),
+                s.LifecycleState,
+                s.SyncStatus,
+                s.ErpDisabledState,
+            })
+            .ToListAsync(ct);
+
+        return [.. rows
+            .GroupBy(r => r.ExternalId!, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .Select(r => new PortalLinkedSupplier(
+                r.ExternalId!,
+                r.ReferenceCode,
+                r.DisplayNameEn,
+                r.TaxId,
+                r.LoginEmail,
+                r.LifecycleState == SupplierLifecycleState.Active,
+                r.SyncStatus == SupplierSyncStatus.RemovedFromErp,
+                r.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp,
+                r.ErpDisabledState))];
+    }
+
+    // Suspending what the plan decided, re-checked under the lock: a supplier a person reinstated, or one already
+    // suspended as removed, between the plan and this moment is left alone. One only marked as removed while it was
+    // out of service, and since back in service, is suspended like any other - see ErpSyncPlan.
+    private async Task<List<ErpImportResultRow>> SuspendPlannedAsync(
+        IReadOnlyList<PortalLinkedSupplier> planned, Actor actor, CancellationToken ct)
+    {
+        if (planned.Count == 0) return [];
+
+        var ids = planned.Select(p => p.ExternalId).ToList();
+
+        var suppliers = await db.Suppliers
+            .Where(s => s.ExternalId != null
+                && ids.Contains(s.ExternalId)
+                && s.LifecycleState == SupplierLifecycleState.Active
+                && s.SyncStatus != SupplierSyncStatus.RemovedFromErp)
+            .OrderBy(s => s.ReferenceCode)
+            .ToListAsync(ct);
+
+        const string Reason = "No longer in the ERP.";
+        var rows = new List<ErpImportResultRow>();
+
+        foreach (var supplier in suppliers)
+        {
+            supplier.SuspendAsRemovedFromErp();
+
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: supplier.Id,
+                action: SuspendedAsRemovedAction,
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                fromState: nameof(SupplierLifecycleState.Active),
+                toState: nameof(SupplierLifecycleState.Suspended),
+                reason: Reason,
+                referenceCode: supplier.ReferenceCode,
+                ct: ct);
+
+            rows.Add(new ErpImportResultRow(
+                supplier.ExternalId!,
+                supplier.DisplayNameEn,
+                ErpImportOutcome.Suspended,
+                supplier.ReferenceCode,
+                ["No longer in the ERP; suspended - kept in the registry, but cannot be invited to tenders. A person "
+                 + "who reinstates it will not be overruled by the next run."]));
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        return rows;
+    }
+
+    // Suppliers already out of service that have now also left the ERP are marked, not suspended - they are suspended
+    // or deactivated already. The mark is what stops them standing in for a new company that shares their tax number
+    // on some later night. Re-checked under the lock, like the suspensions.
+    private async Task MarkRemovedAsync(IReadOnlyList<PortalLinkedSupplier> planned, Actor actor, CancellationToken ct)
+    {
+        if (planned.Count == 0) return;
+
+        var ids = planned.Select(p => p.ExternalId).ToList();
+
+        var suppliers = await db.Suppliers
+            .Where(s => s.ExternalId != null
+                && ids.Contains(s.ExternalId)
+                && s.LifecycleState != SupplierLifecycleState.Active
+                && s.SyncStatus != SupplierSyncStatus.RemovedFromErp
+                && s.SyncStatus != SupplierSyncStatus.MarkedRemovedFromErp)
+            .ToListAsync(ct);
+
+        foreach (var supplier in suppliers)
+        {
+            supplier.MarkRemovedFromErp();
+
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: supplier.Id,
+                action: "supplier.marked_removed_from_erp",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                reason: "No longer in the ERP; already out of service here, so only marked.",
+                referenceCode: supplier.ReferenceCode,
+                ct: ct);
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static string Summary(ErpImportRunReport report, int probableRenames)
+    {
+        var summary =
+            $"{report.ErpSupplierCount} in the ERP: {report.Created} created, {report.Updated} updated, "
+            + $"{report.Suspended} suspended, {report.Refused} refused, {report.Failed} failed.";
+
+        if (probableRenames > 0)
+        {
+            summary += $" {probableRenames} possible rename(s) held for a person - see the import report.";
+        }
+
+        return report.SuspensionsHeldBack is null ? summary : $"{summary} {report.SuspensionsHeldBack}";
+    }
+
+    // A run that finished but left something only a person can resolve is not a success, and not a failure either.
+    private static IntegrationSyncOutcome OutcomeOf(ErpImportRunReport report, int probableRenames) =>
+        report.Failed > 0 || report.SuspensionsHeldBack is not null || probableRenames > 0
+            ? IntegrationSyncOutcome.NeedsAttention
+            : IntegrationSyncOutcome.Succeeded;
+
+    private async Task RecordAsync(IntegrationSyncOutcome outcome, string summary, CancellationToken ct)
+    {
+        var connection = await db.IntegrationConnections
+            .FirstOrDefaultAsync(c => c.Key == IntegrationConnection.ErpKey, ct);
+        if (connection is null) return;
+
+        connection.RecordSync(outcome, summary);
+        await db.SaveChangesAsync(ct);
+    }
+
+    // A failed or interrupted run is recorded as such, and recording it must never hide why it failed. So the tracker is cleared
+    // first - whatever half-finished change caused the failure must not ride along into this save - and any error
+    // while recording is logged and swallowed, leaving the original exception to reach whoever ran the import.
+    private async Task RecordFailureAsync(string summary)
+    {
+        try
+        {
+            db.ChangeTracker.Clear();
+            await RecordAsync(IntegrationSyncOutcome.Failed, summary, CancellationToken.None);
+        }
+        catch (Exception recording)
+        {
+            logger.LogError(recording, "Could not record the failed ERP import.");
+        }
+    }
+
+    private async Task ReleaseQuietlyAsync()
+    {
+        try
+        {
+            await ErpImportLock.ReleaseAsync(db);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not release the ERP import lock; closing the connection releases it.");
+        }
     }
 
     private async Task<ErpImportResultRow> ImportOneAsync(
-        ErpSupplier erpSupplier, ErpRegistrationNumberDecision registrationNumber, string password, CancellationToken ct)
+        ErpSupplier erpSupplier,
+        ErpRegistrationNumberDecision registrationNumber,
+        string password,
+        Actor actor,
+        bool holdTurnedAway,
+        CancellationToken ct)
     {
         var admitted = ErpImportAdmission.Admit(erpSupplier);
         if (registrationNumber.Note is not null)
@@ -129,8 +409,8 @@ public sealed class RunErpImportHandler(
                 .FirstOrDefaultAsync(s => s.ExternalId == erpSupplier.ExternalId, ct);
 
             return existing is null
-                ? await CreateAsync(erpSupplier, admitted, details, password, ct)
-                : await UpdateAsync(existing, erpSupplier, admitted, details, ct);
+                ? await CreateAsync(erpSupplier, admitted, details, password, actor, ct)
+                : await UpdateAsync(existing, erpSupplier, admitted, details, actor, holdTurnedAway, ct);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -142,11 +422,24 @@ public sealed class RunErpImportHandler(
         }
     }
 
+    // Creating a supplier the portal has never held, with its account.
+    //
+    // A SUPPLIER THE IMPORT CREATES IS ON THE AUDIT TRAIL FROM ITS FIRST MOMENT. It used to arrive with no row at all,
+    // so the trail could not say where it came from or who ran the import that brought it. A supplier that arrived
+    // suspended was worse: "Suspended" with no row saying why, when every other suspension in the product names its
+    // cause. The ERP's turn-away is written the way UpdateAsync writes it for a supplier already here, under the same
+    // action, so a search for suppliers the ERP disabled finds the ones that arrived that way too.
+    //
+    // THE ROWS ARE WRITTEN INSIDE THE SUPPLIER'S TRANSACTION, after its account exists, so the three stand or fall
+    // together. Written after the commit, a failed write left a supplier in the registry with nothing on its trail,
+    // which is the gap this closes; and a supplier whose account could not be made takes its rows with it, rather than
+    // leaving a trail that names a supplier the portal does not hold.
     private async Task<ErpImportResultRow> CreateAsync(
         ErpSupplier erpSupplier,
         AdmittedSupplier admitted,
         ErpSupplierDetails details,
         string password,
+        Actor actor,
         CancellationToken ct)
     {
         var taken = await userManager.FindByEmailAsync(admitted.Email);
@@ -174,7 +467,7 @@ public sealed class RunErpImportHandler(
             admitted.RepresentativeName,
             admitted.Email,
             erpSupplier.Phone,
-            admitted.Suspended,
+            admitted.Standing,
             details);
 
         var address = ErpImportAdmission.AddressOutcome(admitted, isNew: true, addressesInPortal: 0, blockedByState: null);
@@ -210,6 +503,32 @@ public sealed class RunErpImportHandler(
         await userManager.AddToRoleAsync(user, Roles.SupplierAdmin);
 
         supplier.Representatives[0].UserId = user.Id;
+
+        await audit.LogAsync(
+            aggregateType: "Supplier",
+            aggregateId: supplier.Id,
+            action: ImportedAction,
+            actorUserId: actor.UserId,
+            actorLabel: actor.Label,
+            toState: nameof(SupplierOnboardingState.Approved),
+            reason: $"Imported from the ERP, where it is {erpSupplier.ExternalId}, and approved without portal review.",
+            referenceCode: referenceCode,
+            ct: ct);
+
+        if (admitted.Standing != ErpStanding.Usable)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: supplier.Id,
+                action: admitted.Standing == ErpStanding.Disabled ? SuspendedAsDisabledAction : SuspendedAsNotApprovedAction,
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                toState: nameof(SupplierLifecycleState.Suspended),
+                reason: $"{admitted.TurnedAway}; it arrived suspended.",
+                referenceCode: referenceCode,
+                ct: ct);
+        }
+
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
@@ -220,6 +539,7 @@ public sealed class RunErpImportHandler(
             referenceCode,
             [$"Approved without portal review, imported from the ERP. Account created for {admitted.Email}.",
              .. admitted.Notes,
+             .. (admitted.ArrivalNote is null ? Array.Empty<string>() : [admitted.ArrivalNote]),
              address.Note]);
     }
 
@@ -236,11 +556,26 @@ public sealed class RunErpImportHandler(
     // THE ADDRESS IS ADDED ONLY TO A SUPPLIER THAT HAS NONE. Once there is an address the supplier or the ministry may
     // have corrected it - placed the pin, fixed the governorate the ERP's city field got wrong - and the ERP's version
     // is the older truth. Every other field the ERP sends is refreshed, and nothing it lacks is blanked.
+    //
+    // A SUPPLIER THE ERP TURNS AWAY - disables, or has not approved - IS RECORDED THE WAY AN ABSENCE IS: suspended once
+    // if the supplier is active, only marked if it is out of service already, and a person's reinstatement after the
+    // one suspension stands - see RecordErpStanding. While the plan holds a mass turn-away back, nobody's memory of it
+    // is touched either, because the read that caused it is not believed: a turned-away supplier marked as gone keeps
+    // the mark, and nothing reinstates it automatically, until a run the plan believes.
+    //
+    // WHEN A MARK CLEARS, THE AUTOMATIC REINSTATEMENT IS ASKED AGAIN. A marked supplier - missing on an earlier run, or
+    // turned away while suspended - may have had its renewed document approved while the mark held the reinstatement
+    // back. The ERP returning it, or taking it back, is the moment that hold ends, and nothing else would look again;
+    // AutomaticReinstatement explains the rest. The sync's own suspensions are never lifted this way: reinstating
+    // somebody the ERP turned away is a person's decision - except a supplier suspended only while the ERP approved it
+    // and untouched since, which the ERP's approval releases (RecordErpStanding explains when).
     private async Task<ErpImportResultRow> UpdateAsync(
         Supplier existing,
         ErpSupplier erpSupplier,
         AdmittedSupplier admitted,
         ErpSupplierDetails details,
+        Actor actor,
+        bool holdTurnedAway,
         CancellationToken ct)
     {
         var notes = new List<string>
@@ -250,14 +585,15 @@ public sealed class RunErpImportHandler(
 
         var realEmail = admitted.EmailIsPlaceholder ? null : admitted.Email;
 
-        existing.ApplyErpSnapshot(
+        var wasMarkedGone = existing.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp;
+
+        var changed = existing.ApplyErpSnapshot(
             admitted.Name,
             erpSupplier.TaxId,
             LegalTypeOf(erpSupplier.LegalType),
             admitted.Currency,
             realEmail,
             erpSupplier.Phone,
-            admitted.Suspended,
             details,
             admitted.ContactPerson);
 
@@ -269,13 +605,116 @@ public sealed class RunErpImportHandler(
         if (address.Write) AddAddress(existing, admitted.Address!.Address);
         notes.Add(address.Note);
 
+        var held = holdTurnedAway && admitted.Standing != ErpStanding.Usable;
+        var awaitsRenewal = admitted.Standing == ErpStanding.Usable
+            && existing.ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending
+            && await AwardCriticalRenewal.AwaitsRenewalAsync(db, existing.Id, ct);
+        var forecast = Supplier.ErpDisabledChangeFor(
+            existing.ErpDisabledState,
+            existing.LifecycleState == SupplierLifecycleState.Active,
+            admitted.Standing,
+            !awaitsRenewal);
+        var disabled = held ? ErpDisabledChange.None : existing.RecordErpStanding(admitted.Standing, !awaitsRenewal);
+
+        if (disabled == ErpDisabledChange.Suspended)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: erpSupplier.Disabled ? SuspendedAsDisabledAction : SuspendedAsNotApprovedAction,
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                fromState: nameof(SupplierLifecycleState.Active),
+                toState: nameof(SupplierLifecycleState.Suspended),
+                reason: $"{admitted.TurnedAway}.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+        }
+
+        if (disabled == ErpDisabledChange.Marked)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: erpSupplier.Disabled ? "supplier.marked_disabled_in_erp" : "supplier.marked_not_approved_in_erp",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                reason: $"{admitted.TurnedAway}; already out of service here, so only marked.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+        }
+
+        if (disabled == ErpDisabledChange.ReleaseWithdrawn)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: "supplier.erp_release_withdrawn",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                reason: $"{admitted.TurnedAway} while it waited for approval; its approval will no longer bring it back.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+        }
+
+        if (disabled == ErpDisabledChange.ReleaseWaitsForDocuments)
+        {
+            notes.Add(ErpImportAdmission.ReleaseWaitsNote);
+        }
+
+        if (disabled == ErpDisabledChange.Released)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: "supplier.reactivated_approved_in_erp",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                fromState: nameof(SupplierLifecycleState.Suspended),
+                toState: nameof(SupplierLifecycleState.Active),
+                reason: "Approved in the ERP; it had been suspended here only while it waited for that.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+
+            notes.Add(ErpImportAdmission.ReleasedNote);
+        }
+
+        if (admitted.TurnedAway is not null)
+        {
+            notes.Add(held && forecast != ErpDisabledChange.None
+                ? ErpImportAdmission.HeldBackNote(admitted.TurnedAway)
+                : ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, disabled));
+        }
+
         if (realEmail is not null)
         {
             var moved = await MoveLoginOffPlaceholderAsync(existing, realEmail);
             if (moved is not null) notes.Add(moved);
         }
 
-        existing.MarkSynced(erpSupplier.ExternalId);
+        if (!(held && wasMarkedGone))
+        {
+            existing.MarkSynced(
+                erpSupplier.ExternalId,
+                changed || address.Write || disabled is not (ErpDisabledChange.None or ErpDisabledChange.ReleaseWaitsForDocuments));
+        }
+
+        if ((wasMarkedGone || disabled == ErpDisabledChange.Cleared)
+            && await AutomaticReinstatement.TryAsync(
+                db,
+                audit,
+                existing,
+                "Automatic reinstatement (BRULE-023/D-67): the award-critical document that expired was replaced and "
+                + "approved while the ERP was not offering this supplier, and the ERP offers it again.",
+                actor.UserId,
+                actor.Label,
+                $"{NotificationTypes.SupplierReinstated}:{existing.Id}:erp:{existing.LastSyncedAt?.UtcTicks}",
+                ct))
+        {
+            notes.Add("Offered by the ERP again, and the expired document that suspended it has since been replaced "
+                      + "and approved; reinstated automatically.");
+        }
+
         await db.SaveChangesAsync(ct);
 
         notes.AddRange(admitted.Notes);
@@ -283,7 +722,7 @@ public sealed class RunErpImportHandler(
         return new ErpImportResultRow(
             erpSupplier.ExternalId,
             admitted.Name,
-            ErpImportOutcome.Updated,
+            disabled == ErpDisabledChange.Suspended ? ErpImportOutcome.Suspended : ErpImportOutcome.Updated,
             existing.ReferenceCode,
             notes);
     }

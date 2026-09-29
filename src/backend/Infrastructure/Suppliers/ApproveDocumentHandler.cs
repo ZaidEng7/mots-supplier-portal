@@ -19,22 +19,10 @@
 // information and introduces the worse failure, a supplier who has fixed the problem sitting suspended and
 // locked out of tenders until somebody happens to notice.
 //
-// "Objectively gone" is read narrowly: no award-critical document type on this supplier is left with an
-// expired latest version. Not "this document is fine". A supplier suspended for two expiries must not be
-// reinstated by fixing one of them, and that is the case this test exists to refuse.
-//
-// It reactivates only from suspended, and only when the suspension was this rule's. A supplier suspended by
-// a person for a reason of their own stays suspended: their audit trail carries no automatic-suspension
-// row, so the last-suspension check finds nothing and this does nothing. Reinstating them would be a
-// document decision overturning a human one.
-//
-// The audit row names the replacement document and the reviewer whose approval triggered the
-// reinstatement. "Reactivated automatically" and nothing else would leave the next reader unable to tell
-// why participation came back, which is the same gap the suspension row was written to close.
-//
-// And the supplier is told. They were told when participation was removed, and a system that takes the
-// trouble to say "you are suspended" then stays silent when it lifts leaves them assuming the worst and not
-// bidding.
+// WHEN IT REINSTATES IS DECIDED IN AutomaticReinstatement, which the ERP sync also calls: the condition must be
+// objectively gone, the last suspension must be the expiry rule's rather than a person's or the sync's, and nothing may
+// be marking the supplier as one the ERP no longer wants. This handler only supplies the trigger - the document and
+// the reviewer whose approval it was.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
@@ -85,46 +73,17 @@ public sealed class ApproveDocumentHandler(AppDbContext db, IScopeContext scope,
         AppDbContext db, IAuditLogger auditLogger, SupplierDocument document, Guid reviewerId, CancellationToken ct)
     {
         var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == document.SupplierId, ct);
-        if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Suspended) return;
+        if (supplier is null) return;
 
-        var lastSuspension = await db.AuditLogs.AsNoTracking()
-            .Where(a => a.AggregateId == supplier.Id
-                        && (a.Action == "supplier_auto_suspended" || a.Action == "supplier_suspended"))
-            .OrderByDescending(a => a.OccurredAt)
-            .Select(a => a.Action)
-            .FirstOrDefaultAsync(ct);
-
-        if (lastSuspension != "supplier_auto_suspended") return;
-
-        var awardCriticalTypeIds = await db.DocumentTypes.AsNoTracking()
-            .Where(t => t.IsAwardCritical)
-            .Select(t => t.Id)
-            .ToListAsync(ct);
-
-        var stillExpired = await db.SupplierDocuments.AsNoTracking()
-            .AnyAsync(d => d.SupplierId == supplier.Id
-                           && d.IsLatestVersion
-                           && d.State == DocumentState.Expired
-                           && awardCriticalTypeIds.Contains(d.DocumentTypeId), ct);
-
-        if (stillExpired) return;
-
-        var reason = "Automatic reinstatement (BRULE-023/D-67): the award-critical document that expired has "
-                     + $"been replaced and approved ({document.ReferenceCode}).";
-
-        supplier.Reactivate(reason);
-
-        await auditLogger.LogAsync(
-            "Supplier", supplier.Id, "supplier_auto_reinstated", reviewerId,
-            referenceCode: supplier.ReferenceCode,
-            fromState: nameof(SupplierLifecycleState.Suspended),
-            toState: nameof(SupplierLifecycleState.Active),
-            reason: reason, ct: ct);
-
-        NotificationOutbox.EnqueueMany(
-            db, NotificationTypes.SupplierReinstated,
-            await db.Users.Where(u => u.SupplierId == supplier.Id).Select(u => u.Id).ToListAsync(ct),
+        await AutomaticReinstatement.TryAsync(
+            db,
+            auditLogger,
+            supplier,
+            "Automatic reinstatement (BRULE-023/D-67): the award-critical document that expired has been replaced "
+            + $"and approved ({document.ReferenceCode}).",
+            reviewerId,
+            actorLabel: null,
             $"{NotificationTypes.SupplierReinstated}:{supplier.Id}:{document.Id}",
-            new Dictionary<string, string?> { ["supplierCode"] = supplier.ReferenceCode });
+            ct);
     }
 }

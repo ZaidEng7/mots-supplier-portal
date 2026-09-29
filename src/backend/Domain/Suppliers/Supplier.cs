@@ -232,6 +232,34 @@ public enum SupplierSyncStatus
     Pending,
     Synced,
     Failed,
+    RemovedFromErp,
+    MarkedRemovedFromErp,
+}
+
+public enum SupplierErpDisabledState
+{
+    NotDisabled,
+    MarkedDisabled,
+    SuspendedAsDisabled,
+    SuspendedAsPending,
+}
+
+public enum ErpDisabledChange
+{
+    None,
+    Suspended,
+    Marked,
+    Cleared,
+    Released,
+    ReleaseWaitsForDocuments,
+    ReleaseWithdrawn,
+}
+
+public enum ErpStanding
+{
+    Usable,
+    AwaitingApproval,
+    Disabled,
 }
 
 public sealed class Supplier : IVersionedAggregate, ILastModified
@@ -257,6 +285,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public SupplierLifecycleState LifecycleState { get; private set; } = SupplierLifecycleState.None;
     public string? ExternalId { get; private set; }
     public SupplierSyncStatus SyncStatus { get; private set; } = SupplierSyncStatus.Pending;
+    public SupplierErpDisabledState ErpDisabledState { get; private set; }
     public DateTimeOffset? LastSyncedAt { get; private set; }
     public string? TermsAcceptedVersion { get; private set; }
     public DateTimeOffset? TermsAcceptedAt { get; private set; }
@@ -793,10 +822,23 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
         OnboardingState = SupplierOnboardingState.Approved;
         LifecycleState = SupplierLifecycleState.Active;
+        EndErpPendingHold();
     }
 
+    // A supplier the sync suspended only while the ERP approves it may be suspended again by a person, without its
+    // lifecycle changing: that is how they make the suspension theirs, so the ERP's approval no longer lifts it. It
+    // already shows as suspended, and without this the only ways to keep it out were a reinstatement nobody meant, or
+    // deactivation, which cannot be undone.
     public void Suspend(string reason)
     {
+        if (LifecycleState == SupplierLifecycleState.Suspended
+            && ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending
+            && !string.IsNullOrWhiteSpace(reason))
+        {
+            EndErpPendingHold();
+            return;
+        }
+
         if (LifecycleState != SupplierLifecycleState.Active)
         {
             throw new DomainException(
@@ -809,6 +851,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         }
 
         LifecycleState = SupplierLifecycleState.Suspended;
+        EndErpPendingHold();
     }
 
     public void Reactivate(string reason)
@@ -825,6 +868,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         }
 
         LifecycleState = SupplierLifecycleState.Active;
+        EndErpPendingHold();
     }
 
     public void Deactivate(string reason)
@@ -842,6 +886,18 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         }
 
         LifecycleState = SupplierLifecycleState.Deactivated;
+        EndErpPendingHold();
+    }
+
+    // Once a person - or a rule acting for one - has acted on this supplier, a suspension the sync made while the ERP
+    // was approving it is no longer the sync's to lift. It is still remembered as handled, so the ERP's pending state
+    // does not suspend it a second time.
+    private void EndErpPendingHold()
+    {
+        if (ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending)
+        {
+            ErpDisabledState = SupplierErpDisabledState.SuspendedAsDisabled;
+        }
     }
 
     public bool IsEligibleToParticipate =>
@@ -933,7 +989,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         string representativeName,
         string representativeEmail,
         string? representativePhone,
-        bool suspended = false,
+        ErpStanding standing = ErpStanding.Usable,
         ErpSupplierDetails? details = null)
     {
         var now = DateTimeOffset.UtcNow;
@@ -949,7 +1005,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             SupplierGroup = details?.SupplierGroup,
             Description = details?.Description,
             OnboardingState = SupplierOnboardingState.Approved,
-            LifecycleState = suspended ? SupplierLifecycleState.Suspended : SupplierLifecycleState.Active,
+            LifecycleState = standing == ErpStanding.Usable ? SupplierLifecycleState.Active : SupplierLifecycleState.Suspended,
+            ErpDisabledState = standing switch
+            {
+                ErpStanding.AwaitingApproval => SupplierErpDisabledState.SuspendedAsPending,
+                ErpStanding.Disabled => SupplierErpDisabledState.SuspendedAsDisabled,
+                _ => SupplierErpDisabledState.NotDisabled,
+            },
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -994,29 +1056,34 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // missing email with a placeholder: passing the placeholder through here would overwrite a real address a
     // supplier later gave the portal, just because the ERP still has nothing.
     //
-    // THE ERP MAY SUSPEND, BUT IT NEVER REINSTATES. A supplier the ERP disables is suspended here, so it cannot be
-    // invited to a tender Seven Gates would not honour. A supplier the ERP re-enables stays as it is: reinstating
-    // somebody is a decision a person makes on this side, and they may have been suspended here for a reason the
-    // ERP knows nothing about.
-    public void ApplyErpSnapshot(
+    // WHETHER THE ERP TURNS IT AWAY IS RECORDED SEPARATELY, by RecordErpStanding, because that decides a lifecycle
+    // and this only copies fields.
+    //
+    // A RUN THAT FINDS NOTHING NEW CHANGES NOTHING. The sync runs every hour, and a supplier whose version moved on every
+    // run would refuse the save of anybody who opened it before the hour and saved after it, although nobody had
+    // changed a thing. So only a value that differs is written, and it says whether anything was.
+    public bool ApplyErpSnapshot(
         string displayNameEn,
         string? taxId,
         SupplierLegalType legalType,
         string? currencyCode,
         string? representativeEmail,
         string? representativePhone,
-        bool disabledInErp = false,
         ErpSupplierDetails? details = null,
         string? representativeName = null)
     {
         var companyNames = new[] { DisplayNameEn, displayNameEn };
+        var before = (DisplayNameEn, DisplayNameAr, CurrencyCode, SupplierGroup, Description);
+
         DisplayNameEn = displayNameEn;
         if (currencyCode is not null) CurrencyCode = currencyCode;
         if (details?.DisplayNameAr is not null) DisplayNameAr = details.DisplayNameAr;
         if (details?.SupplierGroup is not null) SupplierGroup = details.SupplierGroup;
         if (details?.Description is not null) Description = details.Description;
 
-        LegalInfo = Domain.Suppliers.LegalInfo.Create(
+        var changed = before != (DisplayNameEn, DisplayNameAr, CurrencyCode, SupplierGroup, Description);
+
+        var legalInfo = Domain.Suppliers.LegalInfo.Create(
             details?.DisplayNameAr ?? LegalInfo?.LegalNameAr ?? displayNameEn,
             displayNameEn,
             details?.RegistrationNumber ?? LegalInfo?.RegistrationNumber,
@@ -1025,9 +1092,17 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             LegalInfo?.EstablishedOn,
             details?.RegistrationType ?? LegalInfo?.RegistrationType);
 
+        if (LegalInfo is null || !LegalInfo.Matches(legalInfo))
+        {
+            LegalInfo = legalInfo;
+            changed = true;
+        }
+
         var representative = _representatives.FirstOrDefault(r => r.IsPrimary) ?? _representatives.FirstOrDefault();
         if (representative is not null)
         {
+            var person = (representative.FullName, representative.Email, representative.Phone);
+
             if (representativeName is not null && companyNames.Contains(representative.FullName))
             {
                 representative.FullName = representativeName;
@@ -1035,18 +1110,153 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
             if (representativeEmail is not null) representative.Email = representativeEmail;
             if (representativePhone is not null) representative.Phone = representativePhone;
+
+            changed |= person != (representative.FullName, representative.Email, representative.Phone);
         }
 
-        if (disabledInErp && LifecycleState == SupplierLifecycleState.Active)
-        {
-            LifecycleState = SupplierLifecycleState.Suspended;
-        }
-
-        UpdatedAt = DateTimeOffset.UtcNow;
+        return changed;
     }
 
-    public void MarkSynced(string externalId)
+    // Recording whether the ERP will let this supplier be used, suspending it once if it will not, and releasing it once
+    // the ERP approves a supplier the sync suspended only while it waited for that.
+    //
+    // THE ERP MAY SUSPEND, AND IT MAY RELEASE ONLY ITS OWN WAIT. A supplier the ERP disables, or has not approved, is
+    // suspended here, so it cannot be invited to a tender Seven Gates would not honour. A supplier the ERP re-enables
+    // stays as it is: reinstating somebody is a decision a person makes on this side, and they may have been suspended
+    // here for a reason the ERP knows nothing about. The one exception is a supplier the sync suspended ONLY because
+    // the ERP had not approved it yet, that nobody has touched since: when the ERP approves it, it comes into service.
+    // Otherwise every new supplier - which the hourly sync usually meets while it is still waiting for Seven Gates'
+    // chief accountant - would stay suspended until somebody noticed and reinstated it by hand.
+    //
+    // IT KEEPS FOUR MEMORIES, as a supplier missing from the ERP keeps three, and for the same reasons.
+    //   SuspendedAsPending - the sync suspended it while the ERP had not approved it, and nothing has changed its
+    //     lifecycle since. The only memory the ERP's approval may lift. A person acting on the supplier turns it into
+    //     SuspendedAsDisabled, and so does the ERP disabling it meanwhile.
+    //   SuspendedAsDisabled - the sync suspended it once for this, and a person's reinstatement after that is not
+    //     overruled; the first version suspended on every run on which the ERP said "disabled" and undid that decision
+    //     forever.
+    //   MarkedDisabled - the ERP turned it away while it was already out of service, so there was nothing to suspend.
+    //     The version before this one remembered only "disabled on the last run", so such a supplier, once reactivated -
+    //     by a person, or by a document approval that could not see the disable - was never suspended for it at all.
+    //     Now it is suspended once when it is found active, and the automatic reinstatement leaves it alone.
+    //   NotDisabled - the ERP lets it be used, so a later refusal counts as new.
+    //
+    // It returns what changed, so the caller can record who did it and look again at a reinstatement a mark held up.
+    //
+    // THE RELEASE ALSO WAITS FOR ITS DOCUMENTS. An award-critical document that expired while the supplier waited was
+    // never acted on - the expiry rule suspends only active suppliers, and a document expires once - so the ERP's
+    // approval alone would bring back a supplier with an expired commercial registration. The caller says whether every
+    // expired award-critical document has an approved renewal; until it has, the hold stands and every run asks again,
+    // so the supplier comes back on the first run after both the approval and the renewal are in.
+    public ErpDisabledChange RecordErpStanding(ErpStanding standing, bool documentsAllowRelease = true)
     {
+        var change = ErpDisabledChangeFor(
+            ErpDisabledState, LifecycleState == SupplierLifecycleState.Active, standing, documentsAllowRelease);
+
+        if (change == ErpDisabledChange.Released)
+        {
+            LifecycleState = SupplierLifecycleState.Active;
+        }
+
+        if (standing == ErpStanding.Usable && change != ErpDisabledChange.ReleaseWaitsForDocuments)
+        {
+            ErpDisabledState = SupplierErpDisabledState.NotDisabled;
+        }
+        else if (change == ErpDisabledChange.Suspended)
+        {
+            LifecycleState = SupplierLifecycleState.Suspended;
+            ErpDisabledState = standing == ErpStanding.AwaitingApproval
+                ? SupplierErpDisabledState.SuspendedAsPending
+                : SupplierErpDisabledState.SuspendedAsDisabled;
+        }
+        else if (change == ErpDisabledChange.Marked)
+        {
+            ErpDisabledState = SupplierErpDisabledState.MarkedDisabled;
+        }
+        else if (change == ErpDisabledChange.ReleaseWithdrawn)
+        {
+            ErpDisabledState = SupplierErpDisabledState.SuspendedAsDisabled;
+        }
+
+        return change;
+    }
+
+    // What RecordErpStanding would do, worked out from the supplier's memory and lifecycle alone, so the preview can
+    // forecast the same outcome from the columns it reads without loading the supplier.
+    public static ErpDisabledChange ErpDisabledChangeFor(
+        SupplierErpDisabledState state, bool isActive, ErpStanding standing, bool documentsAllowRelease = true)
+    {
+        if (standing == ErpStanding.Usable)
+        {
+            return state switch
+            {
+                SupplierErpDisabledState.SuspendedAsPending when !isActive => documentsAllowRelease
+                    ? ErpDisabledChange.Released
+                    : ErpDisabledChange.ReleaseWaitsForDocuments,
+                SupplierErpDisabledState.MarkedDisabled => ErpDisabledChange.Cleared,
+                _ => ErpDisabledChange.None,
+            };
+        }
+
+        if (state == SupplierErpDisabledState.SuspendedAsPending && standing == ErpStanding.Disabled)
+        {
+            return ErpDisabledChange.ReleaseWithdrawn;
+        }
+
+        if (state is SupplierErpDisabledState.SuspendedAsDisabled or SupplierErpDisabledState.SuspendedAsPending)
+        {
+            return ErpDisabledChange.None;
+        }
+
+        if (isActive) return ErpDisabledChange.Suspended;
+
+        return state == SupplierErpDisabledState.MarkedDisabled ? ErpDisabledChange.None : ErpDisabledChange.Marked;
+    }
+
+    // Whether a mark is standing that says the ERP no longer wants this supplier, although the sync has not yet
+    // suspended it for that. While one stands, nothing automatic may bring the supplier back into service.
+    public bool IsMarkedAsUnwantedByErp =>
+        SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp
+        || ErpDisabledState == SupplierErpDisabledState.MarkedDisabled;
+
+    // Suspending a supplier because the ERP no longer returns it, and remembering why.
+    //
+    // THE REASON IS KEPT ON THE SUPPLIER, not only in the audit trail, because the next run has to know it.
+    // A person may reinstate the supplier; if nothing remembered that it had already been suspended for this same
+    // absence, the next run would suspend it again, on every run, undoing their decision by a job nobody watches. The
+    // mark clears the moment the supplier reappears in the ERP, through MarkSynced, so a second disappearance later is
+    // treated as new.
+    public void SuspendAsRemovedFromErp()
+    {
+        if (LifecycleState != SupplierLifecycleState.Active)
+        {
+            throw new DomainException(
+                $"Cannot suspend from lifecycle state '{LifecycleState}'; only 'Active' is valid.");
+        }
+
+        LifecycleState = SupplierLifecycleState.Suspended;
+        SyncStatus = SupplierSyncStatus.RemovedFromErp;
+    }
+
+    // Marking a supplier that is already suspended or deactivated as gone from the ERP, without touching its lifecycle.
+    //
+    // Without it, that supplier would count as "vanished in this run" on every run for as long as it stayed missing, and
+    // the plan could pair it with any new company that happened to share its tax number, months later.
+    //
+    // IT IS A DIFFERENT MEMORY FROM SuspendAsRemovedFromErp, and the first version got that wrong by sharing one. That
+    // one means "the sync suspended it, so a person's reinstatement must be respected". This one means only "it was
+    // already out of service when it left", and the sync has not yet suspended it for that. Sharing them meant a
+    // supplier reactivated later was never suspended for its absence. With its own status, the automatic reinstatement
+    // after a document renewal leaves it alone, and one a person reactivates is suspended once on the next run.
+    public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.MarkedRemovedFromErp;
+
+    // Recording that the ERP has this supplier. LastSyncedAt is the last time the ERP changed or re-linked it, not the
+    // last time a run looked: stamping it on every hourly run would move every supplier's version with it - see
+    // ApplyErpSnapshot. When the last run happened is kept once, on the connection.
+    public void MarkSynced(string externalId, bool changed = true)
+    {
+        if (!changed && ExternalId == externalId && SyncStatus == SupplierSyncStatus.Synced) return;
+
         ExternalId = externalId;
         SyncStatus = SupplierSyncStatus.Synced;
         LastSyncedAt = DateTimeOffset.UtcNow;

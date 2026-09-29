@@ -47,8 +47,16 @@ export interface ReviewAnnotation {
   resolvedAt: string | null
 }
 
+export interface ReviewerErpSync {
+  externalId: string | null
+  syncStatus: string
+  lastSyncedAt: string | null
+  liftsWhenErpApproves: boolean
+}
+
 export interface ReviewerSupplierView {
   supplier: SupplierProfile
+  erpSync?: ReviewerErpSync
   documents: DocumentTypeStatus[]
   annotationHistory: ReviewAnnotation[]
 }

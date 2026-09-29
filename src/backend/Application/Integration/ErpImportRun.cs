@@ -21,7 +21,21 @@ public enum ErpImportOutcome
     Updated,
     Refused,
     Failed,
+    Suspended,
 }
+
+// Who started a run. A scheduled run has no signed-in user, so its audit rows are attributed to the system rather
+// than left without an actor - an unattributed change to the supplier registry is the kind somebody asks about.
+public enum ErpImportTrigger
+{
+    Manual,
+    Scheduled,
+}
+
+// Thrown when another import is already running. The hourly job and a person pressing the button at the same
+// moment would otherwise both find a supplier missing and both create it.
+public sealed class ErpImportBusyException()
+    : Exception("Another supplier import is already running. Wait for it to finish and try again.");
 
 public sealed record ErpImportResultRow(
     string ExternalId,
@@ -36,9 +50,11 @@ public sealed record ErpImportRunReport(
     int Updated,
     int Refused,
     int Failed,
-    IReadOnlyList<ErpImportResultRow> Rows);
+    IReadOnlyList<ErpImportResultRow> Rows,
+    int Suspended = 0,
+    string? SuspensionsHeldBack = null);
 
 public interface IRunErpImportHandler
 {
-    Task<ErpImportRunReport> HandleAsync(CancellationToken ct);
+    Task<ErpImportRunReport> HandleAsync(ErpImportTrigger trigger, CancellationToken ct);
 }

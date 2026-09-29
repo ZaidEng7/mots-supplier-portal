@@ -24,7 +24,7 @@ vi.mock('@tanstack/react-router', async () => {
 
 const { ReviewApplicationPage } = await import('./ReviewApplicationPage')
 
-function viewFor(lifecycleState: string) {
+function viewFor(lifecycleState: string, liftsWhenErpApproves = false) {
   return {
     supplier: {
       referenceCode: 'SUP-2026-000038',
@@ -36,7 +36,7 @@ function viewFor(lifecycleState: string) {
       currencyCode: null, legalInfo: null, primaryContactPhone: null,
       representatives: [], addresses: [], contacts: [], branches: [], bankAccounts: [], categoryCodes: [],
     },
-    erpSync: { status: 'NotSynced', lastSyncedAt: null, externalId: null },
+    erpSync: { syncStatus: 'Synced', lastSyncedAt: null, externalId: 'SUP-2026-00038', liftsWhenErpApproves },
     documents: [],
     annotationHistory: [],
   }
@@ -64,6 +64,21 @@ describe('ReviewApplicationPage lifecycle actions', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /إعادة التفعيل|Reactivate/ })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /إلغاء التفعيل|Deactivate/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^(تعليق|Suspend)$/ })).not.toBeInTheDocument()
+  })
+
+  it('offers keeping a supplier suspended while the ERP approval would lift the suspension, and says why', async () => {
+    restore = mockFetch({ '/api/v1/review/SUP-2026-000038': viewFor('Suspended', true) })
+
+    renderPage(<ReviewApplicationPage />)
+
+    const keep = await screen.findByRole('button', { name: /إبقاء التعليق|Keep suspended/ })
+    expect(screen.getAllByText(/lifts by itself|سيُرفع تلقائياً/).length).toBeGreaterThan(0)
+
+    await userEvent.click(keep)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getAllByText(/إبقاء التعليق|Keep suspended/).length).toBeGreaterThan(0)
+    expect(within(dialog).queryByText(/^(تعليق|Suspend)$/)).not.toBeInTheDocument()
   })
 
   it('offers no lifecycle action once deactivated, because it is terminal', async () => {

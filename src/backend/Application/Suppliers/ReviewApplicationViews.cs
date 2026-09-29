@@ -41,7 +41,8 @@ public static class ReviewQueueFilterValues
 
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);
 
-public sealed record ErpSyncDto(string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt);
+public sealed record ErpSyncDto(
+    string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt, bool LiftsWhenErpApproves = false);
 
 public sealed record ReviewerSupplierViewDto(
     SupplierDto Supplier,

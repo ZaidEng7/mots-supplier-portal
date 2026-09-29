@@ -18,6 +18,9 @@
 // that no longer resolves - is the most likely failure right after somebody changes the address on the
 // integrations screen. It used to escape as a 500, which tells an administrator the portal is broken.
 //
+// THE OPERATIONS SCREEN'S GENERIC "RUN NOW" IS REFUSED for the import, and the refusal names the screen to use.
+// Started from there, the import ran as "system" under a different permission and nothing recorded who clicked.
+//
 // THE PERMISSION IS ASSERTED SEPARATELY because this route hands back every supplier the ERP has, with their tax
 // numbers and email addresses, and it is gated on the same permission as running the import for that reason.
 
@@ -93,4 +96,20 @@ public sealed class ErpImportPreviewEndpointTests(PostgresApiFixture fixture) : 
             HttpStatusCode.Forbidden,
             "the report carries every ERP supplier's tax number and email address");
     }
+
+    [Fact]
+    public async Task The_operations_screen_cannot_start_the_supplier_import_behind_its_own_permission()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+
+        var response = await admin.PostAsync("/api/v1/admin/jobs/erp-supplier-sync/trigger", content: null);
+
+        response.StatusCode.Should().Be(
+            HttpStatusCode.Conflict,
+            "started from the generic button it ran as 'system' under a different permission, naming nobody");
+
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("detail").GetString().Should().Contain("/back-office/erp-import");
+    }
 }
+

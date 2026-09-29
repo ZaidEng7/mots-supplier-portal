@@ -97,6 +97,14 @@ internal static class RecurringJobRegistration
 
             recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Idempotency.IdempotencyCleanupJob>(
                 "idempotency-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Hourly);
+
+            // Every hour, on the hour. The ministry asked for a supplier added to the ERP to reach the portal the same
+            // day rather than the next morning, and each run is three reads from the ERP, so an hourly one costs it
+            // little.
+            recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSyncJob>(
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSyncJob.JobId,
+                job => job.RunAsync(CancellationToken.None),
+                Cron.Hourly);
         }
         else
         {
