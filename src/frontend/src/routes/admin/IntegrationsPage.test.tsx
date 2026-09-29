@@ -9,8 +9,8 @@
 // no change has to be told that the deployment's own settings still win, rather than left to conclude the save
 // did not work.
 //
-// THE LAST IMPORT IS SHOWN, FAILURE INCLUDED. The nightly run happens when nobody is watching, and a failure never
-// shown looks exactly like a night with nothing to do - so the card must put it in front of the next person to look.
+// THE LAST IMPORT IS SHOWN, FAILURE INCLUDED. The hourly run happens when nobody is watching, and a failure never
+// shown looks exactly like a run with nothing to do - so the card must put it in front of the next person to look.
 //
 // THE THIRD IS THAT A FAILED TEST READS AS AN ANSWER AND KEEPS THE DETAIL. The detail is the other system's own
 // words, and it is the part that says whether to check the address or to ring the other team.
@@ -137,7 +137,12 @@ describe('IntegrationsPage', () => {
     restore = mockFetch({
       [LIST]: { __byMethod: { GET: [ERP] } },
       '/api/v1/admin/integrations/erp/test': {
-        __byMethod: { POST: { succeeded: false, detail: '403 Forbidden. PermissionError' } },
+        __byMethod: {
+          POST: {
+            succeeded: false,
+            detail: 'Reached http://erp, but it refused to read addresses (403 PermissionError); suppliers and contacts can be read.',
+          },
+        },
       },
     })
 
@@ -145,7 +150,7 @@ describe('IntegrationsPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Test connection' }))
 
-    expect(await screen.findByText('Could not reach it')).toBeInTheDocument()
+    expect(await screen.findByText('Not ready for the import')).toBeInTheDocument()
     expect(screen.getByText(/PermissionError/)).toBeInTheDocument()
   })
 })

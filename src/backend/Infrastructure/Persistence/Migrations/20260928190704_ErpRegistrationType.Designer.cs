@@ -13,8 +13,8 @@ using NpgsqlTypes;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260928164337_NightlyErpSync")]
-    partial class NightlyErpSync
+    [Migration("20260928190704_ErpRegistrationType")]
+    partial class ErpRegistrationType
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1246,17 +1246,6 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset?>("LastSyncAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastSyncOutcome")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("LastSyncSummary")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("LastTestDetail")
                         .HasMaxLength(1000)
@@ -3193,11 +3182,6 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("ErpDisabledState")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<string>("ExternalId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -3759,6 +3743,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("RegistrationNumber");
+
+                            b1.Property<string>("RegistrationType")
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("RegistrationType");
 
                             b1.Property<string>("SupplierType")
                                 .IsRequired()

@@ -1,11 +1,11 @@
 // Making sure only one supplier import runs at a time.
 //
-// WHY A LOCK AT ALL. The nightly job and a person pressing "Run the import" can overlap, and so can two people.
+// WHY A LOCK AT ALL. The hourly job and a person pressing "Run the import" can overlap, and so can two people.
 // Both runs read the ERP, both find a supplier the portal does not hold yet, both create it - and the registry the
 // ministry reads now has the same company twice under two reference codes, each looking correct on its own.
 //
 // A DATABASE LOCK, NOT A LOCK IN MEMORY. A lock inside the application would only stop overlaps within one running
-// copy of it, and the nightly job and a web request are not guaranteed to be the same copy. Postgres' own advisory
+// copy of it, and the hourly job and a web request are not guaranteed to be the same copy. Postgres' own advisory
 // lock is held by the connection, so it holds across every copy that shares the database - and it is released
 // automatically if the connection dies, so a crashed run can never leave the import locked forever.
 //

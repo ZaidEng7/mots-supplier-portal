@@ -61,6 +61,8 @@ public sealed class PreviewErpImportHandler(
                     .ThenBy(r => r.Id)
                     .Select(r => db.Users.Where(u => u.Id == r.UserId).Select(u => u.Email).FirstOrDefault())
                     .FirstOrDefault(),
+                AddressCount = s.Addresses.Count,
+                s.OnboardingState,
             })
             .ToListAsync(ct);
 
@@ -77,15 +79,21 @@ public sealed class PreviewErpImportHandler(
                     group.First().LoginEmail,
                     group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp,
                     group.First().SyncStatus
-                        == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.MarkedRemovedFromErp));
+                        == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.MarkedRemovedFromErp,
+                    group.First().AddressCount,
+                    Domain.Suppliers.Supplier.AllowsContactEdits(group.First().OnboardingState)
+                        ? null
+                        : $"in state '{group.First().OnboardingState}'"));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)
             .GroupBy(s => s.TaxId!)
             .ToDictionary(group => group.Key, group => group.First().ReferenceCode);
 
+        var registrationNumbers = await RegistrationNumbersInPortal.ReadAsync(db, ct);
+
         var erpSuppliers = await source.ListSuppliersAsync(ct);
 
-        return ErpImportPreviewBuilder.Build(erpSuppliers, byExternalId, unlinkedByTaxId);
+        return ErpImportPreviewBuilder.Build(erpSuppliers, byExternalId, unlinkedByTaxId, registrationNumbers);
     }
 }

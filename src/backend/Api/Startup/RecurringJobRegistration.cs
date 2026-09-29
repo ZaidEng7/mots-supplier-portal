@@ -98,14 +98,13 @@ internal static class RecurringJobRegistration
             recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Idempotency.IdempotencyCleanupJob>(
                 "idempotency-cleanup", job => job.RunAsync(CancellationToken.None), Cron.Hourly);
 
-            // Two in the morning in Damascus, stated as Damascus rather than converted to UTC by hand: a conversion
-            // written as a number would be silently wrong the first time the offset changed, and nobody reading
-            // "0 23 * * *" would know it meant a Syrian night.
+            // Every hour, on the hour. The ministry asked for a supplier added to the ERP to reach the portal the same
+            // day rather than the next morning, and each run is three reads from the ERP, so an hourly one costs it
+            // little.
             recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSyncJob>(
                 MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSyncJob.JobId,
                 job => job.RunAsync(CancellationToken.None),
-                "0 2 * * *",
-                new RecurringJobOptions { TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Damascus") });
+                Cron.Hourly);
         }
         else
         {

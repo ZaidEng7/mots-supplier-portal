@@ -24,10 +24,15 @@ internal static class ProposalDocumentDownload
         AppDbContext db, IScopeContext scope, IFileStorage fileStorage, IAuditLogger auditLogger,
         AttachmentScanner attachmentScanner, Proposal proposal, ProposalDocument document, CancellationToken ct)
     {
-        var safe = await attachmentScanner.EnsureScannedAsync(
+        var verdict = await attachmentScanner.EnsureScannedAsync(
             document.ScanState, document.StorageKey, document.MarkScanClean, document.MarkScanRejected, ct);
 
-        if (!safe)
+        if (verdict == AttachmentScanVerdict.ScannerUnavailable)
+        {
+            return new ProposalDocumentDownloadResult.ScannerUnavailable();
+        }
+
+        if (verdict == AttachmentScanVerdict.Rejected)
         {
             await auditLogger.LogAsync("ProposalDocument", document.Id, "proposal_document_scan_rejected",
                 scope.UserId, referenceCode: proposal.ReferenceCode, ct: ct);

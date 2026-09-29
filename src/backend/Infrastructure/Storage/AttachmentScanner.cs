@@ -23,41 +23,56 @@
 // If scan latency ever becomes the problem, the fix is to move this onto the outbox. The state field and the gate
 // do not change.
 //
-// Fail-closed throughout: the scanner already treats any error as infected, and a rejected object is deleted while
-// the row is kept as the record that it happened, which is the same shape the document scan job uses.
+// Fail-closed throughout, without destroying anything: an infected object is deleted while the row is kept as the
+// record that it happened, which is the same shape the document scan job uses; an object the scanner could not
+// judge is neither served nor deleted, and the reader is told to try again. That second case used to be the first -
+// the scanner reported any error as infected - so a scanner outage deleted the tender specification of whoever
+// happened to open it first.
 
 namespace MotsSupplierPortal.Infrastructure.Storage;
 
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Common;
 
+public enum AttachmentScanVerdict
+{
+    Safe,
+    Rejected,
+    ScannerUnavailable,
+}
+
 public sealed class AttachmentScanner(IFileStorage fileStorage, IVirusScanner scanner)
 {
-    public async Task<bool> EnsureScannedAsync(
+    public async Task<AttachmentScanVerdict> EnsureScannedAsync(
         AttachmentScanState state, string storageKey, Action markClean, Action markRejected, CancellationToken ct)
     {
         switch (state)
         {
             case AttachmentScanState.Clean:
-                return true;
+                return AttachmentScanVerdict.Safe;
 
             case AttachmentScanState.ScanRejected:
-                return false;
+                return AttachmentScanVerdict.Rejected;
 
             default:
                 await using (var content = await fileStorage.OpenReadAsync(storageKey, ct))
                 {
                     var outcome = await scanner.ScanAsync(content, ct);
+                    if (outcome == ScanOutcome.Unavailable)
+                    {
+                        return AttachmentScanVerdict.ScannerUnavailable;
+                    }
+
                     if (outcome == ScanOutcome.Infected)
                     {
                         markRejected();
                         await fileStorage.DeleteAsync(storageKey, ct);
-                        return false;
+                        return AttachmentScanVerdict.Rejected;
                     }
                 }
 
                 markClean();
-                return true;
+                return AttachmentScanVerdict.Safe;
         }
     }
 }

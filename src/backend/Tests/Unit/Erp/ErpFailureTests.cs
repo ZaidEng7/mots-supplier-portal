@@ -6,7 +6,7 @@
 // exist, and neither improves by being sent again.
 //
 // THE THIRD OUTCOME EXISTS FOR A REASON. A revoked credential and a network wobble both end the request, but only
-// one of them needs a person, and it needs them now: a nightly import that silently does nothing looks exactly
+// one of them needs a person, and it needs them now: a scheduled import that silently does nothing looks exactly
 // like an import with no changes to make.
 //
 // THE CONTROL IS THE UNKNOWN STATUS. Treating what this does not recognise as permanent would turn a new gateway

@@ -63,11 +63,16 @@ public sealed class GetRfqAttachmentDownloadUrlHandler(
         var attachment = rfq.Attachments.FirstOrDefault(a => a.Id == attachmentId);
         if (attachment is null) return new RfqAttachmentDownloadResult.NotFoundOrForbidden();
 
-        var safe = await attachmentScanner.EnsureScannedAsync(
+        var verdict = await attachmentScanner.EnsureScannedAsync(
             attachment.ScanState, attachment.StorageKey,
             attachment.MarkScanClean, attachment.MarkScanRejected, ct);
 
-        if (!safe)
+        if (verdict == AttachmentScanVerdict.ScannerUnavailable)
+        {
+            return new RfqAttachmentDownloadResult.ScannerUnavailable();
+        }
+
+        if (verdict == AttachmentScanVerdict.Rejected)
         {
             await auditLogger.LogAsync("RfqAttachment", attachment.Id, "rfq_attachment_scan_rejected",
                 scope.UserId, referenceCode: rfq.ReferenceCode, ct: ct);

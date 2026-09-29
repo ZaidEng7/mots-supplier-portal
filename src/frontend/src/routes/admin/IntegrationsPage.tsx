@@ -15,6 +15,10 @@
 // because "403 PermissionError" tells an administrator to ask the other team, while "could not connect" sends
 // them to check their typing.
 //
+// THE BADGE SAYS WHETHER THE IMPORT CAN RUN, not whether the ERP answered. The test reads what the import reads, so
+// an ERP that answers and refuses addresses fails it - and a "Could not reach it" badge above "Reached it, but it
+// refused to read addresses" contradicted its own detail and pointed at the network.
+//
 // A FAILED LOAD SAYS SO RATHER THAN SHOWING AN EMPTY PAGE. Without that, a screen whose request failed reads as
 // "this product has no integrations", which is the same picture as a working screen on a fresh deployment - and
 // the reader has no way to tell them apart. A sweep in this repository catches exactly that omission, and caught
@@ -25,8 +29,8 @@
 // is red. A green badge over the first would reassure the one person who needs to look, and one shared amber made an
 // outright failure look no more urgent than a rename waiting to be checked.
 //
-// THE LAST IMPORT IS SHOWN ON THE CARD, because the nightly run happens when nobody is looking and a failure that is
-// never shown looks exactly like a night with nothing to do. This is where the person who would fix it already
+// THE LAST IMPORT IS SHOWN ON THE CARD, because the hourly run happens when nobody is looking and a failure that is
+// never shown looks exactly like a run with nothing to do. This is where the person who would fix it already
 // comes, so this is where it goes.
 //
 // THE SOURCE IS SHOWN ON EVERY ROW. A deployment can still be running from its own settings, and an administrator
@@ -227,7 +231,7 @@ function TestOutcome({ result }: Readonly<{ result: IntegrationTestResult }>) {
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         <Badge tone={result.succeeded ? 'success' : 'danger'}>
-          {t(result.succeeded ? 'integrations.reachable' : 'integrations.unreachable')}
+          {t(result.succeeded ? 'integrations.ready' : 'integrations.notReady')}
         </Badge>
       </div>
       {result.detail !== '' && (

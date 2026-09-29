@@ -972,3 +972,16 @@ which is the reason Part D exists rather than an edit to Part C.
 | **What this does not change** | The document's own table. `docs/` is externally owned and read-only to this work, so §5.5 still describes the narrower rule. This row is the record that the wider one is deliberate. |
 | **Who should confirm it** | Whoever owns `SECURITY-ARCHITECTURE.md`, at the next revision of §5.5. |
 
+---
+
+### D-72: A scanner that cannot answer is not a scanner that found a virus
+
+| | |
+|---|---|
+| **What was undecided** | D-61 confirmed scanning as built, and its reasoning named one detail of it as the reason fail-closed works: "the scanner folding its own unavailability into 'infected'". Nobody decided what that detail did to the file. |
+| **What it did** | Both callers delete an infected file. So an unreachable scanner, a timeout, or a reply the client did not recognise deleted the upload: a supplier replacing an expired licence during a scanner restart lost the file and saw it refused, and the first reader to open a tender specification during an outage deleted it for every bidder. |
+| **What was decided** | The scanner reports a third answer, unavailable. The file is neither released nor deleted: a supplier document stays `PendingScan` with its file in quarantine and the scan job retries; a tender or bid attachment answers 503 and stays `PendingScan`. Only the daemon saying FOUND deletes anything, and only it saying OK releases anything. |
+| **What does not change** | Fail-closed. Nothing unscanned is ever served; quarantine was already what kept it out, not the deletion. |
+| **What it costs** | A document whose scan retries all fail stays pending, with its file, until it is scanned again - there is no screen for that yet. The administrator's dashboard is to show pending scans and failed jobs and offer a re-scan. |
+| **Who should confirm it** | Security, as for D-61. D-61's reasoning sentence is superseded by this entry; its decision stands. |
+

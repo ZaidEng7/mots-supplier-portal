@@ -30,8 +30,13 @@ public sealed class ErpContactMergeTests
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
     private static ErpSupplierContact Contact(
-        string contactName, string supplier, string? email = null, string? phone = null, bool primary = false) =>
-        new(contactName, supplier, email, phone, primary);
+        string contactName,
+        string supplier,
+        string? email = null,
+        string? phone = null,
+        bool primary = false,
+        string? fullName = null) =>
+        new(contactName, supplier, email, phone, primary, fullName);
 
     [Fact]
     public void A_supplier_that_carries_its_own_email_keeps_it()
@@ -119,5 +124,33 @@ public sealed class ErpContactMergeTests
         var suppliers = new[] { Supplier("A"), Supplier("B", email: "b@example.com") };
 
         ErpContactMerge.Fill(suppliers, []).Should().BeEquivalentTo(suppliers);
+    }
+
+    // The ERP names a contact it made on its own "<supplier> Contact"; a quarter of the real server's contacts are
+    // those, and addressing a letter to "AL-OMAR CO Contact" is what taking them as people would do.
+    [Theory]
+    [InlineData("AL-OMAR CO Contact")]
+    [InlineData("al-omar co")]
+    public void A_contact_the_erp_named_after_the_supplier_is_no_person(string fullName)
+    {
+        var merged = ErpContactMerge.Fill(
+            [new ErpSupplier("SUP-2026-00025", "AL-OMAR CO", "Local", "Company", null, "Syria", null, null, false,
+                "SYP", null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)],
+            [Contact("c1", "SUP-2026-00025", phone: "0999585545", fullName: fullName)]);
+
+        merged[0].ContactPersonName.Should().BeNull();
+        merged[0].Phone.Should().Be("0999585545", "the contact still carries the phone");
+    }
+
+    [Fact]
+    public void A_named_person_on_the_contact_becomes_the_contact_person_even_when_nothing_else_is_missing()
+    {
+        var merged = ErpContactMerge.Fill(
+            [Supplier("A", email: "a@example.com", phone: "+963 11 1")],
+            [Contact("c1", "A", fullName: "جهاد سنديان", primary: true)]);
+
+        merged[0].ContactPersonName.Should().Be(
+            "جهاد سنديان",
+            "the first version returned early when the supplier had an email and a phone, and never looked at who");
     }
 }

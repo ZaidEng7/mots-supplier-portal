@@ -10,6 +10,11 @@
 // not, and a capitalised "Token" answers 403 with an empty body - which reads exactly like a missing header and
 // sends the next person looking at the wrong thing.
 //
+// EVERY SUPPLIER FIELD IS ASKED FOR, as "*", rather than a list. The Arabic name and the registration number live in
+// fields Seven Gates added to their own ERP, and naming a field a server does not have is an error there, not an
+// empty value - so a list naming them would make the import fail outright against the test instance, or against the
+// real one the day somebody renames a field. "*" returns what exists, and a field that is missing reads as null.
+//
 // THE EMAIL IS FETCHED FROM CONTACTS TOO, IN A SECOND REQUEST. In this ERP a supplier's email lives on a separate
 // Contact record and reaches the supplier's own email_id only once somebody sets that contact as the supplier's
 // primary - a different field from the "Is Primary Contact" box people actually tick. Reading only the supplier
@@ -22,9 +27,10 @@
 // eighty. That was found by trying it rather than by reading documentation, and it is the difference between two
 // requests and eighty-one.
 //
-// ADDRESSES ARE NOT CHASED YET. The same trick should work for them, but the test instance has no Address rows at
-// all - creating one fails on that server with "Language English not found", which is its own configuration and
-// not ours - so a join written now would be a guess with a build behind it.
+// CONTACTS ARE READ EVERY TIME, not only when a supplier lacks an email or phone, because the contact also carries
+// the person's name. And ADDRESSES ARE READ THE SAME WAY, in a third request filtered on the same child rows. The
+// test instance had none to try this against; the real server has one billing address for nearly every supplier, and
+// it answered this exact query - which ErpAddressMerge and ErpAddressMapper then turn into the portal's shape.
 //
 // A ROW WITH NO NAME IS NOT DROPPED. It would be tempting, because a supplier with no name is useless, but the
 // import is the layer that decides what is unusable and says so in its report. Dropping it here would make it
@@ -52,17 +58,26 @@ public sealed class ErpSupplierSource(
 {
     public const string HttpClientName = "Erp";
 
-    private static readonly string[] ContactFields =
+    // What each read asks for is shared with ErpSupplierSourceProbe, so the connection test asks the ERP exactly what
+    // the import will ask it. A field the credential may not read, or one the server does not have, then shows up in
+    // the test rather than in the first import.
+    internal static readonly string[] ContactFields =
     [
-        "name", "email_id", "mobile_no", "is_primary_contact", "`tabDynamic Link`.link_name",
+        "name", "full_name", "email_id", "mobile_no", "is_primary_contact", "`tabDynamic Link`.link_name",
     ];
 
-    private static readonly string[] SupplierFields =
+    internal static readonly string[] AddressFields =
     [
-        "name", "supplier_name", "supplier_group", "supplier_type", "tax_id", "country", "email_id", "mobile_no",
-        "disabled", "default_currency", "supplier_primary_address", "supplier_primary_contact", "creation",
-        "modified",
+        "name", "address_line1", "address_line2", "city", "country", "is_primary_address", "address_type", "disabled",
+        "`tabDynamic Link`.link_name",
     ];
+
+    internal static readonly string[] SupplierFields = ["*"];
+
+    internal const string SupplierOrder = "name asc";
+
+    internal static readonly IReadOnlyList<IReadOnlyList<object>> LinkedToASupplier =
+        [["Dynamic Link", "link_doctype", "=", "Supplier"]];
 
     // The address and credential are attached to each request rather than to the client, because they now come
     // from a row an administrator can edit while the application is running. A client carrying them on its
@@ -125,7 +140,7 @@ public sealed class ErpSupplierSource(
     {
         var connection = await RequireConnectionAsync(ct);
         var zone = ErpServerTime.Zone(options.Value.ServerTimeZone);
-        var url = ErpQuery.List("Supplier", SupplierFields, orderBy: "name asc");
+        var url = ErpQuery.List("Supplier", SupplierFields, orderBy: SupplierOrder);
 
         using var response = await SendAsync(connection, url, ct);
 
@@ -140,24 +155,47 @@ public sealed class ErpSupplierSource(
 
         logger.LogInformation("Read {Count} supplier record(s) from the ERP.", suppliers.Count);
 
-        if (suppliers.Any(supplier => supplier.Email is null || supplier.Phone is null))
-        {
-            var contacts = await ReadSupplierContactsAsync(connection, ct);
-            logger.LogInformation("Read {Count} linked contact(s) from the ERP.", contacts.Count);
+        var contacts = await ReadSupplierContactsAsync(connection, ct);
+        logger.LogInformation("Read {Count} linked contact(s) from the ERP.", contacts.Count);
 
-            return ErpContactMerge.Fill(suppliers, contacts);
+        var addresses = await ReadSupplierAddressesAsync(connection, ct);
+        logger.LogInformation("Read {Count} linked address(es) from the ERP.", addresses.Count);
+
+        return ErpAddressMerge.Fill(ErpContactMerge.Fill(suppliers, contacts), addresses);
+    }
+
+    private async Task<IReadOnlyList<ErpSupplierAddressRow>> ReadSupplierAddressesAsync(
+        ErpConnection connection, CancellationToken ct)
+    {
+        var url = ErpQuery.List("Address", AddressFields, LinkedToASupplier);
+
+        using var response = await SendAsync(connection, url, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await FailureFor(response, ct);
         }
 
-        return suppliers;
+        var envelope = await response.Content.ReadFromJsonAsync<ErpListEnvelope<ErpAddressRecord>>(ct);
+
+        return [.. (envelope?.Data ?? [])
+            .Where(record => record.SupplierName is not null)
+            .Select(record => new ErpSupplierAddressRow(
+                record.Name,
+                record.SupplierName!,
+                Trimmed(record.Line1),
+                Trimmed(record.Line2),
+                Trimmed(record.City),
+                Trimmed(record.Country),
+                record.IsPrimaryAddress is not null && record.IsPrimaryAddress != 0,
+                Trimmed(record.AddressType),
+                record.Disabled is not null && record.Disabled != 0))];
     }
 
     private async Task<IReadOnlyList<ErpSupplierContact>> ReadSupplierContactsAsync(
         ErpConnection connection, CancellationToken ct)
     {
-        var url = ErpQuery.List(
-            "Contact",
-            ContactFields,
-            [["Dynamic Link", "link_doctype", "=", "Supplier"]]);
+        var url = ErpQuery.List("Contact", ContactFields, LinkedToASupplier);
 
         using var response = await SendAsync(connection, url, ct);
 
@@ -175,7 +213,8 @@ public sealed class ErpSupplierSource(
                 record.SupplierName!,
                 Trimmed(record.EmailId),
                 Trimmed(record.MobileNo),
-                record.IsPrimaryContact is not null && record.IsPrimaryContact != 0))];
+                record.IsPrimaryContact is not null && record.IsPrimaryContact != 0,
+                Trimmed(record.FullName)))];
     }
 
     private static ErpSupplier Map(ErpSupplierRecord record, TimeZoneInfo zone) => new(
@@ -192,7 +231,12 @@ public sealed class ErpSupplierSource(
         Trimmed(record.PrimaryAddress),
         Trimmed(record.PrimaryContact),
         ErpServerTime.TryParse(record.Creation, zone, out var created) ? created : default,
-        ErpServerTime.TryParse(record.Modified, zone, out var modified) ? modified : default);
+        ErpServerTime.TryParse(record.Modified, zone, out var modified) ? modified : default,
+        Trimmed(record.ArabicName),
+        Trimmed(record.RegistrationNumber),
+        Trimmed(record.RegistrationType),
+        Trimmed(record.Description),
+        Trimmed(record.WorkflowState));
 
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -228,8 +272,20 @@ public sealed class ErpSupplierSource(
 internal sealed record ErpListEnvelope<T>(
     [property: JsonPropertyName("data")] IReadOnlyList<T> Data);
 
+internal sealed record ErpAddressRecord(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("address_line1")] string? Line1,
+    [property: JsonPropertyName("address_line2")] string? Line2,
+    [property: JsonPropertyName("city")] string? City,
+    [property: JsonPropertyName("country")] string? Country,
+    [property: JsonPropertyName("is_primary_address")] int? IsPrimaryAddress,
+    [property: JsonPropertyName("address_type")] string? AddressType,
+    [property: JsonPropertyName("disabled")] int? Disabled,
+    [property: JsonPropertyName("link_name")] string? SupplierName);
+
 internal sealed record ErpContactRecord(
     [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("full_name")] string? FullName,
     [property: JsonPropertyName("email_id")] string? EmailId,
     [property: JsonPropertyName("mobile_no")] string? MobileNo,
     [property: JsonPropertyName("is_primary_contact")] int? IsPrimaryContact,
@@ -249,4 +305,9 @@ internal sealed record ErpSupplierRecord(
     [property: JsonPropertyName("supplier_primary_address")] string? PrimaryAddress,
     [property: JsonPropertyName("supplier_primary_contact")] string? PrimaryContact,
     [property: JsonPropertyName("creation")] string? Creation,
-    [property: JsonPropertyName("modified")] string? Modified);
+    [property: JsonPropertyName("modified")] string? Modified,
+    [property: JsonPropertyName("custom_supplier_arabic_name")] string? ArabicName,
+    [property: JsonPropertyName("custom_registration_number")] string? RegistrationNumber,
+    [property: JsonPropertyName("custom_registration_type")] string? RegistrationType,
+    [property: JsonPropertyName("supplier_details")] string? Description,
+    [property: JsonPropertyName("workflow_state")] string? WorkflowState);

@@ -17,20 +17,19 @@
 //
 // WHAT IS NOTED BUT CANNOT BE FILLED
 //
-// THE CATEGORY CANNOT BE TRANSLATED AND IS LEFT UNSET. The ERP's supplier groups are its factory defaults -
-// Distributor, Electrical, Raw Material, Local - and the portal's are the ministry's tourism taxonomy. There is
-// no honest mapping, and a guess would be indistinguishable from a real choice once written.
+// THE CATEGORY CANNOT BE TRANSLATED AND IS LEFT UNSET. The ERP's supplier groups are its own purchasing vocabulary
+// - مواد غذائية, مستلزمات فندقية - and the portal's categories are the ministry's tourism taxonomy. There is no
+// honest mapping, and a guess would be indistinguishable from a real choice once written. The group itself is kept
+// on the supplier exactly as the ERP wrote it, so nothing the ERP knows is lost while the ministry decides.
 //
-// NO ADDRESS IS IMPORTED YET. A supplier's street lives in a separate record in the ERP and that half of the
-// mapping has never been tested against real data. Saying so on every row is the point: it is a gap in what this
-// import does, not in the supplier.
-//
-// AN ARABIC NAME IS NEVER PRESENT. The ERP has one name field, so the Arabic name starts as the English one.
+// WHAT THE ADDRESS, THE ARABIC NAME AND THE CONTACT PERSON BECAME is said by ErpImportAdmission, and the address's fate
+// and the registration number's by the rules both the preview and the run call; the run reports the same notes. This
+// adds only the group and phone notes, and the tax-number match only the preview looks for.
 //
 //
 // WHO IS HELD FOR A PERSON OR SUSPENDED IS DECIDED BY ErpSyncPlan, which the run calls too, on data read before the
 // first write. The first version computed the suspension limit separately here and in the run, and the run's
-// version counted that night's new suppliers - so this forecast could say "held back" while the run suspended.
+// version counted that run's new suppliers - so this forecast could say "held back" while the run suspended.
 //
 // A SUPPLIER THE ERP NO LONGER RETURNS WOULD BE SUSPENDED. Seven Gates deletes by removing, so absence is the
 // only signal a deletion leaves - and the same signal a broken read leaves, which is why ErpMissingSupplierPolicy
@@ -56,14 +55,17 @@ public sealed record ErpImportCandidateMatch(
     bool IsActive = true,
     string? LoginEmail = null,
     bool SuspendedAsRemovedFromErp = false,
-    bool MarkedRemovedFromErp = false);
+    bool MarkedRemovedFromErp = false,
+    int AddressCount = 0,
+    string? BlockedByState = null);
 
 public static class ErpImportPreviewBuilder
 {
     public static ErpImportPreviewReport Build(
         IReadOnlyList<ErpSupplier> erpSuppliers,
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
-        IReadOnlyDictionary<string, string> unlinkedByTaxId)
+        IReadOnlyDictionary<string, string> unlinkedByTaxId,
+        IReadOnlyDictionary<string, RegistrationNumberHolder>? registrationNumbersInPortal = null)
     {
         var plan = ErpSyncPlan.Build(erpSuppliers, [.. byExternalId.Select(pair => new PortalLinkedSupplier(
             pair.Key,
@@ -77,10 +79,14 @@ public static class ErpImportPreviewBuilder
 
         var heldFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
 
+        var registrationNumbers = ErpRegistrationNumbers.Decide(
+            erpSuppliers,
+            registrationNumbersInPortal ?? new Dictionary<string, RegistrationNumberHolder>(StringComparer.Ordinal));
+
         var rows = erpSuppliers
             .Select(supplier => heldFrom.TryGetValue(supplier.ExternalId, out var held)
                 ? HeldRow(supplier, held)
-                : Row(supplier, byExternalId, unlinkedByTaxId))
+                : Row(supplier, byExternalId, unlinkedByTaxId, registrationNumbers[supplier.ExternalId]))
             .ToList();
 
         rows.AddRange(plan.ToSuspend.Select(missing => new ErpImportPreviewRow(
@@ -122,23 +128,26 @@ public static class ErpImportPreviewBuilder
     private static ErpImportPreviewRow Row(
         ErpSupplier supplier,
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
-        IReadOnlyDictionary<string, string> unlinkedByTaxId)
+        IReadOnlyDictionary<string, string> unlinkedByTaxId,
+        ErpRegistrationNumberDecision registrationNumber)
     {
         var admitted = ErpImportAdmission.Admit(supplier);
         var notes = new List<string>(admitted.Notes);
 
+        if (registrationNumber.Note is not null)
+        {
+            notes.Add(registrationNumber.Note);
+        }
+
+        var candidate = byExternalId.TryGetValue(supplier.ExternalId, out var found) ? found : null;
+        notes.Add(ErpImportAdmission.AddressOutcome(
+            admitted, candidate is null, candidate?.AddressCount ?? 0, candidate?.BlockedByState).Note);
+
         notes.Add(
             supplier.SupplierGroup is null
                 ? "No supplier group; the category is left for the ministry to classify."
-                : $"The ERP group '{supplier.SupplierGroup}' has no portal category; the category is left for "
-                  + "the ministry to classify.");
-
-        if (supplier.PrimaryAddressName is null)
-        {
-            notes.Add("No address; city, governorate and coordinates stay empty.");
-        }
-
-        notes.Add("The Arabic name starts as the English one; the ERP holds only one name.");
+                : $"The ERP group '{supplier.SupplierGroup}' is kept as the supplier's group; it has no portal "
+                  + "category, so the category is left for the ministry to classify.");
 
         if (supplier.Phone is null)
         {

@@ -147,23 +147,7 @@ public sealed class ErpSupplierSourceTests
     }
 
     [Fact]
-    public async Task Contacts_are_asked_for_when_a_supplier_arrives_without_an_email()
-    {
-        var source = SourceReturning(HttpStatusCode.OK, LiveSupplierResponse, out var handler);
-
-        await source.ListSuppliersAsync(CancellationToken.None);
-
-        handler.Requests.Should().HaveCount(
-            2,
-            "none of the three suppliers carries an email, and the addresses may be one table over");
-        handler.Requests[1].RequestUri!.AbsolutePath.Should().Be("/api/resource/Contact");
-        Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query).Should().Contain(
-            "[[\"Dynamic Link\",\"link_doctype\",\"=\",\"Supplier\"]]",
-            "listing Dynamic Link is refused to this credential, but filtering Contact on its child rows is not");
-    }
-
-    [Fact]
-    public async Task Contacts_are_not_asked_for_when_every_supplier_already_has_what_is_needed()
+    public async Task Contacts_and_addresses_are_read_every_time_filtered_on_their_link_to_suppliers()
     {
         const string complete = """
         {"data": [
@@ -176,12 +160,57 @@ public sealed class ErpSupplierSourceTests
 
         var source = SourceReturning(HttpStatusCode.OK, complete, out var handler);
 
-        var suppliers = await source.ListSuppliersAsync(CancellationToken.None);
+        await source.ListSuppliersAsync(CancellationToken.None);
 
-        suppliers[0].Email.Should().Be("a@example.com");
         handler.Requests.Should().HaveCount(
-            1,
-            "a second call that could change nothing is a call on somebody else's server for no reason");
+            3,
+            "the contact carries the person's name and the address is its own record, so both are read even for a "
+            + "supplier that already has an email and a phone");
+        handler.Requests[1].RequestUri!.AbsolutePath.Should().Be("/api/resource/Contact");
+        Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query).Should().Contain(
+            "[[\"Dynamic Link\",\"link_doctype\",\"=\",\"Supplier\"]]",
+            "listing Dynamic Link is refused to this credential, but filtering Contact on its child rows is not");
+        handler.Requests[2].RequestUri!.AbsolutePath.Should().Be("/api/resource/Address");
+        Uri.UnescapeDataString(handler.Requests[2].RequestUri!.Query).Should().Contain(
+            "[[\"Dynamic Link\",\"link_doctype\",\"=\",\"Supplier\"]]");
+    }
+
+    [Fact]
+    public async Task Every_supplier_field_is_asked_for_so_a_server_without_the_custom_ones_is_still_readable()
+    {
+        var source = SourceReturning(HttpStatusCode.OK, LiveSupplierResponse, out var handler);
+
+        await source.ListSuppliersAsync(CancellationToken.None);
+
+        Uri.UnescapeDataString(handler.Request!.RequestUri!.Query).Should().Contain(
+            "fields=[\"*\"]",
+            "naming a custom field a server does not have is an error there, and the test instance has none of them");
+    }
+
+    [Fact]
+    public async Task The_fields_seven_gates_added_are_read_when_the_server_has_them()
+    {
+        const string real = """
+        {"data": [
+          {"name": "SUP-2026-00001", "supplier_name": "AL-Zaeim for advertising services",
+           "supplier_group": "مستلزمات مكتبية - SYP", "supplier_type": "Company", "tax_id": "01010484153",
+           "country": "Jordan", "email_id": "", "mobile_no": "", "disabled": 0, "default_currency": "SYP",
+           "supplier_primary_address": null, "supplier_primary_contact": null,
+           "custom_supplier_arabic_name": "الزعيم للخدمات الإعلانية", "custom_registration_number": "73260",
+           "custom_registration_type": "Commercial", "workflow_state": "Approved", "supplier_details": null,
+           "creation": "2026-08-10 12:20:11.298784", "modified": "2026-09-17 10:38:20.362759"}
+        ]}
+        """;
+
+        var source = SourceReturning(HttpStatusCode.OK, real, out _);
+
+        var supplier = (await source.ListSuppliersAsync(CancellationToken.None)).Single();
+
+        supplier.ArabicName.Should().Be("الزعيم للخدمات الإعلانية");
+        supplier.RegistrationNumber.Should().Be("73260");
+        supplier.RegistrationType.Should().Be("Commercial");
+        supplier.WorkflowState.Should().Be("Approved");
+        supplier.Description.Should().BeNull();
     }
 
     [Fact]
@@ -211,10 +240,10 @@ public sealed class ErpSupplierSourceTests
         thrown.Which.Kind.Should().Be(ErpFailureKind.Transient);
     }
 
-    // Every request is recorded, not just the last one. The client makes a second call for contacts whenever a
-    // supplier arrives without an email, and a handler that remembered only the most recent request reported the
-    // contact call as though it were the supplier one - which is how the assertion about the supplier URL started
-    // failing while the client was behaving correctly.
+    // Every request is recorded, not just the last one. The client makes a call for contacts and another for addresses
+    // after the supplier list, and a handler that remembered only the most recent request reported one of those as
+    // though it were the supplier call - which is how the assertion about the supplier URL once started failing while
+    // the client was behaving correctly.
     private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {
         private readonly List<HttpRequestMessage> _requests = [];

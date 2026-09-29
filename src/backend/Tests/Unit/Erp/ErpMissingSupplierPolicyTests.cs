@@ -11,7 +11,7 @@
 // SUPPLIERS ALREADY OUT OF SERVICE ARE ONLY MARKED, and only a read that is not believed stops that: an empty one,
 // or one over the quarter for ACTIVE suppliers. The quarter is never applied to the count of marks, on purpose:
 // suspending held-back suppliers here is how a person confirms a real clear-out, and a limit on the marks would hold
-// that confirmation back every night. Both halves are asserted, here and in ErpSyncPlanTests.
+// that confirmation back on every run. Both halves are asserted, here and in ErpSyncPlanTests.
 //
 // THE CONTROL IS NOTHING MISSING, which must always be allowed - including against an empty ERP and an empty portal,
 // the state of every fresh deployment. A policy that refused there would put a warning on the first run anyone sees.
@@ -74,7 +74,7 @@ public sealed class ErpMissingSupplierPolicyTests
     {
         var decision = ErpMissingSupplierPolicy.Decide(suppliersInErp: 40, activeLinkedInPortal: 80, missingFromErp: 40);
 
-        decision.MaySuspend.Should().BeFalse("half the suppliers vanishing in one night is a fault, not a clear-out");
+        decision.MaySuspend.Should().BeFalse("half the suppliers vanishing in one run is a fault, not a clear-out");
         decision.HeldBackBecause.Should().Contain("40 suppliers").And.Contain("20");
     }
 

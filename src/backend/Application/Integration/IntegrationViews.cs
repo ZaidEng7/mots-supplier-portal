@@ -8,8 +8,8 @@
 // every edit because nothing can prefill it, so treating empty as "clear it" would wipe the credential each time
 // somebody fixed a typo in the address - and nothing would fail until the next run.
 //
-// THE LAST IMPORT IS PART OF THE VIEW because the nightly run is unattended, and a failure nobody sees looks exactly
-// like a night with nothing to do. Showing it where the connection is managed puts it in front of the person who
+// THE LAST IMPORT IS PART OF THE VIEW because the hourly run is unattended, and a failure nobody sees looks exactly
+// like a run with nothing to do. Showing it where the connection is managed puts it in front of the person who
 // would fix it.
 //
 // SOURCE IS PART OF THE VIEW because a deployment can still be running from its own settings, and an

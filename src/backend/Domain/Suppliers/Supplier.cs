@@ -349,10 +349,15 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public bool IsEmailVerifiedOrLater =>
         OnboardingState is not SupplierOnboardingState.Draft;
 
+    // Whether contact details - addresses, contacts, representatives - may be changed in this onboarding state. Public
+    // so the ERP import can ask before it adds an address, rather than find out by the change being refused.
+    public static bool AllowsContactEdits(SupplierOnboardingState state) =>
+        state is not (SupplierOnboardingState.Draft or SupplierOnboardingState.Submitted
+            or SupplierOnboardingState.UnderReview or SupplierOnboardingState.Rejected);
+
     private void EnsureContactDetailsEditable()
     {
-        if (OnboardingState is SupplierOnboardingState.Draft or SupplierOnboardingState.Submitted
-            or SupplierOnboardingState.UnderReview or SupplierOnboardingState.Rejected)
+        if (!AllowsContactEdits(OnboardingState))
         {
             throw new DomainException(
                 $"Cannot edit contact details from state '{OnboardingState}'.");
@@ -407,7 +412,16 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public bool UpdateLegalInfo(string legalNameAr, string legalNameEn, string? registrationNumber, string? taxId, SupplierLegalType supplierType, DateOnly? establishedOn, bool isComplianceCritical)
     {
         var reTriggered = EnsureEditableForComplianceField(isComplianceCritical);
-        LegalInfo = Domain.Suppliers.LegalInfo.Create(legalNameAr, legalNameEn, registrationNumber, taxId, supplierType, establishedOn);
+        var sameNumber = string.Equals(
+            LegalInfo?.RegistrationNumber?.Trim(), registrationNumber?.Trim(), StringComparison.Ordinal);
+        LegalInfo = Domain.Suppliers.LegalInfo.Create(
+            legalNameAr,
+            legalNameEn,
+            registrationNumber,
+            taxId,
+            supplierType,
+            establishedOn,
+            sameNumber ? LegalInfo?.RegistrationType : null);
         AdvancePastEmailVerified();
         return reTriggered;
     }
@@ -909,8 +923,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // nine states with the document check suppressed, which works and writes an audit trail claiming a reviewer
     // reviewed them. No reviewer did. This says what actually happened instead.
     //
-    // THE ARABIC NAME IS THE ENGLISH ONE because the ERP has a single name field. It is wrong and it is visible,
-    // which is the right kind of wrong: somebody correcting supplier names can see which ones still need it.
+    // THE ARABIC NAME IS THE ERP'S OWN WHEN IT HAS ONE, from a field Seven Gates added. When it has none the English
+    // name stands in, because the column is required; that is wrong and visible, which is the right kind of wrong -
+    // somebody correcting supplier names can see which ones still need it.
     //
     // NO CATEGORY IS SET. The ERP's supplier groups are its own accounting vocabulary and the portal's are the
     // ministry's tourism taxonomy; there is no honest mapping, and a guess is indistinguishable from a choice
@@ -922,6 +937,10 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // A SUPPLIER DISABLED IN THE ERP ARRIVES SUSPENDED, not active and not deactivated. Active would let a company
     // Seven Gates has stopped using be invited to tenders; deactivated is permanent in this product, and
     // "disabled" in the ERP is not.
+    //
+    // WHAT ELSE THE ERP HOLDS ARRIVES IN details: the Arabic name, the registration number and its type, the supplier
+    // group and a description. Each is empty when the ERP has none, except the Arabic name, which the portal requires
+    // and which therefore starts as the English one.
     public static Supplier ImportFromErp(
         string referenceCode,
         string externalId,
@@ -932,17 +951,21 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         string representativeName,
         string representativeEmail,
         string? representativePhone,
-        bool suspended = false)
+        bool suspended = false,
+        ErpSupplierDetails? details = null)
     {
         var now = DateTimeOffset.UtcNow;
+        var displayNameAr = details?.DisplayNameAr ?? displayNameEn;
 
         var supplier = new Supplier
         {
             Id = Guid.CreateVersion7(),
             ReferenceCode = referenceCode,
-            DisplayNameAr = displayNameEn,
+            DisplayNameAr = displayNameAr,
             DisplayNameEn = displayNameEn,
             CurrencyCode = currencyCode,
+            SupplierGroup = details?.SupplierGroup,
+            Description = details?.Description,
             OnboardingState = SupplierOnboardingState.Approved,
             LifecycleState = suspended ? SupplierLifecycleState.Suspended : SupplierLifecycleState.Active,
             ErpDisabledState = suspended ? SupplierErpDisabledState.SuspendedAsDisabled : SupplierErpDisabledState.NotDisabled,
@@ -951,7 +974,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         };
 
         supplier.LegalInfo = Domain.Suppliers.LegalInfo.Create(
-            displayNameEn, displayNameEn, registrationNumber: null, taxId, legalType, establishedOn: null);
+            displayNameAr,
+            displayNameEn,
+            details?.RegistrationNumber,
+            taxId,
+            legalType,
+            establishedOn: null,
+            details?.RegistrationType);
 
         supplier._representatives.Add(new Representative
         {
@@ -974,6 +1003,12 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // they entered, the documents they uploaded, the category the ministry assigned - is the portal's and is not
     // touched. A null arriving from the ERP means "this system does not know", not "delete what you have".
     //
+    // THE REPRESENTATIVE IS RENAMED ONLY TO A PERSON, AND ONLY FROM THE COMPANY'S NAME. The caller passes a name only
+    // when the ERP's contact is somebody rather than the "<supplier> Contact" the ERP makes on its own. And it replaces
+    // only the stand-in the import put there - a representative still called after the company. Once a person's name
+    // is on the primary representative it is the portal's: the supplier may have promoted somebody else to primary, and
+    // renaming them to the ERP's contact would put one person's name on another's account.
+    //
     // A NULL EMAIL MEANS "THE ERP HAS NONE", and the one on file is kept. That matters because the import fills a
     // missing email with a placeholder: passing the placeholder through here would overwrite a real address a
     // supplier later gave the portal, just because the ERP still has nothing.
@@ -986,22 +1021,34 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         SupplierLegalType legalType,
         string? currencyCode,
         string? representativeEmail,
-        string? representativePhone)
+        string? representativePhone,
+        ErpSupplierDetails? details = null,
+        string? representativeName = null)
     {
+        var companyNames = new[] { DisplayNameEn, displayNameEn };
         DisplayNameEn = displayNameEn;
         if (currencyCode is not null) CurrencyCode = currencyCode;
+        if (details?.DisplayNameAr is not null) DisplayNameAr = details.DisplayNameAr;
+        if (details?.SupplierGroup is not null) SupplierGroup = details.SupplierGroup;
+        if (details?.Description is not null) Description = details.Description;
 
         LegalInfo = Domain.Suppliers.LegalInfo.Create(
-            LegalInfo?.LegalNameAr ?? displayNameEn,
+            details?.DisplayNameAr ?? LegalInfo?.LegalNameAr ?? displayNameEn,
             displayNameEn,
-            LegalInfo?.RegistrationNumber,
+            details?.RegistrationNumber ?? LegalInfo?.RegistrationNumber,
             taxId ?? LegalInfo?.TaxId,
             legalType,
-            LegalInfo?.EstablishedOn);
+            LegalInfo?.EstablishedOn,
+            details?.RegistrationType ?? LegalInfo?.RegistrationType);
 
         var representative = _representatives.FirstOrDefault(r => r.IsPrimary) ?? _representatives.FirstOrDefault();
         if (representative is not null)
         {
+            if (representativeName is not null && companyNames.Contains(representative.FullName))
+            {
+                representative.FullName = representativeName;
+            }
+
             if (representativeEmail is not null) representative.Email = representativeEmail;
             if (representativePhone is not null) representative.Phone = representativePhone;
         }
@@ -1018,9 +1065,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //
     // IT KEEPS THE SAME THREE MEMORIES AS A SUPPLIER MISSING FROM THE ERP, and for the same reasons.
     //   SuspendedAsDisabled - the sync suspended it for this disable. A person who reinstates it is not overruled; the
-    //     first version suspended on every night the ERP said "disabled" and undid that decision forever.
+    //     first version suspended on every run on which the ERP said "disabled" and undid that decision forever.
     //   MarkedDisabled - the disable arrived while it was already out of service, so there was nothing to suspend.
-    //     The version before this one remembered only "disabled last night", so such a supplier, once reactivated -
+    //     The version before this one remembered only "disabled on the last run", so such a supplier, once reactivated -
     //     by a person, or by a document approval that could not see the disable - was never suspended for it at all.
     //     Now it is suspended once when it is found active, and the automatic reinstatement leaves it alone.
     //   NotDisabled - the ERP has it enabled, so a later disable counts as new.
@@ -1058,9 +1105,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // Suspending a supplier because the ERP no longer returns it, and remembering why.
     //
-    // THE REASON IS KEPT ON THE SUPPLIER, not only in the audit trail, because the next night's run has to know it.
+    // THE REASON IS KEPT ON THE SUPPLIER, not only in the audit trail, because the next run has to know it.
     // A person may reinstate the supplier; if nothing remembered that it had already been suspended for this same
-    // absence, the next run would suspend it again, every night, undoing their decision by a job nobody watches. The
+    // absence, the next run would suspend it again, on every run, undoing their decision by a job nobody watches. The
     // mark clears the moment the supplier reappears in the ERP, through MarkSynced, so a second disappearance later is
     // treated as new.
     public void SuspendAsRemovedFromErp()
@@ -1077,14 +1124,14 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // Marking a supplier that is already suspended or deactivated as gone from the ERP, without touching its lifecycle.
     //
-    // Without it, that supplier would count as "vanished tonight" on every run for as long as it stayed missing, and
+    // Without it, that supplier would count as "vanished in this run" on every run for as long as it stayed missing, and
     // the plan could pair it with any new company that happened to share its tax number, months later.
     //
     // IT IS A DIFFERENT MEMORY FROM SuspendAsRemovedFromErp, and the first version got that wrong by sharing one. That
     // one means "the sync suspended it, so a person's reinstatement must be respected". This one means only "it was
     // already out of service when it left", and the sync has not yet suspended it for that. Sharing them meant a
     // supplier reactivated later was never suspended for its absence. With its own status, the automatic reinstatement
-    // after a document renewal leaves it alone, and one a person reactivates is suspended once the next night.
+    // after a document renewal leaves it alone, and one a person reactivates is suspended once on the next run.
     public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.MarkedRemovedFromErp;
 
     public void MarkSynced(string externalId)

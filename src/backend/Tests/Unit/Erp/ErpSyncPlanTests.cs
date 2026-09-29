@@ -15,7 +15,7 @@
 // SO THE RENAME TESTS PIN A REFUSAL TO GUESS. A probable rename holds both sides - the vanished supplier is not
 // suspended, the arrival is not created - and nothing is ever moved. The tests check the signals (sign-in address or
 // tax number), that placeholders never count, that ambiguity pairs nothing, and that only a supplier which vanished
-// TONIGHT can be the old side, so one removed months ago cannot block a new company forever.
+// IN THIS RUN can be the old side, so one removed months ago cannot block a new company forever.
 
 namespace MotsSupplierPortal.Tests.Unit.Erp;
 
@@ -96,7 +96,7 @@ public sealed class ErpSyncPlanTests
 
         plan.ProbableRenames.Should().BeEmpty(
             "a supplier marked gone long ago would otherwise block a genuinely new company that shares its tax number, "
-            + "every night, forever");
+            + "on every run, forever");
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public sealed class ErpSyncPlanTests
     public void A_supplier_already_suspended_as_removed_and_since_reinstated_is_not_suspended_again()
     {
         ErpSyncPlan.Build([Erp("Stays")], [Portal("Stays"), Portal("Reinstated By A Person", suspendedAsRemoved: true)])
-            .ToSuspend.Should().BeEmpty("a person reinstated it; suspending it every night would undo that forever");
+            .ToSuspend.Should().BeEmpty("a person reinstated it; suspending it on every run would undo that forever");
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class ErpSyncPlanTests
                 "it was out of service when it left, so the sync never suspended it for its absence; sharing the "
                 + "reinstated memory kept it active and invitable once it was reactivated")
             .Which.ExternalId.Should().Be("Reactivated After It Left");
-        plan.ProbableRenames.Should().BeEmpty("it left on an earlier night, so it is not tonight's rename");
+        plan.ProbableRenames.Should().BeEmpty("it left on an earlier run, so it is not this run's rename");
     }
 
     [Fact]

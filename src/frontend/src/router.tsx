@@ -184,6 +184,7 @@ import i18n from 'i18next'
 import { SessionExpiredOverlay } from './components/SessionExpiredOverlay'
 import { MaintenanceBanner } from './components/MaintenanceBanner'
 import { PublicFooter } from './components/PublicFooter'
+import { MinistryEmblem } from './components/ui/MinistryEmblem'
 import { FirstRunLocale } from './components/FirstRunLocale'
 import { refresh, getAccount } from './api/auth'
 
@@ -301,7 +302,8 @@ function IndexPage() {
         className="flex items-center justify-between border-b px-6 py-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-surface)' }}
       >
-        <span className="text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-brand)' }}>
+        <span className="flex items-center gap-3 text-[length:var(--text-h4)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-brand)' }}>
+          <MinistryEmblem size={36} />
           {t('appName')}
         </span>
         <div className="flex items-center gap-3">

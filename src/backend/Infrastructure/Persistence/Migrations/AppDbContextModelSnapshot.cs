@@ -3757,6 +3757,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                                 .HasColumnType("character varying(100)")
                                 .HasColumnName("RegistrationNumber");
 
+                            b1.Property<string>("RegistrationType")
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("RegistrationType");
+
                             b1.Property<string>("SupplierType")
                                 .IsRequired()
                                 .HasMaxLength(20)

@@ -15,6 +15,16 @@
 // otherwise the supplier's actual person could never sign in. The reverse is guarded too: a run where the ERP has
 // lost the address must not replace a real one with a placeholder.
 //
+// WHAT THE REAL SERVER ADDED IS CHECKED IN THE DATABASE, not in the report: the Arabic name, the registration number
+// and its type, the group, the contact person and the address with its governorate. Two of those tests came from the
+// real data. Seven Gates gives one registration number to two suppliers, which the portal's unique index would turn
+// into a supplier that failed to import; and the street line "ريف دمشق - جرمانا شارع الحمصي" is Rif Dimashq although
+// the ERP's city field says Damascus.
+//
+// THREE MORE CAME FROM THE REVIEW OF THAT WORK: a supplier whose save failed stayed in the shared context and failed
+// every supplier after it; adding an address to a supplier under review threw and failed its whole update; and an
+// update row claimed an address was imported when the portal had kept its own.
+//
 // THE PASSWORD IS CHECKED BEFORE THE FIRST WRITE, so a misconfigured one costs nothing rather than leaving the
 // registry half-populated. The test uses a password the product's own rules reject, rather than a made-up
 // assertion about what those rules are.
@@ -91,7 +101,8 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
         supplier.OnboardingState.Should().Be(SupplierOnboardingState.Approved);
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Active);
         supplier.SyncStatus.Should().Be(SupplierSyncStatus.Synced);
-        supplier.DisplayNameAr.Should().Be("Damascus Supplies", "the ERP holds one name");
+        supplier.DisplayNameAr.Should().Be(
+            "Damascus Supplies", "the ERP sent no Arabic name, and the field is required, so it starts as the English one");
 
         var user = await users.FindByEmailAsync(email);
         user.Should().NotBeNull();
@@ -245,6 +256,175 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
 
         (await db.Suppliers.AnyAsync(s => s.ExternalId == externalId)).Should().BeFalse(
             "discovering this on the first account leaves the registry half-populated");
+    }
+
+    private static ErpSupplier Full(
+        string id,
+        string? registration = null,
+        string? workflowState = "Approved",
+        string? arabicName = "مؤسسة الحوراني للخضار والفواكه",
+        ErpSupplierAddress? address = null) =>
+        new(id, "Al-Horani For Fruits & Vegetables", "مواد غذائية - SYP", "Company", "TAX-" + id, "Syria", null,
+            "0934171993", false, "SYP", null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+            ArabicName: arabicName,
+            RegistrationNumber: registration,
+            RegistrationType: "Commercial",
+            Description: "مياه فيجة",
+            WorkflowState: workflowState,
+            ContactPersonName: "باسل عبد الرحمن",
+            Address: address);
+
+    private async Task<Supplier> LoadAsync(string externalId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Suppliers
+            .AsNoTracking()
+            .Include(s => s.Representatives)
+            .Include(s => s.Addresses)
+            .SingleAsync(s => s.ExternalId == externalId);
+    }
+
+    [Fact]
+    public async Task A_supplier_arrives_with_everything_the_erp_holds()
+    {
+        var id = Unique("ERP-FULL");
+        var registration = Unique("REG")[..20];
+
+        var report = await RunAsync(fixture, new FixedSource(Full(
+            id,
+            registration,
+            address: new ErpSupplierAddress("ريف دمشق - جرمانا شارع الحمصي عقار 645", null, "Damascus", "Syria"))));
+
+        report.Created.Should().Be(1);
+
+        var supplier = await LoadAsync(id);
+        supplier.DisplayNameAr.Should().Be("مؤسسة الحوراني للخضار والفواكه");
+        supplier.LegalInfo!.LegalNameAr.Should().Be("مؤسسة الحوراني للخضار والفواكه");
+        supplier.LegalInfo.RegistrationNumber.Should().Be(registration);
+        supplier.LegalInfo.RegistrationType.Should().Be("Commercial");
+        supplier.SupplierGroup.Should().Be("مواد غذائية - SYP");
+        supplier.Description.Should().Be("مياه فيجة");
+        supplier.Representatives[0].FullName.Should().Be("باسل عبد الرحمن");
+
+        var address = supplier.Addresses.Should().ContainSingle().Subject;
+        address.RegionCode.Should().Be("RDM", "the street names Rif Dimashq, and the street is read before the city");
+        address.City.Should().Be("Damascus");
+        address.Country.Should().Be("SY");
+        address.Kind.Should().Be(AddressKind.Billing);
+        address.Latitude.Should().BeNull("the ERP has no coordinates, and none are invented");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var user = await users.FindByIdAsync(supplier.Representatives[0].UserId!.Value.ToString());
+        user!.FullName.Should().Be("باسل عبد الرحمن", "the account belongs to the person, where the ERP names one");
+    }
+
+    [Fact]
+    public async Task Two_suppliers_the_erp_gives_one_registration_number_are_both_imported()
+    {
+        var first = Unique("ERP-REG-A");
+        var second = Unique("ERP-REG-B");
+        var shared = Unique("REG")[..20];
+
+        var report = await RunAsync(fixture, new FixedSource(Full(first, shared), Full(second, shared)));
+
+        report.Created.Should().Be(
+            2,
+            "written straight through, the unique index refused the second supplier outright - lost over one field");
+        report.Failed.Should().Be(0);
+        report.Rows.Single(r => r.ExternalId == second).Notes.Should().ContainMatch($"*{shared}*left empty*");
+
+        (await LoadAsync(first)).LegalInfo!.RegistrationNumber.Should().Be(shared);
+        (await LoadAsync(second)).LegalInfo!.RegistrationNumber.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_supplier_the_erp_has_not_approved_arrives_suspended()
+    {
+        var id = Unique("ERP-PENDING");
+
+        var report = await RunAsync(fixture, new FixedSource(Full(id, workflowState: "Pending Chief Accountant Approval")));
+
+        report.Rows[0].Notes.Should().ContainMatch("*Pending Chief Accountant Approval*suspended*");
+        (await LoadAsync(id)).LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+    }
+
+    [Fact]
+    public async Task A_later_run_fills_what_arrived_and_adds_an_address_only_to_a_supplier_without_one()
+    {
+        var id = Unique("ERP-LATER");
+
+        await RunAsync(fixture, new FixedSource(Full(id, arabicName: null, address: null)));
+        (await LoadAsync(id)).Addresses.Should().BeEmpty();
+
+        var second = await RunAsync(fixture, new FixedSource(Full(
+            id, address: new ErpSupplierAddress("دمشق - المالكي", null, "Damascus", "Syria"))));
+        second.Failed.Should().Be(
+            0, "adding an address to a supplier already loaded once failed the whole update as a concurrency conflict");
+
+        var filled = await LoadAsync(id);
+        filled.DisplayNameAr.Should().Be("مؤسسة الحوراني للخضار والفواكه");
+        filled.Addresses.Should().ContainSingle().Which.Line1.Should().Be("دمشق - المالكي");
+
+        var third = await RunAsync(fixture, new FixedSource(Full(
+            id, arabicName: null, address: new ErpSupplierAddress("حلب - العزيزية", null, "Aleppo", "Syria"))));
+        third.Rows[0].Notes.Should().Contain(
+            n => n.Contains("already has an address"),
+            "the first version reported 'Address imported' here, while the portal kept its own");
+        third.Rows[0].Notes.Should().NotContain(n => n.StartsWith("Address imported", StringComparison.Ordinal));
+
+        var later = await LoadAsync(id);
+        later.DisplayNameAr.Should().Be(
+            "مؤسسة الحوراني للخضار والفواكه", "a run where the ERP has no Arabic name does not blank the one it had");
+        later.Addresses.Should().ContainSingle().Which.Line1.Should().Be(
+            "دمشق - المالكي",
+            "once there is an address somebody may have corrected it; the ERP's version is the older truth");
+    }
+
+    [Fact]
+    public async Task A_supplier_that_fails_to_save_does_not_take_the_rest_of_the_run_with_it()
+    {
+        var broken = Unique("ERP-BROKEN");
+        var after = Unique("ERP-AFTER");
+
+        var report = await RunAsync(fixture, new FixedSource(
+            Full(broken) with { Name = new string('x', 250) },
+            Full(after)));
+
+        report.Rows.Single(r => r.ExternalId == broken).Outcome.Should().Be(ErpImportOutcome.Failed);
+        report.Rows.Single(r => r.ExternalId == after).Outcome.Should().Be(
+            ErpImportOutcome.Created,
+            "the failed supplier stayed in the shared context, and every later save retried it and failed with it");
+        (await LoadAsync(after)).ReferenceCode.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task A_supplier_under_review_is_updated_without_an_address_rather_than_failing()
+    {
+        var id = Unique("ERP-REVIEW");
+        await RunAsync(fixture, new FixedSource(Full(id, address: null)));
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplier = await db.Suppliers.SingleAsync(s => s.ExternalId == id);
+            supplier.UpdateLegalInfo(
+                "مؤسسة الحوراني", "Al-Horani For Fruits & Vegetables", null, "TAX-" + id, SupplierLegalType.Company,
+                null, isComplianceCritical: true);
+            await db.SaveChangesAsync();
+            supplier.OnboardingState.Should().Be(
+                SupplierOnboardingState.UnderReview, "the control: a compliance-critical edit sends it back to review");
+        }
+
+        var report = await RunAsync(fixture, new FixedSource(Full(
+            id, address: new ErpSupplierAddress("دمشق - المالكي", null, "Damascus", "Syria"))));
+
+        report.Rows[0].Outcome.Should().Be(
+            ErpImportOutcome.Updated,
+            "adding the address threw 'Cannot edit contact details from state UnderReview' and failed the whole update");
+        report.Rows[0].Notes.Should().Contain(n => n.Contains("UnderReview"));
+        (await LoadAsync(id)).Addresses.Should().BeEmpty();
     }
 
     private sealed class TestScope(Guid? userId = null) : IScopeContext

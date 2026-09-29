@@ -4,21 +4,21 @@
 // appearing in what the ERP returns. So "missing from the list" is the only signal a deletion leaves - and it is
 // exactly the signal a broken read leaves too. A credential narrowed overnight, a permission removed, a server that
 // answers politely with an empty page: every one of those returns fewer suppliers than exist, and a job that
-// believed the list would suspend the ministry's whole supplier base at two in the morning, with nobody awake to
+// believed the list would suspend the ministry's whole supplier base in a run nobody was watching, with nobody to
 // notice until tenders could not be sent.
 //
 // SO THE LIST IS BELIEVED ONLY WHEN IT LOOKS LIKE A NORMAL DAY. An empty list is never believed: an ERP with
-// suppliers in it does not lose all of them between one night and the next. A list missing a large share of the
+// suppliers in it does not lose all of them between one run and the next. A list missing a large share of the
 // suppliers the portal knows is not believed either, and the run says so instead of acting. Real deletions arrive a
 // few at a time; a cliff is a fault.
 //
 // THE QUARTER IS OF ACTIVE SUPPLIERS, TAKEN BEFORE THE RUN WRITES ANYTHING. Only active suppliers can be suspended,
-// and counting the already-suspended ones made the limit grow with every night's suspensions. The count is taken by
-// the caller before the import creates that night's new suppliers, because each new one would otherwise raise the
+// and counting the already-suspended ones made the limit grow with every run's suspensions. The count is taken by
+// the caller before the import creates that run's new suppliers, because each new one would otherwise raise the
 // limit the same read is being judged against - see ErpSyncPlan.
 //
 // THE THRESHOLD IS A QUARTER, WITH A FLOOR OF FIVE. A quarter because Seven Gates has about eighty suppliers and a
-// genuine clear-out of twenty in one night is already unusual enough to deserve a person's eyes. The floor because
+// genuine clear-out of twenty at once is already unusual enough to deserve a person's eyes. The floor because
 // with a handful of suppliers a quarter rounds to one, and a single legitimate deletion would then be refused
 // forever. Both numbers are stated in the message the run produces, so whoever reads it knows what was held back and
 // why.
@@ -29,7 +29,7 @@
 //
 // THE QUARTER IS NOT APPLIED TO THEM, deliberately. When a real clear-out is held back, the way a person confirms it
 // is to suspend those suppliers here; the next run then finds them out of service and only marks them. A limit on
-// marks would hold that confirmation back too, every night, with nothing left a person could do to clear it. If that
+// marks would hold that confirmation back too, on every run, with nothing left a person could do to clear it. If that
 // person later reinstates one of them, the next run suspends it once more, as ErpSyncPlan explains.
 //
 // WHAT A WRONG MARK COSTS, since a narrowed read under the limit can make one. A mark changes no lifecycle itself,

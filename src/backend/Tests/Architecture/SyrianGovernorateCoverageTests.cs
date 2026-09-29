@@ -68,6 +68,21 @@ public sealed class SyrianGovernorateCoverageTests
             + "the guard that catches seeder codes pointing at a governorate that does not exist");
     }
 
+    [Fact]
+    public void The_erp_address_mapper_knows_every_seeded_governorate()
+    {
+        var seeded = Regex.Matches(File.ReadAllText(RegionConfigurationPath()), @"Code\s*=\s*""([^""]+)""")
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+
+        MotsSupplierPortal.Application.Integration.ErpAddressMapper.Governorates
+            .Select(g => g.Code)
+            .Should().BeEquivalentTo(
+                seeded,
+                "an imported address is filed under one of these codes, and a code the seed does not have is the "
+                + "same stored-code-with-no-row-behind-it this file exists to prevent");
+    }
+
     private static string RegionConfigurationPath() =>
         Path.Combine(
             RepositoryRoot(), "src", "backend", "Infrastructure", "Persistence", "Configurations",

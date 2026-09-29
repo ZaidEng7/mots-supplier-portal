@@ -178,6 +178,7 @@ public static class EvaluationEndpoints
             await handler.HandleAsync(referenceCode, proposalId, documentId, ct) switch
             {
                 ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                ProposalDocumentDownloadResult.ScannerUnavailable => ScannerUnavailableProblem.Result(),
                 _ => Results.NotFound(),
             })
         .RequirePermission(Permissions.ComparisonView)
@@ -315,6 +316,7 @@ public static class EvaluationEndpoints
             await handler.HandleAsync(referenceCode, proposalCode, documentId, ct) switch
             {
                 ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                ProposalDocumentDownloadResult.ScannerUnavailable => ScannerUnavailableProblem.Result(),
                 _ => Results.NotFound(),
             })
         .RequirePermission(Permissions.EvaluationScore)

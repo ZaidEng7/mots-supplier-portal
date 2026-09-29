@@ -1,7 +1,7 @@
 // What a supplier remembers about the ERP disabling it.
 //
 // THE THREE MEMORIES MIRROR THE ONES FOR A SUPPLIER MISSING FROM THE ERP, and each test here is a way the earlier
-// versions got it wrong. The first suspended on every night the ERP said "disabled", undoing a person's reinstatement
+// versions got it wrong. The first suspended on every run on which the ERP said "disabled", undoing a person's reinstatement
 // forever. The second suspended only on the change from enabled to disabled, so a disable that arrived while the
 // supplier was already suspended left no trace: a document approval then reactivated it, and nothing ever suspended it
 // for the disable. So the sequences below walk a supplier through reactivations as well as reads.

@@ -11,4 +11,5 @@ public sealed class ClamAvOptions
 
     public required string Host { get; init; }
     public int Port { get; init; } = 3310;
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(3);
 }

@@ -94,6 +94,7 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
             legal.Property(l => l.LegalNameAr).HasColumnName("LegalNameAr").HasMaxLength(200);
             legal.Property(l => l.LegalNameEn).HasColumnName("LegalNameEn").HasMaxLength(200);
             legal.Property(l => l.RegistrationNumber).HasColumnName("RegistrationNumber").HasMaxLength(100);
+            legal.Property(l => l.RegistrationType).HasColumnName("RegistrationType").HasMaxLength(50);
             legal.Property(l => l.TaxId).HasColumnName("TaxId").HasMaxLength(100);
             legal.Property(l => l.SupplierType).HasColumnName("SupplierType").HasConversion<string>().HasMaxLength(20);
             legal.Property(l => l.EstablishedOn).HasColumnName("EstablishedOn");

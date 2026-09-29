@@ -1,4 +1,4 @@
-// Keeping the portal's suppliers in step with the ERP, night after night.
+// Keeping the portal's suppliers in step with the ERP, run after run.
 //
 // THE EMPTY-LIST TEST IS THE ONE THAT PROTECTS THE MINISTRY. A narrowed credential or an ERP answering politely with
 // nothing returns zero suppliers, and a job that believed it would suspend every imported supplier at two in the
@@ -10,7 +10,7 @@
 // so a pass that treated absence as deletion without that distinction would suspend every supplier who ever signed
 // up on the portal. It is asserted by building one and checking it is still active afterwards.
 //
-// SEVERAL TESTS HERE ARE FINDINGS FROM TWO REVIEWS: the run judged its limit after creating that night's new
+// SEVERAL TESTS HERE ARE FINDINGS FROM TWO REVIEWS: the run judged its limit after creating that run's new
 // suppliers and so could suspend what the preview promised to hold back; it re-suspended suppliers people had
 // reinstated, first through the "removed" route and then through the "disabled" one; it treated an ERP rename as a
 // deletion, and the first fix for that moved company histories between records; and it named nobody on a manual
@@ -321,17 +321,17 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         await RunAsync(new FixedSource([.. existing.Select(ErpRow)]));
 
         var arrivals = Enumerable.Range(0, 12).Select(_ => Unique("ERP-ARRIVALS-NEW")).ToList();
-        var tonight = new FixedSource([.. existing.Skip(6).Select(ErpRow), .. arrivals.Select(ErpRow)]);
+        var thisRun = new FixedSource([.. existing.Skip(6).Select(ErpRow), .. arrivals.Select(ErpRow)]);
 
-        var preview = await PreviewAsync(tonight);
-        var run = await RunAsync(tonight);
+        var preview = await PreviewAsync(thisRun);
+        var run = await RunAsync(thisRun);
 
         preview.WouldSuspend.Should().Be(0, "6 of 20 active is above the limit of 5");
         preview.SuspensionsHeldBack.Should().NotBeNull();
 
         run.Suspended.Should().Be(
             0,
-            "the first version counted tonight's 12 new suppliers into the limit, which rose to 8 and let all 6 through "
+            "the first version counted this run's 12 new suppliers into the limit, which rose to 8 and let all 6 through "
             + "- the preview's promise must hold in the run");
         run.SuspensionsHeldBack.Should().Be(preview.SuspensionsHeldBack);
 
@@ -364,7 +364,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         next.Suspended.Should().Be(0);
         (await LifecycleOfAsync(gone)).Should().Be(
             SupplierLifecycleState.Active,
-            "a person reinstated it; a job nobody watches must not undo that every night");
+            "a person reinstated it; a job nobody watches must not undo that on every run");
     }
 
     [Fact]
@@ -396,7 +396,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
 
         (await LifecycleOfAsync(gone)).Should().Be(
             SupplierLifecycleState.Active,
-            "now a person has decided, and a job nobody watches must not undo that every night");
+            "now a person has decided, and a job nobody watches must not undo that on every run");
     }
 
     [Fact]
@@ -443,7 +443,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         (await LifecycleOfAsync(gone)).Should().Be(
             SupplierLifecycleState.Suspended,
             "a renewed document says nothing about whether Seven Gates still has the company; reinstating it made it "
-            + "invitable for a night, with a 'you are reinstated' message, until the sync suspended it again");
+            + "invitable until the next run, with a 'you are reinstated' message, until the sync suspended it again");
     }
 
     [Fact]
@@ -698,7 +698,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
 
         (await LifecycleOfAsync(id)).Should().Be(
             SupplierLifecycleState.Active,
-            "the sync suspends once for a disable, and a person's reinstatement after that is not undone every night");
+            "the sync suspends once for a disable, and a person's reinstatement after that is not undone on every run");
     }
 
     [Fact]
@@ -792,13 +792,13 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             var row = await db.IntegrationConnections.AsNoTracking().SingleAsync(c => c.Key == IntegrationConnection.ErpKey);
             row.LastSyncOutcome.Should().Be(
                 IntegrationSyncOutcome.Failed,
-                "a nightly failure nobody records looks exactly like a night with nothing to do");
+                "a scheduled failure nobody records looks exactly like a run with nothing to do");
             row.LastSyncSummary.Should().Contain("InitialPassword");
         }
     }
 
     [Fact]
-    public async Task The_nightly_job_does_nothing_when_no_erp_is_configured()
+    public async Task The_scheduled_job_does_nothing_when_no_erp_is_configured()
     {
         var calls = 0;
         var import = new CountingImport(() => calls++);
@@ -814,12 +814,12 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
 
         calls.Should().Be(
             0,
-            "a deployment that is not integrated yet is not failing every night, and recording that it is would "
+            "a deployment that is not integrated yet is not failing every hour, and recording that it is would "
             + "teach people to ignore the failure that eventually matters");
     }
 
     [Fact]
-    public async Task The_nightly_job_steps_aside_when_another_import_is_running()
+    public async Task The_scheduled_job_steps_aside_when_another_import_is_running()
     {
         var job = new ErpSupplierSyncJob(
             new FixedConnection(new ErpConnection("http://x", "k", "s", IsEnabled: true, ErpConnectionSource.Database)),
@@ -828,7 +828,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
 
         var act = () => job.RunAsync();
 
-        await act.Should().NotThrowAsync("the run already in progress is doing tonight's work");
+        await act.Should().NotThrowAsync("the run already in progress is doing this hour's work");
     }
 
     private sealed class CountingImport(Action onRun) : IRunErpImportHandler

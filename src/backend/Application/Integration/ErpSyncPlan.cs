@@ -1,7 +1,7 @@
 // Deciding, before anything is written, which portal suppliers a run will hold for a person or suspend.
 //
 // THIS IS ONE PLACE BECAUSE THE PREVIEW AND THE RUN MUST AGREE, and they did not. The first version worked out the
-// suspension limit inside the run, after that night's new suppliers had been created - each new supplier raised the
+// suspension limit inside the run, after that run's new suppliers had been created - each new supplier raised the
 // limit the same read was judged against, so the preview could say "held back" and the run then suspend. A forecast
 // that disagrees with the outcome is worse than none, because it was believed. Both now call this, on data read
 // before the first write.
@@ -27,11 +27,11 @@
 // because the contact is editable by the supplier and the login is unique in this product. Placeholders never count:
 // they are built from the identifier, so they differ by construction.
 //
-// ONLY A SUPPLIER THAT VANISHED TONIGHT CAN BE THE OLD SIDE: one not yet recorded as gone from the ERP, WHATEVER its
+// ONLY A SUPPLIER THAT VANISHED IN THIS RUN CAN BE THE OLD SIDE: one not yet recorded as gone from the ERP, WHATEVER its
 // lifecycle. A supplier marked months ago must not block a genuinely new company that shares its tax number forever -
 // but a supplier a person SUSPENDED is still the same company, and when the second version limited the old side to
 // active suppliers, a suspended company renamed in the ERP came straight back as a brand-new active one, undoing the
-// suspension with a green badge. So every vanished supplier is marked the first night it goes: active ones are
+// suspension with a green badge. So every vanished supplier is marked on the first run it goes: active ones are
 // suspended as they are marked, inactive ones are only marked.
 //
 // A DISABLED ARRIVAL SHIELDS NOTHING. If the ERP has disabled the record, there is nothing to protect: if it is the
@@ -46,10 +46,10 @@
 // SUSPENSIONS
 //
 // THE LIMIT IS JUDGED AGAINST ACTIVE SUPPLIERS, because only active ones can be suspended. Counting every linked
-// supplier made "a quarter" grow with each night's suspensions.
+// supplier made "a quarter" grow with each run's suspensions.
 //
 // A SUPPLIER ALREADY SUSPENDED FOR BEING GONE, AND SINCE REINSTATED BY A PERSON, IS LEFT ALONE. Otherwise the next
-// night would suspend it again, forever. It becomes a candidate again only after it reappears in the ERP and
+// run would suspend it again, forever. It becomes a candidate again only after it reappears in the ERP and
 // disappears a second time.
 //
 // A SUPPLIER ONLY MARKED AS GONE, AND SINCE BACK IN SERVICE, IS SUSPENDED ONCE. It was already suspended or
@@ -63,7 +63,7 @@
 // cannot tell that confirmation from a suspension for some unrelated cause, and a person reactivating a supplier they
 // suspended for another reason may not know it has left the ERP - the suspension, and the audit row naming the reason,
 // is how they find out. Reinstating it a second time is respected. It is not a rename candidate: it left on an earlier
-// night, and the same months-later reasoning applies. It counts against the same limit as tonight's.
+// run, and the same months-later reasoning applies. It counts against the same limit as this run's.
 //
 // A DISABLE IS REMEMBERED THE SAME WAY, on the supplier rather than here, because a disabled supplier is still in
 // the list and so never reaches this plan - see Supplier.RecordErpDisabled.
@@ -100,7 +100,7 @@ public sealed record ErpSyncPlan(
         var inPortal = portal.Select(p => p.ExternalId).ToHashSet(StringComparer.Ordinal);
         var inErp = erp.Select(e => e.ExternalId).ToHashSet(StringComparer.Ordinal);
 
-        var vanishedTonight = portal
+        var vanishedThisRun = portal
             .Where(p => !inErp.Contains(p.ExternalId) && !p.RecordedAsGone)
             .ToList();
 
@@ -113,10 +113,10 @@ public sealed record ErpSyncPlan(
             .OrderBy(e => e.ExternalId, StringComparer.Ordinal)
             .ToList();
 
-        var renames = Pair(arrivals, vanishedTonight);
+        var renames = Pair(arrivals, vanishedThisRun);
         var heldOld = renames.Select(r => r.OldExternalId).ToHashSet(StringComparer.Ordinal);
 
-        var missing = vanishedTonight
+        var missing = vanishedThisRun
             .Where(v => !heldOld.Contains(v.ExternalId))
             .OrderBy(v => v.ReferenceCode, StringComparer.Ordinal)
             .ToList();

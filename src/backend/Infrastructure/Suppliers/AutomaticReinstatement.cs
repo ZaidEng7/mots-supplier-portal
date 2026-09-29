@@ -37,7 +37,7 @@
 // company. Reinstating it would make it invitable until the sync suspended it again, with a "you are reinstated"
 // message in between. While the mark stands it waits.
 //
-// AND WHEN THE MARK CLEARS, THE SYNC ASKS AGAIN. The mark can come from a read that missed the supplier for a night,
+// AND WHEN THE MARK CLEARS, THE SYNC ASKS AGAIN. The mark can come from a read that missed the supplier for a run,
 // and a reviewer may approve the renewal in that window. Without a second look the approval would have been the only
 // trigger and it had already passed, leaving a supplier who fixed the problem, and whom the ERP still has, locked out
 // of tenders until somebody noticed - the worse failure this rule exists to avoid. So the sync calls this as soon as

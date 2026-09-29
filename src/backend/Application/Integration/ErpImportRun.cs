@@ -32,7 +32,7 @@ public enum ErpImportTrigger
     Scheduled,
 }
 
-// Thrown when another import is already running. The nightly job and a person pressing the button at the same
+// Thrown when another import is already running. The hourly job and a person pressing the button at the same
 // moment would otherwise both find a supplier missing and both create it.
 public sealed class ErpImportBusyException()
     : Exception("Another supplier import is already running. Wait for it to finish and try again.");

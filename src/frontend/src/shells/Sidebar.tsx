@@ -1,4 +1,4 @@
-// The sidebar: the mark, every destination this account can reach, and who you are signed in as.
+// The sidebar: the Ministry's emblem, every destination this account can reach, and who you are signed in as.
 //
 // It replaces a wrapping row of up to thirty-one identically-coloured links that had no grouping and no current-page
 // marker. The rail is dark in both themes, which is what tells a member of staff at a glance that they are on the
@@ -32,6 +32,7 @@
 import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Icon } from '../components/ui/Icon'
+import { MinistryEmblem } from '../components/ui/MinistryEmblem'
 import type { NavContext, NavGroup, NavItem } from './navigation'
 
 export function isCurrent(item: NavItem, pathname: string, claimed = false): boolean {
@@ -122,13 +123,7 @@ export function Sidebar({ groups, context, pathname, title, subtitle, account }:
       }}
     >
       <div className="flex items-center gap-2.5 px-4.5 pb-4.5 pt-5">
-        <span
-          aria-hidden="true"
-          className="grid size-[30px] shrink-0 place-items-center rounded-[var(--radius-sm)] text-[length:var(--text-body-sm)] font-[var(--fw-bold)]"
-          style={{ backgroundColor: 'var(--color-brand-solid)', color: 'var(--color-on-brand)' }}
-        >
-          {title.trim().charAt(0)}
-        </span>
+        <MinistryEmblem size={32} />
         <span className="min-w-0 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)] leading-tight">
           {title}
           <small className="block font-[var(--fw-regular)] text-[length:var(--text-caption)]" style={{ color: 'var(--color-on-field-muted)' }}>

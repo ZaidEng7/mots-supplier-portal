@@ -83,7 +83,7 @@ public sealed class IntegrationConnection
 
     // The last import is recorded on the connection, whoever or whatever ran it.
     //
-    // A nightly job that fails is silent by nature: nobody is watching at two in the morning, and a run that did
+    // A scheduled job that fails is silent by nature: nobody is watching when it runs, and a run that did
     // nothing looks exactly like a run that found nothing to do. Putting the outcome where the connection is managed
     // means the person who would fix it sees it the next time they look, without knowing a job exists.
     //
@@ -101,11 +101,14 @@ public sealed class IntegrationConnection
         LastSyncSummary = summary.Length <= 1000 ? summary : summary[..999] + "…";
     }
 
+    // The detail is cut to the column's thousand characters rather than refused: it quotes an address and, when the ERP
+    // cannot be reached, the network's own error text, and a test that failed to save its own result would leave the
+    // screen showing the previous one.
     public void RecordTest(bool succeeded, string? detail)
     {
         LastTestedAt = DateTimeOffset.UtcNow;
         LastTestSucceeded = succeeded;
-        LastTestDetail = detail;
+        LastTestDetail = detail is { Length: > 1000 } ? detail[..1000] : detail;
     }
 }
 

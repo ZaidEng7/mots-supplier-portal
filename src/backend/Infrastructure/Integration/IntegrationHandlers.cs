@@ -2,7 +2,7 @@
 //
 // THE TEST IS THE REASON THIS SCREEN IS WORTH BUILDING. Anyone can type a new address into a form; the question
 // that matters is whether it works, and without an answer on the spot the next thing that discovers a wrong URL
-// is the nightly import, hours later, reporting something that reads like the other ministry being down.
+// is the next scheduled import, up to an hour later, reporting something that reads like the other ministry being down.
 //
 // IT TESTS THE SAVED VALUES, NOT THE TYPED ONES. Save then test, in that order, so what gets tested is what the
 // application will actually use. Testing unsaved input would prove a URL somebody typed and then navigated away

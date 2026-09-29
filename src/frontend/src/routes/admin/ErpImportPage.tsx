@@ -286,7 +286,7 @@ function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
 }
 
 // A failure names the action that failed and, where the server said why, says it too. Another import already
-// running is not a failure of anything - it is somebody else's run, or tonight's scheduled one - so it gets its own
+// running is not a failure of anything - it is somebody else's run, or the hourly scheduled one - so it gets its own
 // card rather than the portal-fault wording that used to tell the reader the import "did not finish".
 //
 // A failure names the action that failed and, where the server said why, says it too.
