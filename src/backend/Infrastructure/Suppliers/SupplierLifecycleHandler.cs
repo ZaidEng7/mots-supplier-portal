@@ -74,7 +74,8 @@ public sealed class SupplierLifecycleHandler(
         }
 
         await auditLogger.LogAsync(
-            "Supplier", supplier.Id, auditAction, scope.UserId,
+            "Supplier", supplier.Id, KeptSuspended(auditAction, stateBefore, supplier) ? "supplier_kept_suspended" : auditAction,
+            scope.UserId,
             fromState: stateBefore.ToString(),
             toState: supplier.LifecycleState.ToString(),
             reason: command.Reason,
@@ -85,6 +86,15 @@ public sealed class SupplierLifecycleHandler(
 
         return new SupplierLifecycleResult.Success(supplier.LifecycleState.ToString());
     }
+
+    // A suspension of a supplier that was already suspended - the sync's hold while the ERP approves it, taken over by a
+    // person - is recorded as that, not as a suspension that changed nothing: it is why the ERP's approval will no
+    // longer bring the supplier back, and the trail is where somebody later looks for that. It still ends in Suspended,
+    // so a person's suspension is what the rest of the product sees as the latest.
+    private static bool KeptSuspended(string auditAction, SupplierLifecycleState stateBefore, Domain.Suppliers.Supplier supplier) =>
+        auditAction == "supplier_suspended"
+        && stateBefore == SupplierLifecycleState.Suspended
+        && supplier.LifecycleState == SupplierLifecycleState.Suspended;
 
     private async Task RevokeSupplierUsersAsync(Guid supplierId, CancellationToken ct)
     {

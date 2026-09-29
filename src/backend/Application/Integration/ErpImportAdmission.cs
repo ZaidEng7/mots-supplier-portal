@@ -195,9 +195,14 @@ public static partial class ErpImportAdmission
         "Approved in the ERP now. It was suspended here only while it waited for that, and nobody has changed it since, "
         + "so it is back in service.";
 
-    // What an update row says when the ERP turned the supplier away but this run held the suspension back.
+    public const string ReleaseWaitsNote =
+        "Approved in the ERP now, but an award-critical document expired while it waited and has no approved renewal "
+        + "yet; it comes into service on the first run after the renewal is approved.";
+
+    // What an update row says when the ERP turned the supplier away but this run held back the change it would have made.
     public static string HeldBackNote(string reason) =>
-        $"{reason}; not suspended in this run, because too many suppliers were turned away at once - see the summary.";
+        $"{reason}; not changed in this run, because the run would have suspended more suppliers at once than one run "
+        + "may - see the summary.";
 
     // What an update row says about a supplier the ERP is turning away, for the preview and the run alike.
     //
@@ -209,6 +214,8 @@ public static partial class ErpImportAdmission
         ErpDisabledChange.Suspended => $"{reason}; suspended. A person who reinstates it will not be overruled.",
         ErpDisabledChange.Marked =>
             $"{reason} while already out of service here; marked, so it will not come back into service automatically.",
+        ErpDisabledChange.ReleaseWithdrawn =>
+            $"{reason} while it waited for approval; the ERP's approval will no longer bring it back into service.",
         _ => $"{reason}; already dealt with on an earlier run, so left as it is.",
     };
 

@@ -29,6 +29,7 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Infrastructure.Persistence;
+using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class PreviewErpImportHandler(
     IErpSupplierSource source,
@@ -49,6 +50,7 @@ public sealed class PreviewErpImportHandler(
             .AsNoTracking()
             .Select(s => new
             {
+                s.Id,
                 s.ExternalId,
                 s.ReferenceCode,
                 TaxId = s.LegalInfo!.TaxId,
@@ -66,6 +68,9 @@ public sealed class PreviewErpImportHandler(
                 s.ErpDisabledState,
             })
             .ToListAsync(ct);
+
+        var awaitingRenewal = await AwardCriticalRenewal.SuppliersAwaitingRenewalAsync(
+            db, [.. existing.Where(s => s.ExternalId != null).Select(s => s.Id)], ct);
 
         var byExternalId = existing
             .Where(s => s.ExternalId != null)
@@ -85,7 +90,8 @@ public sealed class PreviewErpImportHandler(
                     Domain.Suppliers.Supplier.AllowsContactEdits(group.First().OnboardingState)
                         ? null
                         : $"in state '{group.First().OnboardingState}'",
-                    group.First().ErpDisabledState));
+                    group.First().ErpDisabledState,
+                    awaitingRenewal.Contains(group.First().Id)));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)

@@ -251,6 +251,8 @@ public enum ErpDisabledChange
     Marked,
     Cleared,
     Released,
+    ReleaseWaitsForDocuments,
+    ReleaseWithdrawn,
 }
 
 public enum ErpStanding
@@ -820,6 +822,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
         OnboardingState = SupplierOnboardingState.Approved;
         LifecycleState = SupplierLifecycleState.Active;
+        EndErpPendingHold();
     }
 
     // A supplier the sync suspended only while the ERP approves it may be suspended again by a person, without its
@@ -888,10 +891,8 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // Once a person - or a rule acting for one - has acted on this supplier, a suspension the sync made while the ERP
     // was approving it is no longer the sync's to lift. It is still remembered as handled, so the ERP's pending state
-    // does not suspend it a second time. The expiry rule calls this too: an award-critical document that expires while
-    // the supplier waits would otherwise be forgotten, because the rule suspends only active suppliers and a document
-    // expires once - the ERP's approval would then bring back a supplier with an expired document.
-    public void EndErpPendingHold()
+    // does not suspend it a second time.
+    private void EndErpPendingHold()
     {
         if (ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending)
         {
@@ -1141,16 +1142,23 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //   NotDisabled - the ERP lets it be used, so a later refusal counts as new.
     //
     // It returns what changed, so the caller can record who did it and look again at a reinstatement a mark held up.
-    public ErpDisabledChange RecordErpStanding(ErpStanding standing)
+    //
+    // THE RELEASE ALSO WAITS FOR ITS DOCUMENTS. An award-critical document that expired while the supplier waited was
+    // never acted on - the expiry rule suspends only active suppliers, and a document expires once - so the ERP's
+    // approval alone would bring back a supplier with an expired commercial registration. The caller says whether every
+    // expired award-critical document has an approved renewal; until it has, the hold stands and every run asks again,
+    // so the supplier comes back on the first run after both the approval and the renewal are in.
+    public ErpDisabledChange RecordErpStanding(ErpStanding standing, bool documentsAllowRelease = true)
     {
-        var change = ErpDisabledChangeFor(ErpDisabledState, LifecycleState == SupplierLifecycleState.Active, standing);
+        var change = ErpDisabledChangeFor(
+            ErpDisabledState, LifecycleState == SupplierLifecycleState.Active, standing, documentsAllowRelease);
 
         if (change == ErpDisabledChange.Released)
         {
             LifecycleState = SupplierLifecycleState.Active;
         }
 
-        if (standing == ErpStanding.Usable)
+        if (standing == ErpStanding.Usable && change != ErpDisabledChange.ReleaseWaitsForDocuments)
         {
             ErpDisabledState = SupplierErpDisabledState.NotDisabled;
         }
@@ -1165,7 +1173,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         {
             ErpDisabledState = SupplierErpDisabledState.MarkedDisabled;
         }
-        else if (standing == ErpStanding.Disabled && ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending)
+        else if (change == ErpDisabledChange.ReleaseWithdrawn)
         {
             ErpDisabledState = SupplierErpDisabledState.SuspendedAsDisabled;
         }
@@ -1175,16 +1183,24 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // What RecordErpStanding would do, worked out from the supplier's memory and lifecycle alone, so the preview can
     // forecast the same outcome from the columns it reads without loading the supplier.
-    public static ErpDisabledChange ErpDisabledChangeFor(SupplierErpDisabledState state, bool isActive, ErpStanding standing)
+    public static ErpDisabledChange ErpDisabledChangeFor(
+        SupplierErpDisabledState state, bool isActive, ErpStanding standing, bool documentsAllowRelease = true)
     {
         if (standing == ErpStanding.Usable)
         {
             return state switch
             {
-                SupplierErpDisabledState.SuspendedAsPending when !isActive => ErpDisabledChange.Released,
+                SupplierErpDisabledState.SuspendedAsPending when !isActive => documentsAllowRelease
+                    ? ErpDisabledChange.Released
+                    : ErpDisabledChange.ReleaseWaitsForDocuments,
                 SupplierErpDisabledState.MarkedDisabled => ErpDisabledChange.Cleared,
                 _ => ErpDisabledChange.None,
             };
+        }
+
+        if (state == SupplierErpDisabledState.SuspendedAsPending && standing == ErpStanding.Disabled)
+        {
+            return ErpDisabledChange.ReleaseWithdrawn;
         }
 
         if (state is SupplierErpDisabledState.SuspendedAsDisabled or SupplierErpDisabledState.SuspendedAsPending)

@@ -520,7 +520,8 @@ public sealed class RunErpImportHandler(
     // A SUPPLIER THE ERP TURNS AWAY - disables, or has not approved - IS RECORDED THE WAY AN ABSENCE IS: suspended once
     // if the supplier is active, only marked if it is out of service already, and a person's reinstatement after the
     // one suspension stands - see RecordErpStanding. While the plan holds a mass turn-away back, nobody's memory of it
-    // is touched either, because the read that caused it is not believed.
+    // is touched either, because the read that caused it is not believed: a turned-away supplier marked as gone keeps
+    // the mark, and nothing reinstates it automatically, until a run the plan believes.
     //
     // WHEN A MARK CLEARS, THE AUTOMATIC REINSTATEMENT IS ASKED AGAIN. A marked supplier - missing on an earlier run, or
     // turned away while suspended - may have had its renewed document approved while the mark held the reinstatement
@@ -565,7 +566,15 @@ public sealed class RunErpImportHandler(
         notes.Add(address.Note);
 
         var held = holdTurnedAway && admitted.Standing != ErpStanding.Usable;
-        var disabled = held ? ErpDisabledChange.None : existing.RecordErpStanding(admitted.Standing);
+        var awaitsRenewal = admitted.Standing == ErpStanding.Usable
+            && existing.ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending
+            && await AwardCriticalRenewal.AwaitsRenewalAsync(db, existing.Id, ct);
+        var forecast = Supplier.ErpDisabledChangeFor(
+            existing.ErpDisabledState,
+            existing.LifecycleState == SupplierLifecycleState.Active,
+            admitted.Standing,
+            !awaitsRenewal);
+        var disabled = held ? ErpDisabledChange.None : existing.RecordErpStanding(admitted.Standing, !awaitsRenewal);
 
         if (disabled == ErpDisabledChange.Suspended)
         {
@@ -595,6 +604,24 @@ public sealed class RunErpImportHandler(
                 ct: ct);
         }
 
+        if (disabled == ErpDisabledChange.ReleaseWithdrawn)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: existing.Id,
+                action: "supplier.erp_release_withdrawn",
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                reason: $"{admitted.TurnedAway} while it waited for approval; its approval will no longer bring it back.",
+                referenceCode: existing.ReferenceCode,
+                ct: ct);
+        }
+
+        if (disabled == ErpDisabledChange.ReleaseWaitsForDocuments)
+        {
+            notes.Add(ErpImportAdmission.ReleaseWaitsNote);
+        }
+
         if (disabled == ErpDisabledChange.Released)
         {
             await audit.LogAsync(
@@ -614,7 +641,7 @@ public sealed class RunErpImportHandler(
 
         if (admitted.TurnedAway is not null)
         {
-            notes.Add(held
+            notes.Add(held && forecast != ErpDisabledChange.None
                 ? ErpImportAdmission.HeldBackNote(admitted.TurnedAway)
                 : ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, disabled));
         }
@@ -625,7 +652,10 @@ public sealed class RunErpImportHandler(
             if (moved is not null) notes.Add(moved);
         }
 
-        existing.MarkSynced(erpSupplier.ExternalId, changed || address.Write || disabled != ErpDisabledChange.None);
+        if (!(held && wasMarkedGone))
+        {
+            existing.MarkSynced(erpSupplier.ExternalId, changed || address.Write || disabled != ErpDisabledChange.None);
+        }
 
         if ((wasMarkedGone || disabled == ErpDisabledChange.Cleared)
             && await AutomaticReinstatement.TryAsync(

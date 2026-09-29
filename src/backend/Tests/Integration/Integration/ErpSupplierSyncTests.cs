@@ -813,12 +813,21 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
 
         await ExpireAnAwardCriticalDocumentAsync(id);
-        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
+        var approved = await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
 
         (await LifecycleOfAsync(id)).Should().Be(
             SupplierLifecycleState.Suspended,
             "the expiry rule suspends only active suppliers and a document expires once; released, the supplier could "
             + "be invited with an expired commercial registration and nothing would ever look again");
+        approved.Rows.Single(r => r.ExternalId == id).Notes.Should().Contain(ErpImportAdmission.ReleaseWaitsNote);
+
+        await ApproveNewDocumentAsync(id, CommercialRegistration);
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
+
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Active,
+            "with the approval and the renewal both in, the supplier comes back; the first fix withdrew the release at "
+            + "expiry and left it for a person to notice");
     }
 
     [Fact]
@@ -858,6 +867,79 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             SupplierLifecycleState.Active,
             "the disable came from a read the run did not believe; turning its pending hold into a disable would have "
             + "left it for a person to reinstate by hand once the ERP was put right");
+    }
+
+    [Fact]
+    public async Task A_held_back_run_does_not_reinstate_a_supplier_the_erp_is_still_turning_away()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var ids = Enumerable.Range(1, 8).Select(i => Unique($"ERP-HELD-REINSTATE-{i}")).ToList();
+        var target = Unique("ERP-HELD-TARGET");
+        await RunAsync(new FixedSource([.. ids.Select(ErpRow), ErpRow(target)]));
+
+        await ExpireAnAwardCriticalDocumentAsync(target);
+        (await LifecycleOfAsync(target)).Should().Be(SupplierLifecycleState.Suspended, "the control: expiry suspended it");
+
+        await RunAsync(new FixedSource([.. ids.Select(ErpRow)]));
+        (await SyncStatusOfAsync(target)).Should().Be(SupplierSyncStatus.MarkedRemovedFromErp);
+        await ApproveNewDocumentAsync(target, CommercialRegistration);
+        (await LifecycleOfAsync(target)).Should().Be(
+            SupplierLifecycleState.Suspended, "the control: the renewal waits while the ERP no longer offers it");
+
+        var held = await RunAsync(new FixedSource(
+            [.. ids.Select(id => ErpRow(id) with { Disabled = true }), ErpRow(target) with { Disabled = true }]));
+
+        held.SuspensionsHeldBack.Should().NotBeNull();
+        (await LifecycleOfAsync(target)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the ERP returned it disabled; a held run must not clear its gone mark and then reinstate it on the renewal");
+        (await SyncStatusOfAsync(target)).Should().Be(SupplierSyncStatus.MarkedRemovedFromErp, "the mark stands until a believed run");
+    }
+
+    [Fact]
+    public async Task A_waiting_supplier_the_erp_disables_loses_its_release_and_the_trail_says_so()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-AWAITING-DISABLED");
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
+        var disabled = await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
+
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended, "the ERP may lift only its own wait; a disable is lifted by a person");
+        disabled.Rows.Single(r => r.ExternalId == id).Notes.Should().ContainMatch("*no longer bring it back*");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplierId = await db.Suppliers.Where(s => s.ExternalId == id).Select(s => s.Id).SingleAsync();
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a => a.AggregateId == supplierId && a.Action == "supplier.erp_release_withdrawn"))
+            .Should().BeTrue("otherwise nobody can tell later why the approval did not bring it back");
+    }
+
+    [Fact]
+    public async Task Keeping_a_waiting_supplier_suspended_is_audited_as_that()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-KEEP-AUDIT");
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var referenceCode = await db.Suppliers.Where(s => s.ExternalId == id).Select(s => s.ReferenceCode).SingleAsync();
+        var result = await new SupplierLifecycleHandler(
+                db,
+                scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
+                new TestScope(Guid.CreateVersion7()),
+                scope.ServiceProvider.GetRequiredService<IAuditLogger>())
+            .SuspendAsync(new SupplierLifecycleCommand(referenceCode, "Sanctions check pending."), CancellationToken.None);
+
+        result.Should().BeOfType<SupplierLifecycleResult.Success>();
+        var supplierId = await db.Suppliers.Where(s => s.ExternalId == id).Select(s => s.Id).SingleAsync();
+        (await db.AuditLogs.AsNoTracking().SingleAsync(a => a.AggregateId == supplierId && a.Action == "supplier_kept_suspended"))
+            .ToState.Should().Be("Suspended", "a person's suspension must still read as the latest one");
     }
 
     [Fact]

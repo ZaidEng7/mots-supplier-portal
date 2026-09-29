@@ -150,6 +150,12 @@ function RequestInfoDialog({
   )
 }
 
+// Suspending a supplier the ERP sync is holding only until Seven Gates approves it keeps it suspended rather than
+// suspending it, so the button and its dialog say that.
+function lifecycleLabel(action: SupplierLifecycleAction, liftsWhenErpApproves: boolean): string {
+  return action === 'suspend' && liftsWhenErpApproves ? 'review.keepSuspended' : `review.${action}`
+}
+
 export function ReviewApplicationPage() {
   const { referenceCode } = useParams({ from: '/back-office/review/$referenceCode' })
   const { t, i18n } = useTranslation()
@@ -504,10 +510,16 @@ export function ReviewApplicationPage() {
         open={lifecycleAction !== null}
         onOpenChange={(v) => setLifecycleAction(v ? lifecycleAction : null)}
         isLoading={lifecycleMutation.isPending}
-        title={lifecycleAction ? t(`review.${lifecycleAction}`) : ''}
-        confirmLabel={lifecycleAction ? t(`review.${lifecycleAction}`) : ''}
+        title={lifecycleAction ? t(lifecycleLabel(lifecycleAction, liftsWhenErpApproves)) : ''}
+        confirmLabel={lifecycleAction ? t(lifecycleLabel(lifecycleAction, liftsWhenErpApproves)) : ''}
         variant={lifecycleAction === 'reactivate' ? 'primary' : 'danger'}
-        warning={lifecycleAction === 'deactivate' ? t('review.deactivateWarning') : undefined}
+        warning={
+          lifecycleAction === 'deactivate'
+            ? t('review.deactivateWarning')
+            : lifecycleAction === 'suspend' && liftsWhenErpApproves
+              ? t('review.liftsWhenErpApproves')
+              : undefined
+        }
         onSubmit={(reason) => lifecycleAction && lifecycleMutation.mutate({ action: lifecycleAction, reason })}
       />
 

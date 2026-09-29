@@ -97,16 +97,10 @@ internal static class AutomaticReinstatement
             .Where(d => d.SupplierId == supplier.Id && awardCriticalTypeIds.Contains(d.DocumentTypeId))
             .ToListAsync(ct);
 
-        var notYetRenewed = awardCritical
-            .Where(d => d.State == DocumentState.Expired)
-            .Select(d => d.DocumentTypeId)
-            .Distinct()
-            .Any(typeId => !awardCritical.Any(d =>
-                d.DocumentTypeId == typeId
-                && d.IsLatestVersion
-                && d.State is (DocumentState.Approved or DocumentState.ExpiringSoon)));
-
-        if (notYetRenewed) return false;
+        if (AwardCriticalRenewal.NotYetRenewed(awardCritical.Select(d => (d.DocumentTypeId, d.State, d.IsLatestVersion))))
+        {
+            return false;
+        }
 
         supplier.Reactivate(reason);
 

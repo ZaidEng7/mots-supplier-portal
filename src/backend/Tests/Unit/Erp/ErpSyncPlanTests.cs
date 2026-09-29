@@ -277,4 +277,20 @@ public sealed class ErpSyncPlanTests
         plan.TurnedAwayHeld.Should().HaveCount(3);
         plan.SuspensionsHeldBack.Should().Contain("would suspend 7");
     }
+
+    [Fact]
+    public void A_read_that_loses_too_many_suppliers_holds_the_ones_it_turns_away_too()
+    {
+        var portal = Enumerable.Range(1, 20).Select(i => Portal($"S{i}")).ToList();
+        var erp = portal.Skip(7)
+            .Select((p, i) => Erp(p.ExternalId, workflowState: i < 5 ? "Pending Chief Accountant Approval" : null))
+            .ToList();
+
+        var plan = ErpSyncPlan.Build(erp, portal);
+
+        plan.ToSuspend.Should().BeEmpty();
+        plan.TurnedAwayHeld.Should().NotBeNull(
+            "the run has just declared this read untrustworthy; the first version still suspended the five it turned away");
+        plan.SuspensionsHeldBack.Should().Contain("would suspend 12").And.Contain("7 no longer in the ERP");
+    }
 }

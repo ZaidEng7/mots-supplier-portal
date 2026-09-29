@@ -60,7 +60,8 @@ public sealed record ErpImportCandidateMatch(
     bool MarkedRemovedFromErp = false,
     int AddressCount = 0,
     string? BlockedByState = null,
-    SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled);
+    SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled,
+    bool AwaitsDocumentRenewal = false);
 
 public static class ErpImportPreviewBuilder
 {
@@ -148,11 +149,12 @@ public static class ErpImportPreviewBuilder
         notes.Add(ErpImportAdmission.AddressOutcome(
             admitted, candidate is null, candidate?.AddressCount ?? 0, candidate?.BlockedByState).Note);
 
-        var standing = candidate is null
+        var forecast = candidate is null
             ? ErpDisabledChange.None
-            : Supplier.ErpDisabledChangeFor(candidate.ErpDisabledState, candidate.IsActive, admitted.Standing);
+            : Supplier.ErpDisabledChangeFor(
+                candidate.ErpDisabledState, candidate.IsActive, admitted.Standing, !candidate.AwaitsDocumentRenewal);
         var held = plan.HoldsTurnedAway && admitted.Standing != ErpStanding.Usable;
-        if (held) standing = ErpDisabledChange.None;
+        var standing = held ? ErpDisabledChange.None : forecast;
 
         if (candidate is null && admitted.ArrivalNote is not null)
         {
@@ -161,7 +163,7 @@ public static class ErpImportPreviewBuilder
 
         if (candidate is not null && admitted.TurnedAway is not null)
         {
-            notes.Add(held
+            notes.Add(held && forecast != ErpDisabledChange.None
                 ? ErpImportAdmission.HeldBackNote(admitted.TurnedAway)
                 : ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, standing));
         }
@@ -169,6 +171,11 @@ public static class ErpImportPreviewBuilder
         if (standing == ErpDisabledChange.Released)
         {
             notes.Add(ErpImportAdmission.ReleasedNote);
+        }
+
+        if (standing == ErpDisabledChange.ReleaseWaitsForDocuments)
+        {
+            notes.Add(ErpImportAdmission.ReleaseWaitsNote);
         }
 
         notes.Add(

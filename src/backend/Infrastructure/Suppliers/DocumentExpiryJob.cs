@@ -181,10 +181,6 @@ public sealed class DocumentExpiryJob(
         }
     }
 
-    // An award-critical document that expires suspends an active supplier. A supplier already suspended while the ERP
-    // approves it cannot be suspended again, so instead the ERP's claim on that suspension is withdrawn: otherwise the
-    // ERP's approval would bring it back into service with the expired document, and nothing would look again, because
-    // a document expires only once.
     private async Task AutoSuspendForAwardCriticalExpiryAsync(
         List<SupplierDocument> expired, CancellationToken ct)
     {
@@ -201,23 +197,6 @@ public sealed class DocumentExpiryJob(
         foreach (var doc in expired.Where(d => awardCritical.ContainsKey(d.DocumentTypeId)))
         {
             var supplier = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == doc.SupplierId, ct);
-
-            if (supplier is { LifecycleState: SupplierLifecycleState.Suspended, ErpDisabledState: SupplierErpDisabledState.SuspendedAsPending })
-            {
-                supplier.EndErpPendingHold();
-
-                await auditLogger.LogAsync(
-                    "Supplier", supplier.Id, "supplier.erp_release_withdrawn",
-                    actorLabel: "system",
-                    reason: string.Format(
-                        CultureInfo.InvariantCulture,
-                        "Award-critical document '{0}' expired on {1:yyyy-MM-dd} while the supplier waited for approval "
-                        + "in the ERP; the ERP's approval will no longer bring it back into service.",
-                        awardCritical[doc.DocumentTypeId], doc.ExpiryDate!.Value.ToDateTime(TimeOnly.MinValue)),
-                    ct: ct);
-
-                continue;
-            }
 
             if (supplier is null || supplier.LifecycleState != SupplierLifecycleState.Active) continue;
 

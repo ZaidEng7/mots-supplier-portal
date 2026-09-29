@@ -73,9 +73,11 @@
 // A READ THAT IS NOT BELIEVED MARKS NOBODY, and an empty read is never believed even when only suppliers already out
 // of service are missing. Why the quarter limit applies to suspensions only is in ErpMissingSupplierPolicy.
 //
-// SUPPLIERS THE ERP TURNS AWAY ARE HELD TO THE SAME QUARTER. They are in the list, so they are not "missing", but a
-// run that would suspend most of them at once is decided here too, from the same read, so the preview and the run
-// agree on who is held back; why is in ErpMissingSupplierPolicy.TurnedAwayHeldBack.
+// SUPPLIERS THE ERP TURNS AWAY SHARE THAT LIMIT WITH THE MISSING ONES: the run may suspend a quarter in all, whatever
+// the reason, and above it suspends none - why is in ErpMissingSupplierPolicy.TogetherHeldBack. It is decided here,
+// from the same read, so the preview and the run agree. TurnedAwayHeld names the turned-away suppliers the run would
+// otherwise have suspended; while it is set, no turned-away supplier's memory changes at all, because the read that
+// caused the hold is not believed.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -154,17 +156,16 @@ public sealed record ErpSyncPlan(
                     linked.ErpDisabledState, linked.IsActive, ErpImportAdmission.StandingOf(e)) == ErpDisabledChange.Suspended)
             .Select(e => e.ExternalId)
             .ToHashSet(StringComparer.Ordinal);
-        var togetherHeldBack = ErpMissingSupplierPolicy.TogetherHeldBack(
-            activeLinked, decision.MaySuspend ? activeMissing.Count : 0, turnedAway.Count);
-
-        var heldBack = string.Join(" ", new[] { decision.HeldBackBecause, togetherHeldBack }.Where(m => m is not null));
+        var togetherHeldBack = erp.Count == 0
+            ? null
+            : ErpMissingSupplierPolicy.TogetherHeldBack(activeLinked, activeMissing.Count, turnedAway.Count);
 
         return new ErpSyncPlan(
             renames,
             decision.MaySuspend && togetherHeldBack is null ? activeMissing : [],
             decision.MaySuspend ? outOfServiceMissing : [],
             activeLinked,
-            heldBack.Length == 0 ? null : heldBack,
+            erp.Count == 0 ? decision.HeldBackBecause : togetherHeldBack,
             togetherHeldBack is null ? null : turnedAway);
     }
 

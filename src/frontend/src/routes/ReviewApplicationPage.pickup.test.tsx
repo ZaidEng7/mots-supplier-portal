@@ -30,7 +30,7 @@ const view = {
     currencyCode: null, legalInfo: null, primaryContactPhone: null,
     representatives: [], addresses: [], contacts: [], branches: [], bankAccounts: [], categoryCodes: [],
   },
-  erpSync: { status: 'NotSynced', lastSyncedAt: null, externalId: null },
+  erpSync: { syncStatus: 'Pending', lastSyncedAt: null, externalId: null, liftsWhenErpApproves: false },
   documents: [],
   annotationHistory: [],
 }

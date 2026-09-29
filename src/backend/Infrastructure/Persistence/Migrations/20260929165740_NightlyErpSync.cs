@@ -7,6 +7,10 @@
 // first run take it for one already out of service for another reason and only mark it, and a person who then
 // reinstated it would be overruled within the hour.
 //
+// AND THE SUSPENSION IS WRITTEN TO THE AUDIT TRAIL, which the import never did. Without a row, the latest suspension
+// the trail shows could be an older one by the expiry rule - which a later document approval would then lift, as if
+// the renewal had been the reason the supplier was out.
+//
 // IT IS RECORDED AS WAITING FOR APPROVAL, the one memory the ERP's approval may lift. The import could not tell a
 // disable from a pending approval afterwards, but the first run can: a supplier the ERP still disables is moved to
 // SuspendedAsDisabled then, and one it has approved comes into service. The only case this gets wrong is a supplier
@@ -46,6 +50,16 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                       WHERE a."AggregateId" = s."Id" AND a."ToState" IN ('Active', 'Suspended', 'Deactivated')
                       ORDER BY a."OccurredAt" DESC
                       LIMIT 1), 'Active') <> 'Suspended';
+
+                INSERT INTO ops.audit_log
+                    ("Id", "OccurredAt", "ActorUserId", "ActorKind", "ActorLabel", "AggregateType", "AggregateId",
+                     "ReferenceCode", "Action", "FromState", "ToState", "Reason", "Changes", "CorrelationId", "IpAddress")
+                SELECT gen_random_uuid(), now(), NULL, 'System', 'system', 'Supplier', s."Id",
+                       s."ReferenceCode", 'supplier.suspended_not_approved_in_erp', NULL, 'Suspended',
+                       'Suspended by the ERP import while the ERP had not approved or had disabled it; recorded when the sync began to remember it.',
+                       NULL, gen_random_uuid(), NULL
+                FROM supplier.supplier s
+                WHERE s."ErpDisabledState" = 'SuspendedAsPending';
                 """);
 
             migrationBuilder.AddColumn<DateTimeOffset>(

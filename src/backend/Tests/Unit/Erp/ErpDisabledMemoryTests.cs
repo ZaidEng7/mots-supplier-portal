@@ -174,7 +174,8 @@ public sealed class ErpDisabledMemoryTests
     {
         var supplier = Imported();
         supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
-        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(ErpDisabledChange.None);
+        supplier.RecordErpStanding(ErpStanding.Disabled).Should().Be(
+            ErpDisabledChange.ReleaseWithdrawn, "the release was the ERP's to give, and it has taken it back; that is said");
 
         supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(
             ErpDisabledChange.None, "the ERP may lift only its own wait; a disable is lifted by a person here");
@@ -217,7 +218,7 @@ public sealed class ErpDisabledMemoryTests
     [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Usable,
         ErpDisabledChange.Released, SupplierLifecycleState.Active, SupplierErpDisabledState.NotDisabled)]
     [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Disabled,
-        ErpDisabledChange.None, SupplierLifecycleState.Suspended, SupplierErpDisabledState.SuspendedAsDisabled)]
+        ErpDisabledChange.ReleaseWithdrawn, SupplierLifecycleState.Suspended, SupplierErpDisabledState.SuspendedAsDisabled)]
     [InlineData(SupplierErpDisabledState.MarkedDisabled, false, ErpStanding.Usable,
         ErpDisabledChange.Cleared, SupplierLifecycleState.Suspended, SupplierErpDisabledState.NotDisabled)]
     [InlineData(SupplierErpDisabledState.NotDisabled, false, ErpStanding.Disabled,
@@ -241,5 +242,36 @@ public sealed class ErpDisabledMemoryTests
         supplier.RecordErpStanding(standing).Should().Be(expected);
         supplier.LifecycleState.Should().Be(lifecycleAfter);
         supplier.ErpDisabledState.Should().Be(stateAfter);
+    }
+
+    [Fact]
+    public void The_release_waits_while_an_award_critical_document_has_no_approved_renewal()
+    {
+        var supplier = Imported();
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+
+        supplier.RecordErpStanding(ErpStanding.Usable, documentsAllowRelease: false).Should().Be(
+            ErpDisabledChange.ReleaseWaitsForDocuments);
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+        supplier.ErpDisabledState.Should().Be(
+            SupplierErpDisabledState.SuspendedAsPending, "the hold stands, so the first run after the renewal releases it");
+
+        supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(ErpDisabledChange.Released);
+    }
+
+    [Fact]
+    public void A_reviewer_approving_the_supplier_again_ends_the_hold_like_any_other_decision()
+    {
+        var supplier = Imported();
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+        supplier.UpdateLegalInfo(
+            "Homs Linen Mills", "Homs Linen Mills", "REG-1", "TAX-1", SupplierLegalType.Company, null, isComplianceCritical: true);
+        supplier.OnboardingState.Should().Be(SupplierOnboardingState.UnderReview, "the control: an edit sent it to review");
+
+        supplier.Approve([]);
+
+        supplier.ErpDisabledState.Should().Be(
+            SupplierErpDisabledState.SuspendedAsDisabled,
+            "left pending, a later suspension for another reason would be released by the ERP's approval");
     }
 }
