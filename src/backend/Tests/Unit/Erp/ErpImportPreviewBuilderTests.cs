@@ -155,9 +155,9 @@ public sealed class ErpImportPreviewBuilderTests
         var report = ErpImportPreviewBuilder.Build(
             [Supplier(group: "Raw Material", primaryAddress: null, phone: null)], NoMatches, NoUnlinked);
 
-        report.Rows[0].Notes.Should().ContainMatch("*'Raw Material' has no portal category*");
+        report.Rows[0].Notes.Should().ContainMatch("*'Raw Material' is kept*no portal category*");
         report.Rows[0].Notes.Should().ContainMatch("*No address*governorate*");
-        report.Rows[0].Notes.Should().ContainMatch("*Arabic name starts as the English one*");
+        report.Rows[0].Notes.Should().ContainMatch("*No Arabic name*starts with the English name*");
         report.Rows[0].Notes.Should().ContainMatch("*No phone*");
     }
 

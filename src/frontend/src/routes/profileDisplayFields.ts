@@ -42,6 +42,7 @@ export const LEGAL_INFO_FIELDS = [
   'legalNameAr',
   'legalNameEn',
   'registrationNumber',
+  'registrationType',
   'taxId',
   'supplierType',
   'establishedOn',

@@ -11,6 +11,13 @@
 //
 // THE CONTROL IS A SUPPLIER WITH EVERYTHING: no placeholder, no notes about gaps. If it came back with a
 // placeholder, every test below that looks for one would be passing for the wrong reason.
+//
+// THE ADDRESS'S FATE IS TESTED APART FROM ITS MAPPING, because it depends on the supplier the portal already has. The
+// first version wrote the ERP's address note onto every row, so an update that kept the portal's own address still
+// said "Address imported" - and tried to add one to a supplier under review, which the domain refuses.
+//
+// THE FIELDS THE REAL SERVER ADDED ARE TESTED THE SAME WAY: an Arabic name, a contact person and an approval state are
+// used when the ERP has them, and when it does not the field stays empty or falls back, with a note saying which.
 
 namespace MotsSupplierPortal.Tests.Unit.Erp;
 
@@ -24,9 +31,16 @@ public sealed class ErpImportAdmissionTests
         string? name = "Damascus Supplies Co",
         string? email = "contact@example.sy",
         string? currency = "SYP",
-        bool disabled = false) =>
+        bool disabled = false,
+        string? arabicName = "مؤسسة دمشق للتوريدات",
+        string? person = "سامر الحلبي",
+        string? workflowState = "Approved") =>
         new(externalId, name, "Local", "Company", "TAX-1", "Syria", email, "+963", disabled, currency, null, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
+            ArabicName: arabicName,
+            WorkflowState: workflowState,
+            ContactPersonName: person,
+            Address: new ErpSupplierAddress("دمشق - المالكي", null, "Damascus", "Syria"));
 
     [Fact]
     public void A_supplier_with_everything_is_admitted_as_it_is()
@@ -37,6 +51,9 @@ public sealed class ErpImportAdmissionTests
         admitted.EmailIsPlaceholder.Should().BeFalse();
         admitted.Currency.Should().Be("SYP");
         admitted.Suspended.Should().BeFalse();
+        admitted.ArabicName.Should().Be("مؤسسة دمشق للتوريدات");
+        admitted.RepresentativeName.Should().Be("سامر الحلبي");
+        admitted.Address!.Address!.RegionCode.Should().Be("DIM");
         admitted.Notes.Should().BeEmpty();
     }
 
@@ -100,5 +117,96 @@ public sealed class ErpImportAdmissionTests
         admitted.Suspended.Should().BeTrue(
             "active would let a company Seven Gates has stopped using be invited to tenders");
         admitted.Notes.Should().ContainMatch("*suspended*cannot be invited*");
+    }
+
+    [Theory]
+    [InlineData("Pending Chief Accountant Approval")]
+    [InlineData("Draft")]
+    public void A_supplier_the_erp_has_not_approved_arrives_suspended_and_names_its_state(string state)
+    {
+        var admitted = ErpImportAdmission.Admit(Supplier(workflowState: state));
+
+        admitted.Suspended.Should().BeTrue("a record still waiting for approval there is not one to invite here");
+        admitted.Notes.Should().ContainMatch($"*'{state}'*suspended*");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("approved")]
+    public void A_supplier_with_no_workflow_or_an_approved_one_arrives_active(string? state)
+    {
+        ErpImportAdmission.Admit(Supplier(workflowState: state)).Suspended.Should().BeFalse(
+            "a server with no approval workflow still has suppliers, and they are not all pending");
+    }
+
+    [Fact]
+    public void With_no_arabic_name_the_field_is_empty_here_and_the_note_says_what_the_portal_falls_back_to()
+    {
+        var admitted = ErpImportAdmission.Admit(Supplier(arabicName: "  "));
+
+        admitted.ArabicName.Should().BeNull();
+        admitted.Notes.Should().ContainMatch("*No Arabic name*keeps its own*starts with the English name*");
+    }
+
+    [Fact]
+    public void With_no_contact_person_the_representative_is_named_after_the_company_and_the_note_says_so()
+    {
+        var admitted = ErpImportAdmission.Admit(Supplier(person: null));
+
+        admitted.ContactPerson.Should().BeNull();
+        admitted.RepresentativeName.Should().Be("Damascus Supplies Co");
+        admitted.Notes.Should().ContainMatch("*No contact person*named after the company*");
+    }
+
+    [Fact]
+    public void A_new_supplier_takes_the_erps_address()
+    {
+        var outcome = ErpImportAdmission.AddressOutcome(
+            ErpImportAdmission.Admit(Supplier()), isNew: true, addressesInPortal: 0, blockedByState: null);
+
+        outcome.Write.Should().BeTrue();
+        outcome.Note.Should().StartWith("Address imported");
+    }
+
+    [Fact]
+    public void A_supplier_that_already_has_an_address_keeps_it_and_the_note_says_so()
+    {
+        var outcome = ErpImportAdmission.AddressOutcome(
+            ErpImportAdmission.Admit(Supplier()), isNew: false, addressesInPortal: 1, blockedByState: null);
+
+        outcome.Write.Should().BeFalse();
+        outcome.Note.Should().Contain("already has an address").And.NotContain("imported");
+    }
+
+    [Fact]
+    public void A_supplier_whose_details_cannot_be_edited_gets_no_address_and_is_told_why()
+    {
+        var outcome = ErpImportAdmission.AddressOutcome(
+            ErpImportAdmission.Admit(Supplier()), isNew: false, addressesInPortal: 0, blockedByState: "in state 'UnderReview'");
+
+        outcome.Write.Should().BeFalse(
+            "the domain refuses a contact edit under review, and the first version let that refusal fail the whole update");
+        outcome.Note.Should().Contain("UnderReview");
+    }
+
+    [Fact]
+    public void A_description_longer_than_its_column_is_cut_and_the_note_says_so()
+    {
+        var admitted = ErpImportAdmission.Admit(Supplier() with { Description = new string('x', 2500) });
+
+        admitted.Description.Should().HaveLength(ErpFieldLimits.Description);
+        admitted.Notes.Should().ContainMatch("*description is 2500 characters*first 2000*");
+    }
+
+    [Fact]
+    public void A_group_or_registration_type_longer_than_its_column_is_left_empty_not_cut()
+    {
+        var admitted = ErpImportAdmission.Admit(
+            Supplier() with { SupplierGroup = new string('g', 140), RegistrationType = new string('t', 60) });
+
+        admitted.SupplierGroup.Should().BeNull("a group name cut short is a different group that looks right");
+        admitted.RegistrationType.Should().BeNull();
+        admitted.Notes.Should().ContainMatch("*supplier group*left empty*");
+        admitted.Notes.Should().ContainMatch("*registration type*left empty*");
     }
 }

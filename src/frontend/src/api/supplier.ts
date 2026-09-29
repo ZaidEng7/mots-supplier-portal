@@ -60,6 +60,7 @@ export interface LegalInfo {
   legalNameAr: string | null
   legalNameEn: string | null
   registrationNumber: string | null
+  registrationType?: string | null
   taxId: string | null
   supplierType: string | null
   establishedOn: string | null

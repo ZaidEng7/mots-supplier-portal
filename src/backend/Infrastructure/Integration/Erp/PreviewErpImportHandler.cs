@@ -52,6 +52,8 @@ public sealed class PreviewErpImportHandler(
                 s.ExternalId,
                 s.ReferenceCode,
                 TaxId = s.LegalInfo!.TaxId,
+                AddressCount = s.Addresses.Count,
+                s.OnboardingState,
             })
             .ToListAsync(ct);
 
@@ -60,15 +62,23 @@ public sealed class PreviewErpImportHandler(
             .GroupBy(s => s.ExternalId!)
             .ToDictionary(
                 group => group.Key,
-                group => new ErpImportCandidateMatch(group.First().ReferenceCode, group.First().TaxId));
+                group => new ErpImportCandidateMatch(
+                    group.First().ReferenceCode,
+                    group.First().TaxId,
+                    group.First().AddressCount,
+                    Domain.Suppliers.Supplier.AllowsContactEdits(group.First().OnboardingState)
+                        ? null
+                        : $"in state '{group.First().OnboardingState}'"));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)
             .GroupBy(s => s.TaxId!)
             .ToDictionary(group => group.Key, group => group.First().ReferenceCode);
 
+        var registrationNumbers = await RegistrationNumbersInPortal.ReadAsync(db, ct);
+
         var erpSuppliers = await source.ListSuppliersAsync(ct);
 
-        return ErpImportPreviewBuilder.Build(erpSuppliers, byExternalId, unlinkedByTaxId);
+        return ErpImportPreviewBuilder.Build(erpSuppliers, byExternalId, unlinkedByTaxId, registrationNumbers);
     }
 }

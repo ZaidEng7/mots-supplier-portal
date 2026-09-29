@@ -47,7 +47,8 @@ public sealed record LegalInfoDto(
     string? RegistrationNumber,
     string? TaxId,
     string? SupplierType,
-    DateOnly? EstablishedOn);
+    DateOnly? EstablishedOn,
+    string? RegistrationType = null);
 
 public sealed record AddressDto(
     Guid Id,

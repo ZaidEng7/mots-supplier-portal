@@ -39,6 +39,25 @@
 // A SUPPLIER DISABLED IN THE ERP ARRIVES SUSPENDED: visible in the registry, excluded from invitations, and
 // reversible, which is what "disabled" means there. Deactivated would have been the wrong word - in this product
 // that state is permanent.
+//
+// A SUPPLIER THE ERP HAS NOT APPROVED ARRIVES SUSPENDED TOO, for the same reason and with its state in the note.
+// Seven Gates runs an approval workflow, and a record still waiting for the chief accountant is not one the ministry
+// should invite to a tender. Only a supplier with no workflow state at all, or one marked Approved, arrives active.
+//
+//
+// WHAT IS LEFT EMPTY
+//
+// ANYTHING THE ERP DOES NOT HAVE STAYS EMPTY, rather than being filled with something that looks like data. Two
+// fields cannot be empty, because the portal requires them: a new supplier's Arabic name starts as the English one,
+// and its representative is named after the company. An existing supplier keeps what it has. The notes are worded to
+// be true of both, because the same admission serves a create and an update.
+//
+// A VALUE LONGER THAN ITS COLUMN IS MEASURED HERE, not discovered by the database refusing the supplier; the rule is
+// in ErpFieldLimits.
+//
+// THE ADDRESS IS NOT DECIDED HERE, only mapped. Whether it is written depends on the supplier the portal already has
+// - one with an address keeps it, one under review cannot be edited - so AddressOutcome decides that, for the preview
+// and the run alike.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -52,7 +71,18 @@ public sealed record AdmittedSupplier(
     bool EmailIsPlaceholder,
     string? Currency,
     bool Suspended,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    string? ArabicName = null,
+    string? ContactPerson = null,
+    ErpAddressMapping? Address = null,
+    string? Description = null,
+    string? SupplierGroup = null,
+    string? RegistrationType = null)
+{
+    public string RepresentativeName => ContactPerson ?? Name;
+}
+
+public sealed record ErpAddressOutcome(bool Write, string Note);
 
 public static partial class ErpImportAdmission
 {
@@ -95,8 +125,77 @@ public static partial class ErpImportAdmission
             notes.Add("Disabled in the ERP; arrives suspended - visible, but cannot be invited to tenders.");
         }
 
-        return new AdmittedSupplier(name!, email!, placeholder, currency?.ToUpperInvariant(), supplier.Disabled, notes);
+        var workflowState = supplier.WorkflowState?.Trim();
+        var notApproved = !string.IsNullOrEmpty(workflowState)
+            && !string.Equals(workflowState, ApprovedWorkflowState, StringComparison.OrdinalIgnoreCase);
+        if (notApproved)
+        {
+            notes.Add(
+                $"Not yet approved in the ERP ('{workflowState}'); arrives suspended - visible, but cannot be invited "
+                + "to tenders until a person reinstates it.");
+        }
+
+        var arabicName = string.IsNullOrWhiteSpace(supplier.ArabicName) ? null : supplier.ArabicName.Trim();
+        if (arabicName is null)
+        {
+            notes.Add("No Arabic name in the ERP; a supplier the portal already has keeps its own, and a new one "
+                      + "starts with the English name.");
+        }
+
+        var person = string.IsNullOrWhiteSpace(supplier.ContactPersonName) ? null : supplier.ContactPersonName.Trim();
+        if (person is null)
+        {
+            notes.Add("No contact person in the ERP; an existing representative keeps their name, and a new one is "
+                      + "named after the company.");
+        }
+
+        return new AdmittedSupplier(
+            name!,
+            email!,
+            placeholder,
+            currency?.ToUpperInvariant(),
+            supplier.Disabled || notApproved,
+            notes,
+            ErpFieldLimits.Cut(arabicName, ErpFieldLimits.Name, "Arabic name", notes),
+            ErpFieldLimits.Cut(person, ErpFieldLimits.PersonName, "contact person's name", notes),
+            ErpAddressMapper.Map(supplier.Address),
+            ErpFieldLimits.Cut(supplier.Description, ErpFieldLimits.Description, "description", notes),
+            ErpFieldLimits.DropIfTooLong(supplier.SupplierGroup, ErpFieldLimits.SupplierGroup, "supplier group", notes),
+            ErpFieldLimits.DropIfTooLong(
+                supplier.RegistrationType, ErpFieldLimits.RegistrationType, "registration type", notes));
     }
+
+    // What becomes of the ERP's address for one supplier, and the note that says so.
+    //
+    // A NEW SUPPLIER TAKES IT. One the portal already has takes it only if it has no address yet and its details may be
+    // edited: an existing address may have been corrected here, and a supplier whose application is waiting for review
+    // - or was refused - cannot have its contact details changed underneath the reviewer. Either way the note says what
+    // happened, so an update row never claims an address was imported when the portal kept its own.
+    public static ErpAddressOutcome AddressOutcome(
+        AdmittedSupplier admitted, bool isNew, int addressesInPortal, string? blockedByState)
+    {
+        var mapping = admitted.Address ?? ErpAddressMapper.Map(null);
+
+        if (mapping.Address is null) return new ErpAddressOutcome(false, mapping.Note);
+        if (isNew) return new ErpAddressOutcome(true, mapping.Note);
+
+        if (addressesInPortal > 0)
+        {
+            return new ErpAddressOutcome(false, "The supplier already has an address in the portal; the ERP's was not applied.");
+        }
+
+        if (blockedByState is not null)
+        {
+            return new ErpAddressOutcome(
+                false,
+                $"The ERP's address was not added: the supplier is {blockedByState}, and its details cannot be changed "
+                + "until that is settled. The next run adds it.");
+        }
+
+        return new ErpAddressOutcome(true, mapping.Note);
+    }
+
+    public const string ApprovedWorkflowState = "Approved";
 
     public static bool IsPlaceholder(string? email) =>
         email is not null && email.EndsWith("@" + PlaceholderDomain, StringComparison.OrdinalIgnoreCase);
