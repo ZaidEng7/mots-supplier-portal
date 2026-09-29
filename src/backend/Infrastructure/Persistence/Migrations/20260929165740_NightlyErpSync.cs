@@ -2,7 +2,8 @@
 //
 // A SUPPLIER THE IMPORT ALREADY SUSPENDED IS REMEMBERED AS SUSPENDED BY IT. Before this column existed the import
 // suspended a supplier the ERP had disabled or not approved and remembered nothing, and it wrote no audit row for it -
-// a person's suspension, or the expiry rule's, always does. Starting such a supplier as NotDisabled would have the
+// a person's suspension, or the expiry rule's, always does. So a suspended supplier whose latest lifecycle row is not a
+// suspension - none at all, or a reinstatement since followed by the import's silent one - was suspended by the import. Starting such a supplier as NotDisabled would have the
 // first run take it for one already out of service for another reason and only mark it, and a person who then
 // reinstated it would be overruled within the hour.
 //
@@ -40,9 +41,11 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                 SET "ErpDisabledState" = 'SuspendedAsPending'
                 WHERE s."ExternalId" IS NOT NULL
                   AND s."LifecycleState" = 'Suspended'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM ops.audit_log a
-                      WHERE a."AggregateId" = s."Id" AND a."ToState" = 'Suspended');
+                  AND COALESCE((
+                      SELECT a."ToState" FROM ops.audit_log a
+                      WHERE a."AggregateId" = s."Id" AND a."ToState" IN ('Active', 'Suspended', 'Deactivated')
+                      ORDER BY a."OccurredAt" DESC
+                      LIMIT 1), 'Active') <> 'Suspended';
                 """);
 
             migrationBuilder.AddColumn<DateTimeOffset>(

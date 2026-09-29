@@ -172,7 +172,7 @@ public sealed class RunErpImportHandler(
                 registrationNumbers[erpSupplier.ExternalId],
                 password,
                 actor,
-                plan.HoldsTurnedAway(erpSupplier.ExternalId),
+                plan.HoldsTurnedAway,
                 ct));
         }
 
@@ -519,13 +519,15 @@ public sealed class RunErpImportHandler(
     //
     // A SUPPLIER THE ERP TURNS AWAY - disables, or has not approved - IS RECORDED THE WAY AN ABSENCE IS: suspended once
     // if the supplier is active, only marked if it is out of service already, and a person's reinstatement after the
-    // one suspension stands - see RecordErpDisabled.
+    // one suspension stands - see RecordErpStanding. While the plan holds a mass turn-away back, nobody's memory of it
+    // is touched either, because the read that caused it is not believed.
     //
     // WHEN A MARK CLEARS, THE AUTOMATIC REINSTATEMENT IS ASKED AGAIN. A marked supplier - missing on an earlier run, or
     // turned away while suspended - may have had its renewed document approved while the mark held the reinstatement
     // back. The ERP returning it, or taking it back, is the moment that hold ends, and nothing else would look again;
     // AutomaticReinstatement explains the rest. The sync's own suspensions are never lifted this way: reinstating
-    // somebody the ERP turned away is a person's decision.
+    // somebody the ERP turned away is a person's decision - except a supplier suspended only while the ERP approved it
+    // and untouched since, which the ERP's approval releases (RecordErpStanding explains when).
     private async Task<ErpImportResultRow> UpdateAsync(
         Supplier existing,
         ErpSupplier erpSupplier,
@@ -562,11 +564,7 @@ public sealed class RunErpImportHandler(
         if (address.Write) AddAddress(existing, admitted.Address!.Address);
         notes.Add(address.Note);
 
-        var held = holdTurnedAway
-            && Supplier.ErpDisabledChangeFor(
-                existing.ErpDisabledState,
-                existing.LifecycleState == SupplierLifecycleState.Active,
-                admitted.Standing) == ErpDisabledChange.Suspended;
+        var held = holdTurnedAway && admitted.Standing != ErpStanding.Usable;
         var disabled = held ? ErpDisabledChange.None : existing.RecordErpStanding(admitted.Standing);
 
         if (disabled == ErpDisabledChange.Suspended)

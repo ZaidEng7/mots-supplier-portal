@@ -151,7 +151,8 @@ public static class ErpImportPreviewBuilder
         var standing = candidate is null
             ? ErpDisabledChange.None
             : Supplier.ErpDisabledChangeFor(candidate.ErpDisabledState, candidate.IsActive, admitted.Standing);
-        var held = standing == ErpDisabledChange.Suspended && plan.HoldsTurnedAway(supplier.ExternalId);
+        var held = plan.HoldsTurnedAway && admitted.Standing != ErpStanding.Usable;
+        if (held) standing = ErpDisabledChange.None;
 
         if (candidate is null && admitted.ArrivalNote is not null)
         {

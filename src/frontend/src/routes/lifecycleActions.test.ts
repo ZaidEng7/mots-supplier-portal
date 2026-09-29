@@ -14,7 +14,9 @@
 // work.
 //
 // And suspend and reactivate are never offered at the same time: they are opposites, and offering both would mean the
-// state is neither.
+// state is neither. The one exception is a supplier the ERP sync suspended only while Seven Gates approves it: there
+// Suspend means "keep it suspended" - make the suspension a person's, so the ERP's approval does not lift it - and
+// Reactivate still means what it says.
 
 import { describe, expect, it } from 'vitest'
 import { lifecycleActionsFor } from './lifecycleActions'
@@ -34,6 +36,16 @@ describe('lifecycleActionsFor', () => {
       canReactivate: true,
       canDeactivate: true,
     })
+  })
+
+  it('offers keeping a supplier suspended when the ERP approval would otherwise lift it', () => {
+    expect(lifecycleActionsFor('Suspended', true)).toEqual({
+      canSuspend: true,
+      canReactivate: true,
+      canDeactivate: true,
+    })
+    expect(lifecycleActionsFor('Active', true).canSuspend).toBe(true)
+    expect(lifecycleActionsFor('Deactivated', true).canSuspend).toBe(false)
   })
 
   it('offers nothing on a deactivated supplier, because it is terminal', () => {

@@ -128,7 +128,7 @@ public sealed class ErpImportAdmissionTests
         var admitted = ErpImportAdmission.Admit(Supplier(workflowState: state));
 
         admitted.Suspended.Should().BeTrue("a record still waiting for approval there is not one to invite here");
-        admitted.ArrivalNote.Should().Match($"*'{state}'*suspended*");
+        admitted.ArrivalNote.Should().Match($"*'{state}'*suspended*comes into service by itself once the ERP approves it*");
         admitted.TurnedAway.Should().Be($"Not approved in the ERP ('{state}')");
     }
 

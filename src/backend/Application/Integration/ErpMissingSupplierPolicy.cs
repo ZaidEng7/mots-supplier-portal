@@ -87,21 +87,26 @@ public static class ErpMissingSupplierPolicy
         return new ErpMissingSupplierDecision(true, null);
     }
 
-    // Whether this run may suspend the active suppliers the ERP now turns away - disables, or has not approved.
+    // Whether this run may suspend the active suppliers the ERP now turns away - disables, or has not approved - together
+    // with the ones that have disappeared from it.
     //
-    // THE SAME QUARTER, FOR THE SAME REASON. A handful of suppliers turned away is Seven Gates' ordinary work; most of
-    // them at once is a change on their side - a workflow renamed, re-saved, or reset to its first state - and an hourly
-    // run nobody watches would otherwise suspend the ministry's whole supplier base and leave a person to reinstate
-    // every one by hand, even after the ERP is put right. Above the limit nothing is suspended and the run says so.
-    public static string? TurnedAwayHeldBack(int activeLinkedInPortal, int turnedAway)
+    // ONE LIMIT FOR THE RUN, NOT ONE PER KIND. A handful turned away is Seven Gates' ordinary work; most of them at once
+    // is a change on their side - a workflow renamed, re-saved, or reset to its first state - and an hourly run nobody
+    // watches would otherwise suspend the ministry's whole supplier base and leave a person to reinstate every one by
+    // hand, even after the ERP is put right. The first version checked the two kinds separately, so a run could suspend
+    // a quarter as missing and another quarter as turned away - half the suppliers while claiming a quarter was the
+    // most. Above the limit neither kind is suspended, and the run says so.
+    public static string? TogetherHeldBack(int activeLinkedInPortal, int missingToSuspend, int turnedAway)
     {
         var limit = Math.Max(AlwaysAllowed, (int)Math.Floor(activeLinkedInPortal * LargestShareSuspendedInOneRun));
+        var total = missingToSuspend + turnedAway;
 
-        return turnedAway <= limit
+        return total <= limit
             ? null
-            : $"The ERP turned away {turnedAway} active suppliers at once - disabled, or not approved - more than the "
-              + $"{limit} one run may suspend (a quarter of the {activeLinkedInPortal} active suppliers imported from it, "
-              + $"and never fewer than {AlwaysAllowed}). None were suspended for it. Check with Seven Gates whether "
-              + "something changed on their side before anyone suspends them.";
+            : $"This run would suspend {total} suppliers - {missingToSuspend} no longer in the ERP and {turnedAway} it "
+              + $"turned away (disabled, or not approved) - more than the {limit} one run may suspend (a quarter of the "
+              + $"{activeLinkedInPortal} active suppliers imported from it, and never fewer than {AlwaysAllowed}). None "
+              + "were suspended. Check with Seven Gates whether something changed on their side before anyone suspends "
+              + "them.";
     }
 }

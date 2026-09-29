@@ -232,7 +232,7 @@ public sealed class ErpSyncPlanTests
 
         plan.TurnedAwayHeld.Should().HaveCount(
             6, "six of eight at once is a change on Seven Gates' side, not six companies each being turned away");
-        plan.SuspensionsHeldBack.Should().Contain("turned away 6");
+        plan.SuspensionsHeldBack.Should().Contain("6 it turned away");
     }
 
     [Fact]
@@ -248,15 +248,33 @@ public sealed class ErpSyncPlanTests
     }
 
     [Fact]
-    public void Suppliers_already_suspended_for_the_same_reason_do_not_count_towards_the_limit()
+    public void Suppliers_a_person_reinstated_after_the_sync_suspended_them_do_not_count_towards_the_limit()
     {
         var portal = Enumerable.Range(1, 8)
-            .Select(i => Portal($"S{i}", active: i > 6, erpState: i <= 6 ? SupplierErpDisabledState.SuspendedAsPending
+            .Select(i => Portal($"S{i}", erpState: i <= 6 ? SupplierErpDisabledState.SuspendedAsDisabled
                 : SupplierErpDisabledState.NotDisabled))
             .ToList();
         var erp = portal.Select(p => Erp(p.ExternalId, workflowState: "Pending Chief Accountant Approval")).ToList();
 
         ErpSyncPlan.Build(erp, portal).TurnedAwayHeld.Should().BeNull(
-            "six were suspended on earlier runs and nothing happens to them now; only two would be suspended in this one");
+            "six are active only because a person reinstated them after the sync's one suspension; nothing happens to "
+            + "them now, and counting them would let a few reinstatements hold back an ordinary run");
+    }
+
+    [Fact]
+    public void Missing_and_turned_away_suppliers_share_one_limit_for_the_run()
+    {
+        var portal = Enumerable.Range(1, 20).Select(i => Portal($"S{i}")).ToList();
+        var erp = portal.Skip(4)
+            .Select((p, i) => Erp(p.ExternalId, workflowState: i < 3 ? "Pending Chief Accountant Approval" : null))
+            .ToList();
+
+        var plan = ErpSyncPlan.Build(erp, portal);
+
+        plan.ToSuspend.Should().BeEmpty(
+            "four missing and three turned away are each within the limit of five, but seven in one run is not; the "
+            + "first version checked them separately and could suspend twice the stated share");
+        plan.TurnedAwayHeld.Should().HaveCount(3);
+        plan.SuspensionsHeldBack.Should().Contain("would suspend 7");
     }
 }

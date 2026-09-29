@@ -272,7 +272,8 @@ export function ReviewApplicationPage() {
   const canDecide = state === 'UnderReview'
 
   const lifecycle = supplier.lifecycleState
-  const { canSuspend, canReactivate, canDeactivate } = lifecycleActionsFor(lifecycle)
+  const liftsWhenErpApproves = view.erpSync?.liftsWhenErpApproves === true
+  const { canSuspend, canReactivate, canDeactivate } = lifecycleActionsFor(lifecycle, liftsWhenErpApproves)
 
   return (
     <div className="flex flex-col gap-6">
@@ -310,7 +311,7 @@ export function ReviewApplicationPage() {
         ) : null}
         {canSuspend ? (
           <Button variant="secondary" onClick={() => setLifecycleAction('suspend')}>
-            {t('review.suspend')}
+            {t(liftsWhenErpApproves ? 'review.keepSuspended' : 'review.suspend')}
           </Button>
         ) : null}
         {canReactivate ? (
@@ -324,6 +325,10 @@ export function ReviewApplicationPage() {
           </Button>
         ) : null}
       </div>
+
+      {liftsWhenErpApproves ? (
+        <p role="note" style={{ color: 'var(--color-text-secondary)' }}>{t('review.liftsWhenErpApproves')}</p>
+      ) : null}
 
       <Card title={t('review.profile')}>
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">

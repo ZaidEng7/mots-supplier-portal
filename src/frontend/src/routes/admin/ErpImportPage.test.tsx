@@ -234,6 +234,28 @@ describe('ErpImportPage', () => {
     expect(screen.getByText(/returned no suppliers at all/)).toBeInTheDocument()
   })
 
+  it('does not say nobody was suspended when a hold stood beside suspensions that went ahead', async () => {
+    restore = mockFetch({
+      [RUN]: {
+        __byMethod: {
+          POST: {
+            ...OUTCOME,
+            suspended: 2,
+            suspensionsHeldBack: 'The ERP returned no suppliers at all, so the 80 the portal holds from it were not suspended.',
+          },
+        },
+      },
+    })
+
+    renderPage(<ErpImportPage />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
+
+    expect(await screen.findByText('Some suspensions were held back')).toBeInTheDocument()
+    expect(screen.queryByText('Nobody was suspended')).not.toBeInTheDocument()
+  })
+
   it('forecasts a held-back run in the future tense', async () => {
     restore = mockFetch({
       [PREVIEW]: {

@@ -41,7 +41,12 @@ public sealed class GetReviewerSupplierViewHandler(AppDbContext db) : IGetReview
                 a.ResolvedAt))
             .ToListAsync(ct);
 
-        var erpSync = new ErpSyncDto(supplier.ExternalId, supplier.SyncStatus.ToString(), supplier.LastSyncedAt);
+        var erpSync = new ErpSyncDto(
+            supplier.ExternalId,
+            supplier.SyncStatus.ToString(),
+            supplier.LastSyncedAt,
+            supplier.LifecycleState == SupplierLifecycleState.Suspended
+            && supplier.ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending);
         return new ReviewerSupplierViewDto(
             SupplierDtoMapper.ToDto(supplier), erpSync, documents, annotations, supplier.RowVersion);
     }

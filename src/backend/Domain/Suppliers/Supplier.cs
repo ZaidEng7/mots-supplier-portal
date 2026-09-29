@@ -822,8 +822,20 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         LifecycleState = SupplierLifecycleState.Active;
     }
 
+    // A supplier the sync suspended only while the ERP approves it may be suspended again by a person, without its
+    // lifecycle changing: that is how they make the suspension theirs, so the ERP's approval no longer lifts it. It
+    // already shows as suspended, and without this the only ways to keep it out were a reinstatement nobody meant, or
+    // deactivation, which cannot be undone.
     public void Suspend(string reason)
     {
+        if (LifecycleState == SupplierLifecycleState.Suspended
+            && ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending
+            && !string.IsNullOrWhiteSpace(reason))
+        {
+            EndErpPendingHold();
+            return;
+        }
+
         if (LifecycleState != SupplierLifecycleState.Active)
         {
             throw new DomainException(
@@ -874,10 +886,12 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         EndErpPendingHold();
     }
 
-    // Once a person - or a rule acting for one - has changed this supplier's lifecycle, a suspension the sync made while
-    // the ERP was approving it is no longer the sync's to lift. It is still remembered as handled, so the ERP's pending
-    // state does not suspend it a second time.
-    private void EndErpPendingHold()
+    // Once a person - or a rule acting for one - has acted on this supplier, a suspension the sync made while the ERP
+    // was approving it is no longer the sync's to lift. It is still remembered as handled, so the ERP's pending state
+    // does not suspend it a second time. The expiry rule calls this too: an award-critical document that expires while
+    // the supplier waits would otherwise be forgotten, because the rule suspends only active suppliers and a document
+    // expires once - the ERP's approval would then bring back a supplier with an expired document.
+    public void EndErpPendingHold()
     {
         if (ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending)
         {
@@ -1041,7 +1055,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // missing email with a placeholder: passing the placeholder through here would overwrite a real address a
     // supplier later gave the portal, just because the ERP still has nothing.
     //
-    // WHETHER THE ERP HAS DISABLED IT IS RECORDED SEPARATELY, by RecordErpDisabled, because that decides a lifecycle
+    // WHETHER THE ERP TURNS IT AWAY IS RECORDED SEPARATELY, by RecordErpStanding, because that decides a lifecycle
     // and this only copies fields.
     //
     // A RUN THAT FINDS NOTHING NEW CHANGES NOTHING. The sync runs every hour, and a supplier whose version moved on every

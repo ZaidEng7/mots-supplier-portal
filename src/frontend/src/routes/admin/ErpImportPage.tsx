@@ -168,7 +168,9 @@ export function ErpImportPage() {
                 tone={outcome.failed > 0 ? 'danger' : 'neutral'}
               />
             </MetricRow>
-            {outcome.suspensionsHeldBack ? <HeldBack reason={outcome.suspensionsHeldBack} /> : null}
+            {outcome.suspensionsHeldBack ? (
+              <HeldBack reason={outcome.suspensionsHeldBack} someSuspended={outcome.suspended > 0} />
+            ) : null}
           </Card>
 
           <Card title={t('erpImport.rowsTitle')}>
@@ -199,7 +201,9 @@ export function ErpImportPage() {
                 tone={report.refused > 0 ? 'warning' : 'neutral'}
               />
             </MetricRow>
-            {report.suspensionsHeldBack ? <HeldBack reason={report.suspensionsHeldBack} forecast /> : null}
+            {report.suspensionsHeldBack ? (
+              <HeldBack reason={report.suspensionsHeldBack} someSuspended={report.wouldSuspend > 0} forecast />
+            ) : null}
           </Card>
 
           <Card title={t('erpImport.rowsTitle')}>
@@ -247,13 +251,21 @@ function PreviewRow({ row }: Readonly<{ row: ErpImportPreviewRow }>) {
 
 // When the ERP's list looks like a broken read rather than real deletions, nothing is suspended and the reason is
 // shown here in the server's own words - the numbers in it are the ones a person needs to decide whether Seven Gates
-// really removed those suppliers.
-function HeldBack({ reason, forecast = false }: Readonly<{ reason: string; forecast?: boolean }>) {
+// really removed those suppliers. "Nobody was suspended" is said only when nobody was: a hold on one kind can stand
+// beside suspensions of the other - a few disappearances held back while one supplier the ERP disabled is suspended.
+function HeldBack({
+  reason,
+  someSuspended,
+  forecast = false,
+}: Readonly<{ reason: string; someSuspended: boolean; forecast?: boolean }>) {
   const { t } = useTranslation()
+  const title = someSuspended
+    ? (forecast ? 'erpImport.heldBackSomeForecastTitle' : 'erpImport.heldBackSomeTitle')
+    : (forecast ? 'erpImport.heldBackForecastTitle' : 'erpImport.heldBackTitle')
 
   return (
     <div role="status" className="mt-4 flex flex-col gap-1">
-      <Badge tone="warning">{t(forecast ? 'erpImport.heldBackForecastTitle' : 'erpImport.heldBackTitle')}</Badge>
+      <Badge tone="warning">{t(title)}</Badge>
       <p style={{ color: 'var(--color-text-secondary)' }}>{reason}</p>
     </div>
   )

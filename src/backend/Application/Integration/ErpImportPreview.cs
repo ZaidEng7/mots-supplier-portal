@@ -34,9 +34,10 @@ public sealed record ErpImportPreviewRow(
     IReadOnlyList<string> Notes,
     string? MatchedReferenceCode);
 
-// WouldSuspend counts portal suppliers the ERP no longer returns, which is why it sits outside the other three:
-// those count the ERP's rows, this counts the portal's. SuspensionsHeldBack is set when the run would refuse to
-// suspend them at all, and says why - see ErpMissingSupplierPolicy.
+// WouldSuspend counts every supplier the run would suspend: portal suppliers the ERP no longer returns, and ERP rows it
+// now turns away. So the ERP's rows add up as WouldCreate + WouldUpdate + Refused + the Suspend rows the ERP returned;
+// the rest of WouldSuspend is the portal's. SuspensionsHeldBack is set when the run would refuse to suspend some or
+// all of them, and says why - see ErpMissingSupplierPolicy.
 public sealed record ErpImportPreviewReport(
     int ErpSupplierCount,
     int WouldCreate,

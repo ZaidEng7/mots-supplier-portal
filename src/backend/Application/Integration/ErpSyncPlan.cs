@@ -66,8 +66,9 @@
 // is how they find out. Reinstating it a second time is respected. It is not a rename candidate: it left on an earlier
 // run, and the same months-later reasoning applies. It counts against the same limit as this run's.
 //
-// A DISABLE IS REMEMBERED THE SAME WAY, on the supplier rather than here, because a disabled supplier is still in
-// the list and so never reaches this plan - see Supplier.RecordErpDisabled.
+// A SUPPLIER THE ERP TURNS AWAY IS REMEMBERED THE SAME WAY, on the supplier rather than here - see
+// Supplier.RecordErpStanding. It is still in the list, so it is never "missing"; the plan only counts how many of them
+// a run would suspend, against the same limit as the missing ones.
 //
 // A READ THAT IS NOT BELIEVED MARKS NOBODY, and an empty read is never believed even when only suppliers already out
 // of service are missing. Why the quarter limit applies to suspensions only is in ErpMissingSupplierPolicy.
@@ -104,7 +105,7 @@ public sealed record ErpSyncPlan(
     string? SuspensionsHeldBack,
     IReadOnlySet<string>? TurnedAwayHeld = null)
 {
-    public bool HoldsTurnedAway(string externalId) => TurnedAwayHeld?.Contains(externalId) == true;
+    public bool HoldsTurnedAway => TurnedAwayHeld is not null;
 
     public static ErpSyncPlan Build(IReadOnlyList<ErpSupplier> erp, IReadOnlyList<PortalLinkedSupplier> portal)
     {
@@ -153,17 +154,18 @@ public sealed record ErpSyncPlan(
                     linked.ErpDisabledState, linked.IsActive, ErpImportAdmission.StandingOf(e)) == ErpDisabledChange.Suspended)
             .Select(e => e.ExternalId)
             .ToHashSet(StringComparer.Ordinal);
-        var turnedAwayHeldBack = ErpMissingSupplierPolicy.TurnedAwayHeldBack(activeLinked, turnedAway.Count);
+        var togetherHeldBack = ErpMissingSupplierPolicy.TogetherHeldBack(
+            activeLinked, decision.MaySuspend ? activeMissing.Count : 0, turnedAway.Count);
 
-        var heldBack = string.Join(" ", new[] { decision.HeldBackBecause, turnedAwayHeldBack }.Where(m => m is not null));
+        var heldBack = string.Join(" ", new[] { decision.HeldBackBecause, togetherHeldBack }.Where(m => m is not null));
 
         return new ErpSyncPlan(
             renames,
-            decision.MaySuspend ? activeMissing : [],
+            decision.MaySuspend && togetherHeldBack is null ? activeMissing : [],
             decision.MaySuspend ? outOfServiceMissing : [],
             activeLinked,
             heldBack.Length == 0 ? null : heldBack,
-            turnedAwayHeldBack is null ? null : turnedAway);
+            togetherHeldBack is null ? null : turnedAway);
     }
 
     private static string? Signal(ErpSupplier arrival, PortalLinkedSupplier vanished)

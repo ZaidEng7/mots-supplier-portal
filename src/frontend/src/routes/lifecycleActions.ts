@@ -10,6 +10,9 @@
 //
 // Deactivation is reachable only from Suspended, matching the domain, because a direct Active to Deactivated path would
 // make an irreversible action a single click on a live supplier.
+//
+// A supplier the ERP sync suspended only while Seven Gates approves it is offered Suspend too, as "keep suspended":
+// the ERP's approval lifts that suspension by itself, and suspending it again is how a person makes it theirs.
 
 export interface LifecycleActions {
   canSuspend: boolean
@@ -17,9 +20,9 @@ export interface LifecycleActions {
   canDeactivate: boolean
 }
 
-export function lifecycleActionsFor(lifecycleState: string): LifecycleActions {
+export function lifecycleActionsFor(lifecycleState: string, liftsWhenErpApproves = false): LifecycleActions {
   return {
-    canSuspend: lifecycleState === 'Active',
+    canSuspend: lifecycleState === 'Active' || (lifecycleState === 'Suspended' && liftsWhenErpApproves),
     canReactivate: lifecycleState === 'Suspended',
     canDeactivate: lifecycleState === 'Suspended',
   }

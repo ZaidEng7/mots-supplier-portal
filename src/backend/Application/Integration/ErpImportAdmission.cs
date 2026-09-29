@@ -130,7 +130,8 @@ public static partial class ErpImportAdmission
             : turnedAway is null
                 ? null
                 : $"Not yet approved in the ERP ('{supplier.WorkflowState?.Trim()}'); arrives suspended - visible, but "
-                  + "cannot be invited to tenders until a person reinstates it.";
+                  + "cannot be invited to tenders - and comes into service by itself once the ERP approves it, unless "
+                  + "a person acts on it first.";
 
         var arabicName = string.IsNullOrWhiteSpace(supplier.ArabicName) ? null : supplier.ArabicName.Trim();
         if (arabicName is null)

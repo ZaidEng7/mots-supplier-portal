@@ -805,6 +805,62 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     [Fact]
+    public async Task A_supplier_whose_award_critical_document_expired_while_it_waited_is_not_released_by_the_approval()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-AWAITING-EXPIRED");
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
+
+        await ExpireAnAwardCriticalDocumentAsync(id);
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
+
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "the expiry rule suspends only active suppliers and a document expires once; released, the supplier could "
+            + "be invited with an expired commercial registration and nothing would ever look again");
+    }
+
+    [Fact]
+    public async Task A_person_who_keeps_a_waiting_supplier_suspended_is_not_overruled_by_the_approval()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-AWAITING-KEPT");
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
+        await SetLifecycleAsync(id, supplier => supplier.Suspend("Sanctions check pending."));
+
+        await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Approved" }));
+
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Suspended,
+            "suspending it again is how a person makes the suspension theirs; the ERP approving it says nothing about "
+            + "their reason");
+    }
+
+    [Fact]
+    public async Task A_held_back_mass_disable_leaves_a_waiting_supplier_able_to_come_back_when_approved()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var ids = Enumerable.Range(1, 8).Select(i => Unique($"ERP-MASS-{i}")).ToList();
+        var waiting = Unique("ERP-MASS-WAITING");
+        await RunAsync(new FixedSource(
+            [.. ids.Select(ErpRow), ErpRow(waiting) with { WorkflowState = "Pending Chief Accountant Approval" }]));
+
+        var held = await RunAsync(new FixedSource(
+            [.. ids.Select(id => ErpRow(id) with { Disabled = true }), ErpRow(waiting) with { Disabled = true }]));
+        held.SuspensionsHeldBack.Should().NotBeNull();
+
+        await RunAsync(new FixedSource([.. ids.Select(ErpRow), ErpRow(waiting) with { WorkflowState = "Approved" }]));
+
+        (await LifecycleOfAsync(waiting)).Should().Be(
+            SupplierLifecycleState.Active,
+            "the disable came from a read the run did not believe; turning its pending hold into a disable would have "
+            + "left it for a person to reinstate by hand once the ERP was put right");
+    }
+
+    [Fact]
     public async Task Most_suppliers_turned_away_at_once_are_held_back_and_a_few_are_suspended()
     {
         await SuspendEveryImportedSupplierAsync();
@@ -818,7 +874,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         var preview = await PreviewAsync(many);
         var held = await RunAsync(many);
 
-        held.SuspensionsHeldBack.Should().Contain("turned away 6");
+        held.SuspensionsHeldBack.Should().Contain("6 it turned away");
         preview.SuspensionsHeldBack.Should().Be(held.SuspensionsHeldBack, "the preview must warn of the same hold");
         held.Suspended.Should().Be(0);
         foreach (var id in ids)

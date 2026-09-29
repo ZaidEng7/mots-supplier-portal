@@ -12,6 +12,7 @@
 namespace MotsSupplierPortal.Tests.Unit.Erp;
 
 using FluentAssertions;
+using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 
 public sealed class ErpDisabledMemoryTests
@@ -180,27 +181,65 @@ public sealed class ErpDisabledMemoryTests
         supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
     }
 
+    [Fact]
+    public void A_person_keeps_a_pending_suspension_by_suspending_the_supplier_again()
+    {
+        var supplier = Imported();
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+
+        supplier.Suspend("Sanctions check pending.");
+
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+        supplier.ErpDisabledState.Should().Be(
+            SupplierErpDisabledState.SuspendedAsDisabled,
+            "it already showed as suspended, so without this a person had no way to keep it out but a reinstatement "
+            + "nobody meant, or a deactivation that cannot be undone");
+        supplier.RecordErpStanding(ErpStanding.Usable).Should().Be(ErpDisabledChange.None);
+        supplier.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+    }
+
+    [Fact]
+    public void A_supplier_that_is_not_waiting_for_the_erp_still_cannot_be_suspended_twice()
+    {
+        var supplier = Imported();
+        supplier.Suspend("Suspended by the ministry for cause.");
+
+        var again = () => supplier.Suspend("Again.");
+
+        again.Should().Throw<DomainException>("only the sync's pending hold may be taken over this way");
+    }
+
     [Theory]
-    [InlineData(SupplierErpDisabledState.NotDisabled, true, ErpStanding.AwaitingApproval)]
-    [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Usable)]
-    [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Disabled)]
-    [InlineData(SupplierErpDisabledState.MarkedDisabled, false, ErpStanding.Usable)]
-    [InlineData(SupplierErpDisabledState.NotDisabled, false, ErpStanding.Disabled)]
-    public void The_forecast_the_preview_uses_is_what_recording_does(
-        SupplierErpDisabledState state, bool active, ErpStanding standing)
+    [InlineData(SupplierErpDisabledState.NotDisabled, true, ErpStanding.AwaitingApproval,
+        ErpDisabledChange.Suspended, SupplierLifecycleState.Suspended, SupplierErpDisabledState.SuspendedAsPending)]
+    [InlineData(SupplierErpDisabledState.NotDisabled, true, ErpStanding.Disabled,
+        ErpDisabledChange.Suspended, SupplierLifecycleState.Suspended, SupplierErpDisabledState.SuspendedAsDisabled)]
+    [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Usable,
+        ErpDisabledChange.Released, SupplierLifecycleState.Active, SupplierErpDisabledState.NotDisabled)]
+    [InlineData(SupplierErpDisabledState.SuspendedAsPending, false, ErpStanding.Disabled,
+        ErpDisabledChange.None, SupplierLifecycleState.Suspended, SupplierErpDisabledState.SuspendedAsDisabled)]
+    [InlineData(SupplierErpDisabledState.MarkedDisabled, false, ErpStanding.Usable,
+        ErpDisabledChange.Cleared, SupplierLifecycleState.Suspended, SupplierErpDisabledState.NotDisabled)]
+    [InlineData(SupplierErpDisabledState.NotDisabled, false, ErpStanding.Disabled,
+        ErpDisabledChange.Marked, SupplierLifecycleState.Suspended, SupplierErpDisabledState.MarkedDisabled)]
+    public void Recording_does_what_the_preview_forecasts_and_leaves_the_supplier_as_stated(
+        SupplierErpDisabledState state,
+        bool active,
+        ErpStanding standing,
+        ErpDisabledChange expected,
+        SupplierLifecycleState lifecycleAfter,
+        SupplierErpDisabledState stateAfter)
     {
         var supplier = Imported();
         if (state == SupplierErpDisabledState.SuspendedAsPending) supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
-        if (state == SupplierErpDisabledState.MarkedDisabled || (!active && state == SupplierErpDisabledState.NotDisabled))
-        {
-            supplier.Suspend("Out of service for an unrelated reason.");
-        }
-
+        if (!active && state != SupplierErpDisabledState.SuspendedAsPending) supplier.Suspend("Out of service for an unrelated reason.");
         if (state == SupplierErpDisabledState.MarkedDisabled) supplier.RecordErpStanding(ErpStanding.Disabled);
 
-        var forecast = Supplier.ErpDisabledChangeFor(
-            supplier.ErpDisabledState, supplier.LifecycleState == SupplierLifecycleState.Active, standing);
+        Supplier.ErpDisabledChangeFor(supplier.ErpDisabledState, supplier.LifecycleState == SupplierLifecycleState.Active, standing)
+            .Should().Be(expected, "this is what the preview shows before the hourly run acts");
 
-        supplier.RecordErpStanding(standing).Should().Be(forecast);
+        supplier.RecordErpStanding(standing).Should().Be(expected);
+        supplier.LifecycleState.Should().Be(lifecycleAfter);
+        supplier.ErpDisabledState.Should().Be(stateAfter);
     }
 }
