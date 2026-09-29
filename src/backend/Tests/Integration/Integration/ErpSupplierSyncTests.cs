@@ -18,8 +18,9 @@
 // never suspended for its absence, and an empty read marking every suspended supplier as gone. The one after that
 // found the automatic reinstatement on a document approval lifting the sync's own suspensions, because it could not
 // see them. The next found the same hole on the disabled path, where a disable landing on a suspended supplier left no
-// trace, and a renewal approved while a mark held it back never being honoured once the mark cleared. Each is written
-// so that the version it came from fails it.
+// trace, and a renewal approved while a mark held it back never being honoured once the mark cleared. The first run
+// against the real ERP found the import creating suppliers with no audit row at all, so one that arrived suspended
+// could not say why. Each is written so that the version it came from fails it.
 //
 // THE DOCUMENT TESTS GO THROUGH THE REVIEWER'S APPROVAL HANDLER, not through Reactivate, because the defect lived in
 // how that handler decides whose suspension came last. The expiry is produced the way time produces it: a document
@@ -237,6 +238,12 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         }
 
         await db.SaveChangesAsync();
+    }
+
+    private static async Task<List<MotsSupplierPortal.Domain.Audit.AuditLog>> TrailOfAsync(AppDbContext db, string externalId)
+    {
+        var supplierId = await db.Suppliers.Where(s => s.ExternalId == externalId).Select(s => s.Id).SingleAsync();
+        return await db.AuditLogs.AsNoTracking().Where(a => a.AggregateId == supplierId).ToListAsync();
     }
 
     [Fact]
@@ -981,6 +988,104 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     [Fact]
+    public async Task A_supplier_the_import_creates_is_on_the_audit_trail_once_naming_whoever_ran_it()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-CREATED-AUDITED");
+        var person = Guid.CreateVersion7();
+        await RunAsync(new FixedSource(ErpRow(id)), userId: person);
+        await RunAsync(new FixedSource(ErpRow(id)), userId: person);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplier = await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == id);
+        var trail = await db.AuditLogs.AsNoTracking().Where(a => a.AggregateId == supplier.Id).ToListAsync();
+
+        var imported = trail.Should().ContainSingle(
+            a => a.Action == "supplier.imported_from_erp",
+            "the trail must say where the supplier came from, and a second run updates it rather than bringing it again")
+            .Subject;
+        imported.ActorUserId.Should().Be(person, "bringing a company into the registry was somebody's decision");
+        imported.ToState.Should().Be("Approved");
+        imported.ReferenceCode.Should().Be(supplier.ReferenceCode);
+        imported.Reason.Should().Contain(id, "the ERP's own identifier is how anybody finds the record on the other side");
+        trail.Should().NotContain(
+            a => a.ToState == "Suspended", "the control: a supplier the ERP lets be used arrives in service");
+    }
+
+    [Fact]
+    public async Task A_supplier_that_arrives_suspended_has_the_reason_on_the_audit_trail()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var disabled = Unique("ERP-ARRIVES-DISABLED");
+        var pending = Unique("ERP-ARRIVES-PENDING");
+        await using (var run = fixture.Services.CreateAsyncScope())
+        {
+            await Handler(run, new FixedSource(
+                    ErpRow(disabled) with { Disabled = true },
+                    ErpRow(pending) with { WorkflowState = "Pending Chief Accountant Approval" }))
+                .HandleAsync(ErpImportTrigger.Scheduled, CancellationToken.None);
+        }
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var disabledTrail = await TrailOfAsync(db, disabled);
+        var pendingTrail = await TrailOfAsync(db, pending);
+
+        var disabledSuspension = disabledTrail.Should().ContainSingle(a => a.ToState == "Suspended").Subject;
+        disabledSuspension.Action.Should().Be("supplier.suspended_disabled_in_erp");
+        disabledSuspension.Reason.Should().Be("Disabled in the ERP; it arrived suspended.");
+        disabledSuspension.FromState.Should().BeNull("it was never in service here");
+        disabledSuspension.ActorUserId.Should().BeNull();
+        disabledSuspension.ActorLabel.Should().Be(
+            "system", "the hourly run has nobody to name, and says so rather than leaving the actor blank");
+        disabledSuspension.OccurredAt.Should().BeOnOrAfter(
+            disabledTrail.Single(a => a.Action == "supplier.imported_from_erp").OccurredAt,
+            "the trail reads in the order it happened: the supplier arrives, then is out of service");
+
+        var pendingSuspension = pendingTrail.Should().ContainSingle(a => a.ToState == "Suspended").Subject;
+        pendingSuspension.Action.Should().Be(
+            "supplier.suspended_not_approved_in_erp",
+            "filed under 'disabled', every report counting suppliers Seven Gates disabled would count this one");
+        pendingSuspension.Reason.Should().Be(
+            "Not approved in the ERP ('Pending Chief Accountant Approval'); it arrived suspended.");
+    }
+
+    [Fact]
+    public async Task A_supplier_whose_arrival_cannot_be_recorded_is_not_created()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-UNRECORDED");
+        ErpImportRunReport report;
+        await using (var run = fixture.Services.CreateAsyncScope())
+        {
+            report = await new RunErpImportHandler(
+                    new FixedSource(ErpRow(id)),
+                    run.ServiceProvider.GetRequiredService<AppDbContext>(),
+                    run.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
+                    Options.Create(new ErpImportOptions { InitialPassword = Password }),
+                    new RefusingAudit(run.ServiceProvider.GetRequiredService<IAuditLogger>(), "supplier.imported_from_erp"),
+                    new TestScope(),
+                    NullLogger<RunErpImportHandler>.Instance)
+                .HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
+        }
+
+        report.Rows.Single(r => r.ExternalId == id).Outcome.Should().Be(ErpImportOutcome.Failed);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        (await db.Suppliers.AnyAsync(s => s.ExternalId == id)).Should().BeFalse(
+            "the rows are written in the supplier's own transaction; written after it committed, a failure left a "
+            + "supplier in the registry with nothing on the trail - the defect these rows exist to end");
+        (await users.FindByEmailAsync($"{id.ToLowerInvariant()}@sgtest.example")).Should().BeNull(
+            "its account goes with it, or a login would exist for a company the portal does not hold");
+    }
+
+    [Fact]
     public async Task A_manual_run_names_the_person_who_ran_it_on_every_suspension()
     {
         await SuspendEveryImportedSupplierAsync();
@@ -1117,6 +1222,27 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             onRun();
             return Task.FromResult(new ErpImportRunReport(0, 0, 0, 0, 0, []));
         }
+    }
+
+    private sealed class RefusingAudit(IAuditLogger inner, string refusedAction) : IAuditLogger
+    {
+        public Task LogAsync(
+            string aggregateType,
+            Guid aggregateId,
+            string action,
+            Guid? actorUserId = null,
+            string? actorLabel = null,
+            string? fromState = null,
+            string? toState = null,
+            string? reason = null,
+            string? referenceCode = null,
+            string? changes = null,
+            CancellationToken ct = default) =>
+            action == refusedAction
+                ? throw new InvalidOperationException("The audit store refused the row.")
+                : inner.LogAsync(
+                    aggregateType, aggregateId, action, actorUserId, actorLabel, fromState, toState, reason,
+                    referenceCode, changes, ct);
     }
 
     private sealed class TestScope(Guid? userId = null) : IScopeContext

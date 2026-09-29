@@ -69,6 +69,7 @@ public sealed class RunErpImportHandler(
     IScopeContext scope,
     ILogger<RunErpImportHandler> logger) : IRunErpImportHandler
 {
+    private const string ImportedAction = "supplier.imported_from_erp";
     private const string SuspendedAsRemovedAction = "supplier.suspended_missing_from_erp";
     private const string SuspendedAsDisabledAction = "supplier.suspended_disabled_in_erp";
 
@@ -408,7 +409,7 @@ public sealed class RunErpImportHandler(
                 .FirstOrDefaultAsync(s => s.ExternalId == erpSupplier.ExternalId, ct);
 
             return existing is null
-                ? await CreateAsync(erpSupplier, admitted, details, password, ct)
+                ? await CreateAsync(erpSupplier, admitted, details, password, actor, ct)
                 : await UpdateAsync(existing, erpSupplier, admitted, details, actor, holdTurnedAway, ct);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -421,11 +422,24 @@ public sealed class RunErpImportHandler(
         }
     }
 
+    // Creating a supplier the portal has never held, with its account.
+    //
+    // A SUPPLIER THE IMPORT CREATES IS ON THE AUDIT TRAIL FROM ITS FIRST MOMENT. It used to arrive with no row at all,
+    // so the trail could not say where it came from or who ran the import that brought it. A supplier that arrived
+    // suspended was worse: "Suspended" with no row saying why, when every other suspension in the product names its
+    // cause. The ERP's turn-away is written the way UpdateAsync writes it for a supplier already here, under the same
+    // action, so a search for suppliers the ERP disabled finds the ones that arrived that way too.
+    //
+    // THE ROWS ARE WRITTEN INSIDE THE SUPPLIER'S TRANSACTION, after its account exists, so the three stand or fall
+    // together. Written after the commit, a failed write left a supplier in the registry with nothing on its trail,
+    // which is the gap this closes; and a supplier whose account could not be made takes its rows with it, rather than
+    // leaving a trail that names a supplier the portal does not hold.
     private async Task<ErpImportResultRow> CreateAsync(
         ErpSupplier erpSupplier,
         AdmittedSupplier admitted,
         ErpSupplierDetails details,
         string password,
+        Actor actor,
         CancellationToken ct)
     {
         var taken = await userManager.FindByEmailAsync(admitted.Email);
@@ -489,6 +503,32 @@ public sealed class RunErpImportHandler(
         await userManager.AddToRoleAsync(user, Roles.SupplierAdmin);
 
         supplier.Representatives[0].UserId = user.Id;
+
+        await audit.LogAsync(
+            aggregateType: "Supplier",
+            aggregateId: supplier.Id,
+            action: ImportedAction,
+            actorUserId: actor.UserId,
+            actorLabel: actor.Label,
+            toState: nameof(SupplierOnboardingState.Approved),
+            reason: $"Imported from the ERP, where it is {erpSupplier.ExternalId}, and approved without portal review.",
+            referenceCode: referenceCode,
+            ct: ct);
+
+        if (admitted.Standing != ErpStanding.Usable)
+        {
+            await audit.LogAsync(
+                aggregateType: "Supplier",
+                aggregateId: supplier.Id,
+                action: admitted.Standing == ErpStanding.Disabled ? SuspendedAsDisabledAction : SuspendedAsNotApprovedAction,
+                actorUserId: actor.UserId,
+                actorLabel: actor.Label,
+                toState: nameof(SupplierLifecycleState.Suspended),
+                reason: $"{admitted.TurnedAway}; it arrived suspended.",
+                referenceCode: referenceCode,
+                ct: ct);
+        }
+
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 
