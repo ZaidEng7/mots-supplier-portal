@@ -6,6 +6,9 @@
 //
 // The buyer's half was not a permission gap. There was no buyer-side read of a bid's content whatsoever: no
 // code path built it for a bid that was not the caller's own.
+//
+// A scanner that could not check the file is its own outcome, answered only to a caller already in scope: the file
+// is fine as far as anyone knows, and the reader should try again rather than be told it is gone.
 
 namespace MotsSupplierPortal.Application.Proposals;
 
@@ -16,6 +19,8 @@ public abstract record ProposalDocumentDownloadResult
     public sealed record Success(string Url, string FileName) : ProposalDocumentDownloadResult;
 
     public sealed record NotFoundOrForbidden : ProposalDocumentDownloadResult;
+
+    public sealed record ScannerUnavailable : ProposalDocumentDownloadResult;
 }
 
 public sealed record ProposalDocumentListItemDto(

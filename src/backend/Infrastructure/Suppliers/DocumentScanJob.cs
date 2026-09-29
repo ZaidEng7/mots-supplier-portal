@@ -7,6 +7,12 @@
 //
 // Infected: the file is deleted, and the row is kept as refused purely as a record that it happened.
 //
+// Scanner unavailable: nothing changes. The file stays in quarantine, the document stays pending, and the job fails
+// so the job server tries it again later. It used to be treated as infected, which deleted the supplier's upload
+// because the scanner happened to be down; a supplier who replaced an expired licence during an outage lost it and
+// was never told. If every retry runs out the document is still pending and its file still in quarantine, where it
+// can be scanned again once the scanner is back.
+//
 // The written architecture describes THIS job as the thing that moves a document into review. It used to
 // stop one state short, which is why the documented reviewer queue returned nothing. Both transitions land
 // in the same save, so a reviewer never observes the intermediate state; only a crash between them does.
@@ -27,6 +33,11 @@ public sealed class DocumentScanJob(AppDbContext db, IFileStorage fileStorage, I
         var quarantineKey = document.StorageKey;
         await using var stream = await fileStorage.OpenReadAsync(quarantineKey, ct);
         var outcome = await scanner.ScanAsync(stream, ct);
+
+        if (outcome == ScanOutcome.Unavailable)
+        {
+            throw new VirusScannerUnavailableException();
+        }
 
         if (outcome == ScanOutcome.Infected)
         {

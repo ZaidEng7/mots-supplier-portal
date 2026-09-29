@@ -23,15 +23,13 @@
 //
 // THE SCANNER PROBE IS ABOUT THE OUTCOME, NOT ABOUT WHETHER IT THREW
 //
-// Found by stopping the scanner and watching this report "reachable" anyway. The scanner is fail-closed by
-// design and swallows every failure into an infected verdict, so a refused connection and a real detection look
-// identical to a caller watching for exceptions.
-//
-// That fail-closed behaviour is right for scanning an upload and useless as a liveness signal.
+// Found by stopping the scanner and watching this report "reachable" anyway. The scanner does not throw when the
+// daemon is down: it reports the scan as unavailable (it used to report it as infected), so a caller watching for
+// exceptions sees nothing wrong.
 //
 // So: a clean verdict means the daemon answered. A working scanner cannot call an empty stream infected, which
-// makes anything else here "the scanner did not answer". Inferred from the scanner's own contract and then
-// confirmed both ways against a stopped and a running container.
+// makes anything else here - unavailable, or an infected verdict nobody could explain - "the scanner did not answer".
+// Inferred from the scanner's own contract and then confirmed both ways against a stopped and a running container.
 
 namespace MotsSupplierPortal.Infrastructure.Admin;
 

@@ -412,6 +412,7 @@ public static class RfqEndpoints
             return result switch
             {
                 RfqAttachmentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                RfqAttachmentDownloadResult.ScannerUnavailable => ScannerUnavailableProblem.Result(),
                 _ => Results.NotFound(),
             };
         })
