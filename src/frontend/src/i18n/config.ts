@@ -222,7 +222,7 @@ const resources = {
       },
       erpImport: {
         title: 'استيراد الموردين',
-        subtitle: 'معاينة ما سيحدث عند جلب الموردين من نظام الوزارة قبل تنفيذ أي تغيير.',
+        subtitle: 'معاينة ما سيفعله الاستيراد التالي من نظام الوزارة - الذي تشغّله أنت، أو الذي يعمل تلقائياً كل ساعة.',
         previewTitle: 'المعاينة',
         previewHelp: 'يقرأ هذا الزر قائمة الموردين من نظام الوزارة ويوضّح من سيُنشأ ومن سيُحدَّث ومن سيُرفض. لا يكتب أي شيء.',
         run: 'تشغيل المعاينة',
@@ -2263,7 +2263,7 @@ const resources = {
       },
       erpImport: {
         title: 'Supplier import',
-        subtitle: 'What bringing suppliers in from the ministry system would do, before anything changes.',
+        subtitle: 'What the next import from the ministry system would do - yours, or the one that runs by itself every hour.',
         previewTitle: 'Preview',
         previewHelp: 'This reads the supplier list from the ministry system and shows which suppliers would be created, updated or refused. It writes nothing.',
         run: 'Run the preview',

@@ -24,9 +24,10 @@ using MotsSupplierPortal.Application.Integration;
 
 public sealed class ErpSyncPlanTests
 {
-    private static ErpSupplier Erp(string id, string? email = null, string? taxId = null, bool disabled = false) =>
+    private static ErpSupplier Erp(
+        string id, string? email = null, string? taxId = null, bool disabled = false, string? workflowState = null) =>
         new(id, id, "Local", "Company", taxId, "Syria", email, null, disabled, "SYP", null, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, WorkflowState: workflowState);
 
     private static PortalLinkedSupplier Portal(
         string id,
@@ -129,6 +130,19 @@ public sealed class ErpSyncPlanTests
 
         plan.ProbableRenames.Should().BeEmpty(
             "the ERP has switched the record off; holding it would keep the old supplier invitable indefinitely");
+        plan.ToSuspend.Should().ContainSingle().Which.ExternalId.Should().Be("Al Sham Trading");
+    }
+
+    [Fact]
+    public void An_arrival_the_erp_has_not_approved_shields_nothing_either()
+    {
+        var plan = ErpSyncPlan.Build(
+            [Erp("Al Sham Trading LLC", email: "sales@alsham.example", workflowState: "Pending Chief Accountant Approval")],
+            [Portal("Al Sham Trading", login: "sales@alsham.example")]);
+
+        plan.ProbableRenames.Should().BeEmpty(
+            "the ERP will not let that record be used; the first version held it anyway and kept the old supplier "
+            + "invitable, although not being approved suspends a supplier everywhere else");
         plan.ToSuspend.Should().ContainSingle().Which.ExternalId.Should().Be("Al Sham Trading");
     }
 

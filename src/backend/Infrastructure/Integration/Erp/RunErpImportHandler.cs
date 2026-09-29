@@ -72,6 +72,8 @@ public sealed class RunErpImportHandler(
     private const string SuspendedAsRemovedAction = "supplier.suspended_missing_from_erp";
     private const string SuspendedAsDisabledAction = "supplier.suspended_disabled_in_erp";
 
+    private const string SuspendedAsNotApprovedAction = "supplier.suspended_not_approved_in_erp";
+
     // WHO IS ACCOUNTABLE FOR A RUN IS RECORDED. A person pressing the button is named on every audit row the run
     // writes, including the suppliers it suspends; a scheduled run has nobody to name, so it is attributed to the
     // system rather than left blank. A suspension nobody can trace is the kind of change somebody asks about later.
@@ -488,6 +490,7 @@ public sealed class RunErpImportHandler(
             referenceCode,
             [$"Approved without portal review, imported from the ERP. Account created for {admitted.Email}.",
              .. admitted.Notes,
+             .. (admitted.ArrivalNote is null ? Array.Empty<string>() : [admitted.ArrivalNote]),
              address.Note]);
     }
 
@@ -531,7 +534,7 @@ public sealed class RunErpImportHandler(
 
         var wasMarkedGone = existing.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp;
 
-        existing.ApplyErpSnapshot(
+        var changed = existing.ApplyErpSnapshot(
             admitted.Name,
             erpSupplier.TaxId,
             LegalTypeOf(erpSupplier.LegalType),
@@ -549,9 +552,6 @@ public sealed class RunErpImportHandler(
         if (address.Write) AddAddress(existing, admitted.Address!.Address);
         notes.Add(address.Note);
 
-        var turnedAway = erpSupplier.Disabled
-            ? "Disabled in the ERP"
-            : $"Not approved in the ERP ('{erpSupplier.WorkflowState?.Trim()}')";
         var disabled = existing.RecordErpDisabled(admitted.Suspended);
 
         if (disabled == ErpDisabledChange.Suspended)
@@ -559,16 +559,14 @@ public sealed class RunErpImportHandler(
             await audit.LogAsync(
                 aggregateType: "Supplier",
                 aggregateId: existing.Id,
-                action: SuspendedAsDisabledAction,
+                action: erpSupplier.Disabled ? SuspendedAsDisabledAction : SuspendedAsNotApprovedAction,
                 actorUserId: actor.UserId,
                 actorLabel: actor.Label,
                 fromState: nameof(SupplierLifecycleState.Active),
                 toState: nameof(SupplierLifecycleState.Suspended),
-                reason: $"{turnedAway}.",
+                reason: $"{admitted.TurnedAway}.",
                 referenceCode: existing.ReferenceCode,
                 ct: ct);
-
-            notes.Add($"{turnedAway}; suspended. A person who reinstates it will not be overruled.");
         }
 
         if (disabled == ErpDisabledChange.Marked)
@@ -576,15 +574,17 @@ public sealed class RunErpImportHandler(
             await audit.LogAsync(
                 aggregateType: "Supplier",
                 aggregateId: existing.Id,
-                action: "supplier.marked_disabled_in_erp",
+                action: erpSupplier.Disabled ? "supplier.marked_disabled_in_erp" : "supplier.marked_not_approved_in_erp",
                 actorUserId: actor.UserId,
                 actorLabel: actor.Label,
-                reason: $"{turnedAway}; already out of service here, so only marked.",
+                reason: $"{admitted.TurnedAway}; already out of service here, so only marked.",
                 referenceCode: existing.ReferenceCode,
                 ct: ct);
+        }
 
-            notes.Add($"{turnedAway} while already out of service here; marked, so it will not come back into service "
-                      + "automatically.");
+        if (admitted.TurnedAway is not null)
+        {
+            notes.Add(ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, disabled));
         }
 
         if (realEmail is not null)
@@ -593,7 +593,7 @@ public sealed class RunErpImportHandler(
             if (moved is not null) notes.Add(moved);
         }
 
-        existing.MarkSynced(erpSupplier.ExternalId);
+        existing.MarkSynced(erpSupplier.ExternalId, changed || address.Write || disabled != ErpDisabledChange.None);
 
         if ((wasMarkedGone || disabled == ErpDisabledChange.Cleared)
             && await AutomaticReinstatement.TryAsync(
@@ -618,7 +618,7 @@ public sealed class RunErpImportHandler(
         return new ErpImportResultRow(
             erpSupplier.ExternalId,
             admitted.Name,
-            ErpImportOutcome.Updated,
+            disabled == ErpDisabledChange.Suspended ? ErpImportOutcome.Suspended : ErpImportOutcome.Updated,
             existing.ReferenceCode,
             notes);
     }

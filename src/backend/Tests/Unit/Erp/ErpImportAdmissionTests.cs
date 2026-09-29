@@ -116,7 +116,8 @@ public sealed class ErpImportAdmissionTests
 
         admitted.Suspended.Should().BeTrue(
             "active would let a company Seven Gates has stopped using be invited to tenders");
-        admitted.Notes.Should().ContainMatch("*suspended*cannot be invited*");
+        admitted.ArrivalNote.Should().Match("*suspended*cannot be invited*");
+        admitted.TurnedAway.Should().Be("Disabled in the ERP");
     }
 
     [Theory]
@@ -127,7 +128,8 @@ public sealed class ErpImportAdmissionTests
         var admitted = ErpImportAdmission.Admit(Supplier(workflowState: state));
 
         admitted.Suspended.Should().BeTrue("a record still waiting for approval there is not one to invite here");
-        admitted.Notes.Should().ContainMatch($"*'{state}'*suspended*");
+        admitted.ArrivalNote.Should().Match($"*'{state}'*suspended*");
+        admitted.TurnedAway.Should().Be($"Not approved in the ERP ('{state}')");
     }
 
     [Theory]

@@ -111,6 +111,15 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         return (await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == externalId)).LifecycleState;
     }
 
+    private async Task<(uint RowVersion, DateTimeOffset UpdatedAt, DateTimeOffset? LastSyncedAt)> VersionOfAsync(
+        string externalId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplier = await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == externalId);
+        return (supplier.RowVersion, supplier.UpdatedAt, supplier.LastSyncedAt);
+    }
+
     private async Task<SupplierSyncStatus> SyncStatusOfAsync(string externalId)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -699,6 +708,72 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         (await LifecycleOfAsync(id)).Should().Be(
             SupplierLifecycleState.Active,
             "the sync suspends once for a disable, and a person's reinstatement after that is not undone on every run");
+    }
+
+    [Fact]
+    public async Task A_run_that_finds_nothing_new_leaves_the_supplier_exactly_as_it_was()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-UNCHANGED");
+        await RunAsync(new FixedSource(ErpRow(id)));
+        var before = await VersionOfAsync(id);
+
+        await RunAsync(new FixedSource(ErpRow(id)));
+
+        (await VersionOfAsync(id)).Should().Be(
+            before,
+            "the run is hourly; a version that moved on every run refused the save of anybody who opened the supplier "
+            + "before the hour and saved after it, although nobody had changed anything");
+
+        await RunAsync(new FixedSource(ErpRow(id) with { Phone = "+963911000000" }));
+
+        (await VersionOfAsync(id)).RowVersion.Should().BeGreaterThan(
+            before.RowVersion, "the control: a run that does bring something new is still an edit");
+    }
+
+    [Fact]
+    public async Task A_supplier_the_erp_stops_approving_is_suspended_once_and_the_preview_says_so_first()
+    {
+        await SuspendEveryImportedSupplierAsync();
+
+        var id = Unique("ERP-UNAPPROVED");
+        await RunAsync(new FixedSource(ErpRow(id)));
+        var pending = new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" });
+
+        var preview = await PreviewAsync(pending);
+        var run = await RunAsync(pending);
+
+        var forecast = preview.Rows.Single(r => r.ExternalId == id);
+        var done = run.Rows.Single(r => r.ExternalId == id);
+        forecast.Action.Should().Be(ErpImportAction.Suspend, "the preview must say what the hourly run is about to do");
+        done.Outcome.Should().Be(
+            ErpImportOutcome.Suspended, "counted as an update, the summary said nobody was suspended in a run that was");
+        done.Notes.Should().ContainMatch("Not approved in the ERP ('Pending Chief Accountant Approval'); suspended*");
+        forecast.Notes.Should().ContainMatch("Not approved in the ERP ('Pending Chief Accountant Approval'); suspended*");
+        done.Notes.Should().NotContain(n => n.Contains("arrives suspended"), "it did not arrive; it was already here");
+        (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Suspended);
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplier = await db.Suppliers.SingleAsync(s => s.ExternalId == id);
+
+            (await db.AuditLogs.AsNoTracking().SingleAsync(a =>
+                    a.AggregateId == supplier.Id && a.Action == "supplier.suspended_not_approved_in_erp"))
+                .Reason.Should().Be(
+                    "Not approved in the ERP ('Pending Chief Accountant Approval').",
+                    "filed under 'disabled', every report counting suppliers Seven Gates disabled would count this one");
+
+            supplier.Reactivate("The ministry still works with them.");
+            await db.SaveChangesAsync();
+        }
+
+        var later = await RunAsync(pending);
+
+        (await LifecycleOfAsync(id)).Should().Be(
+            SupplierLifecycleState.Active, "suspended once for this; a person's reinstatement after that stands");
+        later.Rows.Single(r => r.ExternalId == id).Notes.Should().ContainMatch("*already dealt with*");
     }
 
     [Fact]

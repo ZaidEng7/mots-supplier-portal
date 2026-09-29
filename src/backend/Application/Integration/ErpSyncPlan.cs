@@ -34,10 +34,11 @@
 // suspension with a green badge. So every vanished supplier is marked on the first run it goes: active ones are
 // suspended as they are marked, inactive ones are only marked.
 //
-// A DISABLED ARRIVAL SHIELDS NOTHING. If the ERP has disabled the record, there is nothing to protect: if it is the
-// same company, the ERP has switched it off; if it is a different one, the vanished supplier really is gone. Either way
-// the old supplier must not stay invitable, so both sides follow the ordinary rules. The check comes after the
-// ambiguity checks, so a disabled arrival still counts when deciding whether a match is unique.
+// A TURNED-AWAY ARRIVAL SHIELDS NOTHING. If the ERP has disabled the record, or has not approved it, there is nothing to
+// protect: if it is the same company, the ERP will not let it be used; if it is a different one, the vanished supplier
+// really is gone. Either way the old supplier must not stay invitable, so both sides follow the ordinary rules. The
+// first version looked only at "disabled", after "not approved" had been made to suspend everywhere else. The check
+// comes after the ambiguity checks, so a turned-away arrival still counts when deciding whether a match is unique.
 //
 // AN AMBIGUOUS MATCH IS NO MATCH. If an arrival could be either of two vanished suppliers, or two arrivals claim one,
 // nothing is paired and the ordinary rules apply.
@@ -179,7 +180,7 @@ public sealed record ErpSyncPlan(
             var only = candidates[0];
             if (arrivals.Count(a => Signal(a, only) is not null) != 1) continue;
 
-            if (arrival.Disabled) continue;
+            if (ErpImportAdmission.TurnedAwayReason(arrival) is not null) continue;
 
             pairs.Add(new ErpProbableRename(only.ExternalId, arrival.ExternalId, only.ReferenceCode, Signal(arrival, only)!));
         }

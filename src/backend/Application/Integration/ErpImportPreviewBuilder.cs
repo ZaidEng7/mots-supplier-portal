@@ -48,6 +48,8 @@
 
 namespace MotsSupplierPortal.Application.Integration;
 
+using MotsSupplierPortal.Domain.Suppliers;
+
 public sealed record ErpImportCandidateMatch(
     string ReferenceCode,
     string? TaxId,
@@ -57,7 +59,8 @@ public sealed record ErpImportCandidateMatch(
     bool SuspendedAsRemovedFromErp = false,
     bool MarkedRemovedFromErp = false,
     int AddressCount = 0,
-    string? BlockedByState = null);
+    string? BlockedByState = null,
+    SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled);
 
 public static class ErpImportPreviewBuilder
 {
@@ -143,6 +146,20 @@ public static class ErpImportPreviewBuilder
         notes.Add(ErpImportAdmission.AddressOutcome(
             admitted, candidate is null, candidate?.AddressCount ?? 0, candidate?.BlockedByState).Note);
 
+        var turnedAway = candidate is null
+            ? ErpDisabledChange.None
+            : Supplier.ErpDisabledChangeFor(candidate.ErpDisabledState, candidate.IsActive, admitted.Suspended);
+
+        if (candidate is null && admitted.ArrivalNote is not null)
+        {
+            notes.Add(admitted.ArrivalNote);
+        }
+
+        if (candidate is not null && admitted.TurnedAway is not null)
+        {
+            notes.Add(ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, turnedAway));
+        }
+
         notes.Add(
             supplier.SupplierGroup is null
                 ? "No supplier group; the category is left for the ministry to classify."
@@ -168,7 +185,9 @@ public static class ErpImportPreviewBuilder
         return new ErpImportPreviewRow(
             supplier.ExternalId,
             admitted.Name,
-            matched is null ? ErpImportAction.Create : ErpImportAction.Update,
+            matched is null
+                ? ErpImportAction.Create
+                : turnedAway == ErpDisabledChange.Suspended ? ErpImportAction.Suspend : ErpImportAction.Update,
             notes,
             matched?.ReferenceCode);
     }

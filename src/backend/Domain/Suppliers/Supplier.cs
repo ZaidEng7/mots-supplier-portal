@@ -1015,7 +1015,11 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //
     // WHETHER THE ERP HAS DISABLED IT IS RECORDED SEPARATELY, by RecordErpDisabled, because that decides a lifecycle
     // and this only copies fields.
-    public void ApplyErpSnapshot(
+    //
+    // A RUN THAT FINDS NOTHING NEW CHANGES NOTHING. The sync runs every hour, and a supplier whose version moved on every
+    // run would refuse the save of anybody who opened it before the hour and saved after it, although nobody had
+    // changed a thing. So only a value that differs is written, and it says whether anything was.
+    public bool ApplyErpSnapshot(
         string displayNameEn,
         string? taxId,
         SupplierLegalType legalType,
@@ -1026,13 +1030,17 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         string? representativeName = null)
     {
         var companyNames = new[] { DisplayNameEn, displayNameEn };
+        var before = (DisplayNameEn, DisplayNameAr, CurrencyCode, SupplierGroup, Description);
+
         DisplayNameEn = displayNameEn;
         if (currencyCode is not null) CurrencyCode = currencyCode;
         if (details?.DisplayNameAr is not null) DisplayNameAr = details.DisplayNameAr;
         if (details?.SupplierGroup is not null) SupplierGroup = details.SupplierGroup;
         if (details?.Description is not null) Description = details.Description;
 
-        LegalInfo = Domain.Suppliers.LegalInfo.Create(
+        var changed = before != (DisplayNameEn, DisplayNameAr, CurrencyCode, SupplierGroup, Description);
+
+        var legalInfo = Domain.Suppliers.LegalInfo.Create(
             details?.DisplayNameAr ?? LegalInfo?.LegalNameAr ?? displayNameEn,
             displayNameEn,
             details?.RegistrationNumber ?? LegalInfo?.RegistrationNumber,
@@ -1041,9 +1049,17 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
             LegalInfo?.EstablishedOn,
             details?.RegistrationType ?? LegalInfo?.RegistrationType);
 
+        if (LegalInfo is null || !LegalInfo.Matches(legalInfo))
+        {
+            LegalInfo = legalInfo;
+            changed = true;
+        }
+
         var representative = _representatives.FirstOrDefault(r => r.IsPrimary) ?? _representatives.FirstOrDefault();
         if (representative is not null)
         {
+            var person = (representative.FullName, representative.Email, representative.Phone);
+
             if (representativeName is not null && companyNames.Contains(representative.FullName))
             {
                 representative.FullName = representativeName;
@@ -1051,9 +1067,11 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
             if (representativeEmail is not null) representative.Email = representativeEmail;
             if (representativePhone is not null) representative.Phone = representativePhone;
+
+            changed |= person != (representative.FullName, representative.Email, representative.Phone);
         }
 
-        UpdatedAt = DateTimeOffset.UtcNow;
+        return changed;
     }
 
     // Recording whether the ERP has disabled this supplier, and suspending it once if it has.
@@ -1075,26 +1093,38 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // It returns what changed, so the caller can record who did it and look again at a reinstatement a mark held up.
     public ErpDisabledChange RecordErpDisabled(bool disabledInErp)
     {
+        var change = ErpDisabledChangeFor(ErpDisabledState, LifecycleState == SupplierLifecycleState.Active, disabledInErp);
+
         if (!disabledInErp)
         {
-            var wasMarked = ErpDisabledState == SupplierErpDisabledState.MarkedDisabled;
             ErpDisabledState = SupplierErpDisabledState.NotDisabled;
-            return wasMarked ? ErpDisabledChange.Cleared : ErpDisabledChange.None;
         }
-
-        if (ErpDisabledState == SupplierErpDisabledState.SuspendedAsDisabled) return ErpDisabledChange.None;
-
-        if (LifecycleState == SupplierLifecycleState.Active)
+        else if (change == ErpDisabledChange.Suspended)
         {
             LifecycleState = SupplierLifecycleState.Suspended;
             ErpDisabledState = SupplierErpDisabledState.SuspendedAsDisabled;
-            return ErpDisabledChange.Suspended;
+        }
+        else if (change == ErpDisabledChange.Marked)
+        {
+            ErpDisabledState = SupplierErpDisabledState.MarkedDisabled;
         }
 
-        if (ErpDisabledState == SupplierErpDisabledState.MarkedDisabled) return ErpDisabledChange.None;
+        return change;
+    }
 
-        ErpDisabledState = SupplierErpDisabledState.MarkedDisabled;
-        return ErpDisabledChange.Marked;
+    // What RecordErpDisabled would do, worked out from the supplier's memory and lifecycle alone, so the preview can
+    // forecast the same outcome from the columns it reads without loading the supplier.
+    public static ErpDisabledChange ErpDisabledChangeFor(SupplierErpDisabledState state, bool isActive, bool disabledInErp)
+    {
+        if (!disabledInErp)
+        {
+            return state == SupplierErpDisabledState.MarkedDisabled ? ErpDisabledChange.Cleared : ErpDisabledChange.None;
+        }
+
+        if (state == SupplierErpDisabledState.SuspendedAsDisabled) return ErpDisabledChange.None;
+        if (isActive) return ErpDisabledChange.Suspended;
+
+        return state == SupplierErpDisabledState.MarkedDisabled ? ErpDisabledChange.None : ErpDisabledChange.Marked;
     }
 
     // Whether a mark is standing that says the ERP no longer wants this supplier, although the sync has not yet
@@ -1134,8 +1164,13 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // after a document renewal leaves it alone, and one a person reactivates is suspended once on the next run.
     public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.MarkedRemovedFromErp;
 
-    public void MarkSynced(string externalId)
+    // Recording that the ERP has this supplier. LastSyncedAt is the last time the ERP changed or re-linked it, not the
+    // last time a run looked: stamping it on every hourly run would move every supplier's version with it - see
+    // ApplyErpSnapshot. When the last run happened is kept once, on the connection.
+    public void MarkSynced(string externalId, bool changed = true)
     {
+        if (!changed && ExternalId == externalId && SyncStatus == SupplierSyncStatus.Synced) return;
+
         ExternalId = externalId;
         SyncStatus = SupplierSyncStatus.Synced;
         LastSyncedAt = DateTimeOffset.UtcNow;

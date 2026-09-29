@@ -63,6 +63,7 @@ public sealed class PreviewErpImportHandler(
                     .FirstOrDefault(),
                 AddressCount = s.Addresses.Count,
                 s.OnboardingState,
+                s.ErpDisabledState,
             })
             .ToListAsync(ct);
 
@@ -83,7 +84,8 @@ public sealed class PreviewErpImportHandler(
                     group.First().AddressCount,
                     Domain.Suppliers.Supplier.AllowsContactEdits(group.First().OnboardingState)
                         ? null
-                        : $"in state '{group.First().OnboardingState}'"));
+                        : $"in state '{group.First().OnboardingState}'",
+                    group.First().ErpDisabledState));
 
         var unlinkedByTaxId = existing
             .Where(s => s.ExternalId == null && s.TaxId != null)
