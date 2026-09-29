@@ -58,18 +58,26 @@ public sealed class ErpSupplierSource(
 {
     public const string HttpClientName = "Erp";
 
-    private static readonly string[] ContactFields =
+    // What each read asks for is shared with ErpSupplierSourceProbe, so the connection test asks the ERP exactly what
+    // the import will ask it. A field the credential may not read, or one the server does not have, then shows up in
+    // the test rather than in the first import.
+    internal static readonly string[] ContactFields =
     [
         "name", "full_name", "email_id", "mobile_no", "is_primary_contact", "`tabDynamic Link`.link_name",
     ];
 
-    private static readonly string[] AddressFields =
+    internal static readonly string[] AddressFields =
     [
         "name", "address_line1", "address_line2", "city", "country", "is_primary_address", "address_type", "disabled",
         "`tabDynamic Link`.link_name",
     ];
 
-    private static readonly string[] SupplierFields = ["*"];
+    internal static readonly string[] SupplierFields = ["*"];
+
+    internal const string SupplierOrder = "name asc";
+
+    internal static readonly IReadOnlyList<IReadOnlyList<object>> LinkedToASupplier =
+        [["Dynamic Link", "link_doctype", "=", "Supplier"]];
 
     // The address and credential are attached to each request rather than to the client, because they now come
     // from a row an administrator can edit while the application is running. A client carrying them on its
@@ -132,7 +140,7 @@ public sealed class ErpSupplierSource(
     {
         var connection = await RequireConnectionAsync(ct);
         var zone = ErpServerTime.Zone(options.Value.ServerTimeZone);
-        var url = ErpQuery.List("Supplier", SupplierFields, orderBy: "name asc");
+        var url = ErpQuery.List("Supplier", SupplierFields, orderBy: SupplierOrder);
 
         using var response = await SendAsync(connection, url, ct);
 
@@ -159,10 +167,7 @@ public sealed class ErpSupplierSource(
     private async Task<IReadOnlyList<ErpSupplierAddressRow>> ReadSupplierAddressesAsync(
         ErpConnection connection, CancellationToken ct)
     {
-        var url = ErpQuery.List(
-            "Address",
-            AddressFields,
-            [["Dynamic Link", "link_doctype", "=", "Supplier"]]);
+        var url = ErpQuery.List("Address", AddressFields, LinkedToASupplier);
 
         using var response = await SendAsync(connection, url, ct);
 
@@ -190,10 +195,7 @@ public sealed class ErpSupplierSource(
     private async Task<IReadOnlyList<ErpSupplierContact>> ReadSupplierContactsAsync(
         ErpConnection connection, CancellationToken ct)
     {
-        var url = ErpQuery.List(
-            "Contact",
-            ContactFields,
-            [["Dynamic Link", "link_doctype", "=", "Supplier"]]);
+        var url = ErpQuery.List("Contact", ContactFields, LinkedToASupplier);
 
         using var response = await SendAsync(connection, url, ct);
 

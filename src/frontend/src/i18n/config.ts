@@ -212,8 +212,8 @@ const resources = {
         testing: 'جارٍ الاختبار…',
         testHint: 'الاختبار يستخدم القيم المحفوظة، لذا احفظ أولاً ثم اختبر.',
         testFailed: 'تعذّر تنفيذ الاختبار',
-        reachable: 'الاتصال ناجح',
-        unreachable: 'تعذّر الاتصال',
+        ready: 'جاهز للاستيراد',
+        notReady: 'غير جاهز للاستيراد',
         lastChanged: 'آخر تعديل {{when}}',
       },
       erpImport: {
@@ -2240,8 +2240,8 @@ const resources = {
         testing: 'Testing…',
         testHint: 'The test uses the saved values, so save first and then test.',
         testFailed: 'The test could not be run',
-        reachable: 'Reached it',
-        unreachable: 'Could not reach it',
+        ready: 'Ready for the import',
+        notReady: 'Not ready for the import',
         lastChanged: 'Last changed {{when}}',
       },
       erpImport: {

@@ -85,7 +85,12 @@ describe('IntegrationsPage', () => {
     restore = mockFetch({
       [LIST]: { __byMethod: { GET: [ERP] } },
       '/api/v1/admin/integrations/erp/test': {
-        __byMethod: { POST: { succeeded: false, detail: '403 Forbidden. PermissionError' } },
+        __byMethod: {
+          POST: {
+            succeeded: false,
+            detail: 'Reached http://erp, but it refused to read addresses (403 PermissionError); suppliers and contacts can be read.',
+          },
+        },
       },
     })
 
@@ -93,7 +98,7 @@ describe('IntegrationsPage', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Test connection' }))
 
-    expect(await screen.findByText('Could not reach it')).toBeInTheDocument()
+    expect(await screen.findByText('Not ready for the import')).toBeInTheDocument()
     expect(screen.getByText(/PermissionError/)).toBeInTheDocument()
   })
 })

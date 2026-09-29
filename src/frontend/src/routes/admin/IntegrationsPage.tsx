@@ -15,6 +15,10 @@
 // because "403 PermissionError" tells an administrator to ask the other team, while "could not connect" sends
 // them to check their typing.
 //
+// THE BADGE SAYS WHETHER THE IMPORT CAN RUN, not whether the ERP answered. The test reads what the import reads, so
+// an ERP that answers and refuses addresses fails it - and a "Could not reach it" badge above "Reached it, but it
+// refused to read addresses" contradicted its own detail and pointed at the network.
+//
 // A FAILED LOAD SAYS SO RATHER THAN SHOWING AN EMPTY PAGE. Without that, a screen whose request failed reads as
 // "this product has no integrations", which is the same picture as a working screen on a fresh deployment - and
 // the reader has no way to tell them apart. A sweep in this repository catches exactly that omission, and caught
@@ -191,7 +195,7 @@ function TestOutcome({ result }: Readonly<{ result: IntegrationTestResult }>) {
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
         <Badge tone={result.succeeded ? 'success' : 'danger'}>
-          {t(result.succeeded ? 'integrations.reachable' : 'integrations.unreachable')}
+          {t(result.succeeded ? 'integrations.ready' : 'integrations.notReady')}
         </Badge>
       </div>
       {result.detail !== '' && (
