@@ -78,10 +78,13 @@ public sealed class IntegrationConnection
         UpdatedByUserId = updatedByUserId;
     }
 
+    // The detail is cut to the column's thousand characters rather than refused: it quotes an address and, when the ERP
+    // cannot be reached, the network's own error text, and a test that failed to save its own result would leave the
+    // screen showing the previous one.
     public void RecordTest(bool succeeded, string? detail)
     {
         LastTestedAt = DateTimeOffset.UtcNow;
         LastTestSucceeded = succeeded;
-        LastTestDetail = detail;
+        LastTestDetail = detail is { Length: > 1000 } ? detail[..1000] : detail;
     }
 }
