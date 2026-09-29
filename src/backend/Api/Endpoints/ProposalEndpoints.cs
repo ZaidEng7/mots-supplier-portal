@@ -386,6 +386,7 @@ public static class ProposalEndpoints
             await handler.HandleAsync(referenceCode, documentId, ct) switch
             {
                 ProposalDocumentDownloadResult.Success s => Results.Ok(new { url = s.Url, fileName = s.FileName }),
+                ProposalDocumentDownloadResult.ScannerUnavailable => ScannerUnavailableProblem.Result(),
                 _ => Results.NotFound(),
             })
         .RequirePermission(Permissions.ProposalEdit)

@@ -132,7 +132,9 @@ concurrency test written with it passes for the wrong reason. `CreateRawClient()
 One production path already does this on a versioned root.
 
 **ClamAV is fail-closed and nothing waits for it.** On a fresh machine it accepts TCP before its
-signature database has loaded, so a clean PDF is rejected. It is not one of the four readiness checks.
+signature database has loaded. A scan it cannot answer is reported unavailable, not infected: a supplier
+document stays "being scanned" with its file kept and the job retries, and a tender or bid attachment
+answers 503 "try again". It is not one of the four readiness checks.
 
 **Adding a route fails a hard-coded count.** `expect(routes.length).toBe(70)` in the accessibility
 sweep. That is deliberate: the number moves only when a person also names the new screen.
