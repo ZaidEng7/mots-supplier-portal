@@ -1,13 +1,10 @@
 // Reading what the ERP has and what the portal already has, then asking the rules what would happen.
 //
-// TWO READS AND NO WRITES. That is the whole of it - the rules live in ErpImportPreviewBuilder where they can be
-// exercised without a database, and this is the boring half that fetches. It is written this way because the
-// interesting failures in an import are decisions, not queries, and decisions behind a database are decisions
-// nobody tests thoroughly.
-//
-// THE PORTAL SIDE IS PROJECTED, NOT LOADED. Eighty ERP suppliers matched against however many portal suppliers
-// needs three columns, and loading whole aggregates to read three columns would pull addresses, documents,
-// representatives and bank accounts through the change tracker for nothing.
+// IT READS, SAVES ONE AUDIT ROW, AND CHANGES NO SUPPLIER. The reads are the portal's ERP-linked suppliers, through
+// LinkedSuppliersInPortal, which the run reads through too; the tax numbers of suppliers with no ERP identifier; the
+// registration numbers the portal holds; and the ERP's suppliers. Every decision lives in ErpImportPreviewBuilder and
+// the rules it calls, where it can be exercised without a database, because the interesting failures in an import are
+// decisions, not queries, and decisions behind a database are decisions nobody tests thoroughly.
 //
 // SUPPLIERS WITH NO TAX NUMBER ARE ABSENT FROM THE DUPLICATE INDEX rather than grouped under an empty key. The
 // duplicate check asks "is this tax number already on a supplier that the ERP does not know about", and a null
@@ -19,9 +16,9 @@
 // one and move on rather than to resolve it.
 //
 // THE PREVIEW IS AUDITED AND THE AUDIT IS SAVED BEFORE THE REPORT IS BUILT. It reads a list of suppliers out of
-// another ministry system on somebody's authority, which is worth a row whatever the outcome. Saving it first is
-// deliberate: the three export routes in this product logged without saving for months and wrote nothing at all,
-// and the shape of that bug was exactly this - a LogAsync with no SaveChangesAsync after it.
+// another ministry system on somebody's authority, which is worth a row whatever the outcome. A LogAsync with no
+// SaveChangesAsync after it writes nothing, which is how the three export routes in this product once logged for
+// months without recording anything.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -29,7 +26,6 @@ using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Infrastructure.Persistence;
-using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class PreviewErpImportHandler(
     IErpSupplierSource source,
@@ -46,55 +42,16 @@ public sealed class PreviewErpImportHandler(
 
         await db.SaveChangesAsync(ct);
 
-        var existing = await db.Suppliers
+        var byExternalId = await LinkedSuppliersInPortal.ReadForPreviewAsync(db, ct);
+
+        var unlinked = await db.Suppliers
             .AsNoTracking()
-            .Select(s => new
-            {
-                s.Id,
-                s.ExternalId,
-                s.ReferenceCode,
-                TaxId = s.LegalInfo!.TaxId,
-                s.DisplayNameEn,
-                s.LifecycleState,
-                s.SyncStatus,
-                LoginEmail = s.Representatives
-                    .Where(r => r.UserId != null)
-                    .OrderByDescending(r => r.IsPrimary)
-                    .ThenBy(r => r.Id)
-                    .Select(r => db.Users.Where(u => u.Id == r.UserId).Select(u => u.Email).FirstOrDefault())
-                    .FirstOrDefault(),
-                AddressCount = s.Addresses.Count,
-                s.OnboardingState,
-                s.ErpDisabledState,
-            })
+            .Where(s => s.ExternalId == null)
+            .Select(s => new { TaxId = s.LegalInfo!.TaxId, s.ReferenceCode })
             .ToListAsync(ct);
 
-        var awaitingRenewal = await AwardCriticalRenewal.SuppliersAwaitingRenewalAsync(
-            db, [.. existing.Where(s => s.ExternalId != null).Select(s => s.Id)], ct);
-
-        var byExternalId = existing
-            .Where(s => s.ExternalId != null)
-            .GroupBy(s => s.ExternalId!)
-            .ToDictionary(
-                group => group.Key,
-                group => new ErpImportCandidateMatch(
-                    group.First().ReferenceCode,
-                    group.First().TaxId,
-                    group.First().DisplayNameEn,
-                    group.First().LifecycleState == MotsSupplierPortal.Domain.Suppliers.SupplierLifecycleState.Active,
-                    group.First().LoginEmail,
-                    group.First().SyncStatus == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.RemovedFromErp,
-                    group.First().SyncStatus
-                        == MotsSupplierPortal.Domain.Suppliers.SupplierSyncStatus.MarkedRemovedFromErp,
-                    group.First().AddressCount,
-                    Domain.Suppliers.Supplier.AllowsContactEdits(group.First().OnboardingState)
-                        ? null
-                        : $"in state '{group.First().OnboardingState}'",
-                    group.First().ErpDisabledState,
-                    awaitingRenewal.Contains(group.First().Id)));
-
-        var unlinkedByTaxId = existing
-            .Where(s => s.ExternalId == null && s.TaxId != null)
+        var unlinkedByTaxId = unlinked
+            .Where(s => s.TaxId != null)
             .GroupBy(s => s.TaxId!)
             .ToDictionary(group => group.Key, group => group.First().ReferenceCode);
 

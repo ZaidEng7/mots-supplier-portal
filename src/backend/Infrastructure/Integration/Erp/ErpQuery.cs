@@ -14,7 +14,8 @@
 //
 // AN UNKNOWN FIELD NAME IS REFUSED RATHER THAN IGNORED - 417 DataError - which is the behaviour worth having.
 // It means a field removed from the ERP's schema breaks the read loudly instead of quietly arriving null
-// forever.
+// forever. That holds only for a read that names its fields: the supplier read asks for "*", so a custom field
+// renamed on the ERP's side does arrive as null there, a trade ErpSupplierSource explains.
 //
 // limit_page_length=0 MEANS EVERYTHING and the ERP's own documentation restricts it to small master lists. The
 // supplier list is about eighty rows, so it qualifies, and paging eighty rows would be machinery with no

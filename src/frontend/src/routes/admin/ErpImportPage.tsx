@@ -7,18 +7,20 @@
 //
 // THE REFUSED COUNT IS THE NUMBER THE PAGE IS FOR. An operator deciding whether to import is asking one question
 // - how many of these can actually become accounts - and the answer is the total minus the refusals. It is given
-// its own tile, toned, and it is the only tile that changes colour, because a row of coloured tiles says nothing
-// is more important than anything else.
+// its own tile, toned. A tile takes a colour only when its count is above zero and worth a look - refused and
+// suspended in the forecast; after a run those two, failed, and created in green - and the rest stay neutral,
+// because a row of coloured tiles says nothing is more important than anything else.
 //
 // EVERY ROW SHOWS ITS REASONS IN FULL, unpaged and untruncated. Eighty rows is a list a person reads before
 // agreeing to write eighty records, and the rows worth reading are the unusual ones - exactly what a page
 // boundary or a "show more" would hide. The notes are the deliverable: counts say how big the job is, the notes
 // say what is being agreed to.
 //
-// THE THREE FAILURES ARE THREE DIFFERENT SCREENS, because they are three different jobs. Nobody configured the
+// THE FOUR FAILURES ARE FOUR DIFFERENT SCREENS, because they are four different jobs. Nobody configured the
 // integration - an administrator changes a setting. The ERP refused us - somebody asks the other team, and the
-// ERP's own words are shown verbatim so they can be forwarded. Anything else is ours to fix. A single "could not
-// load" would send all three to read logs, and the most likely of them is fixed by sending a message.
+// ERP's own words are shown verbatim so they can be forwarded. Another import is already running - nothing to fix,
+// only to wait. Anything else is ours to fix. A single "could not load" would send all four to read logs, and the
+// most likely of them is fixed by sending a message.
 //
 // THE ERP'S ERROR TEXT IS NOT TRANSLATED. It is another system's words about its own state, and a translated
 // approximation is a worse thing to forward to that system's owner than the original.
@@ -299,15 +301,13 @@ function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
 
 // A failure names the action that failed and, where the server said why, says it too. Another import already
 // running is not a failure of anything - it is somebody else's run, or the hourly scheduled one - so it gets its own
-// card rather than the portal-fault wording that used to tell the reader the import "did not finish".
+// card rather than the portal-fault wording, which would tell the reader the import "did not finish".
 //
-// A failure names the action that failed and, where the server said why, says it too.
-//
-// The first version of this card said "the preview could not be produced" whichever button had been pressed, so a
-// failed IMPORT read as a failed preview - and somebody who had just pressed "Run the import" could not tell
-// whether anything had been written. It also dropped the server's own explanation on a 503, which matters because
-// the import has two different ways of being unconfigured: no connection to the ERP, or no initial password for the
-// accounts it creates. The server names which; the card now passes that on instead of guessing.
+// A failed IMPORT must not read as a failed preview: somebody who has just pressed "Run the import" needs to know
+// whether anything was written, which a single "the preview could not be produced" hid. A 503 shows the server's own
+// detail, because the import has two different ways of being unconfigured - no connection to the ERP, or no initial
+// password for the accounts it creates - and only the detail says which; the card's title and first line still
+// speak of the connection whichever it is.
 function Failure({ failure, action }: Readonly<{ failure: ErpPreviewError; action: 'preview' | 'import' }>) {
   const { t } = useTranslation()
 

@@ -1,10 +1,9 @@
-// Deciding, before anything is written, which portal suppliers a run will hold for a person or suspend.
+// Deciding, before anything is written, which portal suppliers a run will hold for a person, suspend or mark as gone.
 //
-// THIS IS ONE PLACE BECAUSE THE PREVIEW AND THE RUN MUST AGREE, and they did not. The first version worked out the
-// suspension limit inside the run, after that run's new suppliers had been created - each new supplier raised the
-// limit the same read was judged against, so the preview could say "held back" and the run then suspend. A forecast
-// that disagrees with the outcome is worse than none, because it was believed. Both now call this, on data read
-// before the first write.
+// THIS IS ONE PLACE BECAUSE THE PREVIEW AND THE RUN MUST AGREE. Both build the plan from the same read,
+// LinkedSuppliersInPortal, taken before the run's first write, because a forecast that disagrees with the outcome is
+// worse than none: it was believed. Worked out after the run had created its new suppliers, the limit rose with each
+// of them, so the preview could say "held back" and the run then suspend.
 //
 //
 // PROBABLE RENAMES ARE DETECTED ONLY TO PROTECT, NEVER TO RE-LINK
@@ -13,11 +12,11 @@
 // looks like a deletion plus a stranger: the real supplier is suspended and the "new" one is refused because its
 // email is taken, or duplicated on a placeholder.
 //
-// THE SECOND VERSION RE-LINKED AUTOMATICALLY, and a review showed three ways it moved one company's history onto
-// another: two ERP suppliers sharing a purchasing email (the ERP does not enforce unique addresses), a contact email
-// the supplier can edit themselves, and a tax number shared by a company and its subsidiary. Each wrong guess was
-// silent and each moved awards, documents and a login onto a different legal entity, with an audit entry claiming a
-// rename that never happened. There is no signal in this data strong enough to justify that, so nothing is moved.
+// NOTHING IS RE-LINKED, because no signal in this data is strong enough to move one company's awards, documents and
+// login onto another: two ERP suppliers can share a purchasing email (the ERP does not enforce unique addresses), the
+// supplier can edit its contact email itself, and a company and its subsidiary can share a tax number. Re-linking
+// automatically would make each of those wrong guesses silently, with an audit entry claiming a rename that never
+// happened.
 //
 // INSTEAD, A PROBABLE RENAME HOLDS BOTH SIDES: the supplier that vanished is not suspended, the arrival is not created,
 // and the run is flagged for a person. Nothing is lost while they look - the existing supplier keeps working exactly
@@ -29,16 +28,15 @@
 //
 // ONLY A SUPPLIER THAT VANISHED IN THIS RUN CAN BE THE OLD SIDE: one not yet recorded as gone from the ERP, WHATEVER its
 // lifecycle. A supplier marked months ago must not block a genuinely new company that shares its tax number forever -
-// but a supplier a person SUSPENDED is still the same company, and when the second version limited the old side to
-// active suppliers, a suspended company renamed in the ERP came straight back as a brand-new active one, undoing the
-// suspension with a green badge. So every vanished supplier is marked on the first run it goes: active ones are
-// suspended as they are marked, inactive ones are only marked.
+// but a supplier a person SUSPENDED is still the same company, and limiting the old side to active suppliers would let
+// a suspended company renamed in the ERP come straight back as a brand-new active one. So every vanished supplier is
+// marked on the first run it goes: active ones are suspended as they are marked, inactive ones are only marked.
 //
 // A TURNED-AWAY ARRIVAL SHIELDS NOTHING. If the ERP has disabled the record, or has not approved it, there is nothing to
 // protect: if it is the same company, the ERP will not let it be used; if it is a different one, the vanished supplier
-// really is gone. Either way the old supplier must not stay invitable, so both sides follow the ordinary rules. The
-// first version looked only at "disabled", after "not approved" had been made to suspend everywhere else. The check
-// comes after the ambiguity checks, so a turned-away arrival still counts when deciding whether a match is unique.
+// really is gone. Either way the old supplier must not stay invitable, so both sides follow the ordinary rules.
+// "Turned away" is ErpImportAdmission.TurnedAwayReason, the rule every other part of the import uses. The check comes
+// after the ambiguity checks, so a turned-away arrival still counts when deciding whether a match is unique.
 //
 // AN AMBIGUOUS MATCH IS NO MATCH. If an arrival could be either of two vanished suppliers, or two arrivals claim one,
 // nothing is paired and the ordinary rules apply.
@@ -54,10 +52,10 @@
 // disappears a second time.
 //
 // A SUPPLIER ONLY MARKED AS GONE, AND SINCE BACK IN SERVICE, IS SUSPENDED ONCE. It was already suspended or
-// deactivated when it left, so the run only marked it and never suspended it for its absence. The fourth review found
-// the mark had been sharing the reinstated memory above, so a supplier reactivated afterwards stayed active and
-// invitable although the ERP no longer had it. The automatic reinstatement after a document renewal no longer
-// reactivates such a supplier at all (see ApproveDocumentHandler), so what is left is a person reactivating it.
+// deactivated when it left, so the run only marked it and never suspended it for its absence. The mark is a memory of
+// its own, apart from the reinstated one above; shared, it would leave a supplier reactivated afterwards active and
+// invitable although the ERP no longer has it. The automatic reinstatement after a document renewal does not
+// reactivate such a supplier at all (see ApproveDocumentHandler), so what is left is a person reactivating it.
 //
 // THE SYNC SUSPENDS EVERY SUPPLIER ONCE FOR AN ABSENCE, and a person's reinstatement after that stands. That holds
 // here too, deliberately, including for a supplier the person had suspended to confirm a held-back clear-out: a mark
@@ -75,9 +73,11 @@
 //
 // SUPPLIERS THE ERP TURNS AWAY SHARE THAT LIMIT WITH THE MISSING ONES: the run may suspend a quarter in all, whatever
 // the reason, and above it suspends none - why is in ErpMissingSupplierPolicy.TogetherHeldBack. It is decided here,
-// from the same read, so the preview and the run agree. TurnedAwayHeld names the turned-away suppliers the run would
-// otherwise have suspended; while it is set, no turned-away supplier's memory changes at all, because the read that
-// caused the hold is not believed.
+// from the same read, so the preview and the run agree. While it holds them back, HoldsTurnedAway is set, and
+// ErpStandingDecision - which the preview and the run both ask for every supplier the portal already holds - then
+// changes no turned-away supplier's memory at all, because the read that caused the hold is not believed.
+// TurnedAwayHeld names the turned-away suppliers the run would otherwise have suspended, and ActiveLinked is the count
+// the limit was judged against; the import itself reads only HoldsTurnedAway, and the tests read the rest.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -161,12 +161,12 @@ public sealed record ErpSyncPlan(
             : ErpMissingSupplierPolicy.TogetherHeldBack(activeLinked, activeMissing.Count, turnedAway.Count);
 
         return new ErpSyncPlan(
-            renames,
-            decision.MaySuspend && togetherHeldBack is null ? activeMissing : [],
-            decision.MaySuspend ? outOfServiceMissing : [],
-            activeLinked,
-            erp.Count == 0 ? decision.HeldBackBecause : togetherHeldBack,
-            togetherHeldBack is null ? null : turnedAway);
+            ProbableRenames: renames,
+            ToSuspend: decision.MaySuspend && togetherHeldBack is null ? activeMissing : [],
+            ToMarkRemoved: decision.MaySuspend ? outOfServiceMissing : [],
+            ActiveLinked: activeLinked,
+            SuspensionsHeldBack: erp.Count == 0 ? decision.HeldBackBecause : togetherHeldBack,
+            TurnedAwayHeld: togetherHeldBack is null ? null : turnedAway);
     }
 
     private static string? Signal(ErpSupplier arrival, PortalLinkedSupplier vanished)

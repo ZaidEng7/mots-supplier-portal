@@ -23,9 +23,14 @@
 // forever. Both numbers are stated in the message the run produces, so whoever reads it knows what was held back and
 // why.
 //
+// WHICH MESSAGE A PERSON SEES is decided in ErpSyncPlan.Build: Decide's message only when the ERP returned no
+// suppliers at all, and otherwise TogetherHeldBack's, which covers the missing and the turned-away suppliers together.
+// Decide's own over-the-limit message therefore reaches nobody when the ERP returned suppliers - only the tests read
+// it - so wording meant for administrators belongs in TogetherHeldBack.
+//
 // THE EMPTY LIST ALSO STOPS THE MARKING of suppliers already out of service. The run does not suspend those, it only
-// marks them as gone, and the first version let the marking through whenever nothing active was missing - so on a
-// portal whose ERP suppliers were all suspended, an empty read marked every one of them.
+// marks them as gone, and letting the marking through whenever nothing active was missing would, on a portal whose
+// ERP suppliers were all suspended, have an empty read mark every one of them.
 //
 // THE QUARTER IS NOT APPLIED TO THEM, deliberately. When a real clear-out is held back, the way a person confirms it
 // is to suspend those suppliers here; the next run then finds them out of service and only marks them. A limit on
@@ -93,9 +98,9 @@ public static class ErpMissingSupplierPolicy
     // ONE LIMIT FOR THE RUN, NOT ONE PER KIND. A handful turned away is Seven Gates' ordinary work; most of them at once
     // is a change on their side - a workflow renamed, re-saved, or reset to its first state - and an hourly run nobody
     // watches would otherwise suspend the ministry's whole supplier base and leave a person to reinstate every one by
-    // hand, even after the ERP is put right. The first version checked the two kinds separately, so a run could suspend
-    // a quarter as missing and another quarter as turned away - half the suppliers while claiming a quarter was the
-    // most. Above the limit neither kind is suspended, and the run says so.
+    // hand, even after the ERP is put right. Checked separately, the two kinds could each take a quarter, and a run
+    // would suspend half the suppliers while claiming a quarter was the most. Above the limit neither kind is
+    // suspended, and the run says so; ErpStandingDecision then leaves every turned-away supplier as it is.
     public static string? TogetherHeldBack(int activeLinkedInPortal, int missingToSuspend, int turnedAway)
     {
         var limit = Math.Max(AlwaysAllowed, (int)Math.Floor(activeLinkedInPortal * LargestShareSuspendedInOneRun));

@@ -4,7 +4,7 @@
 // administrator linked a contact to a supplier and ticked "Is Primary Contact" on the contact, which is the
 // obvious thing to do and does NOT populate the supplier's own email. Every supplier there read as having no
 // email while the addresses sat one table over. An import that trusted the supplier record alone would have
-// reported that none of them could have portal accounts.
+// given every one of them a placeholder login that cannot receive mail.
 //
 // THE FIRST TEST IS THE CONTROL IN BOTH DIRECTIONS: a supplier whose own email is set keeps it, and the contact
 // does not overwrite it. Their staff maintain that field deliberately; a contact that disagrees is a stale row,
@@ -26,8 +26,7 @@ using MotsSupplierPortal.Infrastructure.Integration.Erp;
 public sealed class ErpContactMergeTests
 {
     private static ErpSupplier Supplier(string id, string? email = null, string? phone = null) =>
-        new(id, id, "Local", "Company", null, "Syria", email, phone, false, "SYP", null, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        ErpSupplierTestFactory.Supplier(id) with { Email = email, Phone = phone };
 
     private static ErpSupplierContact Contact(
         string contactName,
@@ -36,7 +35,13 @@ public sealed class ErpContactMergeTests
         string? phone = null,
         bool primary = false,
         string? fullName = null) =>
-        new(contactName, supplier, email, phone, primary, fullName);
+        new(
+            ContactName: contactName,
+            SupplierName: supplier,
+            Email: email,
+            Phone: phone,
+            IsPrimary: primary,
+            FullName: fullName);
 
     [Fact]
     public void A_supplier_that_carries_its_own_email_keeps_it()
@@ -134,8 +139,7 @@ public sealed class ErpContactMergeTests
     public void A_contact_the_erp_named_after_the_supplier_is_no_person(string fullName)
     {
         var merged = ErpContactMerge.Fill(
-            [new ErpSupplier("SUP-2026-00025", "AL-OMAR CO", "Local", "Company", null, "Syria", null, null, false,
-                "SYP", null, null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)],
+            [ErpSupplierTestFactory.Supplier("SUP-2026-00025") with { Name = "AL-OMAR CO" }],
             [Contact("c1", "SUP-2026-00025", phone: "0999585545", fullName: fullName)]);
 
         merged[0].ContactPersonName.Should().BeNull();

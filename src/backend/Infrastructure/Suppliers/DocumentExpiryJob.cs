@@ -208,7 +208,7 @@ public sealed class DocumentExpiryJob(
             supplier.Suspend(reason);
 
             await auditLogger.LogAsync(
-                "Supplier", supplier.Id, "supplier_auto_suspended",
+                "Supplier", supplier.Id, SupplierAuditActions.AutoSuspended,
                 actorLabel: "system",
                 fromState: nameof(SupplierLifecycleState.Active),
                 toState: nameof(SupplierLifecycleState.Suspended),

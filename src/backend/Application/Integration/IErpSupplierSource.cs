@@ -9,17 +9,17 @@
 // ErpSupplier IS DELIBERATELY NOT THE ERP'S RECORD. A supplier there carries forty-four fields, most of them
 // about purchasing - payment terms, price lists, whether invoices may be raised without a purchase order. Those
 // are the ERP's business and none of ours, so this carries what the portal and the ministry's feed actually
-// read and nothing else. A field added here should be a field something consumes.
+// read and nothing else. A field added here should be a field something consumes; Country, CreatedAt, ModifiedAt
+// and PrimaryContactName are the exceptions today - they are mapped, and nothing reads them yet.
 //
-// EVERY FIELD EXCEPT THE IDENTIFIER AND THE TIMESTAMPS IS NULLABLE, and that is the shape of the real data
-// rather than defensive habit. The test instance holds three suppliers carrying a name, a group, a type and a
-// country, with no tax number, no email and no address at all. Whether the real instance fills them is a
-// question nobody has answered yet, so the type refuses to pretend: a supplier with nothing but a name is a
-// supplier this can represent, and the import decides what to do about it.
+// EVERY FIELD EXCEPT THE IDENTIFIER, THE DISABLED FLAG AND THE TIMESTAMPS IS NULLABLE, and that is the shape of the
+// real data rather than defensive habit. The test instance held three suppliers carrying a name, a group, a type and
+// a country, with no tax number, no email and no address at all, so the type refuses to pretend: a supplier with
+// nothing but a name is a supplier this can represent, and the import decides what to do about it.
 //
-// EMAIL IS THE FIELD THAT DECIDES SCOPE. A portal account needs a mailbox to send a password link to, and
-// Supplier.Register refuses to create a supplier without a representative email. A row arriving here with
-// Email null cannot become an account, so the import reports it rather than inventing an address.
+// A ROW WITH NO EMAIL STILL BECOMES AN ACCOUNT. A portal login needs an address, so ErpImportAdmission gives such a
+// supplier a placeholder that can never deliver, and says so in the row's notes, rather than leaving it out or
+// inventing an address that looks real.
 
 // THE REAL SERVER FILLS MORE THAN THE TEST ONE DID, and the second group of fields is what it fills: an Arabic name
 // and a registration number in fields Seven Gates added themselves, an approval state from their workflow, a contact

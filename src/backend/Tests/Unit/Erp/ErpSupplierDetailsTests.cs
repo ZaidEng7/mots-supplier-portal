@@ -25,7 +25,11 @@ public sealed class ErpSupplierDetailsTests
             SupplierLegalType.Company, "SYP", "AL-Zaeim for advertising services", "placeholder@erp-import.invalid",
             "0944444931",
             details: details ?? new ErpSupplierDetails(
-                "الزعيم للخدمات الإعلانية", "73260", "Commercial", "مستلزمات مكتبية - SYP", null));
+                DisplayNameAr: "الزعيم للخدمات الإعلانية",
+                RegistrationNumber: "73260",
+                RegistrationType: "Commercial",
+                SupplierGroup: "مستلزمات مكتبية - SYP",
+                Description: null));
 
     [Fact]
     public void The_first_import_carries_every_detail_the_erp_has()
@@ -43,7 +47,12 @@ public sealed class ErpSupplierDetailsTests
     [Fact]
     public void With_no_arabic_name_the_required_field_starts_as_the_english_one()
     {
-        var supplier = Imported(new ErpSupplierDetails(null, null, null, null, null));
+        var supplier = Imported(new ErpSupplierDetails(
+            DisplayNameAr: null,
+            RegistrationNumber: null,
+            RegistrationType: null,
+            SupplierGroup: null,
+            Description: null));
 
         supplier.DisplayNameAr.Should().Be("AL-Zaeim for advertising services");
         supplier.LegalInfo!.RegistrationNumber.Should().BeNull();
@@ -58,7 +67,12 @@ public sealed class ErpSupplierDetailsTests
 
         supplier.ApplyErpSnapshot(
             "AL-Zaeim for advertising services", null, SupplierLegalType.Company, null, null, null,
-            details: new ErpSupplierDetails("الزعيم للإعلان", null, null, null, "Printing and signage"),
+            details: new ErpSupplierDetails(
+                DisplayNameAr: "الزعيم للإعلان",
+                RegistrationNumber: null,
+                RegistrationType: null,
+                SupplierGroup: null,
+                Description: "Printing and signage"),
             representativeName: null);
 
         supplier.DisplayNameAr.Should().Be("الزعيم للإعلان");
@@ -71,7 +85,12 @@ public sealed class ErpSupplierDetailsTests
 
         supplier.ApplyErpSnapshot(
             "AL-Zaeim for advertising services", null, SupplierLegalType.Company, null, null, null,
-            details: new ErpSupplierDetails(null, "73261", "Industrial", "مواد غذائية - SYP", null));
+            details: new ErpSupplierDetails(
+                DisplayNameAr: null,
+                RegistrationNumber: "73261",
+                RegistrationType: "Industrial",
+                SupplierGroup: "مواد غذائية - SYP",
+                Description: null));
 
         supplier.LegalInfo!.RegistrationNumber.Should().Be("73261");
         supplier.LegalInfo.RegistrationType.Should().Be("Industrial");

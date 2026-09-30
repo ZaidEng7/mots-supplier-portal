@@ -3,8 +3,9 @@
 // THE TIME ZONE IS A REQUIRED SETTING BECAUSE THE ERP'S TIMESTAMPS HAVE NO ZONE. It sends
 // "2026-08-17 03:15:00" and means its own server's local time. There is no offset to read and nothing in the
 // payload to infer one from, so the zone has to be configured, and configuring it wrong is silent: every
-// created-on and last-modified in the portal drifts by the difference, and the ministry's feed reports those
-// drifted timestamps as if they were facts.
+// created-on and last-modified read from the ERP drifts by the difference. Nothing stores or reports those two
+// values yet, so today a wrong zone corrupts nothing - but a zone this machine does not know stops every supplier
+// read, because ErpSupplierSource looks it up before the first row is mapped.
 //
 // IT DEFAULTS TO DAMASCUS rather than to UTC. A default of UTC would be the safe-looking choice and the wrong
 // one - it is exactly the misreading this setting exists to prevent, and it would look correct in every log.

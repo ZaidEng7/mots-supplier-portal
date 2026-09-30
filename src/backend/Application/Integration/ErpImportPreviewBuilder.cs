@@ -1,18 +1,25 @@
 // Deciding, for each supplier the ERP sent, what importing it would do.
 //
-// THIS IS PURE ON PURPOSE. Every rule worth arguing about lives here or in ErpImportAdmission - how gaps are
-// filled, what is worth telling somebody, how a row is matched to one the portal already has - and none of it
-// needs a database to exercise. The handler around it does two reads and calls this.
+// THIS IS PURE ON PURPOSE, so every rule it applies can be exercised without a database. PreviewErpImportHandler
+// reads the portal - its ERP-linked suppliers through LinkedSuppliersInPortal, the reader the run uses too - and the
+// ERP, and calls this.
 //
+// THE PREVIEW AND THE RUN SHARE EVERY DECISION, on data read before the first write, because a forecast that disagrees
+// with the outcome is worse than none: it was believed. Both call the same rules:
+//   ErpImportAdmission       how each gap in the ERP's record is filled, and what becomes of its address
+//   ErpRegistrationNumbers   which supplier may carry which registration number
+//   ErpSyncPlan              which suppliers are held for a person, suspended or marked as gone
+//   ErpStandingDecision      what the ERP's standing does to a supplier the portal already holds, and its notes
+// What this adds for the preview alone is the group and phone notes, the tax-number match, and the counts.
 //
-// NO SUPPLIER IS REFUSED. The portal is meant to show the whole of Seven Gates' supplier base, so a supplier with
-// no email gets a placeholder, an unknown currency is left empty, and a disabled one arrives suspended. How each
-// gap is filled, and why, lives in ErpImportAdmission, which the import itself also uses: two copies of those
-// rules would drift, and a forecast that disagrees with the outcome is worse than none, because it was believed.
+// ONE KIND OF SUPPLIER IS REFUSED: a probable rename, which ErpSyncPlan holds for a person and the run refuses the same
+// way. Every other gap is filled - a supplier with no email gets a placeholder, an unknown currency is left empty, and
+// one the ERP disables or has not approved arrives suspended. The run can also refuse a supplier whose address
+// already belongs to another account, which only the run checks, because only the run creates accounts.
 //
-// THE NOTES ARE THE DELIVERABLE. With nothing refused, the count of creates says how big the job is and the notes
-// say what is being agreed to - which suppliers have a placeholder instead of a real address, which have no
-// currency, which arrive suspended. A summary cannot carry that.
+// THE NOTES ARE THE DELIVERABLE. The count of creates says how big the job is and the notes say what is being agreed
+// to - which suppliers have a placeholder instead of a real address, which have no currency, which arrive suspended.
+// A summary cannot carry that.
 //
 //
 // WHAT IS NOTED BUT CANNOT BE FILLED
@@ -20,21 +27,23 @@
 // THE CATEGORY CANNOT BE TRANSLATED AND IS LEFT UNSET. The ERP's supplier groups are its own purchasing vocabulary
 // - مواد غذائية, مستلزمات فندقية - and the portal's categories are the ministry's tourism taxonomy. There is no
 // honest mapping, and a guess would be indistinguishable from a real choice once written. The group itself is kept
-// on the supplier exactly as the ERP wrote it, so nothing the ERP knows is lost while the ministry decides.
+// on the supplier as the ERP wrote it, so nothing the ERP knows is lost while the ministry decides.
 //
-// WHAT THE ADDRESS, THE ARABIC NAME AND THE CONTACT PERSON BECAME is said by ErpImportAdmission, and the address's fate
-// and the registration number's by the rules both the preview and the run call; the run reports the same notes. This
-// adds only the group and phone notes, and the tax-number match only the preview looks for.
+// WHAT THE ADDRESS, THE ARABIC NAME AND THE CONTACT PERSON BECAME is said by ErpImportAdmission, and the registration
+// number's fate by ErpRegistrationNumbers; the run reports the same notes.
 //
 //
-// WHO IS HELD FOR A PERSON OR SUSPENDED IS DECIDED BY ErpSyncPlan, which the run calls too, on data read before the
-// first write. The first version computed the suspension limit separately here and in the run, and the run's
-// version counted that run's new suppliers - so this forecast could say "held back" while the run suspended.
+// SUSPENSIONS
+//
+// WHO IS HELD FOR A PERSON, SUSPENDED OR MARKED IS DECIDED BY ErpSyncPlan, and the run builds the same plan from the
+// same read. A matched supplier the ERP now turns away is a Suspend row when ErpStandingDecision says the run would
+// suspend it, and an Update row otherwise.
 //
 // A SUPPLIER THE ERP NO LONGER RETURNS WOULD BE SUSPENDED. Seven Gates deletes by removing, so absence is the
 // only signal a deletion leaves - and the same signal a broken read leaves, which is why ErpMissingSupplierPolicy
 // decides whether to believe it. Suspended, not deactivated: visible, not invitable, and reversible by a person.
 // A supplier that registered here itself carries no ERP identifier and is never a candidate.
+//
 //
 // MATCHING
 //
@@ -50,6 +59,9 @@ namespace MotsSupplierPortal.Application.Integration;
 
 using MotsSupplierPortal.Domain.Suppliers;
 
+// A portal supplier the ERP's identifier matches, as the preview needs it: what ErpSyncPlan reads, plus what only the
+// preview reports. LinkedSuppliersInPortal builds it with every field named; the defaults are for tests, so a field
+// added here is read there too, or every preview silently takes its default.
 public sealed record ErpImportCandidateMatch(
     string ReferenceCode,
     string? TaxId,
@@ -72,25 +84,25 @@ public static class ErpImportPreviewBuilder
         IReadOnlyDictionary<string, RegistrationNumberHolder>? registrationNumbersInPortal = null)
     {
         var plan = ErpSyncPlan.Build(erpSuppliers, [.. byExternalId.Select(pair => new PortalLinkedSupplier(
-            pair.Key,
-            pair.Value.ReferenceCode,
-            pair.Value.Name,
-            pair.Value.TaxId,
-            pair.Value.LoginEmail,
-            pair.Value.IsActive,
-            pair.Value.SuspendedAsRemovedFromErp,
-            pair.Value.MarkedRemovedFromErp,
-            pair.Value.ErpDisabledState))]);
+            ExternalId: pair.Key,
+            ReferenceCode: pair.Value.ReferenceCode,
+            Name: pair.Value.Name,
+            TaxId: pair.Value.TaxId,
+            LoginEmail: pair.Value.LoginEmail,
+            IsActive: pair.Value.IsActive,
+            SuspendedAsRemovedFromErp: pair.Value.SuspendedAsRemovedFromErp,
+            MarkedRemovedFromErp: pair.Value.MarkedRemovedFromErp,
+            ErpDisabledState: pair.Value.ErpDisabledState))]);
 
-        var heldFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
+        var renamedFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
 
         var registrationNumbers = ErpRegistrationNumbers.Decide(
             erpSuppliers,
             registrationNumbersInPortal ?? new Dictionary<string, RegistrationNumberHolder>(StringComparer.Ordinal));
 
         var rows = erpSuppliers
-            .Select(supplier => heldFrom.TryGetValue(supplier.ExternalId, out var held)
-                ? HeldRow(supplier, held)
+            .Select(supplier => renamedFrom.TryGetValue(supplier.ExternalId, out var rename)
+                ? ProbableRenameRow(supplier, rename)
                 : Row(supplier, byExternalId, unlinkedByTaxId, registrationNumbers[supplier.ExternalId], plan))
             .ToList();
 
@@ -102,13 +114,13 @@ public static class ErpImportPreviewBuilder
             missing.ReferenceCode)));
 
         return new ErpImportPreviewReport(
-            erpSuppliers.Count,
-            rows.Count(r => r.Action == ErpImportAction.Create),
-            rows.Count(r => r.Action == ErpImportAction.Update),
-            rows.Count(r => r.Action == ErpImportAction.Refuse),
-            rows,
-            rows.Count(r => r.Action == ErpImportAction.Suspend),
-            plan.SuspensionsHeldBack);
+            ErpSupplierCount: erpSuppliers.Count,
+            WouldCreate: rows.Count(r => r.Action == ErpImportAction.Create),
+            WouldUpdate: rows.Count(r => r.Action == ErpImportAction.Update),
+            Refused: rows.Count(r => r.Action == ErpImportAction.Refuse),
+            Rows: rows,
+            WouldSuspend: rows.Count(r => r.Action == ErpImportAction.Suspend),
+            SuspensionsHeldBack: plan.SuspensionsHeldBack);
     }
 
     // What a person is told about a probable rename, in the preview and in the run alike.
@@ -117,19 +129,21 @@ public static class ErpImportPreviewBuilder
     // suspended and nothing was created, and the existing supplier carries on as before. It names the signal, because
     // "the same tax number" and "the same sign-in address" call for different checks. And it says plainly that the
     // portal will not decide this, so nobody waits for the next run to sort it out.
-    public static string ProbableRenameNote(ErpProbableRename held) =>
-        $"Possibly the same company as {held.ReferenceCode} ('{held.OldExternalId}' in the ERP, which no longer "
-        + $"returns it) - they share {held.Signal}. Not created, and {held.ReferenceCode} was not suspended: it carries "
-        + "on as before. The portal will not decide whether these are one company, because a wrong guess would move one "
-        + "company's history onto another. Check with Seven Gates.";
+    public static string ProbableRenameNote(ErpProbableRename rename) =>
+        $"Possibly the same company as {rename.ReferenceCode} ('{rename.OldExternalId}' in the ERP, which no "
+        + $"longer returns it) - they share {rename.Signal}. Not created, and {rename.ReferenceCode} was not "
+        + "suspended: it carries on as before. The portal will not decide whether these are one company, because a "
+        + "wrong guess would move one company's history onto another. Check with Seven Gates.";
 
-    private static ErpImportPreviewRow HeldRow(ErpSupplier supplier, ErpProbableRename held) => new(
+    private static ErpImportPreviewRow ProbableRenameRow(ErpSupplier supplier, ErpProbableRename rename) => new(
         supplier.ExternalId,
         ErpImportAdmission.Admit(supplier).Name,
         ErpImportAction.Refuse,
-        [ProbableRenameNote(held)],
-        held.ReferenceCode);
+        [ProbableRenameNote(rename)],
+        rename.ReferenceCode);
 
+    // One ERP supplier that is not a probable rename: a Create row if the portal does not hold it yet, otherwise an
+    // Update row, or a Suspend row when ErpStandingDecision says the run would suspend it.
     private static ErpImportPreviewRow Row(
         ErpSupplier supplier,
         IReadOnlyDictionary<string, ErpImportCandidateMatch> byExternalId,
@@ -149,33 +163,25 @@ public static class ErpImportPreviewBuilder
         notes.Add(ErpImportAdmission.AddressOutcome(
             admitted, candidate is null, candidate?.AddressCount ?? 0, candidate?.BlockedByState).Note);
 
-        var forecast = candidate is null
-            ? ErpDisabledChange.None
-            : Supplier.ErpDisabledChangeFor(
-                candidate.ErpDisabledState, candidate.IsActive, admitted.Standing, !candidate.AwaitsDocumentRenewal);
-        var held = plan.HoldsTurnedAway && admitted.Standing != ErpStanding.Usable;
-        var standing = held ? ErpDisabledChange.None : forecast;
+        var decision = candidate is null
+            ? null
+            : ErpStandingDecision.Decide(
+                memory: candidate.ErpDisabledState,
+                isActive: candidate.IsActive,
+                standing: admitted.Standing,
+                turnedAway: admitted.TurnedAway,
+                documentsAllowRelease: !candidate.AwaitsDocumentRenewal,
+                planHoldsTurnedAway: plan.HoldsTurnedAway,
+                markedRemovedFromErp: candidate.MarkedRemovedFromErp);
 
-        if (candidate is null && admitted.ArrivalNote is not null)
+        if (decision is null && admitted.ArrivalNote is not null)
         {
             notes.Add(admitted.ArrivalNote);
         }
 
-        if (candidate is not null && admitted.TurnedAway is not null)
+        if (decision is not null)
         {
-            notes.Add(held && forecast != ErpDisabledChange.None
-                ? ErpImportAdmission.HeldBackNote(admitted.TurnedAway)
-                : ErpImportAdmission.TurnedAwayNote(admitted.TurnedAway, standing));
-        }
-
-        if (standing == ErpDisabledChange.Released)
-        {
-            notes.Add(ErpImportAdmission.ReleasedNote);
-        }
-
-        if (standing == ErpDisabledChange.ReleaseWaitsForDocuments)
-        {
-            notes.Add(ErpImportAdmission.ReleaseWaitsNote);
+            notes.AddRange(decision.Notes);
         }
 
         notes.Add(
@@ -189,9 +195,7 @@ public static class ErpImportPreviewBuilder
             notes.Add("No phone number.");
         }
 
-        var matched = byExternalId.TryGetValue(supplier.ExternalId, out var existing) ? existing : null;
-
-        if (matched is null
+        if (candidate is null
             && supplier.TaxId is not null
             && unlinkedByTaxId.TryGetValue(supplier.TaxId, out var duplicate))
         {
@@ -203,10 +207,10 @@ public static class ErpImportPreviewBuilder
         return new ErpImportPreviewRow(
             supplier.ExternalId,
             admitted.Name,
-            matched is null
+            decision is null
                 ? ErpImportAction.Create
-                : standing == ErpDisabledChange.Suspended && !held ? ErpImportAction.Suspend : ErpImportAction.Update,
+                : decision.Change == ErpDisabledChange.Suspended ? ErpImportAction.Suspend : ErpImportAction.Update,
             notes,
-            matched?.ReferenceCode);
+            candidate?.ReferenceCode);
     }
 }

@@ -1,15 +1,17 @@
 // Turning whatever the ERP sent into a supplier the portal can hold.
 //
-// EVERY SUPPLIER GETS IN. The first version refused a supplier with no email, an unknown currency or no name,
-// which is the careful answer for an import and the wrong one for this ministry: the point is that the portal shows
-// the whole of Seven Gates' supplier base, and a supplier left out is a supplier nobody can see, invite or
-// correct. So gaps are filled with values that are visibly placeholders, and every one is noted, rather than the
-// supplier being dropped.
+// EVERY SUPPLIER GETS IN. The point is that the portal shows the whole of Seven Gates' supplier base, and a supplier
+// left out is a supplier nobody can see, invite or correct. So gaps are filled with values that are visibly
+// placeholders, and every one is noted, rather than the supplier being dropped; refusing a supplier with no email, an
+// unknown currency or no name is the careful answer for an import and the wrong one for this ministry.
 //
 // THIS IS ONE PLACE BECAUSE IT IS ASKED TWICE. The preview forecasts what the import will do and the import then
-// does it. Two copies would drift, and the day they drift is the day the forecast promises one thing and the run
-// does another - which is worse than no forecast, because it was believed. That already happened once, over
-// disabled suppliers, and it is why this file now decides the lifecycle too.
+// does it, and both admit every supplier here. Two copies would drift, and the day they drift is the day the forecast
+// promises one thing and the run does another - which is worse than no forecast, because it was believed.
+//
+// IT WORKS OUT THE ERP'S STANDING, AND WORDS WHAT BECOMES OF IT. StandingOf says whether the ERP lets a supplier be
+// used; a new supplier arrives with that standing, and for one the portal already holds, ErpStandingDecision decides
+// the change and picks the note, worded here: ReleasedNote, ReleaseWaitsNote, HeldBackNote and TurnedAwayNote.
 //
 //
 // THE PLACEHOLDER EMAIL
@@ -94,6 +96,10 @@ public static partial class ErpImportAdmission
 
     public static readonly IReadOnlyList<string> KnownCurrencies = ["SYP", "USD"];
 
+    // Every field of the result is passed by name, because most of them are nullable strings and one placed a slot off
+    // by position would still compile. Notes is the very list the length checks after it add to while the record is
+    // built, so a note about a value cut short reaches the row; a copy passed there would lose those notes, and
+    // reordering the arguments reorders them.
     public static AdmittedSupplier Admit(ErpSupplier supplier)
     {
         var notes = new List<string>();
@@ -148,22 +154,23 @@ public static partial class ErpImportAdmission
         }
 
         return new AdmittedSupplier(
-            name!,
-            email!,
-            placeholder,
-            currency?.ToUpperInvariant(),
-            turnedAway is not null,
-            notes,
-            ErpFieldLimits.Cut(arabicName, ErpFieldLimits.Name, "Arabic name", notes),
-            ErpFieldLimits.Cut(person, ErpFieldLimits.PersonName, "contact person's name", notes),
-            ErpAddressMapper.Map(supplier.Address),
-            ErpFieldLimits.Cut(supplier.Description, ErpFieldLimits.Description, "description", notes),
-            ErpFieldLimits.DropIfTooLong(supplier.SupplierGroup, ErpFieldLimits.SupplierGroup, "supplier group", notes),
-            ErpFieldLimits.DropIfTooLong(
+            Name: name!,
+            Email: email!,
+            EmailIsPlaceholder: placeholder,
+            Currency: currency?.ToUpperInvariant(),
+            Suspended: turnedAway is not null,
+            Notes: notes,
+            ArabicName: ErpFieldLimits.Cut(arabicName, ErpFieldLimits.Name, "Arabic name", notes),
+            ContactPerson: ErpFieldLimits.Cut(person, ErpFieldLimits.PersonName, "contact person's name", notes),
+            Address: ErpAddressMapper.Map(supplier.Address),
+            Description: ErpFieldLimits.Cut(supplier.Description, ErpFieldLimits.Description, "description", notes),
+            SupplierGroup: ErpFieldLimits.DropIfTooLong(
+                supplier.SupplierGroup, ErpFieldLimits.SupplierGroup, "supplier group", notes),
+            RegistrationType: ErpFieldLimits.DropIfTooLong(
                 supplier.RegistrationType, ErpFieldLimits.RegistrationType, "registration type", notes),
-            turnedAway,
-            arrivalNote,
-            StandingOf(supplier));
+            TurnedAway: turnedAway,
+            ArrivalNote: arrivalNote,
+            Standing: StandingOf(supplier));
     }
 
     // Whether the ERP lets this supplier be used, is still approving it, or has disabled it. Disabled wins when both

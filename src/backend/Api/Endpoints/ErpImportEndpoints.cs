@@ -3,10 +3,10 @@
 // THE TWO SIT TOGETHER ON PURPOSE. A preview whose write lives somewhere else invites somebody to bookmark one
 // and forget the other, and the forecast is only worth anything if the thing it forecasts is one click away.
 //
-// IT IS A POST ALTHOUGH IT WRITES NOTHING. Two reasons, and the weaker one is that it takes minutes and calls
-// another ministry's server, which is not what a cache or a link-prefetcher should be free to trigger. The
-// stronger one is that this route is the front half of an action: the write lands beside it, and a preview that
-// lived at a different verb from the thing it previews invites somebody to bookmark one and forget the other.
+// THE PREVIEW IS A POST ALTHOUGH IT CHANGES NO SUPPLIER - it writes only the audit row saying who looked. Two
+// reasons, and the weaker one is that it takes minutes and calls another ministry's server, which is not what a
+// cache or a link-prefetcher should be free to trigger. The stronger one is that it is the front half of an action,
+// and it sits at the same verb as the run it previews for the reason above.
 //
 // THE WHOLE REPORT COMES BACK IN ONE RESPONSE, unpaged. Eighty rows is a list a person reads before agreeing to
 // an import, and the rows that matter are the unusual ones - a page boundary is exactly where those would hide.

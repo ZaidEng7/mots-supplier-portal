@@ -1,21 +1,19 @@
 // Deciding who is held for a person or suspended, before anything is written.
 //
-// EVERY TEST HERE CAME OUT OF A REVIEW. The first version judged the suspension limit against every linked supplier,
-// re-suspended suppliers people had reinstated, and treated an ERP rename as a deletion. The second version fixed the
-// rename by re-linking automatically, and the next review showed three ways that moved one company's history onto
-// another: a purchasing email two ERP suppliers share, a contact email the supplier can edit, and a tax number shared
-// by a company and its subsidiary.
+// EVERY TEST HERE PINS A DEFECT A REVIEW FOUND, and together they state the plan's rules. The limit is a quarter of the
+// ACTIVE linked suppliers, never fewer than five, shared by the missing and the turned-away; a supplier a person
+// reinstated after the sync suspended it neither counts towards it nor is suspended again. A supplier already out of
+// service that leaves the ERP is only marked, with a memory of its own, so one back in service later is still
+// suspended once; an empty read marks nobody.
 //
-// A THIRD REVIEW FOUND TWO MORE: a disabled arrival shielded the old supplier and kept it invitable, and limiting
-// the old side to active suppliers let a suspended company come back as a new active one when it was renamed.
-//
-// A FOURTH FOUND THE MARK FOR A SUPPLIER ALREADY OUT OF SERVICE sharing the "a person reinstated it" memory, so one
-// reactivated later stayed active although the ERP no longer had it; and an empty read marking every such supplier.
-//
-// SO THE RENAME TESTS PIN A REFUSAL TO GUESS. A probable rename holds both sides - the vanished supplier is not
+// THE RENAME TESTS PIN A REFUSAL TO GUESS. Re-linking a rename automatically would move one company's history onto
+// another - through a purchasing email two ERP suppliers share, a contact email the supplier can edit, or a tax number
+// shared by a company and its subsidiary. So a probable rename holds both sides - the vanished supplier is not
 // suspended, the arrival is not created - and nothing is ever moved. The tests check the signals (sign-in address or
-// tax number), that placeholders never count, that ambiguity pairs nothing, and that only a supplier which vanished
-// IN THIS RUN can be the old side, so one removed months ago cannot block a new company forever.
+// tax number), that placeholders never count, that ambiguity pairs nothing, that a suspended company renamed in the ERP
+// is held rather than coming back as a new active one, that an arrival the ERP disables or has not approved shields no
+// old supplier, and that only a supplier which vanished IN THIS RUN can be the old side, so one removed months ago
+// cannot block a new company forever.
 
 namespace MotsSupplierPortal.Tests.Unit.Erp;
 
@@ -27,8 +25,13 @@ public sealed class ErpSyncPlanTests
 {
     private static ErpSupplier Erp(
         string id, string? email = null, string? taxId = null, bool disabled = false, string? workflowState = null) =>
-        new(id, id, "Local", "Company", taxId, "Syria", email, null, disabled, "SYP", null, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, WorkflowState: workflowState);
+        ErpSupplierTestFactory.Supplier(id) with
+        {
+            TaxId = taxId,
+            Email = email,
+            Disabled = disabled,
+            WorkflowState = workflowState,
+        };
 
     private static PortalLinkedSupplier Portal(
         string id,
@@ -38,7 +41,16 @@ public sealed class ErpSyncPlanTests
         bool suspendedAsRemoved = false,
         bool marked = false,
         SupplierErpDisabledState erpState = SupplierErpDisabledState.NotDisabled) =>
-        new(id, "REF-" + id, id, taxId, login, active, suspendedAsRemoved, marked, erpState);
+        new(
+            ExternalId: id,
+            ReferenceCode: "REF-" + id,
+            Name: id,
+            TaxId: taxId,
+            LoginEmail: login,
+            IsActive: active,
+            SuspendedAsRemovedFromErp: suspendedAsRemoved,
+            MarkedRemovedFromErp: marked,
+            ErpDisabledState: erpState);
 
     [Fact]
     public void A_probable_rename_by_sign_in_address_is_held_and_nothing_is_moved_or_suspended()

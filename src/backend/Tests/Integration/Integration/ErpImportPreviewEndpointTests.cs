@@ -1,13 +1,13 @@
-// The preview route, against a deployment with no ERP configured - which is every deployment today.
+// The preview route, against a deployment with no ERP configured and against an ERP that does not answer.
 //
-// THE 503 IS THE CASE WORTH A TEST, and it is a test about a startup failure as much as a response. The first
-// version of this feature registered the preview handler unconditionally while its client was registered only
-// when Erp:Enabled was true, so the container - which validates every registration on boot - refused to start the
-// API at all. The whole product, down, over an integration meant to be optional. The fix registers a stand-in
-// that throws, and this route turning that throw into a 503 is the visible half of it.
+// THE 503 IS THE CASE WORTH A TEST, and it is a test about a startup failure as much as a response. The ERP client is
+// registered whether or not a connection exists, and throws when asked to read without one; registering it only when
+// the ERP was configured, beside a preview handler that was always registered, made the container - which validates
+// every registration on boot - refuse to start the API at all, over an integration meant to be optional. This route
+// turning that throw into a 503 is the visible half of it.
 //
 // AN EMPTY REPORT WOULD BE THE WRONG ANSWER and that is the reason for asserting the body rather than only the
-// status. "0 suppliers, nothing to import" is what an unconfigured integration looks like if the stand-in returns
+// status. "0 suppliers, nothing to import" is what an unconfigured integration looks like if the client returns
 // an empty list instead of throwing, and it reads like success - somebody would forward it to the ministry.
 //
 // IT STATES ITS OWN PRECONDITION rather than trusting the collection. "No ERP configured" is shared state now that

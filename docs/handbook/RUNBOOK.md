@@ -228,14 +228,19 @@ above.
 
 - **A fresh registration lands on "Your application is under review", not a dashboard.** Correct: a
   new supplier is in Draft. The seeded `supplier@mots.local` is already Active and does get one.
-- **No real ERP integration is configured.** The admin overview says so. The outbox drains to a log
-  line; that is T-089 stating a vacuum rather than a failure.
+- **The admin overview's "No real ERP integration is configured" is about the outbound side only.** It
+  sits on the Outbox card. The outbox still drains to a log line, which is T-089 stating a vacuum rather
+  than a failure. Awards still go to `StubErpPurchaseOrderAdapter`, which sends no purchase order. The
+  inbound side is connected: the supplier import reads the ministry's ERP. It runs from **Supplier
+  import** (`/back-office/erp-import`) and every hour by itself, once an ERP connection is configured,
+  either on **Connected systems** or in the `Erp` settings. Without one, the screen answers that the
+  connection is not configured, and the hourly job skips quietly. See `ERP-IMPORT.md`.
 - **The evaluation is part-scored and not consolidated**, so comparison and award screens show a
   position rather than a result. See §7.
 - **`report.read` reaches `procurement_manager` and `ministry_viewer` only.** An officer has no
   Reports link, by grant, not by accident.
-- **Recurring jobs are enabled** — 6 of them, including one that opens and closes submission windows,
-  so RFQ states move on their own while you watch.
+- **Recurring jobs are enabled** — 7 of them, including one that opens and closes submission windows,
+  so RFQ states move on their own while you watch, and the hourly ERP supplier sync.
 
 ## 10. Three screens have no link to them
 

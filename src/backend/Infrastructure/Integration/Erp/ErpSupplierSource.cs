@@ -95,12 +95,12 @@ public sealed class ErpSupplierSource(
 
     // A server that is down or unreachable has to read as the ERP's failure, not ours.
     //
-    // The first version handled only a server that ANSWERED with an error. One that did not answer at all - a
-    // refused connection, an address that does not resolve, a timeout - threw a transport exception straight past
-    // every handler and surfaced as a 500, which tells an administrator the portal is broken. That is the most
-    // likely failure of all right after somebody changes the address on the integrations screen, so it is the
-    // worst one to misreport. It was found because a test left the address pointing at a closed port and the next
-    // test class inherited it.
+    // A server that does not answer at all - a refused connection, an address that does not resolve, a timeout - throws
+    // a transport exception rather than returning an error, and one let through surfaces as a 500, which tells an
+    // administrator the portal is broken. That is the most likely failure of all right after somebody changes the
+    // address on the integrations screen, so it is the worst one to misreport, and it is reported here as the ERP's.
+    // An address saved without its http:// is not covered: Request refuses it before anything is sent, and that still
+    // surfaces as a 500.
     //
     // A timeout that is really the caller cancelling is left alone: that is not the ERP failing.
     private async Task<HttpResponseMessage> SendAsync(ErpConnection connection, string url, CancellationToken ct)
@@ -181,15 +181,15 @@ public sealed class ErpSupplierSource(
         return [.. (envelope?.Data ?? [])
             .Where(record => record.SupplierName is not null)
             .Select(record => new ErpSupplierAddressRow(
-                record.Name,
-                record.SupplierName!,
-                Trimmed(record.Line1),
-                Trimmed(record.Line2),
-                Trimmed(record.City),
-                Trimmed(record.Country),
-                record.IsPrimaryAddress is not null && record.IsPrimaryAddress != 0,
-                Trimmed(record.AddressType),
-                record.Disabled is not null && record.Disabled != 0))];
+                AddressName: record.Name,
+                SupplierName: record.SupplierName!,
+                Line1: Trimmed(record.Line1),
+                Line2: Trimmed(record.Line2),
+                City: Trimmed(record.City),
+                Country: Trimmed(record.Country),
+                IsPrimary: record.IsPrimaryAddress is not null && record.IsPrimaryAddress != 0,
+                AddressType: Trimmed(record.AddressType),
+                Disabled: record.Disabled is not null && record.Disabled != 0))];
     }
 
     private async Task<IReadOnlyList<ErpSupplierContact>> ReadSupplierContactsAsync(
@@ -209,34 +209,38 @@ public sealed class ErpSupplierSource(
         return [.. (envelope?.Data ?? [])
             .Where(record => record.SupplierName is not null)
             .Select(record => new ErpSupplierContact(
-                record.Name,
-                record.SupplierName!,
-                Trimmed(record.EmailId),
-                Trimmed(record.MobileNo),
-                record.IsPrimaryContact is not null && record.IsPrimaryContact != 0,
-                Trimmed(record.FullName)))];
+                ContactName: record.Name,
+                SupplierName: record.SupplierName!,
+                Email: Trimmed(record.EmailId),
+                Phone: Trimmed(record.MobileNo),
+                IsPrimary: record.IsPrimaryContact is not null && record.IsPrimaryContact != 0,
+                FullName: Trimmed(record.FullName)))];
     }
 
+    // Every field is passed by name. Most of them are nullable strings, so a value placed one slot off by position
+    // would compile and land in the wrong field - the registration number in the description, say - with nothing to
+    // show for it until somebody read the supplier. ContactPersonName and Address are left to ErpContactMerge and
+    // ErpAddressMerge, which fill them from the other two reads.
     private static ErpSupplier Map(ErpSupplierRecord record, TimeZoneInfo zone) => new(
-        record.Name,
-        Trimmed(record.SupplierName),
-        Trimmed(record.SupplierGroup),
-        Trimmed(record.SupplierType),
-        Trimmed(record.TaxId),
-        Trimmed(record.Country),
-        Trimmed(record.EmailId),
-        Trimmed(record.MobileNo),
-        record.Disabled is not null && record.Disabled != 0,
-        Trimmed(record.DefaultCurrency),
-        Trimmed(record.PrimaryAddress),
-        Trimmed(record.PrimaryContact),
-        ErpServerTime.TryParse(record.Creation, zone, out var created) ? created : default,
-        ErpServerTime.TryParse(record.Modified, zone, out var modified) ? modified : default,
-        Trimmed(record.ArabicName),
-        Trimmed(record.RegistrationNumber),
-        Trimmed(record.RegistrationType),
-        Trimmed(record.Description),
-        Trimmed(record.WorkflowState));
+        ExternalId: record.Name,
+        Name: Trimmed(record.SupplierName),
+        SupplierGroup: Trimmed(record.SupplierGroup),
+        LegalType: Trimmed(record.SupplierType),
+        TaxId: Trimmed(record.TaxId),
+        Country: Trimmed(record.Country),
+        Email: Trimmed(record.EmailId),
+        Phone: Trimmed(record.MobileNo),
+        Disabled: record.Disabled is not null && record.Disabled != 0,
+        Currency: Trimmed(record.DefaultCurrency),
+        PrimaryAddressName: Trimmed(record.PrimaryAddress),
+        PrimaryContactName: Trimmed(record.PrimaryContact),
+        CreatedAt: ErpServerTime.TryParse(record.Creation, zone, out var created) ? created : default,
+        ModifiedAt: ErpServerTime.TryParse(record.Modified, zone, out var modified) ? modified : default,
+        ArabicName: Trimmed(record.ArabicName),
+        RegistrationNumber: Trimmed(record.RegistrationNumber),
+        RegistrationType: Trimmed(record.RegistrationType),
+        Description: Trimmed(record.Description),
+        WorkflowState: Trimmed(record.WorkflowState));
 
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -2,8 +2,10 @@
 //
 // THE ERP ALLOWS LONGER VALUES THAN THE PORTAL STORES in several places - a supplier's details field has no limit at
 // all, and its group, city and custom fields allow 140 characters where the portal keeps 100 or 50. A value one
-// character too long does not fail quietly: the database refuses the whole supplier. So every value the import writes
-// is measured first, by ErpImportAdmission and ErpAddressMapper, where the preview sees the outcome too.
+// character too long does not fail quietly: the database refuses the whole supplier. So the values below are measured
+// first, by ErpImportAdmission, ErpRegistrationNumbers and ErpAddressMapper, where the preview sees the outcome too;
+// Name is applied to the Arabic name. The English name, tax number, email and phone are not measured, and one of those
+// too long for its column fails that supplier, which the run reports as failed before going on to the next.
 //
 // TEXT IS CUT, CODES ARE DROPPED. A description or a street cut short is still most of the truth, and says so in a
 // note. A registration number, a registration type or a group name cut short is a different value that looks right,

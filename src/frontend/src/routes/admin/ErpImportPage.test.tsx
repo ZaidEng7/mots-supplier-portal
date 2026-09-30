@@ -6,18 +6,19 @@
 // declares no route at all, so a request on mount fails the test loudly rather than quietly succeeding.
 //
 // THE REFUSAL REASON IS ASSERTED AS TEXT, not as a count. The number tells an operator how many suppliers cannot
-// be imported; the sentence tells them why, and the why is the thing they act on - no email means asking the other
-// team for addresses, not retrying anything here.
+// be imported; the sentence tells them why, and the why is the thing they act on - a probable rename means checking
+// with the other team, not retrying anything here. The fixtures still carry an older reason, a missing email, which
+// the server no longer refuses for; the page shows whatever sentence the server sends.
 //
 // SUSPENSIONS ARE FORECAST, AND A HELD-BACK RUN SAYS SO. A supplier the ERP stops returning is suspended, and the
 // preview must show it before the run does; when the ERP's list looks like a broken read, nothing is suspended and
 // the screen shows the server's reason, because its numbers are what a person needs to decide what really happened.
 //
-// A FAILED IMPORT MUST SAY IT WAS THE IMPORT. The first version reused the preview's wording for every failure, so
-// somebody who had just pressed "Run the import" read "the preview could not be produced" and could not tell
-// whether anything had been written. That happened for real, against an API that did not have the route yet.
+// A FAILED IMPORT MUST SAY IT WAS THE IMPORT. With the preview's wording reused for every failure, somebody who had
+// just pressed "Run the import" read "the preview could not be produced" and could not tell whether anything had
+// been written.
 //
-// THE THREE FAILURES ARE ASSERTED SEPARATELY because they are three different jobs, and a screen that collapsed
+// THE FOUR FAILURES ARE ASSERTED SEPARATELY because they are four different jobs, and a screen that collapsed
 // them into "could not load" would send an administrator to read logs for a problem the server already named. The
 // 502 case also asserts the ERP's own words survive to the screen: they are what gets forwarded to the team who
 // can fix it, and a translated approximation of another system's error is worse than the original.

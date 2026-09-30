@@ -7,8 +7,13 @@
 //
 // THE THREE OUTCOMES ARE DELIBERATELY NOT "retry or fail". A credential that has been revoked and a network
 // wobble both end the request, but only one of them should reach a person - and reach them now rather than in a
-// weekly log review, because the nightly import silently doing nothing looks identical to an import with no
+// weekly log review, because the hourly import silently doing nothing looks identical to an import with no
 // changes to make.
+//
+// NOTHING ACTS ON THE CLASSIFICATION YET. ErpRequestException carries its Kind, but only tests read it or ShouldRetry:
+// ErpSupplierSyncJob retries every failure twice whatever the ERP answered, and the connection test sorts 401 and 403
+// by rules of its own. Today a revoked credential reaches a person as a failed run recorded on the integrations
+// screen, like any other failure.
 //
 // 409 IS RETRYABLE EXACTLY ONCE and that is the ERP's instruction, not a guess: it means somebody edited the
 // record between the read and the write. This import only reads today, so it should not see one; when the

@@ -21,7 +21,7 @@
 // other test's runs are dated now. Nothing another test writes can then fall between a run and its suppliers.
 //
 // IT IS RUN TWICE. The second run adds nothing, which is also what keeps a supplier that already has its row - whether
-// from today's import or from NightlyErpSync - from getting a second one.
+// from today's import or from the NightlyErpSync migration - from getting a second one.
 
 namespace MotsSupplierPortal.Tests.Integration.Integration;
 
