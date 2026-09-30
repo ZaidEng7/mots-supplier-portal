@@ -5,15 +5,16 @@
 // state to keep correct in exchange for nothing. It also removes a failure mode worth removing: a high-water
 // mark that drifts, or a page boundary that moves while being walked, both lose rows silently.
 //
-// THE HEADER SCHEME IS THE LITERAL WORD "token" IN LOWER CASE, followed by the key and secret joined by a colon.
-// The ERP's documentation is explicit that the scheme keyword is case-sensitive even though the header name is
-// not, and a capitalised "Token" answers 403 with an empty body - which reads exactly like a missing header and
-// sends the next person looking at the wrong thing.
+// THE WIRE CODE IS SHARED, in ErpWire, with the connection test and the writer: the lower-case "token" header on
+// every request, a server that does not answer reported as the ERP's failure, and a refusal's exc_type read out of
+// the ERP's own error envelope. The reasons for each are written there.
 //
 // EVERY SUPPLIER FIELD IS ASKED FOR, as "*", rather than a list. The Arabic name and the registration number live in
 // fields Seven Gates added to their own ERP, and naming a field a server does not have is an error there, not an
 // empty value - so a list naming them would make the import fail outright against the test instance, or against the
 // real one the day somebody renames a field. "*" returns what exists, and a field that is missing reads as null.
+// Those three custom fields are named by ErpSupplierPayload's constants, which the push writes them under, so the
+// two directions cannot come to spell one differently.
 //
 // THE EMAIL IS FETCHED FROM CONTACTS TOO, IN A SECOND REQUEST. In this ERP a supplier's email lives on a separate
 // Contact record and reaches the supplier's own email_id only once somebody sets that contact as the supplier's
@@ -41,10 +42,7 @@
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
-using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -79,66 +77,16 @@ public sealed class ErpSupplierSource(
     internal static readonly IReadOnlyList<IReadOnlyList<object>> LinkedToASupplier =
         [["Dynamic Link", "link_doctype", "=", "Supplier"]];
 
-    // The address and credential are attached to each request rather than to the client, because they now come
-    // from a row an administrator can edit while the application is running. A client carrying them on its
-    // DefaultRequestHeaders would keep using whatever it was built with until something restarted it - which is
-    // exactly the behaviour the integrations screen exists to remove.
-    private static HttpRequestMessage Request(ErpConnection connection, string path)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, new Uri(new Uri(connection.BaseUrl.TrimEnd('/') + "/"), path));
-
-        request.Headers.Authorization =
-            new AuthenticationHeaderValue("token", $"{connection.ApiKey}:{connection.ApiSecret}");
-
-        return request;
-    }
-
-    // A server that is down or unreachable has to read as the ERP's failure, not ours.
-    //
-    // A server that does not answer at all - a refused connection, an address that does not resolve, a timeout - throws
-    // a transport exception rather than returning an error, and one let through surfaces as a 500, which tells an
-    // administrator the portal is broken. That is the most likely failure of all right after somebody changes the
-    // address on the integrations screen, so it is the worst one to misreport, and it is reported here as the ERP's.
-    // An address saved without its http:// is not covered: Request refuses it before anything is sent, and that still
-    // surfaces as a 500.
-    //
-    // A timeout that is really the caller cancelling is left alone: that is not the ERP failing.
     private async Task<HttpResponseMessage> SendAsync(ErpConnection connection, string url, CancellationToken ct)
     {
-        using var request = Request(connection, url);
+        using var request = ErpWire.Request(connection, HttpMethod.Get, url);
 
-        try
-        {
-            return await client.SendAsync(request, ct);
-        }
-        catch (HttpRequestException exception)
-        {
-            throw Unreachable(connection, exception);
-        }
-        catch (TaskCanceledException exception) when (!ct.IsCancellationRequested)
-        {
-            throw Unreachable(connection, exception);
-        }
-    }
-
-    private static ErpRequestException Unreachable(ErpConnection connection, Exception exception) =>
-        new(HttpStatusCode.BadGateway, null, $"The ERP at {connection.BaseUrl} could not be reached: {exception.Message}");
-
-    private async Task<ErpConnection> RequireConnectionAsync(CancellationToken ct)
-    {
-        var connection = await connections.CurrentAsync(ct);
-
-        if (connection is null || !connection.IsEnabled)
-        {
-            throw new ErpNotConfiguredException();
-        }
-
-        return connection;
+        return await ErpWire.SendAsync(client, connection, request, ct);
     }
 
     public async Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct)
     {
-        var connection = await RequireConnectionAsync(ct);
+        var connection = await ErpWire.RequireConnectionAsync(connections, ct);
         var zone = ErpServerTime.Zone(options.Value.ServerTimeZone);
         var url = ErpQuery.List("Supplier", SupplierFields, orderBy: SupplierOrder);
 
@@ -247,29 +195,14 @@ public sealed class ErpSupplierSource(
 
     private static async Task<ErpRequestException> FailureFor(HttpResponseMessage response, CancellationToken ct)
     {
-        var body = await response.Content.ReadAsStringAsync(ct);
-        var excType = ExcTypeOf(body);
+        var refusal = await ErpWire.RefusalOf(response, ct);
 
         return new ErpRequestException(
-            response.StatusCode,
-            excType,
-            $"The ERP refused a supplier read with {(int)response.StatusCode} {response.StatusCode}"
-            + (excType is null ? "." : $" ({excType})."));
-    }
-
-    private static string? ExcTypeOf(string body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) return null;
-
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            return document.RootElement.TryGetProperty("exc_type", out var value) ? value.GetString() : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+            refusal.Status,
+            refusal.ExcType,
+            $"The ERP refused a supplier read with {(int)refusal.Status} {refusal.Status}"
+            + (refusal.ExcType is null ? "." : $" ({refusal.ExcType})."),
+            refusal.ErpMessage);
     }
 }
 
@@ -310,8 +243,8 @@ internal sealed record ErpSupplierRecord(
     [property: JsonPropertyName("supplier_primary_contact")] string? PrimaryContact,
     [property: JsonPropertyName("creation")] string? Creation,
     [property: JsonPropertyName("modified")] string? Modified,
-    [property: JsonPropertyName("custom_supplier_arabic_name")] string? ArabicName,
-    [property: JsonPropertyName("custom_registration_number")] string? RegistrationNumber,
-    [property: JsonPropertyName("custom_registration_type")] string? RegistrationType,
+    [property: JsonPropertyName(ErpSupplierPayload.ArabicNameField)] string? ArabicName,
+    [property: JsonPropertyName(ErpSupplierPayload.RegistrationNumberField)] string? RegistrationNumber,
+    [property: JsonPropertyName(ErpSupplierPayload.RegistrationTypeField)] string? RegistrationType,
     [property: JsonPropertyName("supplier_details")] string? Description,
     [property: JsonPropertyName("workflow_state")] string? WorkflowState);

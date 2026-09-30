@@ -25,11 +25,13 @@
 // either way. That includes an address typed without its http:// - an exception there would leave the screen showing
 // the previous test's answer, which may be a green one for a different address. An address that cannot be reached at
 // all is reported once, not three times, since nothing more is learned from the second and third attempts.
+//
+// THE CREDENTIAL AND THE REFUSAL'S exc_type COME FROM ErpWire, as for the import, so the test sends the header the
+// import sends. It builds and sends its own request, because it reports an unreachable address rather than throwing.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text.Json;
 using MotsSupplierPortal.Application.Integration;
 
@@ -98,12 +100,11 @@ public sealed class ErpSupplierSourceProbe(
     private async Task<ReadAnswer> ReadAsync(ErpConnection connection, Uri uri, string label, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        request.Headers.Authorization =
-            new AuthenticationHeaderValue("token", $"{connection.ApiKey}:{connection.ApiSecret}");
+        request.Headers.Authorization = ErpWire.Credential(connection);
 
         using var response = await client.SendAsync(request, ct);
         var body = await response.Content.ReadAsStringAsync(ct);
-        var excType = ExcTypeOf(body);
+        var excType = ErpWire.ExcTypeOf(body);
         var status = $"{(int)response.StatusCode} {excType ?? response.StatusCode.ToString()}";
 
         if (response.IsSuccessStatusCode)
@@ -172,26 +173,6 @@ public sealed class ErpSupplierSourceProbe(
         catch (JsonException)
         {
             return false;
-        }
-    }
-
-    private static string? ExcTypeOf(string body)
-    {
-        if (string.IsNullOrWhiteSpace(body)) return null;
-
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-
-            return document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("exc_type", out var value)
-                && value.ValueKind == JsonValueKind.String
-                    ? value.GetString()
-                    : null;
-        }
-        catch (JsonException)
-        {
-            return null;
         }
     }
 

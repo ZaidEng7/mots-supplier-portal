@@ -21,6 +21,7 @@ public static class RecurringJobs
         "award-erp-sync",
         "idempotency-cleanup",
         "erp-supplier-sync",
+        "supplier-erp-push",
     ];
 
     // Jobs the generic "Run now" button must not start, each with the screen that starts it properly instead.

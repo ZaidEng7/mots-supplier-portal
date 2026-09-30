@@ -18,7 +18,8 @@ every supplier from it and then acts on the portal:
 - it releases a supplier it had suspended only while that supplier waited for the ERP's approval.
 
 An administrator starts it from **Supplier import** (`/back-office/erp-import`), and the same import
-also runs every hour on its own. It only reads from the ERP. Nothing writes supplier data back.
+also runs every hour on its own. The import only reads from the ERP. The one thing that writes supplier
+data to the ERP is the push in §8, which creates there a supplier that a reviewer approved in the portal.
 
 The outbound direction is separate code. `AwardErpSyncJob` sends awards as purchase orders through
 `IErpPurchaseOrderAdapter`. The only implementation today is `StubErpPurchaseOrderAdapter`, which sends
@@ -99,7 +100,7 @@ before touching one.
    `RunErpImportHandler.HandleAsync(Manual)`. Or, on the hour, `ErpSupplierSyncJob` checks for an
    enabled connection and calls `HandleAsync(Scheduled)`; if no connection is enabled, it skips quietly.
    A manual run is attributed to the person, a scheduled one to "system".
-2. **Lock.** The handler takes `ErpImportLock`. If another run holds the lock, it throws
+2. **Lock.** The handler takes `ErpImportLock`. If another run, or the supplier push (§8), holds the lock, it throws
    `ErpImportBusyException`: a 409 for the button, a quiet skip for the job.
 3. **Audit row and password.** The run's own audit row, `ErpImportRun`, is saved before anything else.
    Then `ErpImport:InitialPassword` must be set and pass the identity rules, or the run stops before
@@ -188,13 +189,12 @@ what `EndErpPendingHold` leaves when a person acts on a `SuspendedAsPending` sup
 suspending, reactivating, deactivating, or pressing **Keep suspended** on the review page. An active
 supplier that the ERP never disabled can therefore carry it.
 
-**A warning for whoever builds the push to the ERP.** `SyncStatus` mixes two things: that the ERP has
-the supplier, and the sync's memory of an absence. `MarkSynced` writes `Synced` over whatever the column
+**Why the push has a status of its own.** `SyncStatus` mixes two things: that the ERP has the
+supplier, and the sync's memory of an absence. `MarkSynced` writes `Synced` over whatever the column
 held. A push that called `MarkSynced`, or wrote `Failed`, for a supplier still missing from the ERP
 would wipe `RemovedFromErp`, and the next run would suspend again a supplier a person had reinstated.
-Give the push its own status column, which takes a migration, before building it. And extract one
-shared ERP client first. The HTTP code (`Request` and the lowercase `token` header) is private to
-`ErpSupplierSource` and already copied in `ErpSupplierSourceProbe`.
+So the push keeps `ErpPushStatus` (§8) and never touches `SyncStatus`. The ERP clients share their
+wire code, the request with its lowercase `token` header included, in `ErpWire`.
 
 **Both state columns are stored by name in varchar(20)**
 (`Infrastructure/Persistence/Configurations/SupplierConfiguration.cs`), and `MarkedRemovedFromErp` is
@@ -294,7 +294,9 @@ To make the change safely:
 - **Partnership.** `LegalTypeOf` in `RunErpImportHandler` maps every type except `Individual` to
   Company, although the ERP has Partnership too.
 - **https.** The ERP connection still needs to move from http to https.
-- **The supplier push to the ERP.** It needs the `SyncStatus` split from §4 first.
+- **A duplicate check before the push's first create.** Only an attempt that may follow an earlier
+  create looks in the ERP for the supplier first (§8). A first attempt posts without asking whether
+  the ERP already holds a supplier with the same tax number.
 - **What counts as "not approved".** See the start of this section.
 
 ## 7. Running the tests, and the local stack
@@ -347,3 +349,52 @@ npm run typecheck && npm run lint && npm run build
 - **Secrets are not in `appsettings`.** `Erp:ApiSecret` and `ErpImport:InitialPassword` live in
   user-secrets locally. The ERP address and credential are normally saved on Connected systems, and that
   row wins over the settings.
+
+## 8. The push to the ERP
+
+A supplier that registered in the portal is created in the ERP once a reviewer approves it. The owner
+decided four things: one default ERP supplier group, stored on the connection; the supplier is created
+however the ERP creates it (Draft on the real ERP), and the import's existing rule keeps the portal
+supplier suspended until the ERP approves it; the ERP colleague's six calls, in his order; and a write
+switch, off by default, in front of every write.
+
+| File | Its one job |
+|---|---|
+| `Domain/Suppliers/Supplier.cs` | `ErpPushStatus` and the other `ErpPush*` fields. `Approve` asks for the push when the supplier has no `ExternalId`; `BeginErpPush`, `RecordErpSupplierCreated`, `CompleteErpPush`, `RecordErpPushAttemptFailed`, `FailErpPush` and `RetryErpPush` record how far it got. |
+| `Domain/Integration/IntegrationConnection.cs` | `CreateSuppliersInErp` and `DefaultSupplierGroup`, set together by `SetSupplierCreation`. |
+| `Application/Integration/IErpSupplierRegistrar.cs` | The port: the six calls and the reads a push needs around them. |
+| `Application/Integration/ErpSupplierPayload.cs` | The request bodies in the ERP's field names, or the reasons the push is held. |
+| `Infrastructure/Integration/Erp/ErpSupplierRegistrar.cs` | The HTTP writer. It refuses every write while the switch is off. |
+| `Infrastructure/Integration/Erp/ErpFailure.cs` | `ClassifyPush`: permission, already exists, permanent, outcome unknown, transient. |
+| `Infrastructure/Integration/Erp/SupplierErpPushJob.cs` | The job. Its header holds the rules. |
+
+**How a push runs.** `ApproveApplicationHandler` enqueues `SupplierErpPushJob.PushAsync` for the
+supplier it approved, after its commit. The recurring job `supplier-erp-push` sweeps every five minutes
+from two minutes past the hour, off the hour so it does not meet the hourly import as it starts. A run does
+nothing unless the connection is enabled, the switch is on and a group is set. It holds `ErpImportLock`
+for the whole run, so an import never runs between the ERP's create and the saved `ExternalId`, and it
+steps aside when the lock is taken. For each due supplier it makes the calls in order: Supplier, Address,
+Contact, User, the Supplier's portal users, the Contact's user. The ERP's name is saved as `ExternalId`
+straight after the Supplier's create, before any other call. An attempt that may follow an earlier
+create looks in the ERP before it posts, and a push that stopped part-way makes only what is missing.
+
+**Failures.** A refused credential stops the run and records nothing on any supplier. A refusal the ERP
+will repeat fails the push with the ERP's message. Anything else is counted, and the next attempt waits
+one, five, fifteen and then sixty minutes; the eighth failure fails the push. A failed push waits for a
+person (`RetryErpPush`).
+
+**The state and the trail.** The push's state is `ErpPushStatus` (`SupplierErpPushStatus` lists the
+values), never `SyncStatus`. The job writes it with targeted updates, which do not move the row's version,
+and its audit rows are `supplier.erp_push_created`, `supplier.erp_push_completed`,
+`supplier.erp_push_attempt_failed` and `supplier.erp_push_failed`, with the system as the actor.
+
+**The round trip.** On the real ERP the new supplier starts in Draft. The next import finds it by
+`ExternalId`, suspends the portal supplier as `SuspendedAsPending`, and releases it once the ERP
+approves it. `SupplierErpPushJobTests` runs that with the real import.
+
+**Tests.** `Tests/Integration/Integration/SupplierErpPushJobTests` drives the job against a recording
+fake of the port. `Tests/Unit/Erp` has the payload, the writer and the failure classes, and
+`Tests/Unit/Domain/SupplierErpPushTests` the domain methods.
+
+**Not on a screen yet.** Nothing in the interface sets the switch or the group, retries a failed push,
+or shows the push's state.

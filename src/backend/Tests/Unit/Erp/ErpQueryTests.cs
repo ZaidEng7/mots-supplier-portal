@@ -80,4 +80,31 @@ public sealed class ErpQueryTests
             .WithMessage("*only the record name*",
                 "the ERP answers such a request successfully, with an array of empty records");
     }
+
+    [Fact]
+    public void A_create_goes_to_the_record_types_resource()
+    {
+        ErpQuery.Resource("Supplier").Should().Be("api/resource/Supplier");
+    }
+
+    [Fact]
+    public void A_records_name_is_percent_encoded_as_a_second_path_segment()
+    {
+        ErpQuery.Record("Supplier", "Damascus Supplies Co (seed)").Should().Be(
+            "api/resource/Supplier/Damascus%20Supplies%20Co%20%28seed%29",
+            "the test server names suppliers by their name, and a space encoded as '+' answers 404 in a path");
+    }
+
+    [Fact]
+    public void A_method_calls_arguments_are_each_one_encoded_query_value()
+    {
+        ErpQuery.Call("frappe.desk.form.load.getdoctype", ("doctype", "Sales Invoice")).Should().Be(
+            "api/method/frappe.desk.form.load.getdoctype?doctype=Sales%20Invoice");
+    }
+
+    [Fact]
+    public void A_method_call_without_arguments_has_no_query()
+    {
+        ErpQuery.Call("frappe.auth.get_logged_user").Should().Be("api/method/frappe.auth.get_logged_user");
+    }
 }

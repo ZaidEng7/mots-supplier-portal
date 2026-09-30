@@ -12,6 +12,12 @@
 // RESOLVING HAPPENS PER CALL, NOT AT STARTUP. Deciding at boot whether the ERP exists is fine for configuration and
 // wrong the moment the values live in a table: an administrator would save an address and the application would
 // carry on as though there were none until somebody restarted it.
+//
+// THE WRITE SWITCH TRAVELS WITH THE CONNECTION, and it comes from the connection's row whichever source the address
+// comes from. CreateSuppliersInErp has no setting in configuration, so a deployment writes to the ERP only after
+// somebody turns it on on the integrations screen; ErpSupplierRegistrar refuses every write while it is off.
+// DefaultSupplierGroup comes from the same row for the same reason: SupplierErpPushJob reads the switch and the group
+// together, and runs only when both are set.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -20,7 +26,9 @@ public sealed record ErpConnection(
     string ApiKey,
     string ApiSecret,
     bool IsEnabled,
-    ErpConnectionSource Source);
+    ErpConnectionSource Source,
+    bool CreateSuppliersInErp = false,
+    string? DefaultSupplierGroup = null);
 
 public enum ErpConnectionSource
 {

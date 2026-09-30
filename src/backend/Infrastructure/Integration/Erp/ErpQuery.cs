@@ -20,6 +20,13 @@
 // limit_page_length=0 MEANS EVERYTHING and the ERP's own documentation restricts it to small master lists. The
 // supplier list is about eighty rows, so it qualifies, and paging eighty rows would be machinery with no
 // purpose. That judgement is recorded here because it stops being true if the list grows.
+//
+// ONE RECORD, AND A CREATE, USE THE SAME PATH ENCODING. Resource is where a record type is created, and Record
+// adds the record's name as a second segment. A name holds spaces and brackets on the test server - "Damascus
+// Supplies Co (seed)" - so it is percent-encoded exactly as the record type is, and for the same reason.
+//
+// A METHOD CALL CARRIES PLAIN ARGUMENTS, each one URL-encoded as a single query value: the ERP's field-list
+// method takes a record type, "Sales Invoice" among them, and there the space belongs in the query.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -58,6 +65,15 @@ public static class ErpQuery
             query.Add($"order_by={Uri.EscapeDataString(orderBy)}");
         }
 
-        return $"api/resource/{Uri.EscapeDataString(doctype)}?{string.Join('&', query)}";
+        return $"{Resource(doctype)}?{string.Join('&', query)}";
     }
+
+    public static string Resource(string doctype) => $"api/resource/{Uri.EscapeDataString(doctype)}";
+
+    public static string Record(string doctype, string name) => $"{Resource(doctype)}/{Uri.EscapeDataString(name)}";
+
+    public static string Call(string method, params (string Name, string Value)[] arguments) =>
+        arguments.Length == 0
+            ? $"api/method/{method}"
+            : $"api/method/{method}?{string.Join('&', arguments.Select(a => $"{a.Name}={Uri.EscapeDataString(a.Value)}"))}";
 }

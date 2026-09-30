@@ -1,9 +1,10 @@
 // A supplier company: its profile, the people and places attached to it, where it is in registration
 // and review, and whether it may currently trade.
 //
-// A supplier that registered here is the portal's record. One that came from the ministry's ERP is
-// refreshed from the ERP on every sync, on the fields the ERP sends and within the rules of
-// ApplyErpSnapshot, and everything else about it is the portal's; see THE ERP below.
+// A supplier that registered here is the portal's record until the portal creates it in the ERP after
+// approval. One that came from the ministry's ERP, or that the portal has created there, is refreshed from
+// the ERP on every sync, on the fields the ERP sends and within the rules of ApplyErpSnapshot, and
+// everything else about it is the portal's; see THE ERP below.
 //
 // This record, not the API and not the interface, is the only authority on which state changes are
 // legal.
@@ -23,6 +24,10 @@
 // ErpDisabledState, and the last two values of SyncStatus, are the ERP sync's memory of what it has
 // already done about this supplier, so that it acts on the lifecycle once and a person's decision after
 // that stands. They never decide eligibility themselves; THE ERP below lists them.
+//
+// ErpPushStatus is how far the portal has got creating a supplier that registered here in the ERP. It is
+// kept apart from SyncStatus so that the push cannot write over the sync's memory, and it decides nothing
+// about eligibility either.
 //
 // IsEligibleToParticipate is the single answer to "may this supplier be invited to a tender or submit a
 // bid?", and it requires both of the first two. Onboarding must have reached approved, because an applicant
@@ -167,6 +172,10 @@
 // Approve admits the supplier and makes it active. Its blocking-documents argument is the approval gate.
 // The outbound event that announces the approval is written by ApproveApplicationHandler, not here.
 //
+// Approve also asks for the supplier to be created in the ERP, but only when it has no ExternalId, so
+// neither a supplier from the ERP nor one approved again after the push linked it is created twice. THE ERP
+// below has the push.
+//
 // The product owner's decision stands unchanged: approval does not require every document to be
 // individually approved, and a document still waiting on a reviewer must not block.
 //
@@ -236,12 +245,26 @@
 // The ministry's ERP is the master for the fields it sends about the suppliers it holds. The hourly ERP
 // sync, which is the same import an administrator can start by hand, creates and updates those suppliers
 // through the methods below: RunErpImportHandler calls them, and the rules that decide are in
-// Application/Integration. The state below is written only by the sync; no API endpoint sets it. The
-// fields the ERP sends can also be edited in the portal, and the next run overwrites them wherever the
-// ERP has a value - ApplyErpSnapshot has the exceptions.
+// Application/Integration. The sync's state below is written only by the sync, except that the push also
+// sets ExternalId once, and the push's state only by Approve and the push; no API endpoint sets either
+// directly. The fields the ERP sends can also be edited
+// in the portal, and the next run overwrites them wherever the ERP has a value - ApplyErpSnapshot has the
+// exceptions.
 //
-// The state it keeps:
-//   ExternalId         the supplier's identifier in the ERP, which every run matches on
+// THE PUSH GOES THE OTHER WAY. A supplier that registered here is created in the ERP once a reviewer
+// approves it: its Supplier record there, then its address, its contact and a website user, and the links
+// between them. Approve asks for it when the supplier has no ExternalId, and the push methods record how
+// far it got. The ERP's name for the new supplier is saved as ExternalId as soon as the ERP returns it,
+// and from then on the import matches the supplier by it like any other ERP supplier. The ERP creates a
+// supplier in its own first state, which on the real ERP is Draft and not approved, so the next run
+// suspends the portal supplier as SuspendedAsPending and releases it once the ERP approves it - the same
+// rule as for every ERP supplier waiting for approval. SupplierErpPushJob acts on a request, and writes to
+// the ERP only while the write switch on the ERP connection, CreateSuppliersInErp, is on; it is off by
+// default.
+//
+// The state the sync keeps:
+//   ExternalId         the supplier's identifier in the ERP, which every run matches on; the import sets it,
+//                      or the push when it creates the supplier there
 //   LastSyncedAt       the last time the ERP changed or re-linked it, not the last time a run looked
 //   SyncStatus         whether the ERP has it, and the sync's memory of it leaving - read the warning on
 //                      SupplierSyncStatus before writing it
@@ -258,6 +281,23 @@
 //   MarkSynced                records that the ERP has it, which also clears the memory of it leaving
 //   EndErpPendingHold         hands the sync's wait-for-approval suspension to a person once one acts
 //   AllowsContactEdits        whether the import may add an address in this onboarding state
+//
+// The state the push keeps, never in SyncStatus:
+//   ErpPushStatus          how far the push has got - read SupplierErpPushStatus
+//   ErpPushRequestedAt     when approval asked for it
+//   ErpPushStartedAt       the in-flight marker: set while an attempt is under way, and left behind by one
+//                          that never finished
+//   ErpPushAttempts        the failed attempts since it was last requested or retried
+//   ErpPushNextAttemptAt   when the next attempt is due
+//   ErpPushLastError       what the last failed attempt said
+//
+// The push methods:
+//   BeginErpPush                 marks an attempt as under way
+//   RecordErpSupplierCreated     saves the ERP's name for the supplier as ExternalId, as soon as it exists
+//   CompleteErpPush              records that the address, contact and user are in the ERP too
+//   RecordErpPushAttemptFailed   counts a failed attempt and says when to try again
+//   FailErpPush                  stops the push until a person retries it
+//   RetryErpPush                 a person starts a failed push again
 
 namespace MotsSupplierPortal.Domain.Suppliers;
 
@@ -268,7 +308,7 @@ using MotsSupplierPortal.Domain.Common;
 //   Pending                not linked to the ERP. The default, which a supplier that registered here keeps.
 //   Synced                 the ERP has it. Written by MarkSynced, when the import creates the supplier and on each
 //                          run that finds it in the ERP.
-//   Failed                 nothing writes it today. It is kept for pushing portal suppliers to the ERP, not yet built.
+//   Failed                 nothing writes it. The push to the ERP keeps its own state, in SupplierErpPushStatus.
 //   RemovedFromErp         the sync suspended it because the ERP no longer returns it. Written by
 //                          SuspendAsRemovedFromErp; a person's reinstatement after that stands.
 //   MarkedRemovedFromErp   the ERP stopped returning it while it was already out of service here, so the sync only
@@ -279,8 +319,8 @@ using MotsSupplierPortal.Domain.Common;
 // MarkedRemovedFromErp is what keeps the automatic reinstatement away from a supplier the ERP no longer has.
 // MarkSynced sets Synced whatever the column held: that is how the memory clears when the ERP returns the supplier,
 // and it is also how a push would wipe it. A push that called MarkSynced, or wrote Failed, for a supplier still
-// missing from the ERP would have the next run suspend again somebody a person had reinstated. A push needs a status
-// of its own.
+// missing from the ERP would have the next run suspend again somebody a person had reinstated. That is why the push
+// has a status of its own, SupplierErpPushStatus.
 //
 // THE VALUES ARE STORED BY NAME in a varchar(20) column (SupplierConfiguration), and MarkedRemovedFromErp is already
 // 20 characters. A longer new value compiles and passes the unit tests, and fails only when the sync saves it, so it
@@ -292,6 +332,33 @@ public enum SupplierSyncStatus
     Failed,
     RemovedFromErp,
     MarkedRemovedFromErp,
+}
+
+// How far the portal has got creating, in the ERP, a supplier that registered here. It is the push's own state, kept
+// apart from SupplierSyncStatus so that the push never writes over the sync's memory of a supplier leaving the ERP.
+//
+//   NotRequested   the portal has not asked for it. The default, which every supplier from the ERP keeps, and which a
+//                  supplier that registered here keeps until a reviewer approves it.
+//   Requested      a reviewer approved it while it had no ExternalId, and the ERP's Supplier record is still to be
+//                  created. Written by Approve, and by RetryErpPush for a push that failed before the ERP had it.
+//   Linked         the ERP has the Supplier record and its name is saved as ExternalId, but the address, the contact
+//                  and the website user are not all created and linked yet. Written by RecordErpSupplierCreated, and
+//                  by RetryErpPush for a push that failed after that.
+//   Created        everything the push creates is in the ERP. Written by CompleteErpPush, and nothing moves it on:
+//                  the supplier now has an ExternalId, so a later approval does not ask again.
+//   Failed         the push has stopped and waits for a person. Written by FailErpPush; RetryErpPush starts it again.
+//
+// CREATED SAYS NOTHING ABOUT THE ERP'S APPROVAL. Whether the ERP lets the supplier be used is the sync's to read and
+// record, in ErpDisabledState, as for any ERP supplier.
+//
+// Stored by name in a varchar(20) column, like SupplierSyncStatus; NotRequested is 12 characters.
+public enum SupplierErpPushStatus
+{
+    NotRequested,
+    Requested,
+    Linked,
+    Created,
+    Failed,
 }
 
 // What the ERP sync has already done about the ERP turning this supplier away, so that it acts once and a person's
@@ -383,6 +450,33 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     public SupplierSyncStatus SyncStatus { get; private set; } = SupplierSyncStatus.Pending;
     public SupplierErpDisabledState ErpDisabledState { get; private set; }
     public DateTimeOffset? LastSyncedAt { get; private set; }
+
+    // THE PUSH TO THE ERP, apart from SyncStatus. Approve writes the request and the push methods at the end of this
+    // record write the rest; nothing else touches these.
+    //
+    //   ErpPushStatus          how far the push has got; SupplierErpPushStatus has the values.
+    //   ErpPushRequestedAt     when approval asked for it. Empty for a supplier the push was never asked for.
+    //   ErpPushStartedAt       the in-flight marker: set when an attempt begins, and cleared when the push completes or
+    //                          an attempt is recorded as failed. One still set when the next attempt begins means the
+    //                          last one stopped part-way, perhaps after its request reached the ERP. The ERP makes a
+    //                          second supplier for a second request, so that attempt looks in the ERP before it
+    //                          creates.
+    //   ErpPushAttempts        the failed attempts since it was last requested or retried, counted once each by
+    //                          RecordErpPushAttemptFailed or FailErpPush.
+    //   ErpPushNextAttemptAt   when the next attempt is due. Empty once the push is created or has failed, because
+    //                          nothing is due then.
+    //   ErpPushLastError       what the last failed attempt said, cut to ErpPushLastErrorMaxLength characters. It stays
+    //                          through a retry, so the screen can still say why it failed, and clears once the push
+    //                          completes.
+    public const int ErpPushLastErrorMaxLength = 500;
+
+    public SupplierErpPushStatus ErpPushStatus { get; private set; } = SupplierErpPushStatus.NotRequested;
+    public DateTimeOffset? ErpPushRequestedAt { get; private set; }
+    public DateTimeOffset? ErpPushStartedAt { get; private set; }
+    public int ErpPushAttempts { get; private set; }
+    public DateTimeOffset? ErpPushNextAttemptAt { get; private set; }
+    public string? ErpPushLastError { get; private set; }
+
     public string? TermsAcceptedVersion { get; private set; }
     public DateTimeOffset? TermsAcceptedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
@@ -919,6 +1013,25 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         OnboardingState = SupplierOnboardingState.Approved;
         LifecycleState = SupplierLifecycleState.Active;
         EndErpPendingHold();
+        RequestErpPush();
+    }
+
+    // Approval asks for the supplier to be created in the ERP only while it has no ExternalId. A supplier from the ERP
+    // has one from the start, and one approved again after a compliance edit has one once the push has linked it, so
+    // neither is created a second time.
+    //
+    // One approved again before that - still waiting, or failed before the ERP had it - is asked for afresh, with the
+    // count started again and the next attempt due at once, because a person has just approved it. Its in-flight marker
+    // is left as it is: an attempt may already have reached the ERP, and the next one has to look before it creates.
+    private void RequestErpPush()
+    {
+        if (ExternalId is not null) return;
+
+        var now = DateTimeOffset.UtcNow;
+        ErpPushStatus = SupplierErpPushStatus.Requested;
+        ErpPushRequestedAt = now;
+        ErpPushAttempts = 0;
+        ErpPushNextAttemptAt = now;
     }
 
     // A supplier the sync suspended only while the ERP approves it may be suspended again by a person, without its
@@ -1380,5 +1493,147 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         ExternalId = externalId;
         SyncStatus = SupplierSyncStatus.Synced;
         LastSyncedAt = DateTimeOffset.UtcNow;
+    }
+
+    // THE PUSH TO THE ERP: creating in the ERP a supplier that registered here, once a reviewer has approved it.
+    //
+    // THESE METHODS WRITE ONLY THE PUSH'S OWN STATE, AND ExternalId. SyncStatus, LastSyncedAt, ErpDisabledState and the
+    // lifecycle belong to the sync and to people. The warning on SupplierSyncStatus says what a push that wrote
+    // SyncStatus would undo, and whether the ERP lets the supplier be used is for the sync to read, not for the push to
+    // assume.
+    //
+    // EACH REFUSES FROM A STATUS IT DOES NOT BELONG TO, so a job that runs twice, or a retry pressed while an attempt
+    // is under way, cannot move the push somewhere it was never meant to go:
+    //
+    //   Approve                      any, while there is no ExternalId   -> Requested
+    //   BeginErpPush                 Requested or Linked                 -> unchanged, an attempt under way
+    //   RecordErpSupplierCreated     Requested or Linked                 -> Linked, with ExternalId
+    //   CompleteErpPush              Linked                              -> Created
+    //   RecordErpPushAttemptFailed   Requested or Linked                 -> unchanged, the next attempt later
+    //   FailErpPush                  Requested or Linked                 -> Failed
+    //   RetryErpPush                 Failed                              -> Requested, or Linked with an ExternalId
+    //
+    // A method that writes a time takes it from the caller, so one run of the job is one moment on every supplier it
+    // touches.
+
+    // An attempt begins. A marker left by an attempt that never finished is replaced, so a caller that finds one
+    // looks in the ERP for the supplier before it begins, not after.
+    public void BeginErpPush(DateTimeOffset now)
+    {
+        EnsureErpPushUnderWay("begin an ERP push");
+        ErpPushStartedAt = now;
+    }
+
+    // The ERP has created the Supplier record, and erpName is its name there. It is saved as ExternalId at once, before
+    // the address, the contact and the user, so that a failure after this never creates the supplier a second time: the
+    // next attempt finds the name and carries on from there, and that attempt is due at once. The marker stays, because
+    // the attempt is still under way.
+    //
+    // A DIFFERENT NAME IS REFUSED. ExternalId is what the import matches on, and replacing it would point this supplier
+    // at another ERP record. The same name again is accepted, so an attempt that finds the record it created before is
+    // not an error.
+    public void RecordErpSupplierCreated(string erpName, DateTimeOffset now)
+    {
+        EnsureErpPushUnderWay("record the ERP supplier");
+
+        if (string.IsNullOrWhiteSpace(erpName))
+        {
+            throw new DomainException("The ERP's name for the supplier is required.");
+        }
+
+        if (ExternalId is not null && ExternalId != erpName)
+        {
+            throw new DomainException(
+                $"Cannot link this supplier to ERP supplier '{erpName}'; it is already linked to '{ExternalId}'.");
+        }
+
+        ExternalId = erpName;
+        ErpPushStatus = SupplierErpPushStatus.Linked;
+        ErpPushNextAttemptAt = now;
+    }
+
+    // The address, the contact and the website user are in the ERP too, and linked. Nothing is due, and the marker and
+    // the last error are cleared. Only a linked push can complete, because without an ExternalId the ERP has nothing.
+    public void CompleteErpPush()
+    {
+        if (ErpPushStatus != SupplierErpPushStatus.Linked)
+        {
+            throw new DomainException(
+                $"Cannot complete the ERP push from status '{ErpPushStatus}'; only 'Linked' is valid.");
+        }
+
+        ErpPushStatus = SupplierErpPushStatus.Created;
+        ErpPushStartedAt = null;
+        ErpPushNextAttemptAt = null;
+        ErpPushLastError = null;
+    }
+
+    // An attempt failed and the push will try again at nextAttemptAt, which the caller works out. The status stays, so
+    // a linked supplier carries on from its ExternalId.
+    //
+    // IT CLEARS THE MARKER, which says the attempt is over. The marker is all that remembers a create may have
+    // reached the ERP, so a caller that cannot tell whether its create did - a timeout, or no answer at all - finds
+    // out before it records the failure. Otherwise the next attempt creates the supplier a second time.
+    //
+    // A long message is cut rather than refused, because losing the record of a failure over its length would defeat
+    // the point of keeping it.
+    public void RecordErpPushAttemptFailed(string message, DateTimeOffset nextAttemptAt)
+    {
+        EnsureErpPushUnderWay("record a failed ERP push attempt");
+        ErpPushLastError = ErpPushError(message);
+        ErpPushAttempts++;
+        ErpPushStartedAt = null;
+        ErpPushNextAttemptAt = nextAttemptAt;
+    }
+
+    // The push stops until a person retries it: the ERP refused something it will refuse again, or the attempts ran
+    // out. The failed attempt counts, the marker is cleared as in RecordErpPushAttemptFailed, and nothing is due.
+    public void FailErpPush(string message)
+    {
+        EnsureErpPushUnderWay("fail the ERP push");
+        ErpPushLastError = ErpPushError(message);
+        ErpPushAttempts++;
+        ErpPushStatus = SupplierErpPushStatus.Failed;
+        ErpPushStartedAt = null;
+        ErpPushNextAttemptAt = null;
+    }
+
+    // A person starts a failed push again. It goes back to Requested, or to Linked when the ERP already has the
+    // Supplier record, so the next attempt never creates it twice. The count starts again and the next attempt is due
+    // at once.
+    public void RetryErpPush(DateTimeOffset now)
+    {
+        if (ErpPushStatus != SupplierErpPushStatus.Failed)
+        {
+            throw new DomainException(
+                $"Cannot retry the ERP push from status '{ErpPushStatus}'; only 'Failed' is valid.");
+        }
+
+        ErpPushStatus = ExternalId is null ? SupplierErpPushStatus.Requested : SupplierErpPushStatus.Linked;
+        ErpPushAttempts = 0;
+        ErpPushNextAttemptAt = now;
+    }
+
+    private void EnsureErpPushUnderWay(string action)
+    {
+        if (ErpPushStatus is not (SupplierErpPushStatus.Requested or SupplierErpPushStatus.Linked))
+        {
+            throw new DomainException(
+                $"Cannot {action} from status '{ErpPushStatus}'; only 'Requested' or 'Linked' is valid.");
+        }
+    }
+
+    // A blank message is refused, because a failure whose cause nobody can read is one nobody can fix; a long one is
+    // cut to the column.
+    private static string ErpPushError(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            throw new DomainException("A failed ERP push needs a message saying what went wrong.");
+        }
+
+        return message.Length <= ErpPushLastErrorMaxLength
+            ? message
+            : message[..(ErpPushLastErrorMaxLength - 1)] + "…";
     }
 }
