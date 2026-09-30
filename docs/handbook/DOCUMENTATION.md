@@ -828,9 +828,15 @@ Delivery is at least once and consumers are idempotent, so a retry cannot produc
 effect. Sync status, last sync time, and errors are tracked per entity and surfaced to administrators.
 Conflicts are queued for a human rather than silently overwritten.
 
-The portal runs completely with the ERP unavailable, and pending syncs drain when it returns. No
-inbound write path from the ERP has been built, deliberately: nothing has yet decided what the ERP
-would be allowed to change.
+The portal runs completely with the ERP unavailable, and pending syncs drain when it returns.
+
+One inbound path exists: the supplier import. The ERP is the master for supplier data, so the import
+creates the ERP's suppliers in the portal, refreshes the fields the ERP owns, and suspends suppliers
+the ERP removes, disables or has not approved. It runs from the Supplier import screen and every hour
+as a scheduled job. Nothing else in the ERP can change the portal. The two outbound flows above still
+reach no ERP: a supplier's approval is handed to a transport that only writes a log line, and an award
+is given an invented purchase-order reference (`PO-STUB-...`) by a stub adapter and marked as synced. [ERP-IMPORT.md](ERP-IMPORT.md) explains the
+import for anyone changing it.
 
 ---
 

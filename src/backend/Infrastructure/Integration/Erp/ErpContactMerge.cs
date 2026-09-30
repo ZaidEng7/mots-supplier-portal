@@ -7,9 +7,9 @@
 // somebody who administers the system, which is the strongest evidence available that the real data will have it
 // wrong too.
 //
-// An import that read only the supplier's own field would have reported eighty suppliers with no email, which
-// reads as "none of these can have accounts" when the truth is "the addresses are one table over". That is a
-// wrong answer delivered confidently, and it would have sent somebody to ask Seven Gates for a data cleanup they
+// An import that read only the supplier's own field would have reported eighty suppliers with no email and given
+// every one a placeholder login that cannot receive mail, when the truth is "the addresses are one table over". That
+// is a wrong answer delivered confidently, and it would have sent somebody to ask Seven Gates for a data cleanup they
 // do not need.
 //
 // THE SUPPLIER'S OWN VALUE WINS when it is there. It is the field their staff maintain deliberately, and a

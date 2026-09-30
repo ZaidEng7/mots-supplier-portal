@@ -1,12 +1,15 @@
 // What the import would do with each supplier the ERP sent.
 //
-// THE DENOMINATOR IS ASSERTED. Every test that counts outcomes also checks the three counts sum to the number of
-// suppliers given, because a rule that quietly dropped a row would otherwise show up as a smaller number that
-// still looks plausible - and an import whose preview undercounts is worse than no preview.
+// THE DENOMINATOR IS ASSERTED. Every test that counts outcomes also checks, through CountsAddUp, that each supplier the
+// ERP sent has exactly one row, counted once as a create, an update, a refusal or a suspension, because a rule that
+// quietly dropped a row would otherwise show up as a smaller number that still looks plausible - and an import whose
+// preview undercounts is worse than no preview. A portal supplier the ERP no longer returns adds a Suspend row of its
+// own, counted only in WouldSuspend, which is why the helper is given the list the ERP sent.
 //
-// NOBODY IS REFUSED. Every supplier in the ERP is meant to appear in the portal, so the tests that used to expect
-// a refusal - no email, no name, an unknown currency - now expect a create with the gap filled and noted. How
-// each gap is filled is tested directly in ErpImportAdmissionTests; these check the forecast carries it.
+// A GAP IS NEVER A REFUSAL. Every supplier in the ERP is meant to appear in the portal, so a supplier with no email,
+// no name or an unknown currency is a create with the gap filled and noted. How each gap is filled is tested directly
+// in ErpImportAdmissionTests; these check the forecast carries it. The one row the preview refuses is a probable
+// rename, which ErpSyncPlanTests covers.
 //
 // THE NULL-TAX-NUMBER CASE IS NOT PEDANTRY. Most suppliers have no tax number, and a duplicate check that
 // grouped them under an empty key would flag a possible duplicate on every single row - which is how a warning
@@ -35,36 +38,44 @@ public sealed class ErpImportPreviewBuilderTests
         string? group = "Local",
         string? primaryAddress = "Damascus Supplies Co-Billing",
         bool disabled = false) =>
-        new(
-            externalId,
-            name,
-            group,
-            "Company",
-            taxId,
-            "Syria",
-            email,
-            phone,
-            disabled,
-            currency,
-            primaryAddress,
-            "Damascus Supplies Co-Contact",
-            DateTimeOffset.Parse("2026-09-16T12:33:48+03:00"),
-            DateTimeOffset.Parse("2026-09-16T12:33:48+03:00"));
+        ErpSupplierTestFactory.Supplier(externalId) with
+        {
+            Name = name,
+            SupplierGroup = group,
+            TaxId = taxId,
+            Email = email,
+            Phone = phone,
+            Disabled = disabled,
+            Currency = currency,
+            PrimaryAddressName = primaryAddress,
+            PrimaryContactName = "Damascus Supplies Co-Contact",
+            CreatedAt = DateTimeOffset.Parse("2026-09-16T12:33:48+03:00"),
+            ModifiedAt = DateTimeOffset.Parse("2026-09-16T12:33:48+03:00"),
+        };
 
-    private static void CountsAddUp(ErpImportPreviewReport report)
+    private static void CountsAddUp(ErpImportPreviewReport report, IReadOnlyList<ErpSupplier> sent)
     {
-        (report.WouldCreate + report.WouldUpdate + report.Refused).Should().Be(
+        var fromErp = sent.Select(s => s.ExternalId).ToHashSet(StringComparer.Ordinal);
+        var erpRows = report.Rows.Where(r => fromErp.Contains(r.ExternalId)).ToList();
+        var erpRowsSuspended = erpRows.Count(r => r.Action == ErpImportAction.Suspend);
+
+        report.ErpSupplierCount.Should().Be(sent.Count);
+        erpRows.Should().HaveCount(
             report.ErpSupplierCount,
             "a rule that dropped a row would otherwise show as a smaller number that still looks plausible");
-        report.Rows.Should().HaveCount(report.ErpSupplierCount);
+        (report.WouldCreate + report.WouldUpdate + report.Refused + erpRowsSuspended).Should().Be(
+            report.ErpSupplierCount, "each supplier the ERP sent is counted once");
+        (report.WouldCreate + report.WouldUpdate + report.Refused + report.WouldSuspend).Should().Be(
+            report.Rows.Count, "a supplier the ERP no longer returns is counted only as a suspension");
     }
 
     [Fact]
     public void A_supplier_with_everything_would_be_created_with_nothing_refused()
     {
-        var report = ErpImportPreviewBuilder.Build([Supplier()], NoMatches, NoUnlinked);
+        ErpSupplier[] sent = [Supplier()];
+        var report = ErpImportPreviewBuilder.Build(sent, NoMatches, NoUnlinked);
 
-        CountsAddUp(report);
+        CountsAddUp(report, sent);
         report.WouldCreate.Should().Be(1);
         report.Refused.Should().Be(0);
         report.Rows[0].Action.Should().Be(ErpImportAction.Create);
@@ -74,9 +85,10 @@ public sealed class ErpImportPreviewBuilderTests
     [Fact]
     public void A_supplier_with_no_email_would_be_created_with_a_placeholder_rather_than_refused()
     {
-        var report = ErpImportPreviewBuilder.Build([Supplier(email: null)], NoMatches, NoUnlinked);
+        ErpSupplier[] sent = [Supplier(email: null)];
+        var report = ErpImportPreviewBuilder.Build(sent, NoMatches, NoUnlinked);
 
-        CountsAddUp(report);
+        CountsAddUp(report, sent);
         report.WouldCreate.Should().Be(1, "every supplier in the ERP is meant to appear in the portal");
         report.Refused.Should().Be(0);
         report.Rows[0].Notes.Should().ContainMatch("*placeholder*@erp-import.invalid*");
@@ -108,9 +120,10 @@ public sealed class ErpImportPreviewBuilderTests
             ["Damascus Supplies Co"] = new("SUP-2026-000004", "TAX-100"),
         };
 
-        var report = ErpImportPreviewBuilder.Build([Supplier()], matches, NoUnlinked);
+        ErpSupplier[] sent = [Supplier()];
+        var report = ErpImportPreviewBuilder.Build(sent, matches, NoUnlinked);
 
-        CountsAddUp(report);
+        CountsAddUp(report, sent);
         report.WouldUpdate.Should().Be(1);
         report.Rows[0].Action.Should().Be(ErpImportAction.Update);
         report.Rows[0].MatchedReferenceCode.Should().Be("SUP-2026-000004");
@@ -187,10 +200,30 @@ public sealed class ErpImportPreviewBuilderTests
 
         var report = ErpImportPreviewBuilder.Build(suppliers, matches, NoUnlinked);
 
-        CountsAddUp(report);
+        CountsAddUp(report, suppliers);
         report.ErpSupplierCount.Should().Be(4);
         report.WouldCreate.Should().Be(3, "the two with gaps are filled in, not left out");
         report.WouldUpdate.Should().Be(1);
         report.Refused.Should().Be(0);
+    }
+
+    [Fact]
+    public void A_supplier_the_run_would_suspend_is_counted_once_whether_the_erp_sent_it_or_dropped_it()
+    {
+        ErpSupplier[] sent = [Supplier("A", "A"), Supplier("B", "B", disabled: true)];
+
+        var matches = new Dictionary<string, ErpImportCandidateMatch>
+        {
+            ["B"] = new("SUP-2026-000002", null),
+            ["C"] = new("SUP-2026-000003", null, Name: "C"),
+        };
+
+        var report = ErpImportPreviewBuilder.Build(sent, matches, NoUnlinked);
+
+        CountsAddUp(report, sent);
+        report.WouldCreate.Should().Be(1);
+        report.WouldSuspend.Should().Be(2, "B is disabled in the ERP and C is no longer in it");
+        report.Rows.Single(r => r.ExternalId == "B").Action.Should().Be(ErpImportAction.Suspend);
+        report.Rows.Single(r => r.ExternalId == "C").Action.Should().Be(ErpImportAction.Suspend);
     }
 }

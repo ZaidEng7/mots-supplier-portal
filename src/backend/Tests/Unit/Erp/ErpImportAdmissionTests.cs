@@ -35,12 +35,19 @@ public sealed class ErpImportAdmissionTests
         string? arabicName = "مؤسسة دمشق للتوريدات",
         string? person = "سامر الحلبي",
         string? workflowState = "Approved") =>
-        new(externalId, name, "Local", "Company", "TAX-1", "Syria", email, "+963", disabled, currency, null, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
-            ArabicName: arabicName,
-            WorkflowState: workflowState,
-            ContactPersonName: person,
-            Address: new ErpSupplierAddress("دمشق - المالكي", null, "Damascus", "Syria"));
+        ErpSupplierTestFactory.Supplier(externalId) with
+        {
+            Name = name,
+            TaxId = "TAX-1",
+            Email = email,
+            Phone = "+963",
+            Disabled = disabled,
+            Currency = currency,
+            ArabicName = arabicName,
+            WorkflowState = workflowState,
+            ContactPersonName = person,
+            Address = new ErpSupplierAddress("دمشق - المالكي", null, "Damascus", "Syria"),
+        };
 
     [Fact]
     public void A_supplier_with_everything_is_admitted_as_it_is()

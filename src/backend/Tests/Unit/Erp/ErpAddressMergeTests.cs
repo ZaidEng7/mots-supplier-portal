@@ -13,12 +13,19 @@ using MotsSupplierPortal.Infrastructure.Integration.Erp;
 public sealed class ErpAddressMergeTests
 {
     private static ErpSupplier Supplier(string id, string? primaryAddress = null) =>
-        new(id, id, "Local", "Company", null, "Syria", null, null, false, "SYP", primaryAddress, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        ErpSupplierTestFactory.Supplier(id) with { PrimaryAddressName = primaryAddress };
 
     private static ErpSupplierAddressRow Row(
         string name, string supplier, bool primary = false, string type = "Shipping") =>
-        new(name, supplier, name + " street", null, "Damascus", "Syria", primary, type);
+        new(
+            AddressName: name,
+            SupplierName: supplier,
+            Line1: name + " street",
+            Line2: null,
+            City: "Damascus",
+            Country: "Syria",
+            IsPrimary: primary,
+            AddressType: type);
 
     [Fact]
     public void The_suppliers_own_primary_address_field_wins()

@@ -1,26 +1,23 @@
 // Keeping the portal's suppliers in step with the ERP, run after run.
 //
 // THE EMPTY-LIST TEST IS THE ONE THAT PROTECTS THE MINISTRY. A narrowed credential or an ERP answering politely with
-// nothing returns zero suppliers, and a job that believed it would suspend every imported supplier at two in the
-// morning. It is run against a portal that really holds imported suppliers, because that is when believing it does
-// the damage, and it checks the database rather than the report - a report can say "held back" while a bug
-// suspends anyway.
+// nothing returns zero suppliers, and a job that believed it would suspend every imported supplier in a run nobody
+// watches. It is run against a portal that really holds imported suppliers - two it imports itself - because that is
+// when believing it does the damage, and it checks the database rather than the report - a report can say "held back"
+// while a bug suspends anyway.
 //
 // THE SELF-REGISTERED SUPPLIER IS NEVER A CANDIDATE. It carries no ERP identifier and is never in the ERP's list,
 // so a pass that treated absence as deletion without that distinction would suspend every supplier who ever signed
 // up on the portal. It is asserted by building one and checking it is still active afterwards.
 //
-// SEVERAL TESTS HERE ARE FINDINGS FROM TWO REVIEWS: the run judged its limit after creating that run's new
-// suppliers and so could suspend what the preview promised to hold back; it re-suspended suppliers people had
-// reinstated, first through the "removed" route and then through the "disabled" one; it treated an ERP rename as a
-// deletion, and the first fix for that moved company histories between records; and it named nobody on a manual
-// run's suspensions. A later review found a supplier that left while suspended, and was reactivated afterwards,
-// never suspended for its absence, and an empty read marking every suspended supplier as gone. The one after that
-// found the automatic reinstatement on a document approval lifting the sync's own suspensions, because it could not
-// see them. The next found the same hole on the disabled path, where a disable landing on a suspended supplier left no
-// trace, and a renewal approved while a mark held it back never being honoured once the mark cleared. The first run
-// against the real ERP found the import creating suppliers with no audit row at all, so one that arrived suspended
-// could not say why. Each is written so that the version it came from fails it.
+// MOST TESTS HERE PIN A DEFECT THAT A REVIEW, OR THE FIRST RUN AGAINST THE REAL ERP, FOUND, each written so that the
+// version it came from fails it. Among the rules they hold: the limit is judged on the portal as it stood before this
+// run's new suppliers; a person's reinstatement is not undone, whether the sync suspended for an absence, a disable or
+// a missing approval; a probable rename is held for a person and no company's history moves between records; a
+// supplier that left while suspended is suspended once for its absence if it is reactivated later; an empty read marks
+// nobody as gone; a document approval never lifts a suspension the sync made, nor brings back a supplier the ERP no
+// longer offers or has disabled, while a renewal approved meanwhile is honoured once the ERP offers it again; and every
+// supplier the import creates, and every suspension it makes, is on the audit trail with whoever ran it.
 //
 // THE DOCUMENT TESTS GO THROUGH THE REVIEWER'S APPROVAL HANDLER, not through Reactivate, because the defect lived in
 // how that handler decides whose suspension came last. The expiry is produced the way time produces it: a document
@@ -29,8 +26,10 @@
 // THE LOCK IS TESTED BY HOLDING IT, not by racing two runs and hoping they overlap. A test that raced them would pass
 // whenever the timing happened not to collide, which is the failure it exists to catch.
 //
-// EVERY TEST USES ITS OWN IDENTIFIERS AND LEAVES THE CONNECTION ROW AS IT FOUND IT, because the row and the
-// supplier table are shared across the collection - a lesson this suite already paid for once.
+// EVERY TEST STARTS WITH NO IMPORTED SUPPLIER IN SERVICE, USES ITS OWN IDENTIFIERS AND LEAVES THE CONNECTION ROW AS IT
+// FOUND IT, because the row and the supplier table are shared across the collection and every run judges the whole
+// table. InitializeAsync and DisposeAsync do the first and the last for every test, so a new test cannot forget them;
+// a test that needs imported suppliers in service creates its own.
 
 namespace MotsSupplierPortal.Tests.Integration.Integration;
 
@@ -58,7 +57,14 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     private const string CommercialRegistration = "commercial_registration";
     private const string TaxCertificate = "tax_certificate";
 
-    public Task InitializeAsync() => IntegrationConnectionTests.ResetAsync(fixture);
+    // The imported suppliers earlier tests left active are suspended before every test, because every run judges the
+    // whole portal: otherwise a test's "missing" count would include strangers and the policy would be judging a number
+    // this test did not choose.
+    public async Task InitializeAsync()
+    {
+        await IntegrationConnectionTests.ResetAsync(fixture);
+        await SuspendEveryImportedSupplierAsync();
+    }
 
     public Task DisposeAsync() => IntegrationConnectionTests.ResetAsync(fixture);
 
@@ -74,8 +80,7 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     }
 
     private static ErpSupplier ErpRow(string id) =>
-        new(id, id, "Local", "Company", null, "Syria", $"{id.ToLowerInvariant()}@sgtest.example", null, false,
-            "SYP", null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        ErpSupplierTestFactory.Supplier(id) with { Email = $"{id.ToLowerInvariant()}@sgtest.example" };
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}";
 
@@ -222,9 +227,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         await db.SaveChangesAsync();
     }
 
-    // The whole portal's imported suppliers take part in every run, so each test first suspends any that earlier
-    // tests left active. Otherwise a test's "missing" count would include strangers and the policy would be judging
-    // a number this test did not choose.
     private async Task SuspendEveryImportedSupplierAsync()
     {
         await using var scope = fixture.Services.CreateAsyncScope();
@@ -249,8 +251,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_the_erp_no_longer_returns_is_suspended()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var kept = Unique("ERP-KEPT");
         var removed = Unique("ERP-REMOVED");
         var first = await RunAsync(new FixedSource(ErpRow(kept), ErpRow(removed)));
@@ -267,8 +267,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task An_empty_list_from_the_erp_suspends_nobody()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var a = Unique("ERP-EMPTY-A");
         var b = Unique("ERP-EMPTY-B");
         await RunAsync(new FixedSource(ErpRow(a), ErpRow(b)));
@@ -286,8 +284,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_who_registered_on_the_portal_is_never_suspended_for_being_absent_from_the_erp()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -315,8 +311,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_that_comes_back_is_not_reinstated()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-BACK-KEEP");
         var flicker = Unique("ERP-BACK");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(flicker)));
@@ -331,8 +325,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task The_run_holds_back_exactly_when_the_preview_said_it_would_even_with_new_arrivals()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var existing = Enumerable.Range(0, 20).Select(_ => Unique("ERP-ARRIVALS-OLD")).ToList();
         await RunAsync(new FixedSource([.. existing.Select(ErpRow)]));
 
@@ -360,8 +352,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_a_person_reinstated_is_not_suspended_again_by_the_next_run()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-REINSTATE-KEEP");
         var gone = Unique("ERP-REINSTATE-GONE");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
@@ -386,8 +376,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_that_left_while_suspended_and_was_reactivated_later_is_suspended_once()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-MARKED-KEEP");
         var gone = Unique("ERP-MARKED-GONE");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
@@ -418,8 +406,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_sync_suspension_is_not_lifted_by_a_later_document_approval()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-DOC-KEEP");
         var gone = Unique("ERP-DOC-GONE");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
@@ -444,8 +430,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_that_left_the_erp_while_suspended_is_not_brought_back_by_a_document()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-DOC-MARK-KEEP");
         var gone = Unique("ERP-DOC-MARK-GONE");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));
@@ -465,8 +449,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_disabled_while_suspended_is_not_brought_back_by_a_document_and_a_person_is_overruled_once()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-DISABLED-WHILE-SUSPENDED");
         await RunAsync(new FixedSource(ErpRow(id)));
         await ExpireAnAwardCriticalDocumentAsync(id);
@@ -490,8 +472,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_renewal_approved_while_a_supplier_was_missing_is_honoured_when_the_erp_offers_it_again()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-RETURN-KEEP");
         var back = Unique("ERP-RETURN-BACK");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(back)));
@@ -514,8 +494,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_renewal_approved_while_a_supplier_was_disabled_is_honoured_when_the_erp_re_enables_it()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-REENABLED");
         await RunAsync(new FixedSource(ErpRow(id)));
         await ExpireAnAwardCriticalDocumentAsync(id);
@@ -532,8 +510,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_the_sync_suspends_is_not_reinstated_by_the_same_run_or_the_next()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-SAME-RUN-KEEP");
         var id = Unique("ERP-SAME-RUN");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id)));
@@ -559,8 +535,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [InlineData(true)]
     public async Task A_replacement_nobody_has_approved_does_not_bring_a_marked_supplier_back(bool rejected)
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-UNAPPROVED-KEEP");
         var id = Unique("ERP-UNAPPROVED");
         await RunAsync(new FixedSource(ErpRow(keep), ErpRow(id)));
@@ -581,8 +555,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task An_empty_list_from_the_erp_marks_no_suspended_supplier_as_gone()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-EMPTY-MARK");
         await RunAsync(new FixedSource(ErpRow(id)));
         await SetLifecycleAsync(id, supplier => supplier.Suspend("Suspended by the ministry for cause."));
@@ -599,8 +571,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_probable_rename_is_held_for_a_person_and_nothing_is_suspended_created_or_moved()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-RENAME-KEEP");
         var oldId = Unique("ERP-RENAME-OLD");
         var newId = Unique("ERP-RENAME-NEW");
@@ -632,8 +602,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_contact_email_the_supplier_edited_is_not_mistaken_for_its_identity()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-CONTACT-KEEP");
         var mine = Unique("ERP-CONTACT-MINE");
         var stranger = Unique("ERP-CONTACT-STRANGER");
@@ -660,8 +628,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_suspended_supplier_renamed_in_the_erp_does_not_come_back_as_a_new_active_one()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-SUSP-RENAME-KEEP");
         var oldId = Unique("ERP-SUSP-RENAME-OLD");
         var newId = Unique("ERP-SUSP-RENAME-NEW");
@@ -691,8 +657,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_disabled_in_the_erp_and_reinstated_by_a_person_is_not_suspended_again()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-DISABLED-REINSTATED");
         await RunAsync(new FixedSource(ErpRow(id)));
         await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
@@ -720,8 +684,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_run_that_finds_nothing_new_leaves_the_supplier_exactly_as_it_was()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-UNCHANGED");
         await RunAsync(new FixedSource(ErpRow(id)));
         var before = await VersionOfAsync(id);
@@ -742,8 +704,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_the_erp_stops_approving_is_suspended_once_and_the_preview_says_so_first()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-UNAPPROVED");
         await RunAsync(new FixedSource(ErpRow(id)));
         var pending = new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" });
@@ -786,8 +746,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_new_supplier_waiting_for_erp_approval_comes_into_service_when_the_erp_approves_it()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-AWAITING");
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
         (await LifecycleOfAsync(id)).Should().Be(SupplierLifecycleState.Suspended);
@@ -814,8 +772,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_whose_award_critical_document_expired_while_it_waited_is_not_released_by_the_approval()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-AWAITING-EXPIRED");
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
 
@@ -847,8 +803,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_person_who_keeps_a_waiting_supplier_suspended_is_not_overruled_by_the_approval()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-AWAITING-KEPT");
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
         await SetLifecycleAsync(id, supplier => supplier.Suspend("Sanctions check pending."));
@@ -864,8 +818,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_held_back_mass_disable_leaves_a_waiting_supplier_able_to_come_back_when_approved()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var ids = Enumerable.Range(1, 8).Select(i => Unique($"ERP-MASS-{i}")).ToList();
         var waiting = Unique("ERP-MASS-WAITING");
         await RunAsync(new FixedSource(
@@ -886,8 +838,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_held_back_run_does_not_reinstate_a_supplier_the_erp_is_still_turning_away()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var ids = Enumerable.Range(1, 8).Select(i => Unique($"ERP-HELD-REINSTATE-{i}")).ToList();
         var target = Unique("ERP-HELD-TARGET");
         await RunAsync(new FixedSource([.. ids.Select(ErpRow), ErpRow(target)]));
@@ -914,8 +864,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_waiting_supplier_the_erp_disables_loses_its_release_and_the_trail_says_so()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-AWAITING-DISABLED");
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
         var disabled = await RunAsync(new FixedSource(ErpRow(id) with { Disabled = true }));
@@ -935,8 +883,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task Keeping_a_waiting_supplier_suspended_is_audited_as_that()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-KEEP-AUDIT");
         await RunAsync(new FixedSource(ErpRow(id) with { WorkflowState = "Pending Chief Accountant Approval" }));
 
@@ -959,8 +905,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task Most_suppliers_turned_away_at_once_are_held_back_and_a_few_are_suspended()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var ids = Enumerable.Range(1, 8).Select(i => Unique($"ERP-TURNED-{i}")).ToList();
         await RunAsync(new FixedSource([.. ids.Select(ErpRow)]));
 
@@ -990,8 +934,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_the_import_creates_is_on_the_audit_trail_once_naming_whoever_ran_it()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-CREATED-AUDITED");
         var person = Guid.CreateVersion7();
         await RunAsync(new FixedSource(ErpRow(id)), userId: person);
@@ -1017,8 +959,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_that_arrives_suspended_has_the_reason_on_the_audit_trail()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var disabled = Unique("ERP-ARRIVES-DISABLED");
         var pending = Unique("ERP-ARRIVES-PENDING");
         await using (var run = fixture.Services.CreateAsyncScope())
@@ -1056,8 +996,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_supplier_whose_arrival_cannot_be_recorded_is_not_created()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var id = Unique("ERP-UNRECORDED");
         ErpImportRunReport report;
         await using (var run = fixture.Services.CreateAsyncScope())
@@ -1088,8 +1026,6 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_manual_run_names_the_person_who_ran_it_on_every_suspension()
     {
-        await SuspendEveryImportedSupplierAsync();
-
         var keep = Unique("ERP-ACTOR-KEEP");
         var gone = Unique("ERP-ACTOR-GONE");
         var first = await RunAsync(new FixedSource(ErpRow(keep), ErpRow(gone)));

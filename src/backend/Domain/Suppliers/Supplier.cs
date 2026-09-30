@@ -1,22 +1,31 @@
 // A supplier company: its profile, the people and places attached to it, where it is in registration
 // and review, and whether it may currently trade.
 //
-// The portal owns this record until the ministry's finance system approves it.
+// A supplier that registered here is the portal's record. One that came from the ministry's ERP is
+// refreshed from the ERP on every sync, on the fields the ERP sends and within the rules of
+// ApplyErpSnapshot, and everything else about it is the portal's; see THE ERP below.
 //
 // This record, not the API and not the interface, is the only authority on which state changes are
 // legal.
 //
 //
-// TWO STATE MACHINES, and they answer different questions
+// THE STATE, and the question each part answers
 //
 // OnboardingState is how far the company has got through registration and review, from draft to
 // approved or rejected.
 //
 // LifecycleState is whether an approved supplier may currently trade: active, suspended or
-// deactivated, and none at all before approval.
+// deactivated, and none at all before approval. People move it, and so do three automatic paths: the
+// document expiry job suspends, the automatic reinstatement after a renewal reactivates, and the ERP sync
+// suspends a supplier the ERP no longer returns or turns away, and releases one it suspended only while it
+// waited for the ERP's approval.
+//
+// ErpDisabledState, and the last two values of SyncStatus, are the ERP sync's memory of what it has
+// already done about this supplier, so that it acts on the lifecycle once and a person's decision after
+// that stands. They never decide eligibility themselves; THE ERP below lists them.
 //
 // IsEligibleToParticipate is the single answer to "may this supplier be invited to a tender or submit a
-// bid?", and it requires both halves. Onboarding must have reached approved, because an applicant
+// bid?", and it requires both of the first two. Onboarding must have reached approved, because an applicant
 // mid-review is not eligible however healthy its lifecycle looks, and the lifecycle must be active,
 // because suspended and deactivated are both excluded from new selection while existing obligations are
 // handled by policy elsewhere.
@@ -155,8 +164,8 @@
 // all be claimed, and claiming does not itself change the state, so the state machine below never touches
 // it.
 //
-// Approve admits the supplier and makes it active, and raises the obligation to sync it to the finance
-// system. Its blocking-documents argument is the approval gate.
+// Approve admits the supplier and makes it active. Its blocking-documents argument is the approval gate.
+// The outbound event that announces the approval is written by ApproveApplicationHandler, not here.
 //
 // The product owner's decision stands unchanged: approval does not require every document to be
 // individually approved, and a document still waiting on a reviewer must not block.
@@ -202,7 +211,11 @@
 // keeps its profile, its documents and its history, and the requirement to retain historical records
 // applies from there on. What it loses is eligibility, which is answered in one place.
 //
-// Reinstate is the reverse, and it needs a reason too, so the record says why participation was restored
+// Suspend has a second case, for a supplier the ERP sync is holding only while the ERP approves it: the
+// lifecycle stays suspended and the suspension becomes a person's, so the ERP's approval no longer lifts
+// it. The comment above Suspend says why.
+//
+// Reactivate is the reverse, and it needs a reason too, so the record says why participation was restored
 // and not only why it was removed.
 //
 // Deactivate is final. There is deliberately no way out, not even back to suspended.
@@ -218,15 +231,60 @@
 // of defect as a second factor that never challenges anybody.
 //
 //
-// THE FINANCE SYSTEM
+// THE ERP
 //
-// ExternalId, SyncStatus and LastSyncedAt are written only by the sync path, once a real integration
-// exists, and are never settable through an API endpoint.
+// The ministry's ERP is the master for the fields it sends about the suppliers it holds. The hourly ERP
+// sync, which is the same import an administrator can start by hand, creates and updates those suppliers
+// through the methods below: RunErpImportHandler calls them, and the rules that decide are in
+// Application/Integration. The state below is written only by the sync; no API endpoint sets it. The
+// fields the ERP sends can also be edited in the portal, and the next run overwrites them wherever the
+// ERP has a value - ApplyErpSnapshot has the exceptions.
+//
+// The state it keeps:
+//   ExternalId         the supplier's identifier in the ERP, which every run matches on
+//   LastSyncedAt       the last time the ERP changed or re-linked it, not the last time a run looked
+//   SyncStatus         whether the ERP has it, and the sync's memory of it leaving - read the warning on
+//                      SupplierSyncStatus before writing it
+//   ErpDisabledState   the sync's memory of the ERP disabling it or not approving it yet
+//
+// The methods:
+//   ImportFromErp             creates a supplier the ERP has and the portal does not, approved without review
+//   ApplyErpSnapshot          copies the fields the ERP sends onto a supplier the portal already has
+//   RecordErpStanding         suspends, marks or releases it by whether the ERP lets it be used
+//   ErpDisabledChangeFor      what RecordErpStanding would do, for the preview and the plan to forecast
+//   IsMarkedAsUnwantedByErp   whether a mark holds the automatic reinstatement back
+//   SuspendAsRemovedFromErp   suspends an active supplier the ERP no longer returns, and remembers why
+//   MarkRemovedFromErp        marks one already out of service that the ERP no longer returns
+//   MarkSynced                records that the ERP has it, which also clears the memory of it leaving
+//   EndErpPendingHold         hands the sync's wait-for-approval suspension to a person once one acts
+//   AllowsContactEdits        whether the import may add an address in this onboarding state
 
 namespace MotsSupplierPortal.Domain.Suppliers;
 
 using MotsSupplierPortal.Domain.Common;
 
+// Whether the ERP has this supplier, and what the ERP sync remembers about it leaving the ERP.
+//
+//   Pending                not linked to the ERP. The default, which a supplier that registered here keeps.
+//   Synced                 the ERP has it. Written by MarkSynced, when the import creates the supplier and on each
+//                          run that finds it in the ERP.
+//   Failed                 nothing writes it today. It is kept for pushing portal suppliers to the ERP, not yet built.
+//   RemovedFromErp         the sync suspended it because the ERP no longer returns it. Written by
+//                          SuspendAsRemovedFromErp; a person's reinstatement after that stands.
+//   MarkedRemovedFromErp   the ERP stopped returning it while it was already out of service here, so the sync only
+//                          marked it. Written by MarkRemovedFromErp; it holds the automatic reinstatement back.
+//
+// THE LAST TWO ARE THE SYNC'S MEMORY OF AN ABSENCE, NOT A PUSH STATUS, and a push to the ERP must never overwrite
+// them. RemovedFromErp is what stops the hourly job suspending again a supplier a person reinstated, and
+// MarkedRemovedFromErp is what keeps the automatic reinstatement away from a supplier the ERP no longer has.
+// MarkSynced sets Synced whatever the column held: that is how the memory clears when the ERP returns the supplier,
+// and it is also how a push would wipe it. A push that called MarkSynced, or wrote Failed, for a supplier still
+// missing from the ERP would have the next run suspend again somebody a person had reinstated. A push needs a status
+// of its own.
+//
+// THE VALUES ARE STORED BY NAME in a varchar(20) column (SupplierConfiguration), and MarkedRemovedFromErp is already
+// 20 characters. A longer new value compiles and passes the unit tests, and fails only when the sync saves it, so it
+// needs a migration that widens the column first; renaming a value needs one that rewrites the stored rows.
 public enum SupplierSyncStatus
 {
     Pending,
@@ -236,6 +294,23 @@ public enum SupplierSyncStatus
     MarkedRemovedFromErp,
 }
 
+// What the ERP sync has already done about the ERP turning this supplier away, so that it acts once and a person's
+// decision after that stands. RecordErpStanding sets it, and its comment has the moves between the values.
+//
+// "DISABLED" IN THESE NAMES ALSO MEANS "NOT YET APPROVED IN THE ERP". MarkedDisabled is written for either reason.
+// The sync writes SuspendedAsDisabled for a disable, but it is also what EndErpPendingHold leaves when a person acts
+// on a supplier the sync was holding for the ERP's approval, so an active supplier the ERP never disabled can carry it.
+//
+//   NotDisabled           the ERP lets it be used, or has never turned it away, so a later refusal counts as new.
+//                         The default; ImportFromErp and RecordErpStanding write it.
+//   MarkedDisabled        the ERP turned it away while it was already out of service, so the sync only marked it.
+//                         Written by RecordErpStanding; it holds the automatic reinstatement back.
+//   SuspendedAsDisabled   the sync suspended it once for being turned away, and a person's reinstatement after that
+//                         stands. Written by ImportFromErp, RecordErpStanding and EndErpPendingHold.
+//   SuspendedAsPending    the sync suspended it only while the ERP approves it, and nothing has changed its lifecycle
+//                         since. Written by ImportFromErp and RecordErpStanding; the only one the ERP's approval lifts.
+//
+// Stored by name in a varchar(20) column, like SupplierSyncStatus; SuspendedAsDisabled is 19 characters.
 public enum SupplierErpDisabledState
 {
     NotDisabled,
@@ -244,6 +319,21 @@ public enum SupplierErpDisabledState
     SuspendedAsPending,
 }
 
+// What one call of RecordErpStanding did. The run turns it into an audit row and a note on its report, and
+// ErpDisabledChangeFor forecasts it for the preview and the plan. It is never stored. "Disabled" covers "not yet
+// approved in the ERP" here too.
+//
+//   None                       nothing to record: nothing to do, or the sync already acted on an earlier run. The
+//                              memory still returns to NotDisabled when the ERP lets the supplier be used.
+//   Suspended                  an active supplier the ERP turns away was suspended.
+//   Marked                     a supplier already out of service was turned away, so it was only marked.
+//   Cleared                    the ERP lets a marked supplier be used again, so the run asks the automatic
+//                              reinstatement again.
+//   Released                   the ERP approved a supplier suspended only while it waited for that; it is active again.
+//   ReleaseWaitsForDocuments   the same, but an award-critical document expired meanwhile and has no approved renewal,
+//                              so it stays suspended and the next run asks again.
+//   ReleaseWithdrawn           the ERP disabled a supplier that was waiting for its approval, so that approval will no
+//                              longer lift the suspension.
 public enum ErpDisabledChange
 {
     None,
@@ -255,6 +345,12 @@ public enum ErpDisabledChange
     ReleaseWithdrawn,
 }
 
+// Whether the ERP lets a supplier be used, worked out from its ERP record on every run by
+// ErpImportAdmission.StandingOf. It is never stored; SupplierErpDisabledState is what the portal remembers of it.
+//
+//   Usable             enabled, and approved or with no approval workflow state at all
+//   AwaitingApproval   enabled, but its workflow state is something other than "Approved", such as a pending approval
+//   Disabled           the ERP's own disabled flag is set, which wins over a pending approval
 public enum ErpStanding
 {
     Usable,
@@ -891,7 +987,8 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // Once a person - or a rule acting for one - has acted on this supplier, a suspension the sync made while the ERP
     // was approving it is no longer the sync's to lift. It is still remembered as handled, so the ERP's pending state
-    // does not suspend it a second time.
+    // does not suspend it a second time. That is why SuspendedAsDisabled also stands for suppliers the ERP never
+    // disabled. Approve, Suspend, Reactivate and Deactivate all call it.
     private void EndErpPendingHold()
     {
         if (ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending)
@@ -955,11 +1052,11 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
 
     // A supplier that arrived from the ministry's ERP rather than through registration.
     //
-    // IT LANDS APPROVED AND ACTIVE WITHOUT PASSING THROUGH REVIEW, and that is the whole reason this exists as
-    // its own factory. Approve() requires the state to be UnderReview with every required document present, and
-    // an imported supplier has uploaded nothing - they never registered here. The alternative was to walk the
-    // nine states with the document check suppressed, which works and writes an audit trail claiming a reviewer
-    // reviewed them. No reviewer did. This says what actually happened instead.
+    // IT LANDS APPROVED WITHOUT PASSING THROUGH REVIEW - and active, unless the ERP turns it away, as below - and that
+    // is the whole reason this exists as its own factory. Approve() requires the state to be UnderReview with every
+    // required document present, and an imported supplier has uploaded nothing - they never registered here. The
+    // alternative was to walk the nine states with the document check suppressed, which works and writes an audit
+    // trail claiming a reviewer reviewed them. No reviewer did. This says what actually happened instead.
     //
     // THE ARABIC NAME IS THE ERP'S OWN WHEN IT HAS ONE, from a field Seven Gates added. When it has none the English
     // name stands in, because the column is required; that is wrong and visible, which is the right kind of wrong -
@@ -972,13 +1069,16 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // THE REPRESENTATIVE IS NAMED AFTER THE COMPANY when the ERP gives no person, because the field is required
     // and inventing a human being's name is worse than repeating the company's.
     //
-    // A SUPPLIER DISABLED IN THE ERP ARRIVES SUSPENDED, not active and not deactivated. Active would let a company
-    // Seven Gates has stopped using be invited to tenders; deactivated is permanent in this product, and
-    // "disabled" in the ERP is not.
+    // A SUPPLIER THE ERP HAS DISABLED, OR HAS NOT APPROVED YET, ARRIVES SUSPENDED, not active and not deactivated.
+    // Active would let a company Seven Gates will not use be invited to tenders; deactivated is permanent in this
+    // product, and neither state in the ERP is. It arrives remembered as SuspendedAsDisabled or SuspendedAsPending, so
+    // the ERP's approval brings a waiting one into service - see RecordErpStanding.
     //
     // WHAT ELSE THE ERP HOLDS ARRIVES IN details: the Arabic name, the registration number and its type, the supplier
     // group and a description. Each is empty when the ERP has none, except the Arabic name, which the portal requires
     // and which therefore starts as the English one.
+    //
+    // It is linked to the ERP from the start: MarkSynced records its identifier.
     public static Supplier ImportFromErp(
         string referenceCode,
         string externalId,
@@ -1044,7 +1144,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //
     // THE ERP WINS ONLY ON THE FIELDS IT SENDS. Everything else - the map pin somebody placed, the bank details
     // they entered, the documents they uploaded, the category the ministry assigned - is the portal's and is not
-    // touched. A null arriving from the ERP means "this system does not know", not "delete what you have".
+    // touched. A null arriving from the ERP means "this system does not know", not "delete what you have". The English
+    // name and the legal type always arrive with a value and are always written; the import reads an ERP supplier with
+    // no type as a company.
     //
     // THE REPRESENTATIVE IS RENAMED ONLY TO A PERSON, AND ONLY FROM THE COMPANY'S NAME. The caller passes a name only
     // when the ERP's contact is somebody rather than the "<supplier> Contact" the ERP makes on its own. And it replaces
@@ -1117,8 +1219,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return changed;
     }
 
-    // Recording whether the ERP will let this supplier be used, suspending it once if it will not, and releasing it once
-    // the ERP approves a supplier the sync suspended only while it waited for that.
+    // Recording whether the ERP will let this supplier be used: suspending it once if it will not and it is active,
+    // marking it if it is out of service already, and releasing it once the ERP approves a supplier the sync suspended
+    // only while it waited for that.
     //
     // THE ERP MAY SUSPEND, AND IT MAY RELEASE ONLY ITS OWN WAIT. A supplier the ERP disables, or has not approved, is
     // suspended here, so it cannot be invited to a tender Seven Gates would not honour. A supplier the ERP re-enables
@@ -1128,18 +1231,24 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // Otherwise every new supplier - which the hourly sync usually meets while it is still waiting for Seven Gates'
     // chief accountant - would stay suspended until somebody noticed and reinstated it by hand.
     //
-    // IT KEEPS FOUR MEMORIES, as a supplier missing from the ERP keeps three, and for the same reasons.
-    //   SuspendedAsPending - the sync suspended it while the ERP had not approved it, and nothing has changed its
-    //     lifecycle since. The only memory the ERP's approval may lift. A person acting on the supplier turns it into
-    //     SuspendedAsDisabled, and so does the ERP disabling it meanwhile.
-    //   SuspendedAsDisabled - the sync suspended it once for this, and a person's reinstatement after that is not
-    //     overruled; the first version suspended on every run on which the ERP said "disabled" and undid that decision
-    //     forever.
-    //   MarkedDisabled - the ERP turned it away while it was already out of service, so there was nothing to suspend.
-    //     The version before this one remembered only "disabled on the last run", so such a supplier, once reactivated -
-    //     by a person, or by a document approval that could not see the disable - was never suspended for it at all.
-    //     Now it is suspended once when it is found active, and the automatic reinstatement leaves it alone.
-    //   NotDisabled - the ERP lets it be used, so a later refusal counts as new.
+    // IT ACTS ONCE, AND REMEMBERS THAT IN ErpDisabledState, as an absence from the ERP is remembered in SyncStatus and
+    // for the same reason: suspending on every run on which the ERP says no would undo, within the hour, a reinstatement
+    // a person made on purpose. What each value means is on SupplierErpDisabledState. What one call does, by the ERP's
+    // standing and the supplier's memory and lifecycle, with the change it returns and what it leaves behind:
+    //
+    //   The ERP lets it be used:
+    //     SuspendedAsPending, not active          Released - active, NotDisabled; or ReleaseWaitsForDocuments - nothing
+    //                                               changes, while an expired award-critical document has no renewal
+    //     MarkedDisabled                          Cleared - NotDisabled
+    //     anything else                           None - NotDisabled, lifecycle untouched
+    //   The ERP disables it, or has not approved it:
+    //     SuspendedAsPending, ERP disables it     ReleaseWithdrawn - SuspendedAsDisabled
+    //     SuspendedAsPending, ERP not approved    None - nothing changes
+    //     SuspendedAsDisabled                     None - nothing changes
+    //     NotDisabled or MarkedDisabled, active   Suspended - suspended, as SuspendedAsPending if the ERP has not
+    //                                               approved it and SuspendedAsDisabled if it disabled it
+    //     NotDisabled, not active                 Marked - MarkedDisabled
+    //     MarkedDisabled, not active              None - nothing changes
     //
     // It returns what changed, so the caller can record who did it and look again at a reinstatement a mark held up.
     //
@@ -1181,8 +1290,9 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         return change;
     }
 
-    // What RecordErpStanding would do, worked out from the supplier's memory and lifecycle alone, so the preview can
-    // forecast the same outcome from the columns it reads without loading the supplier.
+    // What RecordErpStanding would do, worked out from the supplier's memory and lifecycle alone, so the preview and the
+    // plan can forecast the same outcome from the columns they read without loading the supplier, and the run can say
+    // what a held-back change would have been. It returns only the change; RecordErpStanding sets the memory.
     public static ErpDisabledChange ErpDisabledChangeFor(
         SupplierErpDisabledState state, bool isActive, ErpStanding standing, bool documentsAllowRelease = true)
     {
@@ -1243,16 +1353,26 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // Without it, that supplier would count as "vanished in this run" on every run for as long as it stayed missing, and
     // the plan could pair it with any new company that happened to share its tax number, months later.
     //
-    // IT IS A DIFFERENT MEMORY FROM SuspendAsRemovedFromErp, and the first version got that wrong by sharing one. That
-    // one means "the sync suspended it, so a person's reinstatement must be respected". This one means only "it was
-    // already out of service when it left", and the sync has not yet suspended it for that. Sharing them meant a
-    // supplier reactivated later was never suspended for its absence. With its own status, the automatic reinstatement
-    // after a document renewal leaves it alone, and one a person reactivates is suspended once on the next run.
+    // IT IS A DIFFERENT MEMORY FROM SuspendAsRemovedFromErp. That one means "the sync suspended it, so a person's
+    // reinstatement must be respected". This one means only "it was already out of service when it left", and the sync
+    // has not yet suspended it for that: the automatic reinstatement after a document renewal leaves it alone, and one
+    // a person reactivates is suspended once on the next run. One memory shared by both would leave a supplier
+    // reactivated later never suspended for its absence.
+    //
+    // It clears through MarkSynced when the ERP returns the supplier, except on a run that holds a mass turn-away back
+    // and finds it turned away - see RunErpImportHandler.UpdateAsync.
     public void MarkRemovedFromErp() => SyncStatus = SupplierSyncStatus.MarkedRemovedFromErp;
 
-    // Recording that the ERP has this supplier. LastSyncedAt is the last time the ERP changed or re-linked it, not the
-    // last time a run looked: stamping it on every hourly run would move every supplier's version with it - see
-    // ApplyErpSnapshot. When the last run happened is kept once, on the connection.
+    // Recording that the ERP has this supplier: its identifier, SyncStatus Synced, and when.
+    //
+    // IT OVERWRITES WHATEVER SyncStatus HELD. That is how RemovedFromErp and MarkedRemovedFromErp clear when the ERP
+    // returns the supplier, and why it is called only when the ERP has returned the supplier - see the warning on
+    // SupplierSyncStatus.
+    //
+    // LastSyncedAt is the last time the ERP changed or re-linked it, not the last time a run looked: when changed is
+    // false and the supplier is already Synced under this identifier, nothing is written, because stamping it on every
+    // hourly run would move every supplier's version with it - see ApplyErpSnapshot. When the last run happened is kept
+    // once, on the connection.
     public void MarkSynced(string externalId, bool changed = true)
     {
         if (!changed && ExternalId == externalId && SyncStatus == SupplierSyncStatus.Synced) return;
@@ -1260,10 +1380,5 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         ExternalId = externalId;
         SyncStatus = SupplierSyncStatus.Synced;
         LastSyncedAt = DateTimeOffset.UtcNow;
-    }
-
-    public void MarkSyncFailed()
-    {
-        SyncStatus = SupplierSyncStatus.Failed;
     }
 }

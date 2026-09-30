@@ -16,8 +16,7 @@ using MotsSupplierPortal.Application.Integration;
 public sealed class ErpRegistrationNumbersTests
 {
     private static ErpSupplier Supplier(string id, string? registration) =>
-        new(id, id, "Local", "Company", null, "Syria", null, null, false, "SYP", null, null,
-            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, RegistrationNumber: registration);
+        ErpSupplierTestFactory.Supplier(id) with { RegistrationNumber = registration };
 
     private static readonly Dictionary<string, RegistrationNumberHolder> NobodyHoldsAny = new(StringComparer.Ordinal);
 

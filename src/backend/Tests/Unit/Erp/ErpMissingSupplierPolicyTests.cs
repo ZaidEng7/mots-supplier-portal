@@ -1,7 +1,7 @@
 // Whether a run may suspend the suppliers that have vanished from the ERP.
 //
 // THE EMPTY LIST IS THE TEST THAT MATTERS MOST. A narrowed credential or a server answering politely with nothing
-// returns zero suppliers, and a job that believed it would suspend every supplier the ministry has overnight. It is
+// returns zero suppliers, and a job that believed it would suspend every supplier the ministry has in one run. It is
 // asserted with a portal full of suppliers, because that is the situation in which believing it does the damage.
 //
 // THE FLOOR IS TESTED AT BOTH EDGES. With a handful of suppliers a quarter rounds to one, and without the floor a

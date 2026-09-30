@@ -12,8 +12,9 @@
 //
 // NOBODY IS LEFT OUT. A supplier with no email arrives with a placeholder login that cannot deliver, a disabled
 // one arrives suspended, and a later run that brings a real address moves the LOGIN onto it, not just the contact -
-// otherwise the supplier's actual person could never sign in. The reverse is guarded too: a run where the ERP has
-// lost the address must not replace a real one with a placeholder.
+// otherwise the supplier's actual person could never sign in. When the identity rules refuse that address, the login
+// stays on the placeholder, untouched, and the row says so. The reverse is guarded too: a run where the ERP has lost
+// the address must not replace a real one with a placeholder.
 //
 // WHAT THE REAL SERVER ADDED IS CHECKED IN THE DATABASE, not in the report: the Arabic name, the registration number
 // and its type, the group, the contact person and the address with its governorate. Two of those tests came from the
@@ -28,6 +29,10 @@
 // THE PASSWORD IS CHECKED BEFORE THE FIRST WRITE, so a misconfigured one costs nothing rather than leaving the
 // registry half-populated. The test uses a password the product's own rules reject, rather than a made-up
 // assertion about what those rules are.
+//
+// NOTHING HERE CLEARS THE IMPORTED SUPPLIERS OTHER TESTS LEFT IN SERVICE, unlike ErpSupplierSyncTests, because no
+// assertion depends on them: every run here judges them as missing too, but carrying identifiers of their own they can
+// at most add Suspended rows after this run's own, and no test here counts suspensions or reads a held-back message.
 
 namespace MotsSupplierPortal.Tests.Integration.Integration;
 
@@ -57,8 +62,14 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
     }
 
     private static ErpSupplier Supplier(string id, string? email, string? name = null, bool disabled = false) =>
-        new(id, name ?? id, "Local", "Company", "TAX-" + id, "Syria", email, "+963 11 555 0000", disabled, "SYP",
-            null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        ErpSupplierTestFactory.Supplier(id) with
+        {
+            Name = name ?? id,
+            TaxId = "TAX-" + id,
+            Email = email,
+            Phone = "+963 11 555 0000",
+            Disabled = disabled,
+        };
 
     private static async Task<ErpImportRunReport> RunAsync(
         PostgresApiFixture fixture, IErpSupplierSource source, string password = Password)
@@ -203,6 +214,36 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
     }
 
     [Fact]
+    public async Task A_real_email_the_login_cannot_take_leaves_it_on_the_placeholder_and_says_so()
+    {
+        var externalId = Unique("ERP-REFUSEDLOGIN");
+        var refused = $"o'hara-{externalId.ToLowerInvariant()}@sgtest.example";
+
+        await RunAsync(fixture, new FixedSource(Supplier(externalId, email: null)));
+        var second = await RunAsync(fixture, new FixedSource(Supplier(externalId, refused)));
+
+        second.Updated.Should().Be(1, "a login that cannot move is no reason to fail the rest of the supplier's update");
+        second.Rows[0].Notes.Should().ContainMatch("*portal refused it for the login*login stays on the placeholder*");
+        second.Rows[0].Notes.Should().NotContain(
+            note => note.Contains("login moved", StringComparison.Ordinal),
+            "the identity framework refused a user name with an apostrophe, so the login did not move");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+        var supplier = await db.Suppliers.Include(s => s.Representatives).SingleAsync(s => s.ExternalId == externalId);
+        var user = await users.FindByIdAsync(supplier.Representatives[0].UserId!.Value.ToString());
+
+        ErpImportAdmission.IsPlaceholder(user!.Email).Should().BeTrue(
+            "a refused change left on the tracked account would be written by the update's own save");
+        ErpImportAdmission.IsPlaceholder(user.UserName).Should().BeTrue();
+        user.EmailConfirmed.Should().BeTrue("the account the supplier could sign in with must still be usable");
+        (await users.FindByEmailAsync(refused)).Should().BeNull();
+        (await users.CheckPasswordAsync(user, Password)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task A_placeholder_never_overwrites_a_real_address_already_on_file()
     {
         var externalId = Unique("ERP-KEEPREAL");
@@ -264,15 +305,20 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
         string? workflowState = "Approved",
         string? arabicName = "مؤسسة الحوراني للخضار والفواكه",
         ErpSupplierAddress? address = null) =>
-        new(id, "Al-Horani For Fruits & Vegetables", "مواد غذائية - SYP", "Company", "TAX-" + id, "Syria", null,
-            "0934171993", false, "SYP", null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
-            ArabicName: arabicName,
-            RegistrationNumber: registration,
-            RegistrationType: "Commercial",
-            Description: "مياه فيجة",
-            WorkflowState: workflowState,
-            ContactPersonName: "باسل عبد الرحمن",
-            Address: address);
+        ErpSupplierTestFactory.Supplier(id) with
+        {
+            Name = "Al-Horani For Fruits & Vegetables",
+            SupplierGroup = "مواد غذائية - SYP",
+            TaxId = "TAX-" + id,
+            Phone = "0934171993",
+            ArabicName = arabicName,
+            RegistrationNumber = registration,
+            RegistrationType = "Commercial",
+            Description = "مياه فيجة",
+            WorkflowState = workflowState,
+            ContactPersonName = "باسل عبد الرحمن",
+            Address = address,
+        };
 
     private async Task<Supplier> LoadAsync(string externalId)
     {

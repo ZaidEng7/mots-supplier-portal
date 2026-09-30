@@ -1,10 +1,11 @@
 // What a supplier remembers about the ERP disabling it.
 //
-// THE THREE MEMORIES MIRROR THE ONES FOR A SUPPLIER MISSING FROM THE ERP, and each test here is a way the earlier
-// versions got it wrong. The first suspended on every run on which the ERP said "disabled", undoing a person's reinstatement
-// forever. The second suspended only on the change from enabled to disabled, so a disable that arrived while the
-// supplier was already suspended left no trace: a document approval then reactivated it, and nothing ever suspended it
-// for the disable. So the sequences below walk a supplier through reactivations as well as reads.
+// THE THREE MEMORIES MIRROR THE ONES FOR A SUPPLIER MISSING FROM THE ERP. The sync suspends an active supplier once for
+// a disable and never again after a person reinstates it; a disable that arrives while the supplier is already
+// suspended leaves a mark, so a document approval cannot bring it back and a later reactivation is still suspended
+// once for the disable; and re-enabling clears a mark but never reinstates. Suspending on every read that said
+// "disabled", or only on the change from enabled to disabled, each broke one of those - which is why the sequences
+// below walk a supplier through reactivations as well as reads.
 //
 // THE CONTROL IS THE PLAIN CASE, an active supplier being disabled and suspended, because every other test is about
 // what must NOT happen and would pass against a method that never suspended anybody.

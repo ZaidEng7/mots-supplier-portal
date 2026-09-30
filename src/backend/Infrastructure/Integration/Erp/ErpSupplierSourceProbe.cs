@@ -1,11 +1,10 @@
 // Asking the ERP whether the import can run with the credentials currently in force.
 //
 // IT READS WHAT THE IMPORT READS, one record of each, with the import's own field lists and filters: a supplier, a
-// contact filtered on its link to a supplier, and an address filtered the same way. The first version read one Company
-// record, the call the ERP's own documentation names for a connection check - and a green result then proved the
-// address and the key were right and nothing about the import. Seven Gates grants access per record type, so a
-// credential could pass that check with no right to read suppliers at all, and the next night's import would fail on a
-// connection the screen had just called good.
+// contact filtered on its link to a supplier, and an address filtered the same way. Reading one Company record, the
+// call the ERP's own documentation names for a connection check, would prove the address and the key and nothing
+// about the import: Seven Gates grants access per record type, so a credential could pass it with no right to read
+// suppliers at all, and the next hourly import would fail on a connection the screen had just called good.
 //
 // EVERY READ IS TRIED AND REPORTED, rather than stopping at the first refusal. An administrator asking the ERP team for
 // access needs the whole list in one message - "suppliers yes, contacts yes, addresses no" - not one missing permission

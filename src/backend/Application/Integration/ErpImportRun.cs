@@ -5,10 +5,11 @@
 // field names for the same four numbers would make that a translation exercise at exactly the moment somebody is
 // deciding whether to trust the thing.
 //
-// FAILED IS ITS OWN COUNT, SEPARATE FROM REFUSED. A refusal is this product declining a supplier it cannot
-// represent - no email, a currency it does not know - and is an expected outcome. A failure is the import going
-// wrong: a duplicate account, a database refusal, something nobody anticipated. Collapsing them into one number
-// would hide a defect inside an expected result, which is how a broken import reports a clean run.
+// FAILED IS ITS OWN COUNT, SEPARATE FROM REFUSED. A refusal is this product declining a supplier for a stated
+// reason - a probable rename held for a person, or an address that already belongs to another account - and is an
+// expected outcome. A failure is the import going wrong: a database refusal, something nobody anticipated.
+// Collapsing them into one number would hide a defect inside an expected result, which is how a broken import
+// reports a clean run.
 //
 // EVERY ROW SAYS WHAT BECAME OF IT, including the ones that did nothing. A supplier missing from this list is
 // unaccounted for, and somebody reconciling eighty rows against the ERP by hand needs the list to be eighty long.

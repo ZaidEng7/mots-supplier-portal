@@ -9,9 +9,9 @@
 // the URL, saving, seeing nothing change, and having no way to discover that an environment variable is still in
 // charge.
 //
-// RESOLVING HAPPENS PER CALL, NOT AT STARTUP. The first version of this decided at boot whether the ERP existed,
-// which is fine for configuration and wrong the moment the values live in a table: an administrator would save an
-// address and the application would carry on as though there were none until somebody restarted it.
+// RESOLVING HAPPENS PER CALL, NOT AT STARTUP. Deciding at boot whether the ERP exists is fine for configuration and
+// wrong the moment the values live in a table: an administrator would save an address and the application would
+// carry on as though there were none until somebody restarted it.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 

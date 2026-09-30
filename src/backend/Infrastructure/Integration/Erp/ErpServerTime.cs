@@ -5,9 +5,9 @@
 // framework and let it parse - reads it as the LOCAL time of whatever machine the portal happens to run on, and
 // a container running in UTC then records a supplier as created three hours before they were.
 //
-// NOTHING ABOUT THAT FAILURE IS VISIBLE. The value parses, the row saves, the ministry's feed reports it, and
-// the only symptom is that CreatedOn and LastModified are quietly wrong by a fixed amount. A modified_since
-// filter built on a drifted LastModified then skips rows or re-sends them forever.
+// NOTHING ABOUT THAT FAILURE WOULD BE VISIBLE. The value parses and the only symptom is a timestamp quietly wrong by a
+// fixed amount - and a modified-since filter built on a drifted one would skip rows or re-send them forever. The
+// import reads neither timestamp yet (see ErpOptions), so this is kept right for the day something does.
 //
 // SO THE ZONE IS SUPPLIED, NOT INFERRED, and an unparseable zone identifier throws here rather than falling back
 // to UTC. A fallback would turn a configuration mistake into permanently skewed data, which is the same failure

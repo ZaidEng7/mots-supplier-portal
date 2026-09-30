@@ -15,9 +15,9 @@
 // A failed read offers a retry instead of a blank page.
 //
 // The last pair is B-1 and BRULE-011: the screen says when a draining outbox is reaching a log file rather than an ERP.
-// MarkSynced is never called because the only transport writes a log line, so the rule "ExternalId is assigned after an ERP
-// ACK" passes because nothing exercises it - and an operator reading a healthy outbox tile would conclude the integration
-// works. The control is that nothing is said about the transport when a real one is configured.
+// The only outbound transport writes a log line, so nothing a supplier's approval queues ever reaches the ERP, and an
+// operator reading a healthy outbox tile would conclude the integration works. The control is that nothing is said about
+// the transport when a real one is configured.
 
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'

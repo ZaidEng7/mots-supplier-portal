@@ -7,7 +7,7 @@
 // different symptoms, so both are pinned.
 //
 // "Dynamic Link" IS NOT AN ARBITRARY EXAMPLE. It is the record type that joins a supplier to its address and
-// contact, it is the one this product will need next, and it is the one with a space in it.
+// contact, it is the one the import's contact and address reads filter on, and it is the one with a space in it.
 //
 // THE MISSING FIELD LIST THROWS, and that is the interesting case rather than an argument check for its own
 // sake: without a field list the ERP returns an array of the right length with nothing in it but identifiers. The

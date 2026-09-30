@@ -2,15 +2,15 @@
 //
 // THE PREVIEW AND THE RUN SIT TOGETHER, because the forecast is only worth anything if the thing it forecasts is
 // one click away, and a write that lived elsewhere invites somebody to read one and press the other without
-// looking. They share their failure type for the same reason: the three ways either call can fail are the same
-// three, and an operator should not have to learn them twice.
+// looking. They share their failure type for the same reason: the ways either call can fail are the same ways,
+// and an operator should not have to learn them twice.
 //
-// THE STATUS CODES ARE CARRIED, NOT FLATTENED, and that is the only unusual thing in this file. Three refusals
-// mean three different things to the person reading the screen: 503 is nobody configured the integration, 502 is
-// the ERP refused us, and anything else is ours. A single "preview_unavailable" would tell an administrator to
-// go and look at logs for a problem the server already described precisely - and the most likely one, a
-// credential without rights on a record type, is fixed by asking the other team rather than by reading anything
-// here.
+// THE STATUS CODES ARE CARRIED, NOT FLATTENED, and that is the only unusual thing in this file. Each means something
+// different to the person reading the screen: 503 is nobody configured the integration, 502 is the ERP refused us,
+// 409 is another import already running, and anything else is ours. A single "preview_unavailable" would tell an
+// administrator to go and look at logs for a problem the server already described precisely - and the most likely
+// one, a credential without rights on a record type, is fixed by asking the other team rather than by reading
+// anything here.
 //
 // THE DETAIL FROM THE SERVER IS KEPT for the same reason: "403 PermissionError" names which side to fix. It is
 // the ERP's own words and it is shown as such rather than translated, because a translated approximation of

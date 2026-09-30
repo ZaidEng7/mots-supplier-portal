@@ -177,6 +177,7 @@ coverage must clear 45%, a floor that goes up and never down.
 | How do I run it? | `RUNBOOK.md` |
 | What is it for? | `DOCUMENTATION.md`, then `docs/product/` |
 | Who can do X? | `PERMISSIONS.md` (generated) |
+| How does the supplier import from the ERP work, and how do I change it safely? | [`ERP-IMPORT.md`](ERP-IMPORT.md) |
 | Why is it like this? | `DECISIONS-TAKEN.md`, and the comment above the line |
 | What is not finished? | `DOCUMENTATION.md` §17, the boundaries and open decisions |
 | What does the pipeline do? | `.github/workflows/ci.yml`, which reads as a record of instruments found measuring nothing |

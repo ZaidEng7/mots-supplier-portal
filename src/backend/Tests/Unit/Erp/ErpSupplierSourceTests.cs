@@ -1,15 +1,15 @@
 // Reading suppliers from the ERP, against the bytes the real server actually sent.
 //
 // THE FIXTURE IS NOT INVENTED. It is the response from the Seven Gates test instance on 2026-09-27, trimmed to
-// the fields this client asks for and otherwise untouched - three suppliers with "(seed)" in their own names, no
+// the fields this client reads and otherwise untouched - three suppliers with "(seed)" in their own names, no
 // tax number, no currency, no linked address or contact, and contact fields that are EMPTY STRINGS rather than
 // null. A fixture written by hand would have used null for those, and the one assertion that matters most here
 // would have passed without exercising anything.
 //
-// EMPTY STRING BECOMING NULL IS THE POINT. Whether a supplier can have a portal account turns on whether they
-// have an email address, because Supplier.Register requires one and a login needs a mailbox for the password
-// link. A caller branching on "is the email null" would treat "" as an address and create an account nobody can
-// sign into. So the client normalises here, once, rather than leaving every consumer to remember.
+// EMPTY STRING BECOMING NULL IS THE POINT. A supplier with no email is given a placeholder login that says so, and
+// the import decides that by asking whether the email is null. Asked of "", that question treats it as an address,
+// and the supplier gets neither a placeholder nor a login that works. So the client normalises here, once, rather
+// than leaving every consumer to remember.
 //
 // THE REFUSAL TEST USES A REAL REFUSAL TOO - the 403 the test credential gets on Dynamic Link, whose body is the
 // ERP's own traceback envelope. It matters that exc_type is read out of that shape rather than from a status

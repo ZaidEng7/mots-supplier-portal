@@ -86,7 +86,7 @@ internal static class AutomaticReinstatement
             .Select(a => a.Action)
             .FirstOrDefaultAsync(ct);
 
-        if (lastSuspension != "supplier_auto_suspended") return false;
+        if (lastSuspension != SupplierAuditActions.AutoSuspended) return false;
 
         var awardCriticalTypeIds = await db.DocumentTypes.AsNoTracking()
             .Where(t => t.IsAwardCritical)
@@ -105,7 +105,7 @@ internal static class AutomaticReinstatement
         supplier.Reactivate(reason);
 
         await auditLogger.LogAsync(
-            "Supplier", supplier.Id, "supplier_auto_reinstated", actorUserId,
+            "Supplier", supplier.Id, SupplierAuditActions.AutoReinstated, actorUserId,
             actorLabel: actorLabel,
             referenceCode: supplier.ReferenceCode,
             fromState: nameof(SupplierLifecycleState.Suspended),
