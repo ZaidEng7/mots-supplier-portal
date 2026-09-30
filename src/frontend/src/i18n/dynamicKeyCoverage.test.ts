@@ -64,6 +64,13 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     keys: ['Created', 'Updated', 'Refused', 'Failed', 'Suspended'],
   },
   {
+    // The push's states from ErpPushStatus in api/review.ts, which mirrors the server's SupplierErpPushStatus. The
+    // chip is drawn for these four; NotRequested draws no chip, so it has no label to resolve.
+    site: 'ReviewApplicationPage - the chip saying how far creating the supplier in the ERP has got',
+    namespace: 'review.erpPush',
+    keys: ['Requested', 'Linked', 'Created', 'Failed'],
+  },
+  {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',
     namespace: 'onboarding.fields',
     keys: [

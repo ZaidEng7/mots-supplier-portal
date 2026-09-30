@@ -298,6 +298,7 @@
 //   RecordErpPushAttemptFailed   counts a failed attempt and says when to try again
 //   FailErpPush                  stops the push until a person retries it
 //   RetryErpPush                 a person starts a failed push again
+//   IsInServiceForErpPush        whether the push may work on it: not while a person has it out of service
 
 namespace MotsSupplierPortal.Domain.Suppliers;
 
@@ -455,7 +456,10 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // record write the rest; nothing else touches these.
     //
     //   ErpPushStatus          how far the push has got; SupplierErpPushStatus has the values.
-    //   ErpPushRequestedAt     when approval asked for it. Empty for a supplier the push was never asked for.
+    //   ErpPushRequestedAt     when approval first asked for it. Empty for a supplier the push was never asked for.
+    //                          A later approval keeps it rather than moving it on, because the push's look for a
+    //                          create whose answer was lost reaches back from here, and it has to reach the first
+    //                          attempt, whichever approval that followed.
     //   ErpPushStartedAt       the in-flight marker: set when an attempt begins, and cleared when the push completes or
     //                          an attempt is recorded as failed. One still set when the next attempt begins means the
     //                          last one stopped part-way, perhaps after its request reached the ERP. The ERP makes a
@@ -1023,13 +1027,17 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     // One approved again before that - still waiting, or failed before the ERP had it - is asked for afresh, with the
     // count started again and the next attempt due at once, because a person has just approved it. Its in-flight marker
     // is left as it is: an attempt may already have reached the ERP, and the next one has to look before it creates.
+    //
+    // THE FIRST REQUEST'S TIME IS KEPT. SupplierErpPushJob looks for an earlier create among the ERP's records made
+    // since the request, and an attempt after the first approval may have made one whose answer was lost. Moved on to
+    // this approval, the look would start after that record and the push would post a second supplier.
     private void RequestErpPush()
     {
         if (ExternalId is not null) return;
 
         var now = DateTimeOffset.UtcNow;
         ErpPushStatus = SupplierErpPushStatus.Requested;
-        ErpPushRequestedAt = now;
+        ErpPushRequestedAt ??= now;
         ErpPushAttempts = 0;
         ErpPushNextAttemptAt = now;
     }
@@ -1511,7 +1519,7 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
     //   CompleteErpPush              Linked                              -> Created
     //   RecordErpPushAttemptFailed   Requested or Linked                 -> unchanged, the next attempt later
     //   FailErpPush                  Requested or Linked                 -> Failed
-    //   RetryErpPush                 Failed                              -> Requested, or Linked with an ExternalId
+    //   RetryErpPush                 Failed, while in service            -> Requested, or Linked with an ExternalId
     //
     // A method that writes a time takes it from the caller, so one run of the job is one moment on every supplier it
     // touches.
@@ -1598,15 +1606,38 @@ public sealed class Supplier : IVersionedAggregate, ILastModified
         ErpPushNextAttemptAt = null;
     }
 
+    // Whether the push may work on this supplier: only while it is in service.
+    //
+    // A SUPPLIER A PERSON HAS TAKEN OUT OF SERVICE IS NOT PUSHED. Suspended or deactivated, it would otherwise be
+    // created in the ERP with a website user holding the Supplier role, for a company whose access here was just
+    // withdrawn. Its push stays where it is, and goes on if the supplier comes back into service; a deactivated one
+    // never does.
+    //
+    // THE SYNC'S OWN HOLD WHILE THE ERP APPROVES THE SUPPLIER IS NOT OUT OF SERVICE. The Draft record the push made is
+    // what put the supplier there, and the rest of the push - the address, the contact, the website user - is part of
+    // what the ERP team approves. Any person acting on the supplier ends that hold (EndErpPendingHold), so a suspension
+    // somebody chose is never mistaken for it. SupplierErpPushJob asks the same question in the database.
+    public bool IsInServiceForErpPush =>
+        LifecycleState == SupplierLifecycleState.Active
+        || (LifecycleState == SupplierLifecycleState.Suspended
+            && ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending);
+
     // A person starts a failed push again. It goes back to Requested, or to Linked when the ERP already has the
     // Supplier record, so the next attempt never creates it twice. The count starts again and the next attempt is due
-    // at once.
+    // at once. A supplier out of service is refused, because the push would not run for it; see IsInServiceForErpPush.
     public void RetryErpPush(DateTimeOffset now)
     {
         if (ErpPushStatus != SupplierErpPushStatus.Failed)
         {
             throw new DomainException(
                 $"Cannot retry the ERP push from status '{ErpPushStatus}'; only 'Failed' is valid.");
+        }
+
+        if (!IsInServiceForErpPush)
+        {
+            throw new DomainException(
+                $"Cannot retry the ERP push of a supplier that is out of service (lifecycle state '{LifecycleState}'). "
+                + "A supplier a person has suspended or deactivated is not created in the ERP; reinstate it first.");
         }
 
         ErpPushStatus = ExternalId is null ? SupplierErpPushStatus.Requested : SupplierErpPushStatus.Linked;

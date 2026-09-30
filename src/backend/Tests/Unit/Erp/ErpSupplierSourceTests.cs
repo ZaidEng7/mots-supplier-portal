@@ -58,9 +58,10 @@ public sealed class ErpSupplierSourceTests
     private static ErpSupplierSource SourceReturning(
         HttpStatusCode status,
         string body,
-        out StubHandler handler)
+        out StubHandler handler,
+        string? apiUser = "portal@7gates.example")
     {
-        handler = new StubHandler(status, body);
+        handler = new StubHandler(status, body, apiUser);
 
         var options = new ErpOptions
         {
@@ -163,9 +164,9 @@ public sealed class ErpSupplierSourceTests
         await source.ListSuppliersAsync(CancellationToken.None);
 
         handler.Requests.Should().HaveCount(
-            3,
+            4,
             "the contact carries the person's name and the address is its own record, so both are read even for a "
-            + "supplier that already has an email and a phone");
+            + "supplier that already has an email and a phone, and the portal's own API user is asked once");
         handler.Requests[1].RequestUri!.AbsolutePath.Should().Be("/api/resource/Contact");
         Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query).Should().Contain(
             "[[\"Dynamic Link\",\"link_doctype\",\"=\",\"Supplier\"]]",
@@ -173,6 +174,47 @@ public sealed class ErpSupplierSourceTests
         handler.Requests[2].RequestUri!.AbsolutePath.Should().Be("/api/resource/Address");
         Uri.UnescapeDataString(handler.Requests[2].RequestUri!.Query).Should().Contain(
             "[[\"Dynamic Link\",\"link_doctype\",\"=\",\"Supplier\"]]");
+        handler.Requests[3].RequestUri!.AbsolutePath.Should().Be("/api/method/frappe.auth.get_logged_user");
+    }
+
+    // THE PORTAL'S OWN CREATES ARE MARKED BY THEIR OWNER. A supplier the push created and has not linked yet would
+    // otherwise reach the import as a stranger, and the import would make a second portal supplier of it. The owner
+    // is compared with the user the credential signs in as, asked once for the whole list, and in any case.
+    [Fact]
+    public async Task A_supplier_the_portals_own_api_user_created_is_marked_as_the_portals()
+    {
+        const string owned = """
+        {"data": [
+          {"name": "SUP-2026-00092", "supplier_name": "Pushed Trading", "owner": "Portal@7Gates.example",
+           "disabled": 0, "creation": "2026-09-30 12:00:00", "modified": "2026-09-30 12:00:00"},
+          {"name": "SUP-2026-00001", "supplier_name": "Entered by hand", "owner": "accountant@7gates.example",
+           "disabled": 0, "creation": "2026-08-10 12:20:11", "modified": "2026-09-17 10:38:20"},
+          {"name": "SUP-2026-00002", "supplier_name": "No owner sent", "disabled": 0,
+           "creation": "2026-08-10 12:20:11", "modified": "2026-09-17 10:38:20"}
+        ]}
+        """;
+
+        var source = SourceReturning(HttpStatusCode.OK, owned, out var handler, apiUser: "portal@7gates.example");
+
+        var suppliers = await source.ListSuppliersAsync(CancellationToken.None);
+
+        suppliers.Single(s => s.ExternalId == "SUP-2026-00092").CreatedByPortal.Should().BeTrue();
+        suppliers.Single(s => s.ExternalId == "SUP-2026-00001").CreatedByPortal.Should().BeFalse();
+        suppliers.Single(s => s.ExternalId == "SUP-2026-00002").CreatedByPortal.Should().BeFalse();
+        handler.Requests.Count(r => r.RequestUri!.AbsolutePath.StartsWith("/api/method/", StringComparison.Ordinal))
+            .Should().Be(1, "the API user is asked once for the list, not once per supplier");
+    }
+
+    [Fact]
+    public async Task An_api_user_read_that_is_not_the_erps_answer_fails_the_read_rather_than_marking_nothing()
+    {
+        var source = SourceReturning(HttpStatusCode.OK, LiveSupplierResponse, out _, apiUser: null);
+
+        var act = () => source.ListSuppliersAsync(CancellationToken.None);
+
+        (await act.Should().ThrowAsync<ErpRequestException>()).Which.Message.Should().Contain(
+            "API user",
+            "not knowing the API user would let the import take the push's own creates for strangers");
     }
 
     [Fact]
@@ -240,11 +282,54 @@ public sealed class ErpSupplierSourceTests
         thrown.Which.Kind.Should().Be(ErpFailureKind.Transient);
     }
 
+    // THE SUPPLIER GROUPS, for the integrations screen. Unlike the supplier fixture above, this answer is written by
+    // hand: nothing has asked either server for its groups yet. It has the ERP's list shape, and the Arabic group is
+    // one the real server holds on a supplier. The blank row and the repeat stand for what a hand-kept tree can hold,
+    // and neither is a group anybody can choose.
+    [Fact]
+    public async Task The_supplier_groups_are_read_trimmed_once_each_and_without_the_headings()
+    {
+        const string groups = """
+        {"data": [
+          {"name": "Local Suppliers - SYP"},
+          {"name": " مستلزمات مكتبية - SYP "},
+          {"name": ""},
+          {"name": "Local Suppliers - SYP"}
+        ]}
+        """;
+
+        var source = SourceReturning(HttpStatusCode.OK, groups, out var handler);
+
+        var read = await source.ListSupplierGroupsAsync(CancellationToken.None);
+
+        read.Should().Equal("Local Suppliers - SYP", "مستلزمات مكتبية - SYP");
+        handler.Requests.Should().ContainSingle("the groups are one read, and the import's three reads are not made");
+        handler.Request!.Headers.Authorization!.Scheme.Should().Be("token");
+        handler.Request.RequestUri!.AbsolutePath.Should().Be("/api/resource/Supplier%20Group");
+        Uri.UnescapeDataString(handler.Request.RequestUri.Query).Should().Contain(
+            "filters=[[\"Supplier Group\",\"is_group\",\"=\",0]]",
+            "a group that holds other groups is a heading in the ERP's tree, not a place to file a supplier");
+    }
+
+    [Fact]
+    public async Task A_refused_group_read_says_it_was_the_groups_that_were_refused()
+    {
+        var source = SourceReturning(HttpStatusCode.Forbidden, LivePermissionRefusal, out _);
+
+        var act = () => source.ListSupplierGroupsAsync(CancellationToken.None);
+
+        var thrown = await act.Should().ThrowAsync<ErpRequestException>();
+        thrown.Which.Message.Should().Contain("supplier group read",
+            "an administrator told the ERP refused a supplier read would go looking at the import's rights");
+        thrown.Which.ExcType.Should().Be("PermissionError");
+    }
+
     // Every request is recorded, not just the last one. The client makes a call for contacts and another for addresses
     // after the supplier list, and a handler that remembered only the most recent request reported one of those as
     // though it were the supplier call - which is how the assertion about the supplier URL once started failing while
-    // the client was behaving correctly.
-    private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
+    // the client was behaving correctly. The API user read is answered as the ERP answers it, with the user in
+    // "message"; a null user answers it with the list body, which is not the ERP's answer to that read.
+    private sealed class StubHandler(HttpStatusCode status, string body, string? apiUser) : HttpMessageHandler
     {
         private readonly List<HttpRequestMessage> _requests = [];
 
@@ -257,9 +342,13 @@ public sealed class ErpSupplierSourceTests
         {
             _requests.Add(request);
 
+            var answer = apiUser is not null && request.RequestUri!.AbsolutePath == "/api/method/frappe.auth.get_logged_user"
+                ? $$"""{"message": "{{apiUser}}"}"""
+                : body;
+
             return Task.FromResult(new HttpResponseMessage(status)
             {
-                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+                Content = new StringContent(answer, Encoding.UTF8, "application/json"),
             });
         }
     }

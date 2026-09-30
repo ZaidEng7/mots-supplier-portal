@@ -1,12 +1,17 @@
 // Adds what the portal needs to create an approved supplier in the ERP: the push's own state on the supplier, the
-// write switch and the default group on the connection, and a guarantee that no two suppliers share an ERP identifier.
+// write switch and the default group on the connection, room for every name the ERP can give a supplier, and a
+// guarantee that no two suppliers share an ERP identifier.
 //
 // THE PUSH HAS ITS OWN STATE, NOT SyncStatus. SyncStatus also holds the import's memory of a supplier leaving the
 // ERP, and a push writing it would undo that memory. Every existing supplier starts as NotRequested with no attempts:
 // the push acts only on a supplier approved from now on that has no ERP identifier yet.
 //
 // THE SWITCH STARTS OFF. Adding the columns creates nothing in the ERP; a system administrator turns the push on,
-// with the group, on Connected systems.
+// with the group, on Connected systems, and the deployment must also list the ERP server in Erp:WriteHosts.
+//
+// ExternalId GROWS FROM 100 TO 140 CHARACTERS. A server that names suppliers by supplier_name, as the ERP's test server
+// does, gives names up to the ERP's own 140, and a name the column could not hold would leave a supplier created in the
+// ERP with no link in the portal. Widening keeps every value already stored.
 //
 // ONE SUPPLIER PER ERP IDENTIFIER. The import matches on ExternalId, and a second supplier carrying the same one would
 // be updated, suspended and released together with the first. Nothing enforced it before, so the migration looks
@@ -25,6 +30,18 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AlterColumn<string>(
+                name: "ExternalId",
+                schema: "supplier",
+                table: "supplier",
+                type: "character varying(140)",
+                maxLength: 140,
+                nullable: true,
+                oldClrType: typeof(string),
+                oldType: "character varying(100)",
+                oldMaxLength: 100,
+                oldNullable: true);
+
             migrationBuilder.AddColumn<int>(
                 name: "ErpPushAttempts",
                 schema: "supplier",
@@ -167,6 +184,18 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                 name: "DefaultSupplierGroup",
                 schema: "ops",
                 table: "integration_connection");
+
+            migrationBuilder.AlterColumn<string>(
+                name: "ExternalId",
+                schema: "supplier",
+                table: "supplier",
+                type: "character varying(100)",
+                maxLength: 100,
+                nullable: true,
+                oldClrType: typeof(string),
+                oldType: "character varying(140)",
+                oldMaxLength: 140,
+                oldNullable: true);
         }
     }
 }

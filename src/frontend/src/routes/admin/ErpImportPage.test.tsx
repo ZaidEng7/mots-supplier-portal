@@ -22,6 +22,10 @@
 // them into "could not load" would send an administrator to read logs for a problem the server already named. The
 // 502 case also asserts the ERP's own words survive to the screen: they are what gets forwarded to the team who
 // can fix it, and a translated approximation of another system's error is worse than the original.
+//
+// THE 409 NAMES A SUPPLIER PUSH AS WELL AS AN IMPORT. The push that creates an approved supplier in the ERP holds the
+// import's lock, so a run refused while nobody else is importing is refused for the push, and a card saying only that
+// another import is running would send the administrator looking for a run that does not exist.
 
 import { describe, expect, it, afterEach } from 'vitest'
 import { screen } from '@testing-library/react'
@@ -274,9 +278,17 @@ describe('ErpImportPage', () => {
     expect(screen.queryByText('Nobody was suspended')).not.toBeInTheDocument()
   })
 
-  it('says another import is running rather than that something broke', async () => {
+  it('says an import or a supplier push is running rather than that something broke', async () => {
     restore = mockFetch({
-      [RUN]: { __byMethod: { POST: { __status: 409, detail: 'Another supplier import is already running.' } } },
+      [RUN]: {
+        __byMethod: {
+          POST: {
+            __status: 409,
+            title: 'An import or a supplier push is running.',
+            detail: 'An import or a supplier push to the ERP is running, so the import did not start. Wait a minute or two and try again.',
+          },
+        },
+      },
     })
 
     renderPage(<ErpImportPage />)
@@ -284,7 +296,8 @@ describe('ErpImportPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Run the import' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Yes, run the import' }))
 
-    expect(await screen.findByText('Another import is running')).toBeInTheDocument()
+    expect(await screen.findByText('An import or a supplier push is running')).toBeInTheDocument()
+    expect(screen.getByText(/creating an approved supplier in the ERP/)).toBeInTheDocument()
     expect(screen.queryByText('The import could not be run')).not.toBeInTheDocument()
   })
 

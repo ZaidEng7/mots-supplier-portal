@@ -72,6 +72,9 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     {
         public Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ErpSupplier>>(suppliers);
+
+        public Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     private sealed class FixedConnection(ErpConnection? connection) : IErpConnectionProvider
@@ -1123,12 +1126,14 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         var calls = 0;
         var import = new CountingImport(() => calls++);
 
-        var job = new ErpSupplierSyncJob(new FixedConnection(null), import, NullLogger<ErpSupplierSyncJob>.Instance);
+        var job = new ErpSupplierSyncJob(
+            new FixedConnection(null), import, new RecordingJobClient(), NullLogger<ErpSupplierSyncJob>.Instance);
         await job.RunAsync();
 
         var disabled = new ErpSupplierSyncJob(
             new FixedConnection(new ErpConnection("http://x", "k", "s", IsEnabled: false, ErpConnectionSource.Database)),
             import,
+            new RecordingJobClient(),
             NullLogger<ErpSupplierSyncJob>.Instance);
         await disabled.RunAsync();
 
@@ -1138,17 +1143,77 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
             + "teach people to ignore the failure that eventually matters");
     }
 
+    // THE LOCK TAKEN AT THE HOUR IS TRIED ONCE MORE, NOT SKIPPED FOR THE HOUR. A supplier push holds it too, and a push
+    // does none of the import's work, so the first version, which stepped aside until the next hour, held back an
+    // hour's releases and suspensions whenever an approval landed at the turn of the hour. The second try steps aside
+    // and schedules nothing, so a lock held for long never queues imports behind it.
     [Fact]
-    public async Task The_scheduled_job_steps_aside_when_another_import_is_running()
+    public async Task The_scheduled_job_tries_once_more_a_couple_of_minutes_after_finding_the_lock_taken()
     {
+        var jobs = new RecordingJobClient();
         var job = new ErpSupplierSyncJob(
             new FixedConnection(new ErpConnection("http://x", "k", "s", IsEnabled: true, ErpConnectionSource.Database)),
             new CountingImport(() => throw new ErpImportBusyException()),
+            jobs,
             NullLogger<ErpSupplierSyncJob>.Instance);
 
         var act = () => job.RunAsync();
 
-        await act.Should().NotThrowAsync("the run already in progress is doing this hour's work");
+        await act.Should().NotThrowAsync("a lock somebody else holds is not a failure of this run");
+        var retry = jobs.Created.Should().ContainSingle(
+            "the lock may be a supplier push, which does none of this hour's work").Subject;
+        retry.Type.Should().Be(typeof(ErpSupplierSyncJob));
+        retry.Method.Should().Be(nameof(ErpSupplierSyncJob.RunAgainAsync));
+        retry.State.Should().BeOfType<Hangfire.States.ScheduledState>()
+            .Which.EnqueueAt.Should().BeCloseTo(
+                DateTime.UtcNow + ErpSupplierSyncJob.RetryAfterBusy, TimeSpan.FromSeconds(30));
+        ErpSupplierSyncJob.RetryAfterBusy.Should().Be(TimeSpan.FromMinutes(2));
+    }
+
+    [Fact]
+    public async Task The_second_try_steps_aside_when_the_lock_is_still_taken_and_schedules_nothing_more()
+    {
+        var jobs = new RecordingJobClient();
+        var job = new ErpSupplierSyncJob(
+            new FixedConnection(new ErpConnection("http://x", "k", "s", IsEnabled: true, ErpConnectionSource.Database)),
+            new CountingImport(() => throw new ErpImportBusyException()),
+            jobs,
+            NullLogger<ErpSupplierSyncJob>.Instance);
+
+        var act = () => job.RunAgainAsync();
+
+        await act.Should().NotThrowAsync();
+        jobs.Created.Should().BeEmpty("one more try is all; the next hour runs as usual");
+    }
+
+    [Fact]
+    public async Task The_scheduled_job_schedules_nothing_when_the_import_runs()
+    {
+        var calls = 0;
+        var jobs = new RecordingJobClient();
+        var job = new ErpSupplierSyncJob(
+            new FixedConnection(new ErpConnection("http://x", "k", "s", IsEnabled: true, ErpConnectionSource.Database)),
+            new CountingImport(() => calls++),
+            jobs,
+            NullLogger<ErpSupplierSyncJob>.Instance);
+
+        await job.RunAsync();
+
+        calls.Should().Be(1);
+        jobs.Created.Should().BeEmpty();
+    }
+
+    private sealed class RecordingJobClient : Hangfire.IBackgroundJobClient
+    {
+        public List<(Type Type, string Method, Hangfire.States.IState State)> Created { get; } = [];
+
+        public string Create(Hangfire.Common.Job job, Hangfire.States.IState state)
+        {
+            Created.Add((job.Type, job.Method.Name, state));
+            return Guid.NewGuid().ToString();
+        }
+
+        public bool ChangeState(string jobId, Hangfire.States.IState state, string expectedState) => true;
     }
 
     private sealed class CountingImport(Action onRun) : IRunErpImportHandler

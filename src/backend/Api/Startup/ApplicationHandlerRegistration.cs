@@ -215,6 +215,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IApproveApplicationHandler, ApproveApplicationHandler>();
         builder.Services.AddScoped<IRejectApplicationHandler, RejectApplicationHandler>();
         builder.Services.AddScoped<ISupplierLifecycleHandler, SupplierLifecycleHandler>();
+        builder.Services.AddScoped<IRetryErpPushHandler, RetryErpPushHandler>();
         builder.Services.AddScoped<IRequestInfoHandler, RequestInfoHandler>();
         builder.Services.AddScoped<IResubmitApplicationHandler, ResubmitApplicationHandler>();
         builder.Services.AddScoped<IGetOwnActiveAnnotationHandler, GetOwnActiveAnnotationHandler>();
@@ -488,6 +489,9 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<
             MotsSupplierPortal.Application.Integration.ITestIntegrationHandler,
             MotsSupplierPortal.Infrastructure.Integration.TestIntegrationHandler>();
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.IListErpSupplierGroupsHandler,
+            MotsSupplierPortal.Infrastructure.Integration.ListErpSupplierGroupsHandler>();
         builder.Services.AddHttpClient<
             MotsSupplierPortal.Infrastructure.Integration.Erp.IErpSupplierSourceProbe,
             MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSourceProbe>();

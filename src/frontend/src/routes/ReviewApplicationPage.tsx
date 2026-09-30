@@ -48,13 +48,26 @@
 //
 // Reject uses the same dialog. It had a near-identical component of its own, and keeping both meant two copies of one
 // mandatory-reason form free to drift, which Sonar flagged as duplication.
+//
+// THE PUSH TO THE ERP IS A CHIP BESIDE THE STATES, read-only: waiting, partly created, created with the ERP's own name
+// for the supplier, or failed. There is none while nothing was asked of the ERP - a supplier that came from the ERP, or
+// one not yet approved - because a chip saying "not requested" would read as a step somebody forgot. A failed push
+// says what the last attempt was told, in the ERP's words where it sent any, and offers Retry only to somebody holding
+// admin.integrations.manage, the permission the server holds the retry to: a reviewer reads the push here but starting
+// it again is a decision for whoever runs the connection to the ERP, and a button the server refuses with 403 would
+// promise what it cannot do. It is not integration.retry, which retries an award's send within the caller's
+// organisation and may be given to an organisation's role, while the push is one queue for the whole registry. A
+// refused retry - a push that is no longer failed, or a supplier out of service - shows the server's own sentence. The
+// retry reads the view again afterwards, because the chip must show where the push went, and because the retry moves
+// the supplier's version, which this page's document decisions send back.
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { invalidateQuietly } from '../lib/queryClient'
-import { Badge, Button, Card, Dialog, Field, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast} from '../components/ui'
+import { usePermissions } from '../lib/authStore'
+import { Badge, Button, Card, Dialog, Field, PageHeading, QueryError, StatusChip, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow, useToast, type Tone} from '../components/ui'
 import {
   getReviewerSupplierView,
   pickUpApplication,
@@ -63,7 +76,10 @@ import {
   changeSupplierLifecycle,
   type SupplierLifecycleAction,
   requestApplicationInfo,
+  retryErpPush,
   ReviewApiError,
+  type ErpPushStatus,
+  type ReviewerErpSync,
 } from '../api/review'
 import { getDocumentDownloadUrl, approveDocument, rejectDocument, DocumentApiError } from '../api/documents'
 import { PROFILE_DISPLAY_FIELDS, profileDisplayValue, LEGAL_INFO_FIELDS, legalInfoValue } from './profileDisplayFields'
@@ -150,6 +166,31 @@ function RequestInfoDialog({
   )
 }
 
+// NotRequested has no tone and so no chip: nothing was asked of the ERP.
+const ERP_PUSH_TONE: Partial<Record<ErpPushStatus, Tone>> = {
+  Requested: 'info',
+  Linked: 'info',
+  Created: 'success',
+  Failed: 'danger',
+}
+
+function ErpPushChip({ erpSync }: Readonly<{ erpSync: ReviewerErpSync }>) {
+  const { t } = useTranslation()
+  const tone = ERP_PUSH_TONE[erpSync.erpPushStatus]
+  if (tone === undefined) return null
+
+  return (
+    <Badge tone={tone}>
+      <span>
+        {t(`review.erpPush.${erpSync.erpPushStatus}`)}
+        {erpSync.erpPushStatus === 'Created' && erpSync.externalId !== null ? (
+          <> (<bdi dir="ltr">{erpSync.externalId}</bdi>)</>
+        ) : null}
+      </span>
+    </Badge>
+  )
+}
+
 // Suspending a supplier the ERP sync is holding only until Seven Gates approves it keeps it suspended rather than
 // suspending it, so the button and its dialog say that.
 function lifecycleLabel(action: SupplierLifecycleAction, liftsWhenErpApproves: boolean): string {
@@ -162,6 +203,7 @@ export function ReviewApplicationPage() {
   const isArabic = i18n.language.startsWith('ar')
   const { notify } = useToast()
   const queryClient = useQueryClient()
+  const can = usePermissions()
   const [rejectOpen, setRejectOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   const [lifecycleAction, setLifecycleAction] = useState<SupplierLifecycleAction | null>(null)
@@ -221,6 +263,15 @@ export function ReviewApplicationPage() {
       notify({ kind: 'success', title: t('review.decisionSuccess') })
     },
     onError: (err) => notify({ kind: 'danger', title: t('review.lifecycleFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
+  })
+
+  const retryErpPushMutation = useMutation({
+    mutationFn: () => retryErpPush(referenceCode),
+    onSuccess: () => {
+      invalidate()
+      notify({ kind: 'success', title: t('review.erpPushRetried') })
+    },
+    onError: (err) => notify({ kind: 'danger', title: t('review.erpPushRetryFailed'), description: err instanceof ReviewApiError ? err.message : undefined }),
   })
 
   const downloadMutation = useMutation({
@@ -293,6 +344,7 @@ export function ReviewApplicationPage() {
           {lifecycle !== 'None' ? (
             <StatusChip machine="onboarding" value={lifecycle} />
           ) : null}
+          {view.erpSync ? <ErpPushChip erpSync={view.erpSync} /> : null}
         </div>
       </div>
 
@@ -334,6 +386,22 @@ export function ReviewApplicationPage() {
 
       {liftsWhenErpApproves ? (
         <p role="note" style={{ color: 'var(--color-text-secondary)' }}>{t('review.liftsWhenErpApproves')}</p>
+      ) : null}
+
+      {view.erpSync?.erpPushStatus === 'Failed' ? (
+        <div role="note" className="flex flex-col items-start gap-2">
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('review.erpPushFailed')}</p>
+          {view.erpSync.erpPushLastError ? (
+            <p dir="auto" style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--color-danger-fg)' }}>
+              {view.erpSync.erpPushLastError}
+            </p>
+          ) : null}
+          {can('admin.integrations.manage') ? (
+            <Button size="sm" variant="secondary" isLoading={retryErpPushMutation.isPending} onClick={() => retryErpPushMutation.mutate()}>
+              {t('review.retryErpPush')}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       <Card title={t('review.profile')}>

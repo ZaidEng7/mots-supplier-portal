@@ -11,7 +11,8 @@
 //
 // THE PUSH NEVER WRITES WHAT THE SYNC REMEMBERS. The last tests put a pushed supplier into the two states the warning
 // on SupplierSyncStatus is about - waiting for the ERP's approval, and suspended for leaving the ERP - and walk the
-// whole push over it. A push that called MarkSynced, or released the supplier, would change one of them.
+// whole push over it, as far as each lets it go: a supplier suspended for leaving the ERP is out of service, so its
+// failed push is not retried. A push that called MarkSynced, or released the supplier, would change one of them.
 //
 // Each supplier is brought to its push status through the real methods, so every starting point is one the record
 // actually produces.
@@ -150,15 +151,36 @@ public sealed class SupplierErpPushTests
         supplier.BeginErpPush(Now);
         supplier.RecordErpPushAttemptFailed("The ERP did not answer.", Now.AddHours(1));
         supplier.BeginErpPush(Now.AddHours(1));
+        var approvedAgainFrom = DateTimeOffset.UtcNow;
 
         SendBackToReviewAndApprove(supplier);
 
         supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Requested);
         supplier.ErpPushAttempts.Should().Be(0, "a person has just approved it, so the count starts again");
-        supplier.ErpPushNextAttemptAt.Should().Be(supplier.ErpPushRequestedAt).And.NotBe(Now.AddHours(1));
+        supplier.ErpPushNextAttemptAt.Should().BeOnOrAfter(approvedAgainFrom, "the next attempt is due at once")
+            .And.NotBe(Now.AddHours(1));
         supplier.ErpPushStartedAt.Should().Be(
             Now.AddHours(1),
             "that attempt may have reached the ERP, so the next one must still look before it creates");
+    }
+
+    // THE FIRST REQUEST'S TIME IS KEPT. The push looks for a create whose answer was lost among the ERP records made since
+    // the request, and the first version moved the request to the new approval, so a create lost before it fell outside
+    // the look and was posted a second time.
+    [Fact]
+    public void Approving_again_keeps_the_time_the_push_was_first_asked_for()
+    {
+        var supplier = SupplierTestFactory.Approved();
+        var firstRequest = supplier.ErpPushRequestedAt;
+        supplier.BeginErpPush(Now);
+        supplier.FailErpPush("Stopped after 8 failed attempts. The last: the ERP did not answer.");
+
+        SendBackToReviewAndApprove(supplier);
+
+        supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Requested);
+        supplier.ErpPushRequestedAt.Should().Be(
+            firstRequest, "the look for an earlier create reaches back from here, and must reach the first attempt");
+        supplier.ErpPushNextAttemptAt.Should().BeOnOrAfter(firstRequest!.Value);
     }
 
     [Fact]
@@ -419,6 +441,54 @@ public sealed class SupplierErpPushTests
         supplier.ErpPushAttempts.Should().Be(0);
     }
 
+    // A SUPPLIER A PERSON TOOK OUT OF SERVICE IS NOT RETRIED. The push would create it in the ERP with a website user
+    // holding the Supplier role; the first version let a retry through for a supplier deactivated for good.
+    [Theory]
+    [InlineData(SupplierLifecycleState.Suspended)]
+    [InlineData(SupplierLifecycleState.Deactivated)]
+    public void Retrying_is_refused_for_a_supplier_a_person_took_out_of_service(SupplierLifecycleState lifecycle)
+    {
+        var supplier = InPushStatus(SupplierErpPushStatus.Failed);
+        supplier.Suspend("Under investigation.");
+        if (lifecycle == SupplierLifecycleState.Deactivated) supplier.Deactivate("Fraud confirmed.");
+
+        supplier.IsInServiceForErpPush.Should().BeFalse();
+
+        var act = () => supplier.RetryErpPush(Now.AddHours(2));
+
+        act.Should().Throw<DomainException>().WithMessage($"*out of service*'{lifecycle}'*");
+        supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Failed);
+    }
+
+    [Fact]
+    public void Retrying_is_allowed_while_only_the_sync_holds_the_supplier_for_the_erps_approval()
+    {
+        var supplier = InPushStatus(SupplierErpPushStatus.Linked);
+        supplier.FailErpPush("The ERP refused the contact's phone.");
+        supplier.MarkSynced(ErpName);
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval).Should().Be(ErpDisabledChange.Suspended);
+
+        supplier.IsInServiceForErpPush.Should().BeTrue(
+            "the Draft record the push made is what put the supplier there, and its contact is part of what the ERP "
+            + "team approves");
+
+        supplier.RetryErpPush(Now.AddHours(2));
+
+        supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Linked);
+    }
+
+    [Fact]
+    public void A_person_suspending_a_supplier_the_sync_held_takes_it_out_of_service_for_the_push()
+    {
+        var supplier = InPushStatus(SupplierErpPushStatus.Linked);
+        supplier.MarkSynced(ErpName);
+        supplier.RecordErpStanding(ErpStanding.AwaitingApproval);
+
+        supplier.Suspend("Held by the ministry.");
+
+        supplier.IsInServiceForErpPush.Should().BeFalse("the suspension is now a person's, not the sync's hold");
+    }
+
     [Theory]
     [InlineData(SupplierErpPushStatus.NotRequested)]
     [InlineData(SupplierErpPushStatus.Requested)]
@@ -469,6 +539,17 @@ public sealed class SupplierErpPushTests
         AfterEachStep(() => supplier.BeginErpPush(Now.AddHours(1)));
         AfterEachStep(() => supplier.RecordErpSupplierCreated(ErpName, Now.AddHours(1)));
         AfterEachStep(() => supplier.FailErpPush("The ERP refused the address."));
+
+        if (syncMemory == "suspended for leaving the ERP")
+        {
+            AfterEachStep(() => supplier.Invoking(s => s.RetryErpPush(Now.AddHours(2))).Should().Throw<DomainException>(
+                "the sync's suspension for leaving the ERP takes the supplier out of service, and the push would only "
+                + "link records to a supplier the ERP no longer returns"));
+
+            supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Failed);
+            return;
+        }
+
         AfterEachStep(() => supplier.RetryErpPush(Now.AddHours(2)));
         AfterEachStep(() => supplier.BeginErpPush(Now.AddHours(2)));
         AfterEachStep(supplier.CompleteErpPush);

@@ -5,8 +5,9 @@
 // are percent-encoded as ErpQuery encodes a list read. A create answers with the new record, and its name is read from
 // data.name, because on the real ERP that name is minted by a naming series and the portal never chooses it.
 //
-// NOTHING IS WRITTEN WHILE THE WRITE SWITCH IS OFF. Every create and change asks the connection first and throws
-// ErpWritesOffException before a request exists, whoever the caller is; ErpWritesOffException has the reason. The
+// NOTHING IS WRITTEN WHILE THE WRITE SWITCH IS OFF, OR TO A SERVER THE DEPLOYMENT HAS NOT LISTED. Every create and
+// change asks the connection first and throws ErpWritesOffException before a request exists, whoever the caller is,
+// when the switch is off or the connection's server is not in Erp:WriteHosts; ErpWritesOffException has the reason. The
 // reads run either way, as the import's do. No connection at all is ErpNotConfiguredException, as for the import.
 //
 // EVERY FAILURE IS AN ErpRequestException THAT KNOWS ITS METHOD, so its PushKind sorts it as ErpFailure describes:
@@ -27,7 +28,7 @@
 // Supplier is read first and every row it already has is sent back as it came, with the new user after them. A row
 // left out would be deleted by the ERP. A user already on the list is not sent again, so a resumed push is harmless.
 //
-// "CREATED BY THE PORTAL" MEANS OWNED BY THE API USER, which the ERP names in frappe.auth.get_logged_user, and created
+// "CREATED BY THE PORTAL" MEANS OWNED BY THE API USER, which ErpWire asks the ERP for, as the import does, and created
 // at or after a time written in the ERP's own zone, because "creation" is stored in its local time with no offset.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
@@ -46,7 +47,6 @@ public sealed class ErpSupplierRegistrar(
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
 
     internal const string FieldListMethod = "frappe.desk.form.load.getdoctype";
-    internal const string LoggedUserMethod = "frappe.auth.get_logged_user";
     internal const int DefaultTextLength = 140;
 
     internal static readonly string[] MatchFields = ["name", "supplier_name", "tax_id"];
@@ -85,9 +85,7 @@ public sealed class ErpSupplierRegistrar(
         string supplierName, DateTimeOffset since, CancellationToken ct)
     {
         var connection = await ErpWire.RequireConnectionAsync(connections, ct);
-        var what = "the API user read";
-        var owner = Text(Member(await ReadAsync(connection, ErpQuery.Call(LoggedUserMethod), what, ct), "message"))
-            ?? throw NotTheErps(what, HttpMethod.Get);
+        var owner = await ErpWire.ApiUserAsync(client, connection, ct);
         var createdSince = ErpServerTime.Format(since, ErpServerTime.Zone(options.Value.ServerTimeZone));
 
         var url = ErpQuery.List(
@@ -196,11 +194,19 @@ public sealed class ErpSupplierRegistrar(
         return Text(Member(Member(created, "data"), "name")) ?? throw NotTheErps(what, HttpMethod.Post);
     }
 
+    // The connection a write may use: the switch on, and the server named in Erp:WriteHosts, matched on its host or on its
+    // host and port. An address that does not parse is not a listed server.
     private async Task<ErpConnection> WritableConnectionAsync(CancellationToken ct)
     {
         var connection = await ErpWire.RequireConnectionAsync(connections, ct);
+        if (!connection.CreateSuppliersInErp) throw new ErpWritesOffException();
 
-        return connection.CreateSuppliersInErp ? connection : throw new ErpWritesOffException();
+        var listed = Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var server)
+            && options.Value.WriteHosts.Any(host =>
+                string.Equals(host.Trim(), server.Authority, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(host.Trim(), server.Host, StringComparison.OrdinalIgnoreCase));
+
+        return listed ? connection : throw ErpWritesOffException.ServerNotAllowed(server?.Authority ?? connection.BaseUrl);
     }
 
     private async Task<JsonNode?> ReadAsync(ErpConnection connection, string url, string what, CancellationToken ct)

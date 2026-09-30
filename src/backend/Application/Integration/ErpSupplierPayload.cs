@@ -27,8 +27,8 @@
 //             governorate's Arabic name), country, pincode, is_primary_address, and the link to the Supplier.
 //   Contact   first_name and last_name, the primary email and primary mobile, designation, is_primary_contact, and
 //             the link to the Supplier.
-//   User      email, first_name, user_type Website User, the Supplier role, and no welcome email. No password is
-//             sent, as the ERP colleague asked.
+//   User      email, first_name and last_name, user_type Website User, the Supplier role, and no welcome email. No
+//             password is sent, as the ERP colleague asked.
 //
 // ONLY THE PRIMARY ADDRESS AND THE PRIMARY REPRESENTATIVE GO, because those are the colleague's calls. The primary
 // address is the first one added, and a supplier cannot submit without a head office.
@@ -49,7 +49,9 @@
 //
 // THE REPRESENTATIVE'S NAME IS SPLIT AT THE LAST SPACE: the last word is the last_name, the rest the first_name. The
 // ERP's full_name joins them with a space, which is what the import reads back, so the portal gets back the name it
-// sent. The user's first_name is the contact's, as the colleague's call carries first_name alone.
+// sent. The user carries the same two names as the contact, although the colleague's call sent first_name alone:
+// saving a new user makes the ERP copy the user's names onto the contact that has its email, and a user with no
+// last_name would blank the contact's.
 //
 // NO USER IS MADE FOR A PLACEHOLDER EMAIL on erp-import.invalid, and the contact carries no email then either: such an
 // address can never deliver, and it would plant a false one in the ERP.
@@ -225,16 +227,7 @@ public sealed class ErpSupplierPayload
         }
 
         var userEmail = deliverable?.ToLowerInvariant();
-        var user = userEmail is null
-            ? null
-            : new JsonObject
-            {
-                ["email"] = userEmail,
-                ["first_name"] = firstName,
-                ["user_type"] = WebsiteUserType,
-                ["roles"] = new JsonArray(new JsonObject { ["role"] = SupplierRole }),
-                ["send_welcome_email"] = 0,
-            };
+        var user = userEmail is null ? null : UserBody(userEmail, firstName, lastName);
 
         return new ErpSupplierPayloadResult(
             new ErpSupplierPayload(
@@ -276,6 +269,22 @@ public sealed class ErpSupplierPayload
             1 => (words[0], null),
             _ => (string.Join(' ', words[..^1]), words[^1]),
         };
+    }
+
+    private static JsonObject UserBody(string email, string? firstName, string? lastName)
+    {
+        var user = new JsonObject { ["email"] = email, ["first_name"] = firstName };
+
+        if (lastName is not null)
+        {
+            user["last_name"] = lastName;
+        }
+
+        user["user_type"] = WebsiteUserType;
+        user["roles"] = new JsonArray(new JsonObject { ["role"] = SupplierRole });
+        user["send_welcome_email"] = 0;
+
+        return user;
     }
 
     private static JsonObject WithLink(JsonObject template, bool linked, string erpSupplierName)

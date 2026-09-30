@@ -3,8 +3,10 @@
 // THE FAKE IS THE ERP'S BEHAVIOUR, NOT A SCRIPT. It keeps what it was sent - suppliers, addresses, contacts, users,
 // portal users - and answers the reads from that, so a push that stopped part-way meets the records it made before,
 // as it would on the real ERP. Each test tells it which call to refuse, and whether the refusal comes before the
-// record is made or after, which is the difference between a create that failed and one whose answer was lost.
-// Every call is recorded in order, so the colleague's order and "no second create" are both read from one list.
+// record is made or after, which is the difference between a create that failed and one whose answer was lost. It
+// can also lag, answering its searches as though a record it made were not committed yet, which is how a lost answer
+// is followed by a look that finds nothing. Every call is recorded in order, so the colleague's order and "no second
+// create" are both read from one list.
 //
 // THE SUPPLIER IS APPROVED THROUGH THE REVIEWER'S HANDLER, with a recording job client in place of the scheduler, so
 // the push request is the one approval really makes and the enqueued push is asserted rather than assumed. The job is
@@ -96,7 +98,8 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
 
     private static string Unique(string prefix) => $"{prefix} {Guid.NewGuid():N}"[..(prefix.Length + 13)];
 
-    private async Task<Approved> ApprovedAsync(string? taxId = null, string country = "Syria")
+    private async Task<Approved> ApprovedAsync(
+        string? taxId = null, string country = "Syria", SupplierLegalType legalType = SupplierLegalType.Company)
     {
         var name = Unique("Push Trading");
         var email = $"push-{Guid.NewGuid():N}@push.example";
@@ -112,7 +115,7 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
             supplier.MarkEmailVerified();
             supplier.UpdateCoreProfile("Office supplies.", null, "SME", "SYP");
             supplier.UpdateLegalInfo(
-                "شركة الدفع", name, supplier.LegalInfo!.RegistrationNumber, taxId, SupplierLegalType.Company, null,
+                "شركة الدفع", name, supplier.LegalInfo!.RegistrationNumber, taxId, legalType, null,
                 isComplianceCritical: true);
             supplier.AddAddress(AddressKind.HeadOffice, "12 Baghdad Street", null, "Damascus", "DIM", country, null, null, null);
             supplier.LinkCategory("catering", isComplianceCritical: true);
@@ -810,6 +813,281 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
         (await db.Suppliers.CountAsync(s => s.DisplayNameEn == approved.Name)).Should().Be(1, "no second portal supplier");
     }
 
+    private async Task SendBackToReviewAndApproveAsync(Approved approved)
+    {
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplier = await db.Suppliers.SingleAsync(s => s.Id == approved.Id);
+            supplier.UpdateLegalInfo(
+                "شركة الدفع المعدلة", approved.Name, supplier.LegalInfo!.RegistrationNumber, supplier.LegalInfo.TaxId,
+                supplier.LegalInfo.SupplierType, null, isComplianceCritical: true).Should().BeTrue();
+            await db.SaveChangesAsync();
+        }
+
+        await ApproveAsync(approved.ReferenceCode, new RecordingJobClient());
+    }
+
+    private async Task<int> CarryingAsync(string erpName)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.Suppliers.CountAsync(s => s.ExternalId == erpName);
+    }
+
+    private async Task ChangeLifecycleAsync(Guid supplierId, params Action<Supplier>[] changes)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var supplier = await db.Suppliers.SingleAsync(s => s.Id == supplierId);
+        foreach (var change in changes) change(supplier);
+        await db.SaveChangesAsync();
+    }
+
+    private static FakeErp LosingTheCreatesAnswer() => new()
+    {
+        FailAfter = call => call == SupplierPost ? Refusal(HttpStatusCode.GatewayTimeout, HttpMethod.Post) : null,
+        Lagging = true,
+    };
+
+    // THE IMPORT BETWEEN TWO ATTEMPTS. The create's answer is lost, the look straight after misses the record because
+    // the ERP has not committed it yet, and the lock is free until the next attempt, so the hourly import runs in that
+    // gap. The first version created a portal supplier from the record, and the push, finding it carried, posted a
+    // second one: two suppliers in each system for one company.
+    [Fact]
+    public async Task An_import_between_two_attempts_leaves_the_push_its_own_create_and_the_push_links_it()
+    {
+        var approved = await ApprovedAsync();
+        var erp = LosingTheCreatesAnswer();
+
+        await PushOneAsync(erp, approved.Id);
+
+        var orphan = erp.Suppliers.Single().Name;
+        (await ReadAsync(approved.Id)).ExternalId.Should().BeNull("the look straight after the lost answer found nothing");
+
+        var report = await ImportAsync(ErpSupplierTestFactory.Supplier(orphan) with
+        {
+            Name = approved.Name,
+            WorkflowState = "Draft",
+            CreatedByPortal = true,
+        });
+
+        report.Created.Should().Be(0, "the portal's API user created it, so it is the push's to link, not a newcomer");
+        var held = report.Rows.Should().ContainSingle(r => r.ExternalId == orphan).Subject;
+        held.Outcome.Should().Be(ErpImportOutcome.Refused);
+        held.Notes.Should().Equal(ErpImportPreviewBuilder.HeldForPushNote);
+        (await CarryingAsync(orphan)).Should().Be(0);
+
+        erp.Lagging = false;
+        await MakeDueAsync(approved.Id);
+        await PushOneAsync(erp, approved.Id);
+
+        erp.Writes.Count(w => w == SupplierPost).Should().Be(1, "the ERP makes a second supplier for a second request");
+        var supplier = await ReadAsync(approved.Id);
+        supplier.ExternalId.Should().Be(orphan);
+        supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Created);
+        (await CarryingAsync(orphan)).Should().Be(1);
+    }
+
+    // A RECORD ANOTHER PORTAL SUPPLIER CARRIES IS NOT POSTED PAST. Here the orphan was already made into a portal
+    // supplier - by an import from before it learnt to leave the portal's creates alone, say. The first version dropped
+    // the carried match, found nothing else, and posted a second supplier.
+    [Fact]
+    public async Task A_record_another_portal_supplier_carries_is_not_posted_past_and_the_push_fails_naming_both()
+    {
+        var approved = await ApprovedAsync();
+        var erp = LosingTheCreatesAnswer();
+        await PushOneAsync(erp, approved.Id);
+        var orphan = erp.Suppliers.Single().Name;
+
+        var carrier = $"SUP-D-{Guid.NewGuid():N}"[..24];
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.Suppliers.Add(Supplier.ImportFromErp(
+                carrier, orphan, approved.Name, null, SupplierLegalType.Company, "SYP", approved.Name,
+                $"carrier-{Guid.NewGuid():N}@push.example", null));
+            await db.SaveChangesAsync();
+        }
+
+        erp.Lagging = false;
+        await MakeDueAsync(approved.Id);
+        await PushOneAsync(erp, approved.Id);
+
+        erp.Writes.Should().Equal([SupplierPost], "a second post would give the ERP another copy whichever it is");
+        var failed = await ReadAsync(approved.Id);
+        failed.ErpPushStatus.Should().Be(SupplierErpPushStatus.Failed, "only a person can say which company that is");
+        failed.ExternalId.Should().BeNull();
+        failed.ErpPushLastError.Should().Contain(orphan).And.Contain(carrier);
+    }
+
+    // A SECOND APPROVAL KEEPS THE LOOK REACHING BACK. The first version moved the request time to the new approval, so
+    // a create lost an hour before it fell outside the look, and a supplier with no tax number was posted again.
+    [Fact]
+    public async Task A_second_approval_keeps_the_look_reaching_back_to_a_create_lost_before_it()
+    {
+        var approved = await ApprovedAsync();
+        var erp = LosingTheCreatesAnswer();
+        await PushOneAsync(erp, approved.Id);
+
+        var anHourAgo = DateTimeOffset.UtcNow.AddHours(-1);
+        erp.Suppliers[0] = erp.Suppliers[0] with { CreatedAt = anHourAgo };
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Suppliers
+                .Where(s => s.Id == approved.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(s => s.ErpPushRequestedAt, anHourAgo.AddMinutes(-1)));
+        }
+
+        await SendBackToReviewAndApproveAsync(approved);
+
+        (await ReadAsync(approved.Id)).ErpPushRequestedAt.Should().BeCloseTo(
+            anHourAgo.AddMinutes(-1), TimeSpan.FromMilliseconds(1), "a later approval keeps the first request's time");
+
+        erp.Lagging = false;
+        await PushOneAsync(erp, approved.Id);
+
+        erp.Writes.Count(w => w == SupplierPost).Should().Be(1);
+        (await ReadAsync(approved.Id)).ExternalId.Should().Be(erp.Suppliers.Single().Name);
+    }
+
+    // A SUPPLIER A PERSON TOOK OUT OF SERVICE IS NOT PUSHED. The switch is off by default, so approvals wait; one
+    // suspended or deactivated meanwhile would otherwise be created in the ERP with a website user holding the Supplier
+    // role for a company whose access here was withdrawn.
+    [Theory]
+    [InlineData(SupplierLifecycleState.Suspended)]
+    [InlineData(SupplierLifecycleState.Deactivated)]
+    public async Task A_supplier_a_person_took_out_of_service_is_not_pushed_until_it_is_back(
+        SupplierLifecycleState lifecycle)
+    {
+        var approved = await ApprovedAsync();
+        await ChangeLifecycleAsync(
+            approved.Id,
+            lifecycle == SupplierLifecycleState.Deactivated
+                ? [s => s.Suspend("Fraud under investigation."), s => s.Deactivate("Fraud confirmed.")]
+                : [s => s.Suspend("Under investigation.")]);
+        var erp = new FakeErp();
+
+        await PushOneAsync(erp, approved.Id);
+        await PushAsync(erp, connection: On);
+
+        erp.Calls.Should().BeEmpty();
+        var waiting = await ReadAsync(approved.Id);
+        waiting.ErpPushStatus.Should().Be(SupplierErpPushStatus.Requested, "its push stays where it is");
+        waiting.ErpPushAttempts.Should().Be(0);
+
+        if (lifecycle == SupplierLifecycleState.Deactivated) return;
+
+        await ChangeLifecycleAsync(approved.Id, s => s.Reactivate("Cleared."));
+        await PushOneAsync(erp, approved.Id);
+
+        erp.Writes.Should().Contain(SupplierPost, "back in service, its push goes on");
+        (await ReadAsync(approved.Id)).ErpPushStatus.Should().Be(SupplierErpPushStatus.Created);
+    }
+
+    // THE SYNC'S HOLD FOR THE ERP'S APPROVAL IS NOT OUT OF SERVICE. The Draft the push made is what put the supplier
+    // there, and the contact and the website user are part of what the ERP team approves.
+    [Fact]
+    public async Task A_linked_push_the_import_holds_for_the_erps_approval_still_completes()
+    {
+        var approved = await ApprovedAsync();
+        var refused = false;
+        var erp = new FakeErp
+        {
+            FailBefore = call =>
+            {
+                if (call != ContactPost || refused) return null;
+                refused = true;
+                return Refusal(HttpStatusCode.ServiceUnavailable, HttpMethod.Post);
+            },
+        };
+        await PushOneAsync(erp, approved.Id);
+        var erpName = erp.Suppliers.Single().Name;
+
+        await ImportAsync(ErpSupplierTestFactory.Supplier(erpName) with
+        {
+            Name = approved.Name,
+            Email = approved.Email,
+            WorkflowState = "Draft",
+            CreatedByPortal = true,
+        });
+
+        var held = await ReadAsync(approved.Id);
+        held.LifecycleState.Should().Be(SupplierLifecycleState.Suspended);
+        held.ErpDisabledState.Should().Be(SupplierErpDisabledState.SuspendedAsPending);
+        held.ErpPushStatus.Should().Be(SupplierErpPushStatus.Linked);
+
+        await MakeDueAsync(approved.Id);
+        await PushOneAsync(erp, approved.Id);
+
+        erp.Contacts.Should().ContainSingle();
+        erp.Users.Should().Contain(approved.Email);
+        (await ReadAsync(approved.Id)).ErpPushStatus.Should().Be(SupplierErpPushStatus.Created);
+    }
+
+    // EVERY WRITE MOVES THE VERSION. The first version left it alone, so a save through the record that had read the
+    // push before - a reviewer approving again, say - went through and wrote over, or lost, what the push recorded.
+    [Fact]
+    public async Task Every_write_the_push_makes_moves_the_version_so_a_save_that_read_it_before_is_refused()
+    {
+        var approved = await ApprovedAsync();
+
+        await using var staleScope = fixture.Services.CreateAsyncScope();
+        var staleDb = staleScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var stale = await staleDb.Suppliers.SingleAsync(s => s.Id == approved.Id);
+        var versionBefore = stale.RowVersion;
+
+        await PushOneAsync(new FakeErp(), approved.Id);
+
+        var pushed = await ReadAsync(approved.Id);
+        pushed.ErpPushStatus.Should().Be(SupplierErpPushStatus.Created);
+        pushed.RowVersion.Should().Be(versionBefore + 3, "the marker, the link and the completion are each a write");
+
+        stale.UpdateCoreProfile("Edited on a page read before the push.", null, "SME", "SYP");
+        var save = () => staleDb.SaveChangesAsync();
+
+        await save.Should().ThrowAsync<DbUpdateConcurrencyException>(
+            "a save that read the push as it was before must be told to read again, not write over it");
+    }
+
+    // THE ERP NAMES A RECORD IN UP TO 140 CHARACTERS, and a server that names suppliers by supplier_name lets that name
+    // be as long. The column held 100, so the link could never be saved and every attempt found the record and failed.
+    [Fact]
+    public async Task An_erp_name_as_long_as_the_erp_allows_is_saved_as_the_link()
+    {
+        var approved = await ApprovedAsync();
+        var longest = $"LONG-{Guid.NewGuid():N}".PadRight(140, 'x');
+        var erp = new FakeErp { NextName = longest };
+
+        await PushOneAsync(erp, approved.Id);
+
+        var supplier = await ReadAsync(approved.Id);
+        supplier.ExternalId.Should().Be(longest);
+        supplier.ErpPushStatus.Should().Be(SupplierErpPushStatus.Created);
+    }
+
+    // A PUSHED PARTNERSHIP COMES BACK A PARTNERSHIP. The push sends the type as the portal spells it, and the import
+    // read everything but Individual as a Company, so every hourly run rewrote a partnership the portal had approved.
+    [Fact]
+    public async Task A_pushed_partnership_is_still_a_partnership_after_the_import()
+    {
+        var approved = await ApprovedAsync(legalType: SupplierLegalType.Partnership);
+        var erp = new FakeErp();
+        await PushOneAsync(erp, approved.Id);
+        var created = erp.Suppliers.Single();
+        created.Body["supplier_type"]!.GetValue<string>().Should().Be("Partnership");
+
+        await ImportAsync(ErpSupplierTestFactory.Supplier(created.Name) with
+        {
+            Name = approved.Name,
+            Email = approved.Email,
+            LegalType = "Partnership",
+            CreatedByPortal = true,
+        });
+
+        (await ReadAsync(approved.Id)).LegalInfo!.SupplierType.Should().Be(SupplierLegalType.Partnership);
+    }
+
     private sealed record FakeSupplier(string Name, string SupplierName, string? TaxId, DateTimeOffset CreatedAt, JsonObject Body);
 
     private sealed record FakeAddress(string Name, string Supplier, string? Line1, string? City);
@@ -832,6 +1110,10 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
         public Func<string, Exception?> FailBefore { get; init; } = _ => null;
         public Func<string, Exception?> FailAfter { get; init; } = _ => null;
         public Func<Task>? DuringSupplierCreate { get; init; }
+
+        public bool Lagging { get; set; }
+
+        public string? NextName { get; set; }
 
         public IEnumerable<string> Writes => Calls.Where(IsWrite);
 
@@ -871,15 +1153,16 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
         {
             Before(TaxIdSearch);
             return Task.FromResult<IReadOnlyList<ErpSupplierMatch>>(
-                [.. Suppliers.Where(s => s.TaxId == taxId).Select(Match)]);
+                Lagging ? [] : [.. Suppliers.Where(s => s.TaxId == taxId).Select(Match)]);
         }
 
         public Task<IReadOnlyList<ErpSupplierMatch>> FindSuppliersCreatedByPortalAsync(
             string supplierName, DateTimeOffset since, CancellationToken ct)
         {
             Before(PortalCreatesSearch);
-            return Task.FromResult<IReadOnlyList<ErpSupplierMatch>>(
-                [.. Suppliers.Where(s => s.SupplierName == supplierName && s.CreatedAt >= since).Select(Match)]);
+            return Task.FromResult<IReadOnlyList<ErpSupplierMatch>>(Lagging
+                ? []
+                : [.. Suppliers.Where(s => s.SupplierName == supplierName && s.CreatedAt >= since).Select(Match)]);
         }
 
         public async Task<string> CreateSupplierAsync(JsonObject body, CancellationToken ct)
@@ -888,7 +1171,8 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
 
             if (DuringSupplierCreate is not null) await DuringSupplierCreate();
 
-            var name = $"PUSH-{Guid.NewGuid():N}";
+            var name = NextName ?? $"PUSH-{Guid.NewGuid():N}";
+            NextName = null;
             Suppliers.Add(new FakeSupplier(
                 name, body["supplier_name"]!.GetValue<string>(), body["tax_id"]?.GetValue<string>(), DateTimeOffset.UtcNow, body));
 
@@ -1006,6 +1290,9 @@ public sealed class SupplierErpPushJobTests(PostgresApiFixture fixture) : IAsync
     {
         public Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ErpSupplier>>(suppliers);
+
+        public Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     private sealed class RefusingAudit(IAuditLogger inner, string refusedAction) : IAuditLogger

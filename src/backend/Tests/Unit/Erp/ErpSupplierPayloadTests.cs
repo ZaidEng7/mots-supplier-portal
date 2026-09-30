@@ -423,10 +423,29 @@ public sealed class ErpSupplierPayloadTests
     }
 
     [Fact]
-    public void The_user_is_the_colleagues_call_exactly_with_no_password()
+    public void The_user_is_the_colleagues_call_with_the_contacts_last_name_and_no_password()
     {
         Json(Ready(Registered(email: " Zaid@Example.com ")).User()).Should().Be(
-            """{"email":"zaid@example.com","first_name":"Zaid Abdul","user_type":"Website User","roles":[{"role":"Supplier"}],"send_welcome_email":0}""");
+            """{"email":"zaid@example.com","first_name":"Zaid Abdul","last_name":"Karim","user_type":"Website User","roles":[{"role":"Supplier"}],"send_welcome_email":0}""",
+            "saving a new user makes the ERP copy its names onto the contact with its email, and a user without the "
+            + "last_name would blank the contact's");
+    }
+
+    [Fact]
+    public void The_user_carries_the_same_names_as_the_contact()
+    {
+        var payload = Ready(Registered(representativeName: "Mohammad Ahmad Ali"));
+        var contact = payload.Contact(ErpName);
+        var user = payload.User()!;
+
+        Text(user, "first_name").Should().Be(Text(contact, "first_name")).And.Be("Mohammad Ahmad");
+        Text(user, "last_name").Should().Be(Text(contact, "last_name")).And.Be("Ali");
+    }
+
+    [Fact]
+    public void A_one_word_name_gives_the_user_no_last_name_either()
+    {
+        Ready(Registered(representativeName: "Zaid")).User().Should().NotContainKey("last_name");
     }
 
     [Fact]

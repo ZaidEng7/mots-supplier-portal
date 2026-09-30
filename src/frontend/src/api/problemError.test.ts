@@ -25,6 +25,7 @@ import { DashboardApiError } from './dashboards'
 import { DocumentApiError } from './documents'
 import { EvaluationApiError } from './evaluations'
 import { EvaluationTemplateApiError } from './evaluationTemplates'
+import { IntegrationApiError } from './integrations'
 import { MyEvaluationsApiError } from './myEvaluations'
 import { NotificationApiError } from './notifications'
 import { OrganizationApiError } from './organizations'
@@ -45,6 +46,7 @@ const CLASSES: [string, new (status: number, body: unknown) => ProblemError][] =
   ['DocumentApiError', DocumentApiError],
   ['EvaluationApiError', EvaluationApiError],
   ['EvaluationTemplateApiError', EvaluationTemplateApiError],
+  ['IntegrationApiError', IntegrationApiError],
   ['MyEvaluationsApiError', MyEvaluationsApiError],
   ['NotificationApiError', NotificationApiError],
   ['OrganizationApiError', OrganizationApiError],

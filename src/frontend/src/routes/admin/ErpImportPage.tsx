@@ -18,8 +18,8 @@
 //
 // THE FOUR FAILURES ARE FOUR DIFFERENT SCREENS, because they are four different jobs. Nobody configured the
 // integration - an administrator changes a setting. The ERP refused us - somebody asks the other team, and the
-// ERP's own words are shown verbatim so they can be forwarded. Another import is already running - nothing to fix,
-// only to wait. Anything else is ours to fix. A single "could not load" would send all four to read logs, and the
+// ERP's own words are shown verbatim so they can be forwarded. Another import, or a supplier push to the ERP, is
+// running - nothing to fix, only to wait. Anything else is ours to fix. A single "could not load" would send all four to read logs, and the
 // most likely of them is fixed by sending a message.
 //
 // THE ERP'S ERROR TEXT IS NOT TRANSLATED. It is another system's words about its own state, and a translated
@@ -299,9 +299,11 @@ function OutcomeRow({ row }: Readonly<{ row: ErpImportResultRow }>) {
   )
 }
 
-// A failure names the action that failed and, where the server said why, says it too. Another import already
-// running is not a failure of anything - it is somebody else's run, or the hourly scheduled one - so it gets its own
-// card rather than the portal-fault wording, which would tell the reader the import "did not finish".
+// A failure names the action that failed and, where the server said why, says it too. A 409 is not a failure of
+// anything: another import is running - somebody else's, or the hourly scheduled one - or the portal is creating an
+// approved supplier in the ERP, which holds the same lock because an import in the middle of it would make a second
+// portal supplier from the one it has just created. So it gets its own card, which names both, rather than the
+// portal-fault wording, which would tell the reader the import "did not finish".
 //
 // A failed IMPORT must not read as a failed preview: somebody who has just pressed "Run the import" needs to know
 // whether anything was written, which a single "the preview could not be produced" hid. A 503 shows the server's own

@@ -30,6 +30,11 @@
 // refusal that tells an administrator what to change. Where it is missing, the exception line stands in for it. A body
 // that is not the ERP's JSON, such as a proxy's HTML page, gives neither, and the status alone speaks.
 //
+// THE PORTAL'S OWN API USER IS ASKED OF THE ERP, through frappe.auth.get_logged_user, which answers the user the
+// credential signs in as. The ERP records that user as the owner of every record the portal creates, and two readers
+// need it: the push, looking for a create whose answer was lost, and the import, which leaves the portal's own
+// creates to the push. One copy of the read, so both mean the same user.
+//
 // A BODY IS SENT AS READABLE UTF-8, with Arabic names and a phone's "+" as they are rather than as \u escapes. Both
 // are valid JSON and the ERP reads either, but a request somebody has to read in a log should say what it sent. The
 // escaping it relaxes exists for JSON embedded in an HTML page, which a request body never is.
@@ -94,6 +99,36 @@ internal static partial class ErpWire
         {
             throw Unreachable(connection, request.Method, exception);
         }
+    }
+
+    public const string LoggedUserMethod = "frappe.auth.get_logged_user";
+
+    public static async Task<string> ApiUserAsync(HttpClient client, ErpConnection connection, CancellationToken ct)
+    {
+        const string What = "the API user read";
+
+        using var request = Request(connection, HttpMethod.Get, ErpQuery.Call(LoggedUserMethod));
+        using var response = await SendAsync(client, connection, request, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var excType = ExcTypeOf(body);
+            var erpMessage = ErpMessageOf(body);
+
+            throw new ErpRequestException(
+                response.StatusCode,
+                excType,
+                $"The ERP refused {What} with {(int)response.StatusCode} {response.StatusCode}"
+                + (excType is null ? string.Empty : $" ({excType})")
+                + (erpMessage is null ? "." : $": {erpMessage}"),
+                erpMessage);
+        }
+
+        return StringProperty(body, "message") is { } user && !string.IsNullOrWhiteSpace(user)
+            ? user.Trim()
+            : throw new ErpRequestException(
+                HttpStatusCode.BadGateway, null, $"The ERP answered {What}, but not with the ERP's data.");
     }
 
     public static ErpRequestException Unreachable(ErpConnection connection, HttpMethod method, Exception exception) =>

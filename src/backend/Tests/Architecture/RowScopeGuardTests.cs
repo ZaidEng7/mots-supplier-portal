@@ -143,6 +143,7 @@ public sealed class RowScopeGuardTests
         ["MinistryRfqFeedHandler"] = "supplier.registry.export, system_admin only: every tender in the country crossed with everyone invited",
         ["StorageSettingsHandler"] = "system_admin: storage totals for the deployment, not for a tenant",
         ["GetErpSyncMonitorHandler"] = "system_admin: the ERP queue is one queue for the deployment",
+        ["ListIntegrationsHandler"] = "admin.integrations.manage, system_admin only: it counts the approved suppliers the push would still create in the ERP, which is one queue for the deployment",
         ["PreviewErpImportHandler"] = "supplier.import.run, system_admin only: it matches the ERP against the whole national registry, and a scoped view would report every supplier it could not see as new",
     };
 

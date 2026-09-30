@@ -13,7 +13,7 @@ using NpgsqlTypes;
 namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260930092914_ErpSupplierPush")]
+    [Migration("20260930213253_ErpSupplierPush")]
     partial class ErpSupplierPush
     {
         /// <inheritdoc />
@@ -3228,8 +3228,8 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.Property<string>("ExternalId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)");
 
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("timestamp with time zone");

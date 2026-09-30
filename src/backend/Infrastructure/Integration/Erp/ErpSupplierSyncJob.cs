@@ -12,8 +12,12 @@
 // A CONNECTION THAT IS CONFIGURED BUT BROKEN IS A FAILURE, LOUDLY. The import records it on the connection, where the
 // integrations screen shows it, and the exception reaches the scheduler so the run is marked failed there too.
 //
-// ANOTHER IMPORT ALREADY RUNNING IS NOT A FAILURE. Somebody pressed the button as the hour turned; their run does
-// this hour's work, so this one steps aside.
+// THE LOCK TAKEN IS NOT A FAILURE, AND NOT A LOST HOUR EITHER. ErpImportLock is held by an import somebody started by
+// hand as the hour turned, or by a supplier push to the ERP, which runs straight after an approval and every five
+// minutes. A push does none of the import's work, so stepping aside until the next hour would hold back that hour's
+// releases, suspensions and updates for nothing. The job tries once more RetryAfterBusy later, which is long enough
+// for a push of a few suppliers to finish. That second try steps aside if the lock is still taken, and schedules
+// nothing more, so a lock held for a long time never builds a queue of imports behind it; the next hour runs as usual.
 //
 // RETRIES ARE LIMITED TO TWO. The import is safe to repeat, so a retry costs nothing but a read of the ERP - but ten,
 // the scheduler's default, would turn one misconfigured password into ten identical failures spread over hours.
@@ -27,12 +31,20 @@ using MotsSupplierPortal.Application.Integration;
 public sealed class ErpSupplierSyncJob(
     IErpConnectionProvider connections,
     IRunErpImportHandler import,
+    IBackgroundJobClient backgroundJobs,
     ILogger<ErpSupplierSyncJob> logger)
 {
     public const string JobId = "erp-supplier-sync";
 
+    public static readonly TimeSpan RetryAfterBusy = TimeSpan.FromMinutes(2);
+
     [AutomaticRetry(Attempts = 2)]
-    public async Task RunAsync(CancellationToken ct = default)
+    public Task RunAsync(CancellationToken ct = default) => ImportAsync(tryAgainWhenBusy: true, ct);
+
+    [AutomaticRetry(Attempts = 2)]
+    public Task RunAgainAsync(CancellationToken ct = default) => ImportAsync(tryAgainWhenBusy: false, ct);
+
+    private async Task ImportAsync(bool tryAgainWhenBusy, CancellationToken ct)
     {
         var connection = await connections.CurrentAsync(ct);
 
@@ -53,7 +65,21 @@ public sealed class ErpSupplierSyncJob(
         }
         catch (ErpImportBusyException)
         {
-            logger.LogInformation("Hourly ERP supplier sync skipped: another import was already running.");
+            if (!tryAgainWhenBusy)
+            {
+                logger.LogInformation(
+                    "Hourly ERP supplier sync skipped: an import or a supplier push was still running on the second "
+                    + "try; the next hour's run carries on.");
+                return;
+            }
+
+            backgroundJobs.Schedule<ErpSupplierSyncJob>(
+                job => job.RunAgainAsync(CancellationToken.None), RetryAfterBusy);
+
+            logger.LogInformation(
+                "Hourly ERP supplier sync waits: an import or a supplier push is running, so it tries once more in "
+                + "{Minutes} minutes.",
+                RetryAfterBusy.TotalMinutes);
         }
     }
 }

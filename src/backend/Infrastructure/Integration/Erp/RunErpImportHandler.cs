@@ -40,8 +40,9 @@
 //
 // EVERY SUPPLIER IS ADMITTED. Gaps are filled - a placeholder email, an empty currency, suspension for a supplier
 // the ERP has disabled or not approved - by ErpImportAdmission, and every filled gap is written into the row's notes.
-// Two refusals are left: an address that already belongs to another account, because two suppliers cannot share one
-// login, and a probable rename, which is held for a person to decide - see ErpSyncPlan.
+// Three refusals are left: an address that already belongs to another account, because two suppliers cannot share one
+// login; a probable rename, which is held for a person to decide; and an ERP supplier the portal's own push created
+// and has not linked yet, which is the push's to link - see ErpSyncPlan for both.
 //
 // REFUSALS AND FAILURES ARE COUNTED SEPARATELY. A refusal is a supplier the portal declined for a stated reason; a
 // failure is the import going wrong. One number for both would hide a defect inside an expected result.
@@ -164,6 +165,17 @@ public sealed class RunErpImportHandler(
 
         foreach (var erpSupplier in erpSuppliers)
         {
+            if (plan.IsHeldForPush(erpSupplier.ExternalId))
+            {
+                rows.Add(new ErpImportResultRow(
+                    erpSupplier.ExternalId,
+                    ErpImportAdmission.Admit(erpSupplier).Name,
+                    ErpImportOutcome.Refused,
+                    null,
+                    [ErpImportPreviewBuilder.HeldForPushNote]));
+                continue;
+            }
+
             if (renamedFrom.TryGetValue(erpSupplier.ExternalId, out var rename))
             {
                 rows.Add(new ErpImportResultRow(
@@ -180,7 +192,7 @@ public sealed class RunErpImportHandler(
                 registrationNumbers[erpSupplier.ExternalId],
                 password,
                 actor,
-                plan.HoldsTurnedAway,
+                plan.HoldsTurnedAwayFor(erpSupplier.ExternalId),
                 ct));
         }
 
@@ -342,7 +354,7 @@ public sealed class RunErpImportHandler(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Could not release the ERP import lock; closing the connection releases it.");
+            logger.LogWarning(exception, "Could not release the ERP lock; closing the connection releases it.");
         }
     }
 
@@ -847,9 +859,14 @@ public sealed class RunErpImportHandler(
         }
     }
 
+    // The ERP's supplier_type in the portal's terms. The ERP offers Company, Individual and Partnership, spelt as the
+    // portal spells them, and the push sends them that way. Each comes back as itself: a Partnership read as a Company
+    // would rewrite, on every hourly run, a partnership the portal registered and pushed. Anything else, or nothing, is
+    // a Company, the ERP's own default.
     private static SupplierLegalType LegalTypeOf(string? erpType) => erpType switch
     {
         "Individual" => SupplierLegalType.Individual,
+        "Partnership" => SupplierLegalType.Partnership,
         _ => SupplierLegalType.Company,
     };
 }

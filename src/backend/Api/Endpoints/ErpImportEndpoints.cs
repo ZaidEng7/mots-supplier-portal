@@ -14,8 +14,9 @@
 // A MISSING IMPORT PASSWORD IS ALSO A 503, and it is a separate exception from a missing ERP because it names a
 // different setting. The run refuses before it writes anything rather than discovering it on the first account.
 //
-// A SECOND IMPORT WHILE ONE IS RUNNING IS A 409. Two overlapping runs would both create the same new supplier, so
-// the second is refused rather than queued - see ErpImportLock.
+// AN IMPORT WHILE ANOTHER IMPORT OR A SUPPLIER PUSH IS RUNNING IS A 409. Two overlapping runs would both create the
+// same new supplier, and an import during a push would create one from the supplier the push has just made, so the
+// import is refused rather than queued - see ErpImportLock.
 //
 // AN UNCONFIGURED INTEGRATION IS 503 AND SAYS WHICH SETTING IS MISSING. It is not a 500, because nothing is
 // broken, and it is not an empty report, because "0 suppliers, nothing to import" reads like success and somebody
@@ -75,7 +76,7 @@ public static class ErpImportEndpoints
             catch (ErpImportBusyException busy)
             {
                 return Results.Problem(
-                    title: "An import is already running.",
+                    title: "An import or a supplier push is running.",
                     detail: busy.Message,
                     statusCode: StatusCodes.Status409Conflict);
             }

@@ -109,7 +109,8 @@ internal static class RecurringJobRegistration
             // Every five minutes, from two minutes past the hour. A supplier approved in the portal is pushed to the ERP
             // straight after its approval; this sweep retries the pushes waiting after a failure and picks up any the
             // first run missed. It shares the import's lock, so it keeps off the hour: the hourly import starts on the
-            // hour, and would step aside whenever a push held the lock at that minute.
+            // hour, and whenever a push held the lock at that minute it would have to try again a couple of minutes
+            // later.
             recurringJobs.AddOrUpdate<MotsSupplierPortal.Infrastructure.Integration.Erp.SupplierErpPushJob>(
                 MotsSupplierPortal.Infrastructure.Integration.Erp.SupplierErpPushJob.JobId,
                 job => job.RunAsync(CancellationToken.None),

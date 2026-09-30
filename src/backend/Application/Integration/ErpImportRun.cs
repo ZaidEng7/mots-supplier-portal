@@ -33,10 +33,15 @@ public enum ErpImportTrigger
     Scheduled,
 }
 
-// Thrown when another import is already running. The hourly job and a person pressing the button at the same
-// moment would otherwise both find a supplier missing and both create it.
+// Thrown when the ERP lock is taken: an import is already running, or a supplier push to the ERP is. The hourly job and
+// a person pressing the button at the same moment would otherwise both find a supplier missing and both create it, and
+// an import in the middle of a push would create a second supplier from the one the push has just made. The message
+// says either may hold it, because telling a person another import is running while only a push is sends them looking
+// for a run that does not exist.
 public sealed class ErpImportBusyException()
-    : Exception("Another supplier import is already running. Wait for it to finish and try again.");
+    : Exception(
+        "An import or a supplier push to the ERP is running, so the import did not start. Wait a minute or two and try "
+        + "again.");
 
 public sealed record ErpImportResultRow(
     string ExternalId,

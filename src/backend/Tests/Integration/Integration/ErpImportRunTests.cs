@@ -59,6 +59,9 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
     {
         public Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ErpSupplier>>(suppliers);
+
+        public Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
     }
 
     private static ErpSupplier Supplier(string id, string? email, string? name = null, bool disabled = false) =>
@@ -471,6 +474,46 @@ public sealed class ErpImportRunTests(PostgresApiFixture fixture)
             "adding the address threw 'Cannot edit contact details from state UnderReview' and failed the whole update");
         report.Rows[0].Notes.Should().Contain(n => n.Contains("UnderReview"));
         (await LoadAsync(id)).Addresses.Should().BeEmpty();
+    }
+
+    // A PARTNERSHIP IN THE ERP ARRIVES AS ONE. The first version read every type but Individual as a Company, which,
+    // once the portal pushed its own partnerships, rewrote them every hour.
+    [Fact]
+    public async Task A_partnership_in_the_erp_arrives_as_a_partnership()
+    {
+        var externalId = Unique("ERP-PARTNERSHIP");
+        var partnership = Supplier(externalId, $"{externalId.ToLowerInvariant()}@sgtest.example") with
+        {
+            LegalType = "Partnership",
+        };
+
+        (await RunAsync(fixture, new FixedSource(partnership))).Created.Should().Be(1);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.Suppliers.AsNoTracking().SingleAsync(s => s.ExternalId == externalId))
+            .LegalInfo!.SupplierType.Should().Be(SupplierLegalType.Partnership);
+    }
+
+    // AN ERP SUPPLIER THE PORTAL'S OWN PUSH CREATED, THAT NO PORTAL SUPPLIER CARRIES, IS NOT CREATED. It is a create
+    // whose name the push has not saved yet, and a portal supplier made from it would be a duplicate the push then
+    // posts past.
+    [Fact]
+    public async Task An_erp_supplier_the_portals_push_created_and_nobody_carries_is_held_for_the_push()
+    {
+        var externalId = Unique("ERP-PUSHED");
+        var pushed = Supplier(externalId, email: null) with { CreatedByPortal = true };
+
+        var report = await RunAsync(fixture, new FixedSource(pushed));
+
+        report.Created.Should().Be(0);
+        var row = report.Rows.Should().ContainSingle(r => r.ExternalId == externalId).Subject;
+        row.Outcome.Should().Be(ErpImportOutcome.Refused);
+        row.Notes.Should().Equal(ErpImportPreviewBuilder.HeldForPushNote);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.Suppliers.CountAsync(s => s.ExternalId == externalId)).Should().Be(0);
     }
 
     private sealed class TestScope(Guid? userId = null) : IScopeContext

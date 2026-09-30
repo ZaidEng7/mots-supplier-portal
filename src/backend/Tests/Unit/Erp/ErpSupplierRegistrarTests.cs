@@ -70,12 +70,13 @@ public sealed class ErpSupplierRegistrarTests
         new("http://erp.example", "key", "secret", IsEnabled: true, ErpConnectionSource.Database, CreateSuppliersInErp: writes);
 
     private static (ErpSupplierRegistrar Registrar, RoutedHandler Handler) Answering(
-        Func<Sent, HttpResponseMessage> answer, ErpConnection? connection = null)
+        Func<Sent, HttpResponseMessage> answer, ErpConnection? connection = null, string[]? writeHosts = null)
     {
         var handler = new RoutedHandler(answer);
         var options = Options.Create(new ErpOptions
         {
             BaseUrl = "http://erp.example", ApiKey = "key", ApiSecret = "secret", Company = "Seven Gates",
+            WriteHosts = writeHosts ?? ["erp.example"],
         });
 
         return (new ErpSupplierRegistrar(new HttpClient(handler), new FixedConnection(connection ?? Connection()), options),
@@ -430,6 +431,43 @@ public sealed class ErpSupplierRegistrarTests
 
         await act.Should().ThrowAsync<ErpWritesOffException>();
         handler.Requests.Should().BeEmpty("the switch gates every write, before any request exists");
+    }
+
+    [Theory]
+    [MemberData(nameof(Writes))]
+    public async Task Nothing_is_sent_to_a_server_the_deployment_has_not_listed(string write)
+    {
+        var (registrar, handler) = Answering(_ => Created(), writeHosts: ["erp-test.example", "erp.example:8001"]);
+
+        var act = () => Write(registrar, write);
+
+        (await act.Should().ThrowAsync<ErpWritesOffException>()).Which.Message.Should().Contain("erp.example");
+        handler.Requests.Should().BeEmpty(
+            "the switch is on, but a server the deployment has not named - here the right host on another port - "
+            + "is somebody's system of record the portal may not write to");
+    }
+
+    [Fact]
+    public async Task Nothing_is_sent_when_no_server_is_listed()
+    {
+        var (registrar, handler) = Answering(_ => Created(), writeHosts: []);
+
+        var act = () => registrar.CreateSupplierAsync(Body("{}"), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ErpWritesOffException>();
+        handler.Requests.Should().BeEmpty("an empty list is the default, and it allows no server at all");
+    }
+
+    [Fact]
+    public async Task A_server_listed_by_host_and_port_may_be_written_to()
+    {
+        var connection = new ErpConnection(
+            "http://erp.example:8001", "key", "secret", IsEnabled: true, ErpConnectionSource.Database,
+            CreateSuppliersInErp: true);
+        var (registrar, handler) = Answering(_ => Created(), connection, writeHosts: ["ERP.example:8001"]);
+
+        (await registrar.CreateSupplierAsync(Body("{}"), CancellationToken.None)).Should().Be(ErpName);
+        handler.Requests.Should().ContainSingle("the listed server, in any letter case, is the one allowed");
     }
 
     [Fact]

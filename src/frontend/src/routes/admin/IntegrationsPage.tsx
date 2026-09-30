@@ -35,21 +35,59 @@
 //
 // THE SOURCE IS SHOWN ON EVERY ROW. A deployment can still be running from its own settings, and an administrator
 // who saves an address and sees nothing change needs to be told that rather than left to guess.
+//
+// CREATING APPROVED SUPPLIERS IN THE ERP IS ON THE ERP'S CARD, as a group and a switch, and only there. The group comes
+// first and the switch cannot be turned on without one, because the ERP refuses a supplier without a group and every
+// create would fail on it. The groups are read from the ERP itself, so a name typed by hand that the ERP does not have
+// cannot be chosen; the group already saved stays in the list even when the ERP cannot answer, so a failed read never
+// blanks the choice. A failed read shows the server's own words and a retry, as the page does for its own load. The
+// groups sit under the page's own query key, so every save and test reads them again: a save can change the address
+// and credential they are read through.
+//
+// TURNING THE SWITCH ON ASKS FIRST AND SAVES AT ONCE. The question says how many approved suppliers are waiting,
+// because turning it on sends every one of them to the ERP within minutes and nothing here can take one back, and a
+// person agreeing to that should know whether it is two suppliers or two hundred. The count is read again as the
+// question opens, since the list may have been loaded an hour earlier. Agreeing saves the card, so there is no state
+// in which somebody agreed and nothing was sent. Turning it off, and changing the group, are ordinary edits saved with
+// Save, like the connection's own switch: the question guards the one direction that writes to somebody else's system.
+//
+// SAVE SENDS THE SWITCH AND THE GROUP ONLY WHEN THE PERSON CHANGED THEM, and never sends the switch on. The server
+// reads a switch or a group that is sent as a request to set it, and one that is left out as "leave it as it is", and
+// the save carries no version. A card left open for an hour, while another administrator turned the writes off for a
+// pause the ERP team asked for, would otherwise put its old On back with an unrelated change such as a new secret -
+// without the question, under the name of the person who only changed the secret. So Save sends the switch when it
+// turns off a switch the server has on, and the group when it differs from the server's; the question stays the only
+// way to turn the writes on.
+//
+// THE CARD FOLLOWS THE SERVER'S SWITCH AND GROUP. Whenever the list is read again and either has moved, the card shows
+// the new value, adjusted during render as SearchPage does rather than in an effect, and an unsaved change to it is
+// dropped, because it was a change to a value that no longer holds. A save puts the server's answer into the list at
+// once, so what Save compares against is the latest the server said rather than what the page loaded with.
+//
+// A REFUSED SAVE SHOWS THE SERVER'S SENTENCE, such as the switch turned on without a group through some other route,
+// because a bare "could not save" tells nobody which rule they broke.
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Badge, Button, Card, Field, Input, PageHeading, QueryError, SkeletonList, useToast,
+  Badge, Button, Card, Dialog, Field, Input, PageHeading, QueryError, Select, SkeletonList, useToast,
 } from '../../components/ui'
 import { formatDateTime } from '../../lib/datetime'
+import { errorDetail } from '../../api/problem'
 import {
+  getErpSupplierGroups,
   getIntegrations,
   testIntegration,
   updateIntegration,
   type Integration,
   type IntegrationTestResult,
+  type IntegrationUpdate,
 } from '../../api/integrations'
+
+const ERP_KEY = 'erp'
+
+type SupplierCreationChange = Pick<IntegrationUpdate, 'createSuppliersInErp' | 'defaultSupplierGroup'>
 
 const OUTCOME_TONE = { Succeeded: 'success', NeedsAttention: 'warning', Failed: 'danger' } as const
 
@@ -89,23 +127,57 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
   const [apiSecret, setApiSecret] = useState('')
   const [isEnabled, setIsEnabled] = useState(integration.isEnabled)
   const [tested, setTested] = useState<IntegrationTestResult | null>(null)
+  const isErp = integration.key === ERP_KEY
+  const serverGroup = integration.defaultSupplierGroup ?? ''
+  const [createSuppliersInErp, setCreateSuppliersInErp] = useState(integration.createSuppliersInErp)
+  const [supplierGroup, setSupplierGroup] = useState(serverGroup)
+  const [confirmingSupplierCreation, setConfirmingSupplierCreation] = useState(false)
+
+  const [lastRead, setLastRead] = useState({ createSuppliersInErp: integration.createSuppliersInErp, group: serverGroup })
+  if (lastRead.createSuppliersInErp !== integration.createSuppliersInErp || lastRead.group !== serverGroup) {
+    setLastRead({ createSuppliersInErp: integration.createSuppliersInErp, group: serverGroup })
+    setCreateSuppliersInErp(integration.createSuppliersInErp)
+    setSupplierGroup(serverGroup)
+  }
 
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (supplierCreation: SupplierCreationChange) =>
       updateIntegration(integration.key, {
         baseUrl: baseUrl.trim(),
         apiKey: apiKey.trim(),
         apiSecret: apiSecret.trim() === '' ? null : apiSecret.trim(),
         isEnabled,
+        ...supplierCreation,
       }),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       setApiSecret('')
       setTested(null)
+      setConfirmingSupplierCreation(false)
+      queryClient.setQueryData<Integration[]>(['integrations'], (list) =>
+        list?.map((item) => (item.key === saved.key ? saved : item)),
+      )
       void queryClient.invalidateQueries({ queryKey: ['integrations'] })
       notify({ kind: 'success', title: t('integrations.saved') })
     },
-    onError: () => notify({ kind: 'danger', title: t('integrations.saveFailed') }),
+    onError: (error) => {
+      setConfirmingSupplierCreation(false)
+      notify({ kind: 'danger', title: t('integrations.saveFailed'), description: errorDetail(error) ?? undefined })
+    },
   })
+
+  const supplierCreationEdits = (): SupplierCreationChange => {
+    if (!isErp) return {}
+
+    return {
+      ...(integration.createSuppliersInErp && !createSuppliersInErp ? { createSuppliersInErp: false } : {}),
+      ...(supplierGroup === serverGroup ? {} : { defaultSupplierGroup: supplierGroup }),
+    }
+  }
+
+  const askToTurnOnSupplierCreation = () => {
+    void queryClient.invalidateQueries({ queryKey: ['integrations'], exact: true })
+    setConfirmingSupplierCreation(true)
+  }
 
   const test = useMutation({
     mutationFn: () => testIntegration(integration.key),
@@ -174,8 +246,19 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
           <span>{t('integrations.enabledLabel')}</span>
         </label>
 
+        {isErp && (
+          <SupplierCreation
+            integrationKey={integration.key}
+            createSuppliersInErp={createSuppliersInErp}
+            supplierGroup={supplierGroup}
+            onGroupChange={setSupplierGroup}
+            onTurnOn={askToTurnOnSupplierCreation}
+            onTurnOff={() => setCreateSuppliersInErp(false)}
+          />
+        )}
+
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          <Button onClick={() => save.mutate(supplierCreationEdits())} disabled={save.isPending}>
             {save.isPending ? t('integrations.saving') : t('integrations.save')}
           </Button>
           <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending}>
@@ -214,7 +297,111 @@ function IntegrationCard({ integration }: Readonly<{ integration: Integration }>
           </p>
         )}
       </div>
+
+      <Dialog
+        open={confirmingSupplierCreation}
+        onOpenChange={setConfirmingSupplierCreation}
+        title={t('integrations.confirmSupplierCreationTitle')}
+        description={
+          integration.suppliersWaitingForErp === 0
+            ? t('integrations.confirmSupplierCreationNoneWaiting', { group: supplierGroup })
+            : t('integrations.confirmSupplierCreationWaiting', {
+                count: integration.suppliersWaitingForErp,
+                group: supplierGroup,
+              })
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <p style={{ color: 'var(--color-text-secondary)' }}>{t('integrations.confirmSupplierCreationWarning')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => save.mutate({ createSuppliersInErp: true, defaultSupplierGroup: supplierGroup })}
+              disabled={save.isPending}
+            >
+              {t('integrations.confirmSupplierCreation')}
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirmingSupplierCreation(false)}>
+              {t('integrations.cancel')}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </Card>
+  )
+}
+
+// The ERP's supplier group and the switch that creates approved suppliers there. The state is the card's, because one
+// Save carries it with the address; this draws it and reads the groups.
+function SupplierCreation({
+  integrationKey,
+  createSuppliersInErp,
+  supplierGroup,
+  onGroupChange,
+  onTurnOn,
+  onTurnOff,
+}: Readonly<{
+  integrationKey: string
+  createSuppliersInErp: boolean
+  supplierGroup: string
+  onGroupChange: (group: string) => void
+  onTurnOn: () => void
+  onTurnOff: () => void
+}>) {
+  const { t } = useTranslation()
+  const hintId = useId()
+  const groups = useQuery({
+    queryKey: ['integrations', integrationKey, 'supplier-groups'],
+    queryFn: () => getErpSupplierGroups(integrationKey),
+  })
+
+  const names = [...new Set([...(groups.data ?? []), ...(supplierGroup === '' ? [] : [supplierGroup])])]
+  const needsGroup = !createSuppliersInErp && supplierGroup === ''
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h3 className="text-[length:var(--text-body)] font-[var(--fw-medium)]" style={{ color: 'var(--color-text-primary)' }}>
+        {t('integrations.supplierCreationTitle')}
+      </h3>
+
+      <Field
+        label={t('integrations.supplierGroup')}
+        hint={groups.isPending ? t('integrations.supplierGroupsLoading') : t('integrations.supplierGroupHint')}
+      >
+        {(inputProps) => (
+          <Select
+            id={inputProps.id}
+            aria-describedby={inputProps['aria-describedby']}
+            value={supplierGroup}
+            onValueChange={onGroupChange}
+            options={names.map((name) => ({ value: name, label: name }))}
+            disabled={groups.isPending}
+          />
+        )}
+      </Field>
+
+      {groups.isError && (
+        <QueryError
+          error={groups.error}
+          errorText={t('integrations.supplierGroupsFailed')}
+          onRetry={() => void groups.refetch()}
+        />
+      )}
+
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-describedby={hintId}
+          checked={createSuppliersInErp}
+          disabled={needsGroup}
+          onChange={(event) => (event.target.checked ? onTurnOn() : onTurnOff())}
+        />
+        <span>{t('integrations.supplierCreation')}</span>
+      </label>
+      <p id={hintId} style={{ color: 'var(--color-text-secondary)' }}>
+        {t(needsGroup ? 'integrations.supplierCreationNeedsGroup' : 'integrations.supplierCreationHint')}
+      </p>
+    </div>
   )
 }
 

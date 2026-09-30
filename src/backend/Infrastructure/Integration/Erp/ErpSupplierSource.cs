@@ -39,6 +39,16 @@
 //
 // TIMESTAMPS GO THROUGH ErpServerTime and the zone comes from configuration, because the ERP sends local time
 // with no offset. The reason that matters, and what it corrupts if it is wrong, is written there.
+//
+// THE PORTAL'S OWN API USER IS ASKED ONCE PER LIST, after the three reads, and each supplier whose owner it is is
+// marked CreatedByPortal: the push made it. The read is ErpWire's, the one the push looks for its own creates with, so
+// both mean the same user. The connection test does not ask it, because the ERP answers it to any credential it lets
+// sign in at all, which the supplier read already proves.
+//
+// THE SUPPLIER GROUPS ARE A FIFTH READ, made only when the integrations screen asks for them, never by the import.
+// The ERP keeps its groups as a tree, and a group that holds other groups - "All Supplier Groups" at the root - is a
+// heading rather than a place to file a supplier, so only the groups that are not headings are asked for. is_group
+// is a standard field of the ERP's Supplier Group, present on the test server and the real one alike.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -74,6 +84,10 @@ public sealed class ErpSupplierSource(
 
     internal const string SupplierOrder = "name asc";
 
+    internal static readonly string[] SupplierGroupFields = ["name"];
+
+    internal static readonly IReadOnlyList<IReadOnlyList<object>> NotAHeading = [["Supplier Group", "is_group", "=", 0]];
+
     internal static readonly IReadOnlyList<IReadOnlyList<object>> LinkedToASupplier =
         [["Dynamic Link", "link_doctype", "=", "Supplier"]];
 
@@ -99,9 +113,8 @@ public sealed class ErpSupplierSource(
 
         var envelope = await response.Content.ReadFromJsonAsync<ErpListEnvelope<ErpSupplierRecord>>(ct);
         var records = envelope?.Data ?? [];
-        var suppliers = records.Select(record => Map(record, zone)).ToList();
 
-        logger.LogInformation("Read {Count} supplier record(s) from the ERP.", suppliers.Count);
+        logger.LogInformation("Read {Count} supplier record(s) from the ERP.", records.Count);
 
         var contacts = await ReadSupplierContactsAsync(connection, ct);
         logger.LogInformation("Read {Count} linked contact(s) from the ERP.", contacts.Count);
@@ -109,7 +122,30 @@ public sealed class ErpSupplierSource(
         var addresses = await ReadSupplierAddressesAsync(connection, ct);
         logger.LogInformation("Read {Count} linked address(es) from the ERP.", addresses.Count);
 
+        var apiUser = await ErpWire.ApiUserAsync(client, connection, ct);
+        var suppliers = records.Select(record => Map(record, zone, apiUser)).ToList();
+
         return ErpAddressMerge.Fill(ErpContactMerge.Fill(suppliers, contacts), addresses);
+    }
+
+    public async Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct)
+    {
+        var connection = await ErpWire.RequireConnectionAsync(connections, ct);
+        var url = ErpQuery.List("Supplier Group", SupplierGroupFields, NotAHeading, orderBy: SupplierOrder);
+
+        using var response = await SendAsync(connection, url, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await FailureFor(response, ct, "a supplier group read");
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ErpListEnvelope<ErpNamedRecord>>(ct);
+
+        return [.. (envelope?.Data ?? [])
+            .Select(record => Trimmed(record.Name))
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)];
     }
 
     private async Task<IReadOnlyList<ErpSupplierAddressRow>> ReadSupplierAddressesAsync(
@@ -169,7 +205,7 @@ public sealed class ErpSupplierSource(
     // would compile and land in the wrong field - the registration number in the description, say - with nothing to
     // show for it until somebody read the supplier. ContactPersonName and Address are left to ErpContactMerge and
     // ErpAddressMerge, which fill them from the other two reads.
-    private static ErpSupplier Map(ErpSupplierRecord record, TimeZoneInfo zone) => new(
+    private static ErpSupplier Map(ErpSupplierRecord record, TimeZoneInfo zone, string apiUser) => new(
         ExternalId: record.Name,
         Name: Trimmed(record.SupplierName),
         SupplierGroup: Trimmed(record.SupplierGroup),
@@ -188,19 +224,21 @@ public sealed class ErpSupplierSource(
         RegistrationNumber: Trimmed(record.RegistrationNumber),
         RegistrationType: Trimmed(record.RegistrationType),
         Description: Trimmed(record.Description),
-        WorkflowState: Trimmed(record.WorkflowState));
+        WorkflowState: Trimmed(record.WorkflowState),
+        CreatedByPortal: string.Equals(Trimmed(record.Owner), apiUser, StringComparison.OrdinalIgnoreCase));
 
     private static string? Trimmed(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static async Task<ErpRequestException> FailureFor(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<ErpRequestException> FailureFor(
+        HttpResponseMessage response, CancellationToken ct, string read = "a supplier read")
     {
         var refusal = await ErpWire.RefusalOf(response, ct);
 
         return new ErpRequestException(
             refusal.Status,
             refusal.ExcType,
-            $"The ERP refused a supplier read with {(int)refusal.Status} {refusal.Status}"
+            $"The ERP refused {read} with {(int)refusal.Status} {refusal.Status}"
             + (refusal.ExcType is null ? "." : $" ({refusal.ExcType})."),
             refusal.ErpMessage);
     }
@@ -208,6 +246,9 @@ public sealed class ErpSupplierSource(
 
 internal sealed record ErpListEnvelope<T>(
     [property: JsonPropertyName("data")] IReadOnlyList<T> Data);
+
+internal sealed record ErpNamedRecord(
+    [property: JsonPropertyName("name")] string? Name);
 
 internal sealed record ErpAddressRecord(
     [property: JsonPropertyName("name")] string Name,
@@ -247,4 +288,5 @@ internal sealed record ErpSupplierRecord(
     [property: JsonPropertyName(ErpSupplierPayload.RegistrationNumberField)] string? RegistrationNumber,
     [property: JsonPropertyName(ErpSupplierPayload.RegistrationTypeField)] string? RegistrationType,
     [property: JsonPropertyName("supplier_details")] string? Description,
-    [property: JsonPropertyName("workflow_state")] string? WorkflowState);
+    [property: JsonPropertyName("workflow_state")] string? WorkflowState,
+    [property: JsonPropertyName("owner")] string? Owner);

@@ -1,10 +1,10 @@
 // Creating in the ERP the suppliers that registered in the portal, once a reviewer has approved them.
 //
-// WHAT ONE RUN DOES. It takes the approved suppliers whose push is Requested or Linked and due, oldest request first,
-// a few at a time, and makes the ERP colleague's calls for each, in his order: the Supplier record, its address, its
-// contact, a website user, that user added to the Supplier's portal users, and the contact pointed at the user. The
-// ERP's name for the new supplier becomes the portal's ExternalId, and from then on the hourly import matches the
-// supplier by it like any other ERP supplier. While the ERP holds it in Draft, the import keeps the portal supplier
+// WHAT ONE RUN DOES. It takes the approved suppliers in service whose push is Requested or Linked and due, oldest
+// request first, a few at a time, and makes the ERP colleague's calls for each, in his order: the Supplier record, its
+// address, its contact, a website user, that user added to the Supplier's portal users, and the contact pointed at the
+// user. The ERP's name for the new supplier becomes the portal's ExternalId, and from then on the hourly import matches
+// the supplier by it like any other ERP supplier. While the ERP holds it in Draft, the import keeps the portal supplier
 // suspended, and it releases the supplier once the ERP approves it. That is the import's own rule, unchanged; nothing
 // here decides whether a supplier may trade.
 //
@@ -17,12 +17,20 @@
 // every write while the switch is off, whoever calls it. A switch that is on with no group is logged as a warning,
 // because the ERP refuses a supplier without one.
 //
+// ONLY SUPPLIERS IN SERVICE ARE PUSHED. One a person has suspended or deactivated is not created in the ERP with a
+// website user holding the Supplier role; its push stays where it is and goes on if the supplier comes back into
+// service. The sync's own hold while the ERP approves the supplier is not out of service. Pushable is the rule, the
+// same as Supplier.IsInServiceForErpPush, in a form the database runs, and the count of suppliers waiting for the ERP
+// on the integrations screen uses it too.
+//
 // IT HOLDS THE IMPORT'S LOCK FOR THE WHOLE RUN. Between the ERP creating a supplier and the portal saving its name, an
 // import would find an ERP supplier that no portal supplier carries, and it would create a second one with an account
 // of its own. Holding ErpImportLock from before the first call until after the last save means an import can never run
-// in that gap. When the lock is taken, because an import or another push is running, the run steps aside quietly and
-// the next one picks the suppliers up. It checks for due work before it takes the lock, so a run with nothing to do
-// never keeps an import out.
+// in that gap within one run. A create whose answer was lost is only linked by a later run, and the lock is free in
+// between, so the import also leaves alone any ERP supplier the portal's own API user created that no portal supplier
+// carries (see ErpSyncPlan). When the lock is taken, because an import or another push is running, the run steps aside
+// quietly and the next one picks the suppliers up. It checks for due work before it takes the lock, so a run with
+// nothing to do never keeps an import out.
 //
 // THE ERP MAKES A SECOND SUPPLIER FOR A SECOND REQUEST, so the Supplier record is never posted twice. Before the post,
 // the attempt is marked as under way and saved (BeginErpPush). The name the ERP returns is saved at once, in a save of
@@ -30,9 +38,14 @@
 // An attempt that cannot rule out an earlier create looks in the ERP before it posts. That is a supplier whose
 // in-flight marker is still set, one whose earlier attempt failed, and a create that got no answer or that the ERP
 // says clashes with a record it already has. It looks by tax number, then for a Supplier with this name that the
-// portal's own API user created since the push was requested. An ERP supplier that another portal supplier already
-// carries is not a match. One match is linked instead of created. Several are for a person to settle, and the push
-// fails naming them.
+// portal's own API user created since the push was first requested. An ERP supplier that another portal supplier
+// already carries is not a match. One match is linked instead of created. Several are for a person to settle, and the
+// push fails naming them.
+//
+// A MATCH ANOTHER PORTAL SUPPLIER CARRIES IS NOT POSTED PAST EITHER. When every record the look finds is carried by
+// another portal supplier, the push fails for a person, naming the ERP record and the portal supplier carrying it. It
+// may be this push's own lost create that a supplier was made from, or the same company registered twice, and only a
+// person can say which; posting again would give the ERP another copy either way.
 //
 // LOOKING WHEN THE LAST ATTEMPT FAILED, NOT ONLY WHILE THE MARKER IS SET, is deliberate. RecordErpPushAttemptFailed and
 // FailErpPush clear the marker, and the attempt that timed out on its create may have left one the ERP finished after
@@ -60,14 +73,14 @@
 // A switch turned off, or a connection disabled, while a run is under way stops the run quietly.
 //
 // EVERY WRITE TO THE SUPPLIER ROW IS A TARGETED UPDATE of the push's own columns and ExternalId, not a save of the whole
-// record. The reviewer who approved a supplier is usually still on its page when the push runs a moment later, and the
-// supplier may be editing its profile. A save through the record would move its version three times in a few seconds,
-// and each of their next saves would be refused as stale. A save through the record could also be refused by theirs,
-// and a refused save after the ERP has created the supplier is the gap this job exists to close. The domain's methods
-// still decide every move, on a copy of the supplier read without tracking, and the update writes what they decided,
-// and only while the push is where this run found it. The cost is that the version does not move either, so a client
-// holding the reviewer view may be told it has not changed until the next save of the supplier; the next import makes
-// one.
+// record, AND EACH ONE MOVES THE SUPPLIER'S VERSION. Targeted, because a save through the record could be refused by a
+// reviewer's or the supplier's own save a moment earlier, and a refused save after the ERP has created the supplier is
+// the gap this job exists to close; the update is guarded only by the push being where this run found it. The version
+// moves so that a save through the record that read the push before this run wrote it - a reviewer approving again on
+// a page opened earlier, say - is refused as stale, rather than losing its new request without a word or writing its
+// old copy of the push back. The cost is that whoever holds the old version, the reviewer who approved a moment ago or
+// the supplier editing its profile, is told on their next save to read again. The domain's methods still decide every
+// move, on a copy of the supplier read without tracking, and the update writes what they decided.
 //
 // EACH OUTCOME IS ON THE SUPPLIER'S AUDIT TRAIL, written in the same transaction as its update, with the system as the
 // actor: created, completed, an attempt failed, failed. The marker saved before the post has no row, because it is
@@ -75,6 +88,7 @@
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
+using System.Linq.Expressions;
 using System.Text.Json.Nodes;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -103,8 +117,21 @@ public sealed class SupplierErpPushJob(
     private const string SystemActor = "system";
 
     // HOW FAR BACK A LOOK FOR AN EARLIER CREATE REACHES. The ERP stores a record's creation time by its own clock, and
-    // that clock and the portal's differ, so the look starts fifteen minutes before the push was requested.
+    // that clock and the portal's differ, so the look starts fifteen minutes before the push was first requested,
+    // which a later approval does not move (Supplier.RequestErpPush).
     public static readonly TimeSpan LookBack = TimeSpan.FromMinutes(15);
+
+    // The suppliers the push works on whenever each is due: approved, in service, and Requested or Linked. It is
+    // Supplier.IsInServiceForErpPush's rule written for the database, and IntegrationMapping counts the suppliers
+    // waiting for the ERP by it, so the count an administrator confirms is what the sweep will push.
+    public static readonly Expression<Func<Supplier, bool>> Pushable = s =>
+        s.OnboardingState == SupplierOnboardingState.Approved
+        && (s.ErpPushStatus == SupplierErpPushStatus.Requested || s.ErpPushStatus == SupplierErpPushStatus.Linked)
+        && (s.LifecycleState == SupplierLifecycleState.Active
+            || (s.LifecycleState == SupplierLifecycleState.Suspended
+                && s.ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending));
+
+    private static readonly Func<Supplier, bool> IsPushable = Pushable.Compile();
 
     // The sweep, and the push of one supplier straight after its approval.
     //
@@ -135,6 +162,10 @@ public sealed class SupplierErpPushJob(
     private sealed record PushColumns(SupplierErpPushStatus Status, string? ExternalId);
 
     private sealed record EarlierCreate(string? Name, string? How, string? Ambiguity);
+
+    private sealed record CarriedMatch(string ErpName, string ReferenceCode, string How);
+
+    private sealed record SortedMatches(IReadOnlyList<string> Unclaimed, IReadOnlyList<CarriedMatch> Carried);
 
     // One run, for every due supplier or for one. The gate, the look for due work and the lock come first, in that
     // order, so the lock is only taken when there is something to push.
@@ -372,24 +403,34 @@ public sealed class SupplierErpPushJob(
     }
 
     // An ERP supplier that an earlier attempt of this push may have created: by tax number first, then by this name among
-    // the Suppliers the portal's API user created since the push was requested. Suppliers another portal supplier
-    // already carries are left out, because the import matches each ERP supplier to one portal supplier only.
+    // the Suppliers the portal's API user created since the push was first requested. Suppliers another portal supplier
+    // already carries are not matches, because the import matches each ERP supplier to one portal supplier only. When
+    // they are all the look found, the answer is the failure that names them, as the header says, and never "none".
     private async Task<EarlierCreate> FindEarlierCreateAsync(
         Supplier supplier, ErpSupplierPayload payload, DateTimeOffset now, CancellationToken ct)
     {
+        var carried = new List<CarriedMatch>();
+
         if (payload.TaxId is { } taxId)
         {
-            var byTaxId = await UnclaimedAsync(await registrar.FindSuppliersByTaxIdAsync(taxId, ct), ct);
-            if (byTaxId.Count > 0) return Decide(byTaxId, $"tax number {taxId}");
+            var how = $"tax number {taxId}";
+            var byTaxId = await SortAsync(await registrar.FindSuppliersByTaxIdAsync(taxId, ct), how, ct);
+            if (byTaxId.Unclaimed.Count > 0) return Decide(byTaxId.Unclaimed, how);
+
+            carried.AddRange(byTaxId.Carried);
         }
 
         var since = new[] { supplier.ErpPushRequestedAt, supplier.ErpPushStartedAt, now }.Min()!.Value - LookBack;
-        var byName = await UnclaimedAsync(
-            await registrar.FindSuppliersCreatedByPortalAsync(payload.SupplierName, since, ct), ct);
+        var byNameHow = $"the name \"{payload.SupplierName}\", created by the portal";
+        var byName = await SortAsync(
+            await registrar.FindSuppliersCreatedByPortalAsync(payload.SupplierName, since, ct), byNameHow, ct);
+        if (byName.Unclaimed.Count > 0) return Decide(byName.Unclaimed, byNameHow);
 
-        return byName.Count == 0
+        carried.AddRange(byName.Carried);
+
+        return carried.Count == 0
             ? new EarlierCreate(null, null, null)
-            : Decide(byName, $"the name \"{payload.SupplierName}\", created by the portal");
+            : new EarlierCreate(null, null, CarriedElsewhere(carried));
     }
 
     private static EarlierCreate Decide(IReadOnlyList<string> names, string how) =>
@@ -401,18 +442,35 @@ public sealed class SupplierErpPushJob(
                 $"The ERP has {names.Count} suppliers with {how} that no portal supplier carries "
                 + $"({string.Join(", ", names)}), so a person must decide which one this supplier is.");
 
-    private async Task<IReadOnlyList<string>> UnclaimedAsync(IReadOnlyList<ErpSupplierMatch> matches, CancellationToken ct)
+    private static string CarriedElsewhere(IReadOnlyList<CarriedMatch> carried)
+    {
+        var records = carried
+            .DistinctBy(match => match.ErpName, StringComparer.Ordinal)
+            .Select(match => $"{match.ErpName}, found by {match.How}, "
+                + $"which portal supplier {match.ReferenceCode} carries");
+
+        return $"The ERP already has {string.Join("; ", records)}. The portal does not post a second supplier past a "
+            + "record another portal supplier carries, so a person must decide whether they are one company, or "
+            + "whether an earlier attempt of this push created that record.";
+    }
+
+    // The matches another portal supplier carries, with that supplier's code, apart from the ones nobody carries.
+    private async Task<SortedMatches> SortAsync(
+        IReadOnlyList<ErpSupplierMatch> matches, string how, CancellationToken ct)
     {
         var names = matches.Select(m => m.Name).Distinct(StringComparer.Ordinal).ToList();
-        if (names.Count == 0) return names;
+        if (names.Count == 0) return new SortedMatches([], []);
 
         var claimed = await db.Suppliers
             .AsNoTracking()
             .Where(s => s.ExternalId != null && names.Contains(s.ExternalId))
-            .Select(s => s.ExternalId!)
+            .OrderBy(s => s.ReferenceCode)
+            .Select(s => new CarriedMatch(s.ExternalId!, s.ReferenceCode, how))
             .ToListAsync(ct);
 
-        return [.. names.Where(name => !claimed.Contains(name, StringComparer.Ordinal))];
+        var carriedNames = claimed.Select(match => match.ErpName).ToHashSet(StringComparer.Ordinal);
+
+        return new SortedMatches([.. names.Where(name => !carriedNames.Contains(name))], claimed);
     }
 
     // Calls two to six, each only for what the ERP does not have yet. It answers what this attempt made, for the audit
@@ -535,7 +593,8 @@ public sealed class SupplierErpPushJob(
 
     // The targeted update the header describes: the push's columns and ExternalId as the domain left them on this run's
     // copy, written only while the row still holds the status and ExternalId the copy started from, with its audit row
-    // in the same transaction. Zero rows means something moved the push meanwhile, and nothing is saved.
+    // in the same transaction, and the version moved on by one as a save through the record would move it. Zero rows
+    // means something moved the push meanwhile, and nothing is saved.
     private async Task WriteAsync(Supplier supplier, PushColumns before, string? action, string? reason, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -548,7 +607,8 @@ public sealed class SupplierErpPushJob(
                 .SetProperty(s => s.ErpPushStartedAt, supplier.ErpPushStartedAt)
                 .SetProperty(s => s.ErpPushAttempts, supplier.ErpPushAttempts)
                 .SetProperty(s => s.ErpPushNextAttemptAt, supplier.ErpPushNextAttemptAt)
-                .SetProperty(s => s.ErpPushLastError, supplier.ErpPushLastError),
+                .SetProperty(s => s.ErpPushLastError, supplier.ErpPushLastError)
+                .SetProperty(s => s.RowVersion, s => s.RowVersion + 1u),
                 ct);
 
         if (written != 1)
@@ -578,16 +638,13 @@ public sealed class SupplierErpPushJob(
     }
 
     private IQueryable<Supplier> Due(Guid? only, DateTimeOffset now) =>
-        db.Suppliers.AsNoTracking().Where(s =>
-            s.OnboardingState == SupplierOnboardingState.Approved
-            && (s.ErpPushStatus == SupplierErpPushStatus.Requested || s.ErpPushStatus == SupplierErpPushStatus.Linked)
-            && s.ErpPushNextAttemptAt <= now
-            && (only == null || s.Id == only));
+        db.Suppliers
+            .AsNoTracking()
+            .Where(Pushable)
+            .Where(s => s.ErpPushNextAttemptAt <= now && (only == null || s.Id == only));
 
     private static bool IsDue(Supplier supplier, DateTimeOffset now) =>
-        supplier.OnboardingState == SupplierOnboardingState.Approved
-        && supplier.ErpPushStatus is (SupplierErpPushStatus.Requested or SupplierErpPushStatus.Linked)
-        && supplier.ErpPushNextAttemptAt <= now;
+        IsPushable(supplier) && supplier.ErpPushNextAttemptAt <= now;
 
     private Task<Supplier?> LoadAsync(Guid supplierId, CancellationToken ct) =>
         db.Suppliers
