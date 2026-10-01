@@ -9,6 +9,10 @@
 // PROJECTED, NOT LOADED. Matching eighty ERP suppliers needs a handful of columns, and loading whole aggregates would
 // pull addresses, documents, representatives and bank accounts through the change tracker for nothing.
 //
+// A SUPPLIER THE PORTAL PUSHED IS ONE WHOSE PUSH WAS ASKED FOR, and one an import has seen is one whose SyncStatus has
+// left Pending: the push never writes SyncStatus, and the first import that finds the supplier marks it synced. The
+// two together are a pushed supplier's first sighting, which ErpSyncPlan keeps out of its limit.
+//
 // THE SIGN-IN ADDRESS IS THE PRIMARY REPRESENTATIVE'S LOGIN, or the first linked one's, because ErpSyncPlan compares
 // logins to spot a probable rename: the login is unique in this product and the contact email is not.
 //
@@ -58,7 +62,9 @@ internal static class LinkedSuppliersInPortal
                 AddressCount: row.AddressCount,
                 BlockedByState: row.BlockedByState,
                 ErpDisabledState: row.Linked.ErpDisabledState,
-                AwaitsDocumentRenewal: awaitingRenewal.Contains(row.Id)),
+                AwaitsDocumentRenewal: awaitingRenewal.Contains(row.Id),
+                PushedByPortal: row.Linked.PushedByPortal,
+                SeenByImport: row.Linked.SeenByImport),
             StringComparer.Ordinal);
     }
 
@@ -87,6 +93,7 @@ internal static class LinkedSuppliersInPortal
                 s.ErpDisabledState,
                 AddressCount = s.Addresses.Count,
                 s.OnboardingState,
+                s.ErpPushStatus,
             })
             .ToListAsync(ct);
 
@@ -104,7 +111,9 @@ internal static class LinkedSuppliersInPortal
                     IsActive: r.LifecycleState == SupplierLifecycleState.Active,
                     SuspendedAsRemovedFromErp: r.SyncStatus == SupplierSyncStatus.RemovedFromErp,
                     MarkedRemovedFromErp: r.SyncStatus == SupplierSyncStatus.MarkedRemovedFromErp,
-                    ErpDisabledState: r.ErpDisabledState),
+                    ErpDisabledState: r.ErpDisabledState,
+                    PushedByPortal: r.ErpPushStatus != SupplierErpPushStatus.NotRequested,
+                    SeenByImport: r.SyncStatus != SupplierSyncStatus.Pending),
                 AddressCount: r.AddressCount,
                 BlockedByState: Supplier.AllowsContactEdits(r.OnboardingState)
                     ? null

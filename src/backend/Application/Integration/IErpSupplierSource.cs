@@ -29,6 +29,10 @@
 // WorkflowState IS WHATEVER THE ERP'S APPROVAL WORKFLOW SAYS, or null where there is no workflow. ContactPersonName
 // is the name on the supplier's contact only when that contact is a person; the ERP names a contact it made on its
 // own "<supplier> Contact", and that is not somebody to address a letter to.
+//
+// CreatedByPortal SAYS THE PORTAL'S OWN API USER OWNS THE RECORD: the push created it, for a supplier that registered
+// in the portal. One the portal does not carry yet is the push's create whose name was not saved, which the push links
+// on its next attempt, so the import leaves it alone rather than making a second portal supplier of it.
 
 namespace MotsSupplierPortal.Application.Integration;
 
@@ -55,9 +59,15 @@ public sealed record ErpSupplier(
     string? Description = null,
     string? WorkflowState = null,
     string? ContactPersonName = null,
-    ErpSupplierAddress? Address = null);
+    ErpSupplierAddress? Address = null,
+    bool CreatedByPortal = false);
 
+// ListSupplierGroupsAsync is the one read that is not about a supplier. It lists the ERP supplier groups a supplier
+// can be filed under, for the integrations screen, where an administrator picks the group every supplier the portal
+// creates in the ERP goes into. It sits on this port because it is a read over the same connection and credential.
 public interface IErpSupplierSource
 {
     Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct);
+
+    Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct);
 }

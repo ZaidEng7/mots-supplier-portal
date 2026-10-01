@@ -7,7 +7,7 @@
 //
 // THE STATUS CODES ARE CARRIED, NOT FLATTENED, and that is the only unusual thing in this file. Each means something
 // different to the person reading the screen: 503 is nobody configured the integration, 502 is the ERP refused us,
-// 409 is another import already running, and anything else is ours. A single "preview_unavailable" would tell an
+// 409 is another import or a supplier push to the ERP running, and anything else is ours. A single "preview_unavailable" would tell an
 // administrator to go and look at logs for a problem the server already described precisely - and the most likely
 // one, a credential without rights on a record type, is fixed by asking the other team rather than by reading
 // anything here.

@@ -47,6 +47,24 @@
 //
 // That second update then finds the row's token already bumped by the first and throws a concurrency
 // failure reporting zero rows affected.
+//
+//
+// WHY THE ERP IDENTIFIER IS UNIQUE, AND INDEXED ONLY WHERE IT IS SET
+//
+// ExternalId is the ERP's name for the supplier, and the import matches on it. Two portal suppliers with
+// the same name would both take that ERP supplier's updates, and the push to the ERP, which saves the name
+// the ERP returns, must not be able to save one another supplier already holds. The database refuses it
+// instead of trusting both writers to check first.
+//
+// A supplier that registered here has none until the push links it, so the index leaves the rows without
+// one out and covers only the linked suppliers.
+//
+// IT HOLDS 140 CHARACTERS, the longest name the ERP gives a record. A server that names a supplier by its
+// supplier_name, as the test ERP does, lets that name be 140 characters long, and the push creates it there
+// before the portal saves it. A shorter column would refuse the save after the ERP already had the supplier,
+// and every attempt after it would find that supplier again and fail on the same save.
+//
+// The push's status is stored by name, like the sync's two state columns, in 20 characters.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
 
@@ -74,9 +92,12 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         entity.Property(s => s.LogoStorageKey).HasMaxLength(500);
         entity.Property(s => s.SupplierGroup).HasMaxLength(100);
         entity.Property(s => s.CurrencyCode).HasMaxLength(3);
-        entity.Property(s => s.ExternalId).HasMaxLength(100);
+        entity.Property(s => s.ExternalId).HasMaxLength(140);
+        entity.HasIndex(s => s.ExternalId).IsUnique().HasFilter("\"ExternalId\" IS NOT NULL");
         entity.Property(s => s.SyncStatus).HasConversion<string>().HasMaxLength(20);
         entity.Property(s => s.ErpDisabledState).HasConversion<string>().HasMaxLength(20);
+        entity.Property(s => s.ErpPushStatus).HasConversion<string>().HasMaxLength(20);
+        entity.Property(s => s.ErpPushLastError).HasMaxLength(Supplier.ErpPushLastErrorMaxLength);
         entity.Property(s => s.TermsAcceptedVersion).HasMaxLength(20);
         entity.Property(s => s.OnboardingState).HasConversion<string>().HasMaxLength(30);
         entity.Property(s => s.LifecycleState).HasConversion<string>().HasMaxLength(30);

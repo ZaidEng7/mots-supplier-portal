@@ -20,10 +20,22 @@
 // Deliberately not a breach and not a badge. The written process starts, pauses and resumes a review timer and
 // never names a duration, so there is no threshold to be over. Presenting one would invent a commitment nobody
 // made.
+//
+//
+// THE ERP PART OF THE VIEW
+//
+// Two directions, kept apart as the supplier keeps them. SyncStatus and LastSyncedAt are the import's: whether the ERP
+// has the supplier and when it last changed it. ErpPushStatus and ErpPushLastError are the push's, for a supplier that
+// registered here: how far creating it in the ERP has got, as SupplierErpPushStatus names it, and what the last failed
+// attempt said. ExternalId is the ERP's name for the supplier whichever direction set it.
+//
+// The last error is sent whatever the status, because it stays on the supplier through a retry and the screen decides
+// when to show it; it is the ERP's own words where the ERP sent any.
 
 namespace MotsSupplierPortal.Application.Suppliers;
 
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Suppliers;
 
 public sealed record ReviewQueueItemDto(
     string ReferenceCode, string DisplayNameAr, string DisplayNameEn, string OnboardingState, DateTimeOffset EnteredQueueAt,
@@ -42,7 +54,8 @@ public static class ReviewQueueFilterValues
 public sealed record ReviewAnnotationDto(Guid Id, DateTimeOffset RequestedAt, string Reason, IReadOnlyList<string> FlaggedProfileFields, IReadOnlyList<string> FlaggedDocumentTypeCodes, DateTimeOffset? ResolvedAt);
 
 public sealed record ErpSyncDto(
-    string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt, bool LiftsWhenErpApproves = false);
+    string? ExternalId, string SyncStatus, DateTimeOffset? LastSyncedAt, bool LiftsWhenErpApproves = false,
+    string ErpPushStatus = nameof(SupplierErpPushStatus.NotRequested), string? ErpPushLastError = null);
 
 public sealed record ReviewerSupplierViewDto(
     SupplierDto Supplier,

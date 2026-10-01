@@ -7,6 +7,9 @@
 // saves the URL first and the credential second, and between those two saves the connection would otherwise have
 // no credential at all. Reaching for the configured one keeps it working across that gap, and the screen says a
 // secret has not been set here.
+//
+// THE WRITE SWITCH AND THE DEFAULT SUPPLIER GROUP ARE READ FROM THE ROW EVEN WHEN THE ADDRESS IS NOT. They live
+// nowhere else, so a missing row, or a row that has never been switched on, leaves writes off.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -34,12 +37,12 @@ public sealed class ErpConnectionProvider(
                 ? null
                 : new ErpConnection(
                     settings.BaseUrl, settings.ApiKey, settings.ApiSecret, settings.Enabled,
-                    ErpConnectionSource.Configuration);
+                    ErpConnectionSource.Configuration, row?.CreateSuppliersInErp ?? false, row?.DefaultSupplierGroup);
         }
 
         var secret = row.SecretCipher is null ? settings.ApiSecret : cipher.Unprotect(row.SecretCipher);
 
         return new ErpConnection(row.BaseUrl, row.ApiKey, secret ?? string.Empty, row.IsEnabled,
-            ErpConnectionSource.Database);
+            ErpConnectionSource.Database, row.CreateSuppliersInErp, row.DefaultSupplierGroup);
     }
 }

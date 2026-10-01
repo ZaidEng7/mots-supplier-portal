@@ -15,6 +15,10 @@
 //
 // A VALUE THAT ALREADY CARRIES A ZONE IS HONOURED. Frappe's v2 endpoints and some fields do emit an offset, and
 // re-interpreting an explicit +03:00 as if it were local time would corrupt the one case that arrives correct.
+//
+// A TIME SENT TO THE ERP GOES THE SAME WAY BACK. A filter on "creation" is compared with the ERP's own local
+// timestamps, so Format writes the moment in the server's zone and wire format, with no offset the ERP would not
+// read. Sent in UTC, "created since" would be three hours out in Damascus and miss the record it is looking for.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -72,4 +76,7 @@ public static class ErpServerTime
         value.EndsWith('Z') || value.Contains('+') || value.LastIndexOf('-') > 7;
 
     public static TimeZoneInfo Zone(string identifier) => TimeZoneInfo.FindSystemTimeZoneById(identifier);
+
+    public static string Format(DateTimeOffset value, TimeZoneInfo serverZone) =>
+        TimeZoneInfo.ConvertTime(value, serverZone).ToString(WireFormat, CultureInfo.InvariantCulture);
 }

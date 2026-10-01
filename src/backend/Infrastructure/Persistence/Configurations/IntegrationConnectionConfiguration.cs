@@ -6,6 +6,9 @@
 // The seeded row carries no address, which is what makes the deployment's own settings stay in force until
 // somebody saves one on the screen. It exists so the screen has something to show on a fresh database rather than
 // an empty list that reads as "this product has no integrations".
+//
+// It also starts with supplier writes to the ERP switched off and no supplier group, so a fresh database writes
+// nothing to the ERP until somebody chooses a group and turns the switch on.
 
 namespace MotsSupplierPortal.Infrastructure.Persistence.Configurations;
 
@@ -28,6 +31,7 @@ internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfigurat
         entity.Property(c => c.LastTestDetail).HasMaxLength(1000);
         entity.Property(c => c.LastSyncSummary).HasMaxLength(1000);
         entity.Property(c => c.LastSyncOutcome).HasConversion<string>().HasMaxLength(20);
+        entity.Property(c => c.DefaultSupplierGroup).HasMaxLength(IntegrationConnection.SupplierGroupMaxLength);
 
         entity.HasData(new
         {
@@ -37,6 +41,7 @@ internal sealed class IntegrationConnectionConfiguration : IEntityTypeConfigurat
             BaseUrl = string.Empty,
             ApiKey = string.Empty,
             IsEnabled = false,
+            CreateSuppliersInErp = false,
         });
     }
 }

@@ -228,19 +228,22 @@ above.
 
 - **A fresh registration lands on "Your application is under review", not a dashboard.** Correct: a
   new supplier is in Draft. The seeded `supplier@mots.local` is already Active and does get one.
-- **The admin overview's "No real ERP integration is configured" is about the outbound side only.** It
-  sits on the Outbox card. The outbox still drains to a log line, which is T-089 stating a vacuum rather
-  than a failure. Awards still go to `StubErpPurchaseOrderAdapter`, which sends no purchase order. The
-  inbound side is connected: the supplier import reads the ministry's ERP. It runs from **Supplier
-  import** (`/back-office/erp-import`) and every hour by itself, once an ERP connection is configured,
-  either on **Connected systems** or in the `Erp` settings. Without one, the screen answers that the
-  connection is not configured, and the hourly job skips quietly. See `ERP-IMPORT.md`.
+- **The admin overview's "No real ERP integration is configured" is about the outbox only.** It sits on
+  the Outbox card. The outbox still drains to a log line, which is T-089 stating a vacuum rather than a
+  failure. Awards still go to `StubErpPurchaseOrderAdapter`, which sends no purchase order. The supplier
+  import is connected: it reads the ministry's ERP. It runs from **Supplier import**
+  (`/back-office/erp-import`) and every hour by itself, once an ERP connection is configured, either on
+  **Connected systems** or in the `Erp` settings. Without one, the screen answers that the connection is
+  not configured, and the hourly job skips quietly. The push that creates approved suppliers in the ERP
+  does not use the outbox, and it sends nothing until somebody switches it on (§11). See
+  `ERP-IMPORT.md`.
 - **The evaluation is part-scored and not consolidated**, so comparison and award screens show a
   position rather than a result. See §7.
 - **`report.read` reaches `procurement_manager` and `ministry_viewer` only.** An officer has no
   Reports link, by grant, not by accident.
-- **Recurring jobs are enabled** — 7 of them, including one that opens and closes submission windows,
-  so RFQ states move on their own while you watch, and the hourly ERP supplier sync.
+- **Recurring jobs are enabled** — 8 of them, including one that opens and closes submission windows,
+  so RFQ states move on their own while you watch, the hourly ERP supplier sync, and the five-minute
+  sweep of the ERP supplier push, which does nothing while its switch is off.
 
 ## 10. Three screens have no link to them
 
@@ -258,3 +261,68 @@ unlinked, so the manager's approval queue sits behind a page nobody can navigate
 
 `/back-office/dashboard` is the landing every back-office persona gets, and it is a placeholder that
 lists the permissions on your token. The three real dashboards are the ones above.
+
+## 11. Switching on the ERP supplier push
+
+The push creates in the ERP each supplier a reviewer approves, and it is off until somebody turns it on.
+`ERP-IMPORT.md` §8 explains it. Unlike the rest of this file, these steps have not been run yet: the
+push has not been switched on anywhere.
+
+Two kinds of approved supplier do not go. **A supplier approved before the `ErpSupplierPush` migration
+is not pushed.** The migration gives every existing supplier `NotRequested`, and only an approval asks
+for a push. No screen or route can ask for one: **Retry** works only on a failed push, and a new
+approval comes only after a compliance-critical edit sends the supplier back to review. The waiting
+count in step 5 leaves these suppliers out. **A supplier out of service is not pushed while it stays out**: one suspended by a person
+or by the document-expiry job, or deactivated. It goes once it is back in service, and a deactivated one
+never does. The import's own hold while the ERP approves a pushed supplier does not count as out of
+service.
+
+1. **Try it on the ERP's test server first**, on a copy of the registry with the schedules off, as
+   `ERP-IMPORT.md` §8.9 describes. Never point the registry's own connection at the test server: the
+   hourly import would read the test server's suppliers into the registry.
+2. **Back up, then apply the `ErpSupplierPush` migration** with §3's command. The API does not migrate
+   at startup. The migration stops, naming them, if two suppliers share an ERP identifier. The switch
+   starts off. Then name the ERP server in `Erp:WriteHosts` in the deployment's configuration, as a host
+   or a host and port. The list is empty by default, and an empty list refuses every write whatever the
+   switch says.
+3. **Agree the ERP user's rights with the ERP colleague.** **Test connection** proves the import's reads
+   only. The push also creates Supplier, Address, Contact and User records, reads all four, updates
+   Supplier (its portal users) and Contact, reads the field lists of Supplier, Address and Contact
+   through `frappe.desk.form.load.getdoctype`, and asks `frappe.auth.get_logged_user` for its own user
+   name, which the hourly import also asks, to leave the push's own creates to the push. The group
+   list on Connected systems reads Supplier Group. A refused credential stops every run without marking
+   any supplier, so the API log is the only place it shows.
+4. **Leave the schedules on.** The push runs straight after each approval either way, but a push that
+   failed for a passing reason is tried again only by the sweep, which `Jobs:EnableRecurring=false`
+   removes.
+5. **Choose the group and switch on.** On **Connected systems**, on the ERP's card, choose the default
+   supplier group from the ERP's list and tick **Create approved suppliers in the ERP**. The question
+   says how many approved suppliers in service are waiting, read afresh as it opens. They go to the ERP
+   within minutes, five at each five-minute sweep, and nothing here can take one back, so cancel if the
+   number is not the one you expect. Otherwise press **Turn on and save**. A large number does not trip
+   the import's limit on suspensions: a pushed supplier seen for the first time in Draft is left out of
+   that count.
+6. **Watch the first one with the ERP colleague.** Within seconds of its approval, the supplier's review
+   page should say **ERP: created** with the ERP's name for it. Its audit trail says what was made and
+   which values the ERP had no field for. At the next hourly import the supplier shows as suspended,
+   because the ERP holds it in Draft, however many were pushed at once. That is expected: the first
+   import after the ERP approves it releases it.
+7. **If nothing happens**, read the API log for lines that start "Supplier push to the ERP". "skipped"
+   means the connection or the switch is off, no group is set, or an import or another push held the
+   lock. "stopped" means a refused credential, or the connection or the switch turned off during a run.
+   A supplier whose chip says **ERP: waiting** and never moves may be out of service: check its state.
+   If the page says **ERP: failed**, it shows why. Fix the cause, then press **Retry**, which needs
+   `admin.integrations.manage`, held by default only by the system administrator. Retry refuses a
+   supplier out of service.
+8. **If Run the import answers that an import or a supplier push is running**, wait a minute or two: a
+   push holds the import's lock while it works. The hourly import, finding the lock taken, logs "Hourly
+   ERP supplier sync waits" and tries once more two minutes later. Only if the lock is still taken then
+   does it skip that hour.
+
+**Switching it off** is unticking the switch and pressing **Save**. Nothing is sent from then on.
+Suppliers approved meanwhile wait, with no attempt counted, and go when it is turned on again. Suppliers
+already created in the ERP stay there; removing one is the ERP team's work.
+
+**Moving the connection to another ERP**: switch off first, then change the address, choose a group from
+the new ERP's list, and switch on again. The saved group is a name on the old ERP, and does not follow
+the address.

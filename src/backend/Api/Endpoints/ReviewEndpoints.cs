@@ -45,6 +45,18 @@
 //
 // An illegal change answers conflict rather than bad request. The request is well-formed, it conflicts with
 // the supplier's current state, and the domain's own message says which state that is.
+//
+//
+// RETRYING THE PUSH TO THE ERP
+//
+// A supplier approved here is created in the ERP by SupplierErpPushJob, and a push that failed for good waits for
+// a person. The retry sits beside the lifecycle because it is read and pressed from the same page, but it is not a
+// reviewer's decision: it is gated by admin.integrations.manage, the permission of the Connected systems settings
+// where the push is switched on, which only the system administrator holds. Not integration.retry: that one retries
+// an award's send through the caller's organisation, a deployment may grant it to an organisation's role, and the
+// push is one queue for the whole registry. It asks no precondition, like the award's retry and the lifecycle: a
+// retry changes only the push's own state, and the domain refuses one on a push that has not failed, or on a
+// supplier out of service, with a conflict carrying its sentence.
 
 namespace MotsSupplierPortal.Api.Endpoints;
 
@@ -237,6 +249,23 @@ public static class ReviewEndpoints
             .Validate<SupplierLifecycleRequest>()
             .WithName(name);
         }
+
+        group.MapPost("/{referenceCode}/retry-erp-push", async (
+            string referenceCode,
+            IRetryErpPushHandler handler,
+            CancellationToken ct) =>
+        {
+            var result = await handler.HandleAsync(referenceCode, ct);
+            return result switch
+            {
+                RetryErpPushResult.Success s => Results.Ok(s.ErpSync),
+                RetryErpPushResult.NotFound => Results.NotFound(),
+                RetryErpPushResult.Invalid i => Results.Conflict(new { error = i.Message }),
+                _ => Results.Problem(),
+            };
+        })
+        .RequirePermission(Permissions.AdminIntegrationsManage)
+        .WithName("RetryErpSupplierPush");
 
         group.MapPost("/{referenceCode}/request-info", async (
             string referenceCode,

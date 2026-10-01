@@ -12,6 +12,17 @@ using MotsSupplierPortal.Domain.Suppliers;
 
 public static class SupplierDtoMapper
 {
+    // The ERP part of the reviewer's view. LiftsWhenErpApproves is true only for the sync's own hold while the ERP
+    // approves the supplier, which a person's approval, suspension or reactivation ends.
+    public static ErpSyncDto ToErpSyncDto(Supplier supplier) => new(
+        supplier.ExternalId,
+        supplier.SyncStatus.ToString(),
+        supplier.LastSyncedAt,
+        supplier.LifecycleState == SupplierLifecycleState.Suspended
+        && supplier.ErpDisabledState == SupplierErpDisabledState.SuspendedAsPending,
+        supplier.ErpPushStatus.ToString(),
+        supplier.ErpPushLastError);
+
     public static SupplierDto ToDto(
         Supplier supplier,
         IReadOnlyList<string>? incompleteDocumentTypeCodes = null,

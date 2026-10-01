@@ -46,4 +46,17 @@ public sealed class ErpFieldLimitsTests(PostgresApiFixture fixture)
         Length(typeof(Address), nameof(Address.Line2)).Should().Be(ErpFieldLimits.AddressLine);
         Length(typeof(Address), nameof(Address.City)).Should().Be(ErpFieldLimits.City);
     }
+
+    // THE ERP'S NAME FOR A SUPPLIER IS SAVED WHOLE, never measured and cut, because it is what every run matches on.
+    // The ERP names a record in up to 140 characters, and a server that names suppliers by supplier_name lets a pushed
+    // name be that long; the column held 100, so the push created such a supplier and could never save its link.
+    [Fact]
+    public void The_erp_identifier_column_holds_the_longest_name_the_erp_gives_a_record()
+    {
+        using var scope = fixture.Services.CreateScope();
+        var model = scope.ServiceProvider.GetRequiredService<AppDbContext>().Model;
+
+        model.FindEntityType(typeof(Supplier))!.FindProperty(nameof(Supplier.ExternalId))!.GetMaxLength()
+            .Should().Be(140);
+    }
 }

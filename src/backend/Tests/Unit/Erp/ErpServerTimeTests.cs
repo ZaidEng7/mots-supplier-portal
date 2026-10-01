@@ -85,4 +85,19 @@ public sealed class ErpServerTimeTests
         act.Should().Throw<TimeZoneNotFoundException>(
             "a silent fallback would turn one configuration mistake into permanently skewed timestamps");
     }
+
+    [Fact]
+    public void A_time_sent_to_the_erp_is_written_on_its_clock_with_no_offset()
+    {
+        ErpServerTime.Format(new DateTimeOffset(2026, 9, 30, 9, 0, 0, TimeSpan.Zero), Damascus)
+            .Should().Be("2026-09-30 12:00:00", "the ERP compares it with creation times it stores in Damascus time");
+    }
+
+    [Fact]
+    public void A_formatted_time_reads_back_as_the_same_moment()
+    {
+        var moment = new DateTimeOffset(2026, 9, 30, 9, 0, 0, TimeSpan.Zero);
+
+        ErpServerTime.Parse(ErpServerTime.Format(moment, Damascus), Damascus).Should().Be(moment);
+    }
 }

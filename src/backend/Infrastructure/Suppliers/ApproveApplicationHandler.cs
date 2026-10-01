@@ -3,6 +3,12 @@
 // The outbound integration event is written in the same commit as the state change. So approval never waits
 // on the external system being up, and the event cannot exist without the approval or the approval without
 // the event.
+//
+// AN APPROVAL THAT ASKS FOR THE SUPPLIER TO BE CREATED IN THE ERP ENQUEUES THAT PUSH, after the commit, as the
+// approval email is. Supplier.Approve asks only for a supplier with no ExternalId, and the enqueued run pushes that
+// supplier alone. Nothing is written to the ERP inside the approval: the reviewer's answer does not wait on the ERP,
+// and a push that fails is retried by SupplierErpPushJob's own sweep. Enqueued after the commit, the run always finds
+// the request saved; whether it writes anything is the job's decision, by the ERP connection's write switch.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
@@ -16,6 +22,7 @@ using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Email;
+using MotsSupplierPortal.Infrastructure.Integration.Erp;
 using MotsSupplierPortal.Domain.Configuration;
 using MotsSupplierPortal.Infrastructure.Configuration;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -53,6 +60,9 @@ public sealed class ApproveApplicationHandler(AppDbContext db, IScopeContext sco
 
         var userId = await ReviewerNotify.GetPrimaryUserIdAsync(db, supplier.Id, ct);
         if (userId is not null) backgroundJobs.Enqueue<EmailJobs>(job => job.SendApplicationApprovedEmailAsync(userId.Value, CancellationToken.None));
+
+        var supplierId = supplier.Id;
+        if (supplier.ErpPushStatus == SupplierErpPushStatus.Requested) backgroundJobs.Enqueue<SupplierErpPushJob>(job => job.PushAsync(supplierId, CancellationToken.None));
 
         return new ReviewDecisionResult.Success(SupplierDtoMapper.ToDto(supplier));
     }

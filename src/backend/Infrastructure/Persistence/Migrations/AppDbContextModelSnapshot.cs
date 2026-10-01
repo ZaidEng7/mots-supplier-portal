@@ -1231,6 +1231,13 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<bool>("CreateSuppliersInErp")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("DefaultSupplierGroup")
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1291,6 +1298,7 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                             Id = new Guid("00000000-0000-0000-0000-000000000901"),
                             ApiKey = "",
                             BaseUrl = "",
+                            CreateSuppliersInErp = false,
                             DisplayName = "Seven Gates ERP",
                             IsEnabled = false,
                             Key = "erp"
@@ -3195,9 +3203,30 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<int>("ErpPushAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErpPushLastError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset?>("ErpPushNextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ErpPushRequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ErpPushStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErpPushStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("ExternalId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(140)
+                        .HasColumnType("character varying(140)");
 
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3257,6 +3286,10 @@ namespace MotsSupplierPortal.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(300)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalId")
+                        .IsUnique()
+                        .HasFilter("\"ExternalId\" IS NOT NULL");
 
                     b.HasIndex("OnboardingState");
 

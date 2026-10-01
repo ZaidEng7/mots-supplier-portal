@@ -18,6 +18,12 @@
 // with the domain's own message for an illegal transition (NFR-CMP-003 and BRULE-097). The UI hides actions that
 // do not apply, but hiding is a convenience - the rule is enforced server-side, and the message is surfaced
 // rather than swallowed.
+//
+// THE PUSH TO THE ERP is read on the same view. erpPushStatus is how far creating in the ERP a supplier that registered
+// here has got, as the server's SupplierErpPushStatus names it, and erpPushLastError what the last failed attempt said,
+// which stays through a retry. retryErpPush starts a failed push again; the server holds it to
+// admin.integrations.manage, not to a reviewer's permission, and answers 409 with the domain's sentence for a push
+// that has not failed or a supplier out of service.
 
 import { ProblemError } from './problem'
 import { rememberETag } from './etags'
@@ -47,11 +53,15 @@ export interface ReviewAnnotation {
   resolvedAt: string | null
 }
 
+export type ErpPushStatus = 'NotRequested' | 'Requested' | 'Linked' | 'Created' | 'Failed'
+
 export interface ReviewerErpSync {
   externalId: string | null
   syncStatus: string
   lastSyncedAt: string | null
   liftsWhenErpApproves: boolean
+  erpPushStatus: ErpPushStatus
+  erpPushLastError: string | null
 }
 
 export interface ReviewerSupplierView {
@@ -155,5 +165,10 @@ export async function changeSupplierLifecycle(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
   })
+  return parseOrThrow(res)
+}
+
+export async function retryErpPush(referenceCode: string): Promise<ReviewerErpSync> {
+  const res = await apiFetch(`/api/v1/review/${referenceCode}/retry-erp-push`, { method: 'POST' })
   return parseOrThrow(res)
 }

@@ -77,12 +77,33 @@
 // ErpStandingDecision - which the preview and the run both ask for every supplier the portal already holds - then
 // changes no turned-away supplier's memory at all, because the read that caused the hold is not believed.
 // TurnedAwayHeld names the turned-away suppliers the run would otherwise have suspended, and ActiveLinked is the count
-// the limit was judged against; the import itself reads only HoldsTurnedAway, and the tests read the rest.
+// the limit was judged against; the import itself asks only HoldsTurnedAwayFor, and the tests read the rest.
+//
+// A SUPPLIER THE PORTAL PUSHED, SEEN BY AN IMPORT FOR THE FIRST TIME WHILE THE ERP STILL APPROVES IT, IS NOT COUNTED.
+// The push creates a supplier however the ERP creates it, which on the real ERP is Draft, so its first sighting is
+// always "not approved" and says nothing about a change on Seven Gates' side. Counted, a burst of approvals - the
+// switch turned on over a backlog, or an outage's backlog released - would trip the limit, and then none of them would
+// be suspended, and every other suspension would wait with them, on every run until the ERP approved enough. So it is
+// left out of the count and out of the hold: it is suspended on its own, as SuspendedAsPending, as the owner decided,
+// and released once the ERP approves it. PushedAwaitingApproval names them. Once an import has seen it, it counts like
+// any other supplier, so a later turn-away of every supplier the portal pushed is still a change the limit catches.
+//
+//
+// THE PORTAL'S OWN CREATES ARE LEFT TO THE PUSH
+//
+// AN ERP SUPPLIER THE PORTAL'S API USER CREATED, THAT NO PORTAL SUPPLIER CARRIES, IS NOT AN ARRIVAL. It is a push's
+// create whose name the portal has not saved yet - the answer was lost, or the save after it failed - and the push
+// links it to the supplier it was made for on its next attempt. Created here, it would be a second portal supplier with
+// an account of its own, and the push, finding the record carried, would post a second one to the ERP. So it is held,
+// with a note saying so, and it can be neither side of a probable rename. HeldForPush names them. One the push has
+// linked is carried by its ExternalId and updated like any other.
 
 namespace MotsSupplierPortal.Application.Integration;
 
 using MotsSupplierPortal.Domain.Suppliers;
 
+// PushedByPortal is a supplier the portal created in the ERP (its push was asked for), and SeenByImport one an import
+// has already found there; the two together are how the plan tells a pushed supplier's first sighting.
 public sealed record PortalLinkedSupplier(
     string ExternalId,
     string ReferenceCode,
@@ -92,9 +113,13 @@ public sealed record PortalLinkedSupplier(
     bool IsActive,
     bool SuspendedAsRemovedFromErp,
     bool MarkedRemovedFromErp = false,
-    SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled)
+    SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled,
+    bool PushedByPortal = false,
+    bool SeenByImport = true)
 {
     public bool RecordedAsGone => SuspendedAsRemovedFromErp || MarkedRemovedFromErp;
+
+    public bool IsFirstSightingOfPush => PushedByPortal && !SeenByImport;
 }
 
 public sealed record ErpProbableRename(string OldExternalId, string NewExternalId, string ReferenceCode, string Signal);
@@ -105,14 +130,28 @@ public sealed record ErpSyncPlan(
     IReadOnlyList<PortalLinkedSupplier> ToMarkRemoved,
     int ActiveLinked,
     string? SuspensionsHeldBack,
-    IReadOnlySet<string>? TurnedAwayHeld = null)
+    IReadOnlySet<string>? TurnedAwayHeld = null,
+    IReadOnlySet<string>? HeldForPush = null,
+    IReadOnlySet<string>? PushedAwaitingApproval = null)
 {
     public bool HoldsTurnedAway => TurnedAwayHeld is not null;
+
+    // Whether the hold on turned-away suppliers applies to this one: to every supplier while the plan holds them,
+    // except a pushed one on its first sighting, which is suspended on its own - see the header.
+    public bool HoldsTurnedAwayFor(string externalId) =>
+        HoldsTurnedAway && PushedAwaitingApproval?.Contains(externalId) != true;
+
+    public bool IsHeldForPush(string externalId) => HeldForPush?.Contains(externalId) == true;
 
     public static ErpSyncPlan Build(IReadOnlyList<ErpSupplier> erp, IReadOnlyList<PortalLinkedSupplier> portal)
     {
         var inPortal = portal.Select(p => p.ExternalId).ToHashSet(StringComparer.Ordinal);
         var inErp = erp.Select(e => e.ExternalId).ToHashSet(StringComparer.Ordinal);
+
+        var heldForPush = erp
+            .Where(e => !inPortal.Contains(e.ExternalId) && e.CreatedByPortal)
+            .Select(e => e.ExternalId)
+            .ToHashSet(StringComparer.Ordinal);
 
         var vanishedThisRun = portal
             .Where(p => !inErp.Contains(p.ExternalId) && !p.RecordedAsGone)
@@ -123,7 +162,7 @@ public sealed record ErpSyncPlan(
             .ToList();
 
         var arrivals = erp
-            .Where(e => !inPortal.Contains(e.ExternalId))
+            .Where(e => !inPortal.Contains(e.ExternalId) && !heldForPush.Contains(e.ExternalId))
             .OrderBy(e => e.ExternalId, StringComparer.Ordinal)
             .ToList();
 
@@ -150,8 +189,15 @@ public sealed record ErpSyncPlan(
         var byExternalId = portal
             .GroupBy(p => p.ExternalId, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-        var turnedAway = erp
+        var pushedAwaitingApproval = erp
             .Where(e => byExternalId.TryGetValue(e.ExternalId, out var linked)
+                && linked.IsFirstSightingOfPush
+                && ErpImportAdmission.StandingOf(e) == ErpStanding.AwaitingApproval)
+            .Select(e => e.ExternalId)
+            .ToHashSet(StringComparer.Ordinal);
+        var turnedAway = erp
+            .Where(e => !pushedAwaitingApproval.Contains(e.ExternalId)
+                && byExternalId.TryGetValue(e.ExternalId, out var linked)
                 && Supplier.ErpDisabledChangeFor(
                     linked.ErpDisabledState, linked.IsActive, ErpImportAdmission.StandingOf(e)) == ErpDisabledChange.Suspended)
             .Select(e => e.ExternalId)
@@ -166,7 +212,9 @@ public sealed record ErpSyncPlan(
             ToMarkRemoved: decision.MaySuspend ? outOfServiceMissing : [],
             ActiveLinked: activeLinked,
             SuspensionsHeldBack: erp.Count == 0 ? decision.HeldBackBecause : togetherHeldBack,
-            TurnedAwayHeld: togetherHeldBack is null ? null : turnedAway);
+            TurnedAwayHeld: togetherHeldBack is null ? null : turnedAway,
+            HeldForPush: heldForPush,
+            PushedAwaitingApproval: pushedAwaitingApproval);
     }
 
     private static string? Signal(ErpSupplier arrival, PortalLinkedSupplier vanished)

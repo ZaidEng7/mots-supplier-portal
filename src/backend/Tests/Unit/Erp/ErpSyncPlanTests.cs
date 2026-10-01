@@ -6,6 +6,11 @@
 // service that leaves the ERP is only marked, with a memory of its own, so one back in service later is still
 // suspended once; an empty read marks nobody.
 //
+// A SUPPLIER THE PORTAL PUSHED IS LEFT OUT OF THE LIMIT ON ITS FIRST SIGHTING WHILE THE ERP APPROVES IT, and still
+// suspended on its own; the first version counted every such Draft, so a burst of approvals held back every suspension
+// in the run. Once seen, or when the ERP disables rather than approves it, it counts like any other. An ERP supplier the
+// portal's own API user created and nobody carries is held for the push, never created or paired as a rename.
+//
 // THE RENAME TESTS PIN A REFUSAL TO GUESS. Re-linking a rename automatically would move one company's history onto
 // another - through a purchasing email two ERP suppliers share, a contact email the supplier can edit, or a tax number
 // shared by a company and its subsidiary. So a probable rename holds both sides - the vanished supplier is not
@@ -33,6 +38,8 @@ public sealed class ErpSyncPlanTests
             WorkflowState = workflowState,
         };
 
+    private const string Draft = "Draft";
+
     private static PortalLinkedSupplier Portal(
         string id,
         string? login = null,
@@ -40,7 +47,9 @@ public sealed class ErpSyncPlanTests
         bool active = true,
         bool suspendedAsRemoved = false,
         bool marked = false,
-        SupplierErpDisabledState erpState = SupplierErpDisabledState.NotDisabled) =>
+        SupplierErpDisabledState erpState = SupplierErpDisabledState.NotDisabled,
+        bool pushed = false,
+        bool seen = true) =>
         new(
             ExternalId: id,
             ReferenceCode: "REF-" + id,
@@ -50,7 +59,9 @@ public sealed class ErpSyncPlanTests
             IsActive: active,
             SuspendedAsRemovedFromErp: suspendedAsRemoved,
             MarkedRemovedFromErp: marked,
-            ErpDisabledState: erpState);
+            ErpDisabledState: erpState,
+            PushedByPortal: pushed,
+            SeenByImport: seen);
 
     [Fact]
     public void A_probable_rename_by_sign_in_address_is_held_and_nothing_is_moved_or_suspended()
@@ -304,5 +315,124 @@ public sealed class ErpSyncPlanTests
         plan.TurnedAwayHeld.Should().NotBeNull(
             "the run has just declared this read untrustworthy; the first version still suspended the five it turned away");
         plan.SuspensionsHeldBack.Should().Contain("would suspend 12").And.Contain("7 no longer in the ERP");
+    }
+
+    [Fact]
+    public void A_burst_of_pushed_suppliers_the_erp_is_approving_is_left_out_of_the_limit()
+    {
+        var ordinary = Enumerable.Range(1, 8).Select(i => Portal($"S{i}")).ToList();
+        var pushed = Enumerable.Range(1, 6).Select(i => Portal($"P{i}", pushed: true, seen: false)).ToList();
+        var erp = ordinary.Select(p => Erp(p.ExternalId))
+            .Concat(pushed.Select(p => Erp(p.ExternalId, workflowState: Draft)))
+            .ToList();
+
+        var plan = ErpSyncPlan.Build(erp, [.. ordinary, .. pushed]);
+
+        plan.TurnedAwayHeld.Should().BeNull(
+            "a supplier the portal has just created in the ERP is Draft there on its first sighting, which says nothing "
+            + "about a change on Seven Gates' side; counted, six approvals at once held back every suspension in the run");
+        plan.SuspensionsHeldBack.Should().BeNull();
+        plan.PushedAwaitingApproval.Should().BeEquivalentTo(pushed.Select(p => p.ExternalId));
+        pushed.Should().OnlyContain(p => !plan.HoldsTurnedAwayFor(p.ExternalId));
+    }
+
+    [Fact]
+    public void A_pushed_supplier_on_its_first_sighting_is_still_suspended_on_its_own()
+    {
+        var pushed = Portal("P1", pushed: true, seen: false);
+        var plan = ErpSyncPlan.Build([Erp("A"), Erp("P1", workflowState: Draft)], [Portal("A"), pushed]);
+
+        var decision = ErpStandingDecision.Decide(
+            memory: pushed.ErpDisabledState,
+            isActive: pushed.IsActive,
+            standing: ErpStanding.AwaitingApproval,
+            turnedAway: "Not approved in the ERP yet (Draft)",
+            documentsAllowRelease: true,
+            planHoldsTurnedAway: plan.HoldsTurnedAwayFor("P1"),
+            markedRemovedFromErp: false);
+
+        decision.Change.Should().Be(
+            ErpDisabledChange.Suspended, "the owner decided the portal holds it suspended until the ERP approves it");
+    }
+
+    [Fact]
+    public void While_the_plan_holds_turned_away_suppliers_a_pushed_one_on_its_first_sighting_is_not_held_with_them()
+    {
+        var ordinary = Enumerable.Range(1, 20).Select(i => Portal($"S{i}")).ToList();
+        var erp = ordinary
+            .Select((p, i) => Erp(p.ExternalId, workflowState: i < 6 ? "Pending Chief Accountant Approval" : null))
+            .Append(Erp("P1", workflowState: Draft))
+            .ToList();
+
+        var plan = ErpSyncPlan.Build(erp, [.. ordinary, Portal("P1", pushed: true, seen: false)]);
+
+        plan.TurnedAwayHeld.Should().HaveCount(6, "six ordinary suppliers turned away at once is over the limit of five");
+        plan.HoldsTurnedAwayFor("S1").Should().BeTrue();
+        plan.HoldsTurnedAwayFor("P1").Should().BeFalse(
+            "its Draft is expected, not part of the read the hold distrusts, and left active it could be invited to "
+            + "tenders before the ERP approved it");
+    }
+
+    [Fact]
+    public void A_pushed_supplier_an_import_has_already_seen_counts_like_any_other()
+    {
+        var pushed = Enumerable.Range(1, 6).Select(i => Portal($"P{i}", pushed: true, seen: true)).ToList();
+        var ordinary = Enumerable.Range(1, 2).Select(i => Portal($"S{i}")).ToList();
+        var erp = ordinary.Select(p => Erp(p.ExternalId))
+            .Concat(pushed.Select(p => Erp(p.ExternalId, workflowState: "Pending Chief Accountant Approval")))
+            .ToList();
+
+        var plan = ErpSyncPlan.Build(erp, [.. ordinary, .. pushed]);
+
+        plan.TurnedAwayHeld.Should().HaveCount(
+            6, "approved once and turned away together later is a change on Seven Gates' side, whoever created them");
+        plan.HoldsTurnedAwayFor("P1").Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_pushed_supplier_the_erp_disables_on_its_first_sighting_still_counts()
+    {
+        var pushed = Enumerable.Range(1, 6).Select(i => Portal($"P{i}", pushed: true, seen: false)).ToList();
+        var ordinary = Enumerable.Range(1, 2).Select(i => Portal($"S{i}")).ToList();
+        var erp = ordinary.Select(p => Erp(p.ExternalId))
+            .Concat(pushed.Select(p => Erp(p.ExternalId, disabled: true)))
+            .ToList();
+
+        ErpSyncPlan.Build(erp, [.. ordinary, .. pushed]).TurnedAwayHeld.Should().HaveCount(
+            6, "only waiting for approval is what a push's first sighting is expected to show; a disable is not");
+    }
+
+    [Fact]
+    public void An_erp_supplier_the_portal_created_that_nobody_carries_is_held_for_the_push()
+    {
+        var orphan = Erp("SUP-2026-00042", taxId: "TAX-1") with { CreatedByPortal = true };
+
+        var plan = ErpSyncPlan.Build([Erp("A"), orphan], [Portal("A")]);
+
+        plan.IsHeldForPush("SUP-2026-00042").Should().BeTrue(
+            "it is the push's create whose name was not saved yet, and created here it would be a second portal "
+            + "supplier the push then posts past");
+        plan.IsHeldForPush("A").Should().BeFalse();
+    }
+
+    [Fact]
+    public void An_erp_supplier_the_portal_created_is_never_paired_as_a_rename()
+    {
+        var orphan = Erp("SUP-2026-00042", taxId: "TAX-1") with { CreatedByPortal = true };
+
+        var plan = ErpSyncPlan.Build([Erp("A"), orphan], [Portal("A"), Portal("Gone", taxId: "TAX-1")]);
+
+        plan.ProbableRenames.Should().BeEmpty("the push links it; it is not a newcomer standing in for anybody");
+        plan.ToSuspend.Should().ContainSingle().Which.ExternalId.Should().Be("Gone");
+    }
+
+    [Fact]
+    public void An_erp_supplier_the_portal_created_and_linked_is_updated_like_any_other()
+    {
+        var linked = Erp("SUP-2026-00042") with { CreatedByPortal = true };
+
+        var plan = ErpSyncPlan.Build([linked], [Portal("SUP-2026-00042", pushed: true)]);
+
+        plan.IsHeldForPush("SUP-2026-00042").Should().BeFalse("a portal supplier carries it by its ExternalId");
     }
 }

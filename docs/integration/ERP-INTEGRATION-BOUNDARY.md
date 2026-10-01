@@ -5,6 +5,18 @@
 > [`DISCOVERY-REPORT.md`](../product/DISCOVERY-REPORT.md)
 > Sibling: [`INTEGRATION-ARCHITECTURE.md`](./INTEGRATION-ARCHITECTURE.md)
 
+> **Since this was written.** This was the plan for the boundary, written before any ERP code existed.
+> Its sibling, [`INTEGRATION-ARCHITECTURE.md`](./INTEGRATION-ARCHITECTURE.md), has since been corrected
+> to what was built, so read this page for the ownership it argues for, not for how the code works.
+> Five things here were never built. There is no `ExternalIdRegistry`: the supplier's `ExternalId`
+> column, with a unique index, is the only link. There are no `SupplierUpserted` or `AwardCreated`
+> contracts and no Mapperly translators. There is no `IntegrationLog` table. A supplier's later edits are
+> not re-published: the push creates the supplier in the ERP once and never updates it. And not every ERP
+> write goes through the outbox: the push keeps its request on the supplier row. Two things were built
+> that this page does not foresee: the hourly supplier import, which makes the ERP the master for the
+> suppliers it holds, and the push that creates approved suppliers in the ERP.
+> [`ERP-IMPORT.md`](../handbook/ERP-IMPORT.md) explains both.
+
 This document defines **where the MOTS Supplier Portal ends and ERPNext begins**: the source-of-truth
 split, the translation between the portal's rich domain and ERPNext's `buying` doctypes, the
 external-ID mapping strategy, and the non-negotiable principle that **the portal never blocks a core

@@ -12,8 +12,9 @@
 //   ErpStandingDecision      what the ERP's standing does to a supplier the portal already holds, and its notes
 // What this adds for the preview alone is the group and phone notes, the tax-number match, and the counts.
 //
-// ONE KIND OF SUPPLIER IS REFUSED: a probable rename, which ErpSyncPlan holds for a person and the run refuses the same
-// way. Every other gap is filled - a supplier with no email gets a placeholder, an unknown currency is left empty, and
+// TWO KINDS OF SUPPLIER ARE REFUSED, both decided by ErpSyncPlan and refused the same way by the run: a probable
+// rename, held for a person, and an ERP supplier the portal's own push created and has not linked yet, left to the
+// push. Every other gap is filled - a supplier with no email gets a placeholder, an unknown currency is left empty, and
 // one the ERP disables or has not approved arrives suspended. The run can also refuse a supplier whose address
 // already belongs to another account, which only the run checks, because only the run creates accounts.
 //
@@ -73,7 +74,9 @@ public sealed record ErpImportCandidateMatch(
     int AddressCount = 0,
     string? BlockedByState = null,
     SupplierErpDisabledState ErpDisabledState = SupplierErpDisabledState.NotDisabled,
-    bool AwaitsDocumentRenewal = false);
+    bool AwaitsDocumentRenewal = false,
+    bool PushedByPortal = false,
+    bool SeenByImport = true);
 
 public static class ErpImportPreviewBuilder
 {
@@ -92,7 +95,9 @@ public static class ErpImportPreviewBuilder
             IsActive: pair.Value.IsActive,
             SuspendedAsRemovedFromErp: pair.Value.SuspendedAsRemovedFromErp,
             MarkedRemovedFromErp: pair.Value.MarkedRemovedFromErp,
-            ErpDisabledState: pair.Value.ErpDisabledState))]);
+            ErpDisabledState: pair.Value.ErpDisabledState,
+            PushedByPortal: pair.Value.PushedByPortal,
+            SeenByImport: pair.Value.SeenByImport))]);
 
         var renamedFrom = plan.ProbableRenames.ToDictionary(r => r.NewExternalId, r => r, StringComparer.Ordinal);
 
@@ -101,9 +106,11 @@ public static class ErpImportPreviewBuilder
             registrationNumbersInPortal ?? new Dictionary<string, RegistrationNumberHolder>(StringComparer.Ordinal));
 
         var rows = erpSuppliers
-            .Select(supplier => renamedFrom.TryGetValue(supplier.ExternalId, out var rename)
-                ? ProbableRenameRow(supplier, rename)
-                : Row(supplier, byExternalId, unlinkedByTaxId, registrationNumbers[supplier.ExternalId], plan))
+            .Select(supplier => plan.IsHeldForPush(supplier.ExternalId)
+                ? HeldForPushRow(supplier)
+                : renamedFrom.TryGetValue(supplier.ExternalId, out var rename)
+                    ? ProbableRenameRow(supplier, rename)
+                    : Row(supplier, byExternalId, unlinkedByTaxId, registrationNumbers[supplier.ExternalId], plan))
             .ToList();
 
         rows.AddRange(plan.ToSuspend.Select(missing => new ErpImportPreviewRow(
@@ -134,6 +141,21 @@ public static class ErpImportPreviewBuilder
         + $"longer returns it) - they share {rename.Signal}. Not created, and {rename.ReferenceCode} was not "
         + "suspended: it carries on as before. The portal will not decide whether these are one company, because a "
         + "wrong guess would move one company's history onto another. Check with Seven Gates.";
+
+    // What a person is told about an ERP supplier the portal's own push created and has not linked yet, in the preview
+    // and in the run alike. It says it was not created and why, and where to look if it stays unlinked, because the
+    // push's own state is on the supplier's review page and nowhere in this report.
+    public const string HeldForPushNote =
+        "Created in the ERP by the portal's own push (the portal's API user owns it), and not carried by any portal "
+        + "supplier yet, so it is not imported: the push links it to the supplier it was made for on its next attempt. "
+        + "If it is still here after that, the supplier's ERP push on its review page says why.";
+
+    private static ErpImportPreviewRow HeldForPushRow(ErpSupplier supplier) => new(
+        supplier.ExternalId,
+        ErpImportAdmission.Admit(supplier).Name,
+        ErpImportAction.Refuse,
+        [HeldForPushNote],
+        null);
 
     private static ErpImportPreviewRow ProbableRenameRow(ErpSupplier supplier, ErpProbableRename rename) => new(
         supplier.ExternalId,
@@ -171,7 +193,7 @@ public static class ErpImportPreviewBuilder
                 standing: admitted.Standing,
                 turnedAway: admitted.TurnedAway,
                 documentsAllowRelease: !candidate.AwaitsDocumentRenewal,
-                planHoldsTurnedAway: plan.HoldsTurnedAway,
+                planHoldsTurnedAway: plan.HoldsTurnedAwayFor(supplier.ExternalId),
                 markedRemovedFromErp: candidate.MarkedRemovedFromErp);
 
         if (decision is null && admitted.ArrivalNote is not null)

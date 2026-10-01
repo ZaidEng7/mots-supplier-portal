@@ -20,12 +20,27 @@
 //
 // THE LAST TEST RESULT IS STORED rather than only shown. Somebody changes an address on Friday, tests it, and
 // leaves; the next person needs to know it was tested and what happened, not just that the fields look filled in.
+//
+// WRITING SUPPLIERS TO THE ERP IS OFF UNTIL SOMEBODY TURNS IT ON. CreateSuppliersInErp is the one switch for every
+// write the portal makes to the ERP's supplier records - creating an approved supplier there, with its address,
+// contact and website user - and it starts off, on the seeded row and on any new one. A write to somebody else's
+// system cannot be taken back from here: the ERP makes a second supplier for a second request, and removing one is
+// the ERP team's work. Reading does not depend on it; the import and the connection test run while it is off.
+//
+// DefaultSupplierGroup is the ERP supplier group that every supplier created from here is filed under: one group, set
+// once on this screen, and not one per currency, as the owner decided. The ERP requires a group on every supplier and
+// the portal's categories do not map to the ERP's groups, so the switch cannot be turned on without one.
 
 namespace MotsSupplierPortal.Domain.Integration;
+
+using MotsSupplierPortal.Domain.Suppliers;
 
 public sealed class IntegrationConnection
 {
     public const string ErpKey = "erp";
+
+    // An ERP supplier group is referred to by its record name, which the ERP stores in at most 140 characters.
+    public const int SupplierGroupMaxLength = 140;
 
     public Guid Id { get; private init; }
     public string Key { get; private init; } = null!;
@@ -43,6 +58,8 @@ public sealed class IntegrationConnection
     public DateTimeOffset? LastSyncAt { get; private set; }
     public IntegrationSyncOutcome? LastSyncOutcome { get; private set; }
     public string? LastSyncSummary { get; private set; }
+    public bool CreateSuppliersInErp { get; private set; }
+    public string? DefaultSupplierGroup { get; private set; }
 
     public bool IsConfiguredHere => !string.IsNullOrWhiteSpace(BaseUrl);
 
@@ -77,6 +94,35 @@ public sealed class IntegrationConnection
             SecretSetAt = DateTimeOffset.UtcNow;
         }
 
+        UpdatedAt = DateTimeOffset.UtcNow;
+        UpdatedByUserId = updatedByUserId;
+    }
+
+    // Switching the supplier writes on or off, with the group they file suppliers under.
+    //
+    // TURNING IT ON NEEDS A GROUP, because the ERP refuses a supplier without one and every create would fail on it.
+    // While the switch is off the group may be set or cleared, so it can be chosen before anything is written. A blank
+    // group is stored as none, and a name longer than the ERP could hold is refused rather than saved to fail later.
+    //
+    // It is recorded as a change to the connection, with who made it, because turning on writes to another system is
+    // the change somebody will later ask about.
+    public void SetSupplierCreation(bool createSuppliersInErp, string? defaultSupplierGroup, Guid updatedByUserId)
+    {
+        var group = string.IsNullOrWhiteSpace(defaultSupplierGroup) ? null : defaultSupplierGroup.Trim();
+
+        if (createSuppliersInErp && group is null)
+        {
+            throw new DomainException("Creating suppliers in the ERP needs a default ERP supplier group.");
+        }
+
+        if (group is { Length: > SupplierGroupMaxLength })
+        {
+            throw new DomainException(
+                $"An ERP supplier group's name is at most {SupplierGroupMaxLength} characters.");
+        }
+
+        CreateSuppliersInErp = createSuppliersInErp;
+        DefaultSupplierGroup = group;
         UpdatedAt = DateTimeOffset.UtcNow;
         UpdatedByUserId = updatedByUserId;
     }

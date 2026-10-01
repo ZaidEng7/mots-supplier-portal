@@ -226,4 +226,44 @@ public sealed class ErpImportPreviewBuilderTests
         report.Rows.Single(r => r.ExternalId == "B").Action.Should().Be(ErpImportAction.Suspend);
         report.Rows.Single(r => r.ExternalId == "C").Action.Should().Be(ErpImportAction.Suspend);
     }
+
+    // THE PORTAL'S OWN CREATE IS FORECAST AS THE RUN TREATS IT: refused with the note that says the push links it, and
+    // never a Create, which would have made a second portal supplier the push then posted past.
+    [Fact]
+    public void An_erp_supplier_the_portals_push_created_and_nobody_carries_would_be_held_for_the_push()
+    {
+        ErpSupplier[] sent = [Supplier(externalId: "SUP-2026-00042", taxId: null) with { CreatedByPortal = true }];
+
+        var report = ErpImportPreviewBuilder.Build(sent, NoMatches, NoUnlinked);
+
+        CountsAddUp(report, sent);
+        report.WouldCreate.Should().Be(0);
+        var row = report.Rows.Should().ContainSingle().Subject;
+        row.Action.Should().Be(ErpImportAction.Refuse);
+        row.Notes.Should().Equal(ErpImportPreviewBuilder.HeldForPushNote);
+    }
+
+    [Fact]
+    public void A_pushed_supplier_on_its_first_sighting_would_be_suspended_while_the_others_are_held_back()
+    {
+        var sent = Enumerable.Range(1, 20)
+            .Select(i => Supplier(externalId: $"S{i}", taxId: null) with
+            {
+                WorkflowState = i <= 6 ? "Pending Chief Accountant Approval" : null,
+            })
+            .Append(Supplier(externalId: "P1", taxId: null) with { WorkflowState = "Draft" })
+            .ToList();
+        var matches = sent.ToDictionary(
+            s => s.ExternalId,
+            s => new ErpImportCandidateMatch(
+                "REF-" + s.ExternalId, null, PushedByPortal: s.ExternalId == "P1", SeenByImport: s.ExternalId != "P1"));
+
+        var report = ErpImportPreviewBuilder.Build(sent, matches, NoUnlinked);
+
+        CountsAddUp(report, sent);
+        report.SuspensionsHeldBack.Should().Contain("6 it turned away");
+        report.Rows.Single(r => r.ExternalId == "P1").Action.Should().Be(
+            ErpImportAction.Suspend, "the run suspends it on its own, and the forecast says the same");
+        report.Rows.Single(r => r.ExternalId == "S1").Action.Should().Be(ErpImportAction.Update);
+    }
 }

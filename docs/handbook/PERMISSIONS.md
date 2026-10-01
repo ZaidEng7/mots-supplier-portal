@@ -15,7 +15,7 @@ either dead or waiting for a surface. Both are called out below.
 | Permission | Held by default | Gates |
 |---|---|---|
 | `admin.apiKeys.manage` | `system_admin` | `CreateApiKey`, `ListApiKeys`, `RevokeApiKey` |
-| `admin.integrations.manage` | `system_admin` | `ListIntegrations`, `TestIntegration`, `UpdateIntegration` |
+| `admin.integrations.manage` | `system_admin` | `ListErpSupplierGroups`, `ListIntegrations`, `RetryErpSupplierPush`, `TestIntegration`, `UpdateIntegration` |
 | `admin.organizations.manage` | `system_admin` | `AddOrgUnit`, `CreateOrganization`, `CreateSupplierOrgLink`, `ListOrganizations`, `ListSupplierOrgLinks`, `RemoveOrgUnit`, `RemoveSupplierOrgLink` |
 | `admin.roles.manage` | `system_admin` | `ListRoles`, `UpdateRolePermissions` |
 | `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteEmailTemplate`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListEmailTemplates`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertEmailTemplate`, `UpsertUiStringOverride` |

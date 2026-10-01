@@ -215,6 +215,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IApproveApplicationHandler, ApproveApplicationHandler>();
         builder.Services.AddScoped<IRejectApplicationHandler, RejectApplicationHandler>();
         builder.Services.AddScoped<ISupplierLifecycleHandler, SupplierLifecycleHandler>();
+        builder.Services.AddScoped<IRetryErpPushHandler, RetryErpPushHandler>();
         builder.Services.AddScoped<IRequestInfoHandler, RequestInfoHandler>();
         builder.Services.AddScoped<IResubmitApplicationHandler, ResubmitApplicationHandler>();
         builder.Services.AddScoped<IGetOwnActiveAnnotationHandler, GetOwnActiveAnnotationHandler>();
@@ -324,6 +325,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IRetryErpSyncHandler, RetryErpSyncHandler>();
         builder.Services.AddScoped<AwardErpSyncJob>();
         builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSyncJob>();
+        builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Integration.Erp.SupplierErpPushJob>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Governance.IGetMinistryAwardAnalyticsHandler, MotsSupplierPortal.Infrastructure.Governance.GetMinistryAwardAnalyticsHandler>();
     }
 
@@ -487,6 +489,9 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<
             MotsSupplierPortal.Application.Integration.ITestIntegrationHandler,
             MotsSupplierPortal.Infrastructure.Integration.TestIntegrationHandler>();
+        builder.Services.AddScoped<
+            MotsSupplierPortal.Application.Integration.IListErpSupplierGroupsHandler,
+            MotsSupplierPortal.Infrastructure.Integration.ListErpSupplierGroupsHandler>();
         builder.Services.AddHttpClient<
             MotsSupplierPortal.Infrastructure.Integration.Erp.IErpSupplierSourceProbe,
             MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSourceProbe>();
@@ -502,12 +507,16 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddValidatorsFromAssemblyContaining<RegisterSupplierRequestValidator>();
     }
 
-    // The ERP client is always registered, and decides at CALL time whether there is a connection to use.
+    // The ERP clients are always registered, and decide at CALL time whether there is a connection to use.
     //
-    // It used to be registered only when configuration said the ERP existed, which was reasonable while the
+    // They used to be registered only when configuration said the ERP existed, which was reasonable while the
     // address lived in configuration and became wrong the moment it moved into a table an administrator edits:
     // they would save an address and the application would carry on as though there were none until somebody
     // restarted it. The screen exists precisely to avoid that restart.
+    //
+    // The writer, which creates suppliers in the ERP, gives each call 30 seconds, the per-call limit the
+    // integration architecture sets; ErpSupplierRegistrar says why a create that runs past it is not sent again.
+    // The readers keep the client's default until somebody decides otherwise for the import.
     private static void AddErpSupplierSource(this WebApplicationBuilder builder)
     {
         builder.Services.AddScoped<MotsSupplierPortal.Infrastructure.Integration.SecretCipher>();
@@ -519,5 +528,11 @@ internal static class ApplicationHandlerRegistration
             .AddHttpClient<
                 MotsSupplierPortal.Application.Integration.IErpSupplierSource,
                 MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierSource>();
+
+        builder.Services
+            .AddHttpClient<
+                MotsSupplierPortal.Application.Integration.IErpSupplierRegistrar,
+                MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierRegistrar>(client =>
+                client.Timeout = MotsSupplierPortal.Infrastructure.Integration.Erp.ErpSupplierRegistrar.RequestTimeout);
     }
 }

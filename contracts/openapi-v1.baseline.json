@@ -1574,6 +1574,18 @@
           "baseUrl": {
             "type": "string"
           },
+          "createSuppliersInErp": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "defaultSupplierGroup": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "isEnabled": {
             "type": "boolean"
           }
@@ -2248,6 +2260,36 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "x-required-permissions": [
+          "admin.integrations.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/integrations/{key}/supplier-groups": {
+      "get": {
+        "description": "Requires the `admin.integrations.manage` permission.",
+        "operationId": "ListErpSupplierGroups",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK"
@@ -6011,6 +6053,36 @@
         ],
         "x-required-permissions": [
           "supplier.requestInfo"
+        ]
+      }
+    },
+    "/api/v1/review/{referenceCode}/retry-erp-push": {
+      "post": {
+        "description": "Requires the `admin.integrations.manage` permission.",
+        "operationId": "RetryErpSupplierPush",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "referenceCode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Review"
+        ],
+        "x-required-permissions": [
+          "admin.integrations.manage"
         ]
       }
     },

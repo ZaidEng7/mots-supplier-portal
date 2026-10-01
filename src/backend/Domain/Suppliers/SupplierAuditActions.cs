@@ -1,5 +1,6 @@
 // The audit actions the automatic paths write on a supplier's trail: the document expiry rule, the automatic
-// reinstatement, and the ERP import, whether a person starts it or the hourly sync does.
+// reinstatement, the ERP import, whether a person starts it or the hourly sync does, and the push that creates a
+// supplier approved here in the ERP.
 //
 // THESE VALUES ARE STORED IN THE AUDIT LOG AND READ BACK BY CODE, SO A VALUE IS NEVER RENAMED. AutomaticReinstatement
 // lifts a suspension only when the latest row that suspended the supplier carries AutoSuspended; renamed, every
@@ -45,4 +46,14 @@ public static class SupplierAuditActions
     // the ERP disables it instead.
     public const string ReactivatedApprovedInErp = "supplier.reactivated_approved_in_erp";
     public const string ErpReleaseWithdrawn = "supplier.erp_release_withdrawn";
+
+    // The push of a supplier that registered here into the ERP, written by SupplierErpPushJob with the system as the
+    // actor. ErpPushCreated is the ERP holding the Supplier record and the portal holding its name as ExternalId, whether
+    // this attempt created it or found the one an earlier attempt made. ErpPushCompleted is its address, contact and
+    // website user being there too. ErpPushAttemptFailed is one attempt that will be tried again, and ErpPushFailed is
+    // the push stopping until a person retries it; each carries what went wrong as its reason.
+    public const string ErpPushCreated = "supplier.erp_push_created";
+    public const string ErpPushCompleted = "supplier.erp_push_completed";
+    public const string ErpPushAttemptFailed = "supplier.erp_push_attempt_failed";
+    public const string ErpPushFailed = "supplier.erp_push_failed";
 }

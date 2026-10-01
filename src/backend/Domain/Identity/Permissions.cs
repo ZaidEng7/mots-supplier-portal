@@ -209,7 +209,9 @@
 // AdminIntegrationsManage covers where this product sends its outbound credentials - the address of another
 // ministry's server and the key that opens it. It is deliberately not AdminApiKeysManage, which is the mirror
 // image: keys other systems use to call US. Somebody who may issue a read-only feed key has not thereby been
-// trusted to point this product's credential at a server of their choosing.
+// trusted to point this product's credential at a server of their choosing. It also covers what that connection
+// writes: switching on the creation of suppliers in the ERP, and retrying a supplier's push there that failed,
+// which acts on the whole registry rather than on one organisation's rows.
 //
 // The system administrator holds everything in the catalogue.
 

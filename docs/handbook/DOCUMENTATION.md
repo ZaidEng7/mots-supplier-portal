@@ -180,8 +180,9 @@ claims it (`UnderReview`) and can approve it, reject it with a mandatory reason,
 information. Requesting information returns control to the supplier, who addresses the feedback and
 resubmits. That loop can repeat as many times as needed and every turn of it is audited.
 
-Approval moves the supplier to `Approved` and into the `Active` lifecycle, and queues an outbox event
-that will create the supplier master in the ERP when integration is switched on. After approval a
+Approval moves the supplier to `Approved` and into the `Active` lifecycle. For a supplier that
+registered in the portal, it also asks for the supplier to be created in the ERP, which a background job
+does once an administrator has switched that on. After approval a
 supplier can be suspended (reversibly, with a reason) and eventually deactivated. Suspended and
 deactivated suppliers cannot be invited to new RFQs or submit proposals.
 
@@ -833,10 +834,12 @@ The portal runs completely with the ERP unavailable, and pending syncs drain whe
 One inbound path exists: the supplier import. The ERP is the master for supplier data, so the import
 creates the ERP's suppliers in the portal, refreshes the fields the ERP owns, and suspends suppliers
 the ERP removes, disables or has not approved. It runs from the Supplier import screen and every hour
-as a scheduled job. Nothing else in the ERP can change the portal. The two outbound flows above still
-reach no ERP: a supplier's approval is handed to a transport that only writes a log line, and an award
-is given an invented purchase-order reference (`PO-STUB-...`) by a stub adapter and marked as synced. [ERP-IMPORT.md](ERP-IMPORT.md) explains the
-import for anyone changing it.
+as a scheduled job. Nothing else in the ERP can change the portal. The supplier flow above was built
+differently from its description: after approval, a supplier that registered in the portal is created in
+the ERP by a background job of its own rather than through the outbox, only once an administrator has
+switched it on, and it is created once and never updated. The award flow still reaches no ERP: an award
+is given an invented purchase-order reference (`PO-STUB-...`) by a stub adapter and marked as synced.
+[ERP-IMPORT.md](ERP-IMPORT.md) explains the import and the push for anyone changing them.
 
 ---
 

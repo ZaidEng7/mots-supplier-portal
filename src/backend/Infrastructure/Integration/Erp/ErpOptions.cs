@@ -19,6 +19,13 @@
 // ENABLED EXISTS SO THE TEST SUITE STAYS HERMETIC. Nothing here should reach out during a test run, and the
 // supplier import is not a control whose absence breaks anything, so switching it off is a legitimate
 // configuration rather than a failure.
+//
+// WRITEHOSTS LISTS THE ERP SERVERS THIS DEPLOYMENT MAY WRITE TO, AND IT IS EMPTY UNLESS SOMEBODY FILLS IT. The
+// supplier push creates records in somebody else's system of record, and the write switch on the connection is one
+// click on a screen: pointed at the wrong server, with the switch on, the portal would create suppliers there that only
+// the ERP team can remove. So a write also needs the server named here, in the deployment's own configuration, where a
+// screen cannot change it. An entry is a host ("9.160.105.219") or a host and port ("9.160.105.219:8001"). Reads are
+// never checked against it.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -34,4 +41,5 @@ public sealed class ErpOptions
     public required string ApiSecret { get; init; }
     public required string Company { get; init; }
     public string ServerTimeZone { get; init; } = DefaultTimeZone;
+    public string[] WriteHosts { get; init; } = [];
 }
