@@ -31,11 +31,14 @@
 //
 // A middleware hook, keyed by a header the test itself sets, runs strictly inside the server's request pipeline, so
 // the test's own work before and after the request is not counted. Work on other threads during the request still is,
-// and the biggest of it was the test client: it handed the whole file to the in-process server in one write, which
-// copies all of it into the connection's buffers at once. How much of that copy fell inside the server's window
-// depended on timing - none on a fast machine, 7 MB or 15 MB on CI's - and it twice failed main's build. So the client
-// sends the file in 16 KB pieces, as a browser does, and the connection's own back-pressure keeps its buffering small
-// whatever the timing. Each size is still measured three times and the smallest kept, for the rest of the noise.
+// and the biggest of it was the upload's own virus scan. The upload queues a scan job for the file it has just stored,
+// and jobs run in this same process, so on a slow machine the scan began reading the whole file before the request
+// had finished - counted as if the upload had held it. That failed main's build twice and this fix twice on CI, and it
+// was reproduced locally by loading every CPU core: two failures in three runs, at 6.8 MB and 4.9 MB of growth. So this
+// test's host records the scan job instead of running it; scanning happens after an upload by design, and the malware
+// tests below prove it still works. The client also sends the file in 16 KB pieces, as a browser does, so its own copy
+// into the in-process server stays small whatever the timing, and each size is measured three times with the smallest
+// kept, for whatever noise is left.
 //
 // That host is derived, with its own container, and it signs its own tokens with its own key material, so a token
 // minted against the shared fixture does not validate against it. Hence a second supplier registration here
@@ -105,6 +108,9 @@
 namespace MotsSupplierPortal.Tests.Integration.Documents;
 
 using System.Collections.Concurrent;
+using Hangfire;
+using Hangfire.Common;
+using Hangfire.States;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using System.Net;
@@ -122,6 +128,13 @@ using MotsSupplierPortal.Tests.Integration;
 file static class UploadAllocationProbe
 {
     public static readonly ConcurrentDictionary<string, long> Results = new();
+
+    public sealed class ScansNotRun : IBackgroundJobClient
+    {
+        public string Create(Job job, IState state) => Guid.NewGuid().ToString("N");
+
+        public bool ChangeState(string jobId, IState state, string expectedState) => true;
+    }
 
     public sealed class Filter : IStartupFilter
     {
@@ -329,7 +342,11 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
     public async Task Server_side_allocation_during_upload_does_not_scale_with_file_size()
     {
         await using var probeFactory = fixture.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, UploadAllocationProbe.Filter>()));
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<IStartupFilter, UploadAllocationProbe.Filter>();
+                services.AddSingleton<IBackgroundJobClient, UploadAllocationProbe.ScansNotRun>();
+            }));
         using var client = probeFactory.CreateClient();
 
         var email = $"itest-{Guid.NewGuid():N}@example.com";
