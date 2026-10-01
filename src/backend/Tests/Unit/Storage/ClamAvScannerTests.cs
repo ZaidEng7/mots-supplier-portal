@@ -16,6 +16,11 @@
 // THE NO-ANSWER TEST HOLDS THE CONNECTION OPEN until it is over, and requires the scan to give up well inside that. A
 // daemon that eventually hangs up would end the read on its own, so a version without the time limit passed this test
 // just more slowly - it guarded nothing.
+//
+// A CLIENT THAT HANGS UP EARLY ENDS THE FAKE DAEMON'S PART QUIETLY. On a slow machine the half-second limit can run out
+// while the scanner is still connecting or sending, and it hangs up. The fake daemon then stops instead of failing
+// with "unable to read beyond the end of the stream", which once turned main's build red although the scanner had
+// answered correctly: what each test checks is what the scanner reports, and a client that gave up reports it.
 
 namespace MotsSupplierPortal.Tests.Unit.Storage;
 
@@ -48,19 +53,36 @@ public sealed class ClamAvScannerTests
 
         var daemon = Task.Run(async () =>
         {
-            using var client = await listener.AcceptTcpClientAsync();
-            await using var stream = client.GetStream();
-
-            var command = new byte["zINSTREAM\0".Length];
-            await stream.ReadExactlyAsync(command);
-
-            var prefix = new byte[4];
-            while (true)
+            TcpClient client;
+            try
             {
-                await stream.ReadExactlyAsync(prefix);
-                var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(prefix);
-                if (length == 0) break;
-                await stream.ReadExactlyAsync(new byte[length]);
+                client = await listener.AcceptTcpClientAsync();
+            }
+            catch (Exception stopped) when (stopped is SocketException or ObjectDisposedException)
+            {
+                return;
+            }
+
+            using var connection = client;
+            await using var stream = connection.GetStream();
+
+            try
+            {
+                var command = new byte["zINSTREAM\0".Length];
+                await stream.ReadExactlyAsync(command);
+
+                var prefix = new byte[4];
+                while (true)
+                {
+                    await stream.ReadExactlyAsync(prefix);
+                    var length = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(prefix);
+                    if (length == 0) break;
+                    await stream.ReadExactlyAsync(new byte[length]);
+                }
+            }
+            catch (Exception hungUp) when (hungUp is EndOfStreamException or IOException)
+            {
+                return;
             }
 
             if (reply is null)

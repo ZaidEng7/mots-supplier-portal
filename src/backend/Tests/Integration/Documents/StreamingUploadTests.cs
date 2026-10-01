@@ -17,7 +17,11 @@
 // enough to absorb real fixed-size framework buffers and tight enough that the old behaviour, scaling by nearly
 // the full file size, would fail it outright.
 //
-// A warm-up request runs first so compilation and connection setup do not pollute the first real measurement.
+// A warm-up upload of the large size runs first, so compilation, connection setup and the first growth of the shared
+// buffer pools are not counted against either size. Then each size is measured three times and the smallest kept.
+// Anything else running in the process can only add to a measurement, never take from it, so the smallest is the
+// closest to the upload's own cost - and a handler that really held the whole file would still show it in every one.
+// A single measurement of each once turned main's build red with growth near the full size difference.
 //
 //
 // THE MEASUREMENT IS TAKEN INSIDE THE SERVER'S OWN PIPELINE
@@ -25,8 +29,16 @@
 // The counter is process-wide and the host runs in-process, so measuring around the client call would also count
 // the TEST's own client-side serialisation in the same window, which this fix was never responsible for.
 //
-// A middleware hook, keyed by a header the test itself sets, runs strictly inside the server's request pipeline
-// and isolates exactly the server-side work for one request from everything else in the process.
+// A middleware hook, keyed by a header the test itself sets, runs strictly inside the server's request pipeline, so
+// the test's own work before and after the request is not counted. Work on other threads during the request still is,
+// and the biggest of it was the upload's own virus scan. The upload queues a scan job for the file it has just stored,
+// and jobs run in this same process, so on a slow machine the scan began reading the whole file before the request
+// had finished - counted as if the upload had held it. That failed main's build twice and this fix twice on CI, and it
+// was reproduced locally by loading every CPU core: two failures in three runs, at 6.8 MB and 4.9 MB of growth. So this
+// test's host records the scan job instead of running it; scanning happens after an upload by design, and the malware
+// tests below prove it still works. The client also sends the file in 16 KB pieces, as a browser does, so its own copy
+// into the in-process server stays small whatever the timing, and each size is measured three times with the smallest
+// kept, for whatever noise is left.
 //
 // That host is derived, with its own container, and it signs its own tokens with its own key material, so a token
 // minted against the shared fixture does not validate against it. Hence a second supplier registration here
@@ -96,6 +108,9 @@
 namespace MotsSupplierPortal.Tests.Integration.Documents;
 
 using System.Collections.Concurrent;
+using Hangfire;
+using Hangfire.Common;
+using Hangfire.States;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Suppliers;
 using System.Net;
@@ -113,6 +128,13 @@ using MotsSupplierPortal.Tests.Integration;
 file static class UploadAllocationProbe
 {
     public static readonly ConcurrentDictionary<string, long> Results = new();
+
+    public sealed class ScansNotRun : IBackgroundJobClient
+    {
+        public string Create(Job job, IState state) => Guid.NewGuid().ToString("N");
+
+        public bool ChangeState(string jobId, IState state, string expectedState) => true;
+    }
 
     public sealed class Filter : IStartupFilter
     {
@@ -142,6 +164,8 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
 {
     private static readonly Guid TaxCertificateDocumentTypeId = UploadFixtures.TaxCertificateDocumentTypeId;
 
+    private const int ClientChunkBytes = 16 * 1024;
+
     private static byte[] BuildPdfOfSize(int totalBytes)
     {
         var bytes = new byte[totalBytes];
@@ -159,7 +183,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             { new StringContent(TaxCertificateDocumentTypeId.ToString()), "documentTypeId" },
             { new StringContent("2027-03-15"), "expiryDate" },
         };
-        var fileContent = new ByteArrayContent(fileBytes);
+        var fileContent = new StreamContent(new MemoryStream(fileBytes), ClientChunkBytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         content.Add(fileContent, "file", fileName);
         return content;
@@ -318,7 +342,11 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
     public async Task Server_side_allocation_during_upload_does_not_scale_with_file_size()
     {
         await using var probeFactory = fixture.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, UploadAllocationProbe.Filter>()));
+            builder.ConfigureServices(services =>
+            {
+                services.AddSingleton<IStartupFilter, UploadAllocationProbe.Filter>();
+                services.AddSingleton<IBackgroundJobClient, UploadAllocationProbe.ScansNotRun>();
+            }));
         using var client = probeFactory.CreateClient();
 
         var email = $"itest-{Guid.NewGuid():N}@example.com";
@@ -362,13 +390,16 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             return allocated;
         }
 
-        await MeasureAsync(1024);
+        async Task<long> LeastOfThreeAsync(int sizeBytes) =>
+            Math.Min(await MeasureAsync(sizeBytes), Math.Min(await MeasureAsync(sizeBytes), await MeasureAsync(sizeBytes)));
 
         const int small = 1 * 1024 * 1024;   // 1MB
         const int large = 18 * 1024 * 1024;  // 18MB - 17MB bigger than `small`
 
-        var smallAllocated = await MeasureAsync(small);
-        var largeAllocated = await MeasureAsync(large);
+        await MeasureAsync(large);
+
+        var smallAllocated = await LeastOfThreeAsync(small);
+        var largeAllocated = await LeastOfThreeAsync(large);
 
         var fileSizeDifference = large - small;
         var allocationGrowth = largeAllocated - smallAllocated;
