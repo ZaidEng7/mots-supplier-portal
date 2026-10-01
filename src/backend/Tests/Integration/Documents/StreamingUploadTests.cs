@@ -17,7 +17,11 @@
 // enough to absorb real fixed-size framework buffers and tight enough that the old behaviour, scaling by nearly
 // the full file size, would fail it outright.
 //
-// A warm-up request runs first so compilation and connection setup do not pollute the first real measurement.
+// A warm-up upload of the large size runs first, so compilation, connection setup and the first growth of the shared
+// buffer pools are not counted against either size. Then each size is measured three times and the smallest kept.
+// Anything else running in the process can only add to a measurement, never take from it, so the smallest is the
+// closest to the upload's own cost - and a handler that really held the whole file would still show it in every one.
+// A single measurement of each once turned main's build red with growth near the full size difference.
 //
 //
 // THE MEASUREMENT IS TAKEN INSIDE THE SERVER'S OWN PIPELINE
@@ -25,8 +29,10 @@
 // The counter is process-wide and the host runs in-process, so measuring around the client call would also count
 // the TEST's own client-side serialisation in the same window, which this fix was never responsible for.
 //
-// A middleware hook, keyed by a header the test itself sets, runs strictly inside the server's request pipeline
-// and isolates exactly the server-side work for one request from everything else in the process.
+// A middleware hook, keyed by a header the test itself sets, runs strictly inside the server's request pipeline, so
+// the test's own work before and after the request is not counted. Work on other threads during the request still is
+// - the test client writing the body into the in-process server, a background job - which is why each size is
+// measured three times and the smallest kept.
 //
 // That host is derived, with its own container, and it signs its own tokens with its own key material, so a token
 // minted against the shared fixture does not validate against it. Hence a second supplier registration here
@@ -362,13 +368,16 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             return allocated;
         }
 
-        await MeasureAsync(1024);
+        async Task<long> LeastOfThreeAsync(int sizeBytes) =>
+            Math.Min(await MeasureAsync(sizeBytes), Math.Min(await MeasureAsync(sizeBytes), await MeasureAsync(sizeBytes)));
 
         const int small = 1 * 1024 * 1024;   // 1MB
         const int large = 18 * 1024 * 1024;  // 18MB - 17MB bigger than `small`
 
-        var smallAllocated = await MeasureAsync(small);
-        var largeAllocated = await MeasureAsync(large);
+        await MeasureAsync(large);
+
+        var smallAllocated = await LeastOfThreeAsync(small);
+        var largeAllocated = await LeastOfThreeAsync(large);
 
         var fileSizeDifference = large - small;
         var allocationGrowth = largeAllocated - smallAllocated;
