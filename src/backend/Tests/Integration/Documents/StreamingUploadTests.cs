@@ -30,9 +30,12 @@
 // the TEST's own client-side serialisation in the same window, which this fix was never responsible for.
 //
 // A middleware hook, keyed by a header the test itself sets, runs strictly inside the server's request pipeline, so
-// the test's own work before and after the request is not counted. Work on other threads during the request still is
-// - the test client writing the body into the in-process server, a background job - which is why each size is
-// measured three times and the smallest kept.
+// the test's own work before and after the request is not counted. Work on other threads during the request still is,
+// and the biggest of it was the test client: it handed the whole file to the in-process server in one write, which
+// copies all of it into the connection's buffers at once. How much of that copy fell inside the server's window
+// depended on timing - none on a fast machine, 7 MB or 15 MB on CI's - and it twice failed main's build. So the client
+// sends the file in 16 KB pieces, as a browser does, and the connection's own back-pressure keeps its buffering small
+// whatever the timing. Each size is still measured three times and the smallest kept, for the rest of the noise.
 //
 // That host is derived, with its own container, and it signs its own tokens with its own key material, so a token
 // minted against the shared fixture does not validate against it. Hence a second supplier registration here
@@ -148,6 +151,8 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
 {
     private static readonly Guid TaxCertificateDocumentTypeId = UploadFixtures.TaxCertificateDocumentTypeId;
 
+    private const int ClientChunkBytes = 16 * 1024;
+
     private static byte[] BuildPdfOfSize(int totalBytes)
     {
         var bytes = new byte[totalBytes];
@@ -165,7 +170,7 @@ public sealed class StreamingUploadTests(PostgresApiFixture fixture)
             { new StringContent(TaxCertificateDocumentTypeId.ToString()), "documentTypeId" },
             { new StringContent("2027-03-15"), "expiryDate" },
         };
-        var fileContent = new ByteArrayContent(fileBytes);
+        var fileContent = new StreamContent(new MemoryStream(fileBytes), ClientChunkBytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
         content.Add(fileContent, "file", fileName);
         return content;
