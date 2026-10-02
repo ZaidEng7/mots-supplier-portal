@@ -1,7 +1,8 @@
-// T-080 with SCR-710 through 712: the five reference tables an administrator may edit.
+// T-080 with SCR-710 through 712: the six reference tables an administrator may edit.
 //
 // The table list is the same one the server accepts, so a typo is a refusal rather than a silent no-op against
-// the wrong table.
+// the wrong table. Incoterms was the sixth the server accepted and this list left out, so the Reference Data page
+// could neither show nor edit the eleven delivery terms a bid is matched against.
 //
 // Two flags live only on document types. The required flag is null on every other table rather than false,
 // because "this table has no such flag" and "this row has the flag off" are different facts. The award-critical
@@ -24,7 +25,7 @@
 import { apiFetch } from './auth'
 import { SupplierApiError } from './supplier'
 
-export const REFERENCE_TABLES = ['categories', 'document-types', 'currencies', 'units-of-measure', 'regions'] as const
+export const REFERENCE_TABLES = ['categories', 'document-types', 'currencies', 'units-of-measure', 'regions', 'incoterms'] as const
 export type ReferenceTable = (typeof REFERENCE_TABLES)[number]
 
 export interface ReferenceItem {

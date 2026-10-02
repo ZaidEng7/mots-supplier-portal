@@ -44,9 +44,14 @@
 // Checked here rather than left to the database, because a too-long code was answering with a server error from a
 // string-truncation failure, which tells an administrator nothing about what to fix.
 //
-// A standards code is upper-cased on the way in, because the standard's own codes are and a bid is matched against
+// An Incoterms code is upper-cased on the way in, because the standard's own codes are and a bid is matched against
 // them exactly. The same word in two cases naming two rows is the free-text problem this table exists to end,
 // arriving through the administration screen instead of the bid form.
+//
+// It is upper-cased ONCE, where each operation begins, and every later step uses that one value: the duplicate
+// check, the write, the audit row and the read-back. Upper-casing only the stored row made a new "dpu" save as DPU
+// and then answer not-found, because the read-back looked for "dpu"; a rename or deactivation sent as "dpu" missed
+// the row altogether; and the audit row named a code that no row carries.
 //
 //
 // THE DEFAULTS ON A NEW DOCUMENT TYPE, AND WHAT AN EDIT MUST NOT CLEAR
@@ -124,7 +129,7 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
     {
         if (!ReferenceTables.All.Contains(command.Table)) return new ReferenceDataResult.UnknownTable();
 
-        var code = command.Code.Trim();
+        var code = StoredCode(command.Table, command.Code.Trim());
         if (code.Length == 0) return new ReferenceDataResult.Invalid("A code is required.");
 
         var limit = MaxCodeLength(command.Table);
@@ -151,7 +156,7 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
                 db.Add(new Region { Id = Guid.CreateVersion7(), Code = code, NameAr = command.NameAr, NameEn = command.NameEn });
                 break;
             case ReferenceTables.Incoterms:
-                db.Add(new Incoterm { Id = Guid.CreateVersion7(), Code = code.ToUpperInvariant(), NameAr = command.NameAr, NameEn = command.NameEn });
+                db.Add(new Incoterm { Id = Guid.CreateVersion7(), Code = code, NameAr = command.NameAr, NameEn = command.NameEn });
                 break;
             case ReferenceTables.DocumentTypes:
                 db.Add(new DocumentType
@@ -175,7 +180,8 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
     {
         if (!ReferenceTables.All.Contains(command.Table)) return new ReferenceDataResult.UnknownTable();
 
-        var found = await ApplyAsync(command.Table, command.Code, item =>
+        var code = StoredCode(command.Table, command.Code);
+        var found = await ApplyAsync(command.Table, code, item =>
         {
             switch (item)
             {
@@ -197,17 +203,18 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         if (!found) return new ReferenceDataResult.NotFound();
 
         await auditLogger.LogAsync("ReferenceData", Guid.Empty, $"reference.{command.Table}.updated",
-            scope.UserId, referenceCode: command.Code, ct: ct);
+            scope.UserId, referenceCode: code, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        return await ReadBackAsync(command.Table, command.Code, ct);
+        return await ReadBackAsync(command.Table, code, ct);
     }
 
     public async Task<ReferenceDataResult> SetActiveAsync(SetReferenceItemActiveCommand command, CancellationToken ct)
     {
         if (!ReferenceTables.All.Contains(command.Table)) return new ReferenceDataResult.UnknownTable();
 
-        var found = await ApplyAsync(command.Table, command.Code, item =>
+        var code = StoredCode(command.Table, command.Code);
+        var found = await ApplyAsync(command.Table, code, item =>
         {
             switch (item)
             {
@@ -224,11 +231,14 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
 
         await auditLogger.LogAsync("ReferenceData", Guid.Empty,
             command.IsActive ? $"reference.{command.Table}.reactivated" : $"reference.{command.Table}.deactivated",
-            scope.UserId, referenceCode: command.Code, ct: ct);
+            scope.UserId, referenceCode: code, ct: ct);
         await db.SaveChangesAsync(ct);
 
-        return await ReadBackAsync(command.Table, command.Code, ct);
+        return await ReadBackAsync(command.Table, code, ct);
     }
+
+    private static string StoredCode(string table, string code) =>
+        table == ReferenceTables.Incoterms ? code.ToUpperInvariant() : code;
 
     private static int MaxCodeLength(string table) => table switch
     {
@@ -242,7 +252,7 @@ public sealed class ReferenceDataAdminHandler(AppDbContext db, IScopeContext sco
         ReferenceTables.Currencies => db.Set<Currency>().AnyAsync(c => c.Code == code, ct),
         ReferenceTables.UnitsOfMeasure => db.Set<UnitOfMeasure>().AnyAsync(u => u.Code == code, ct),
         ReferenceTables.Regions => db.Set<Region>().AnyAsync(r => r.Code == code, ct),
-        ReferenceTables.Incoterms => db.Set<Incoterm>().AnyAsync(i => i.Code == code.ToUpperInvariant(), ct),
+        ReferenceTables.Incoterms => db.Set<Incoterm>().AnyAsync(i => i.Code == code, ct),
         ReferenceTables.DocumentTypes => db.Set<DocumentType>().AnyAsync(d => d.Code == code, ct),
         _ => throw new UnreachableTableException(table),
     };
