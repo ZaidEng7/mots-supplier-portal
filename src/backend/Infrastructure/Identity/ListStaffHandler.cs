@@ -11,6 +11,9 @@
 //
 // The total is counted over the filtered set before the cursor narrows it, and only when asked for. Roles come
 // from the identity framework's own join table in one query for the page rather than one per row.
+//
+// Active sessions are counted the same way, one query for the page, and by sign-in rather than by token row:
+// ActiveSessionCounts holds that rule for every staff surface that shows the figure.
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
@@ -20,6 +23,7 @@ using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class ListStaffHandler(AppDbContext db) : IListStaffHandler
@@ -48,7 +52,6 @@ public sealed class ListStaffHandler(AppDbContext db) : IListStaffHandler
                 u.IsActive,
                 u.TwoFactorEnabled,
                 u.LockoutEnd,
-                ActiveSessions = db.RefreshTokens.Count(t => t.UserId == u.Id && t.RevokedAt == null),
             })
             .Take(pageSize + 1)
             .ToListAsync(ct);
@@ -64,11 +67,12 @@ public sealed class ListStaffHandler(AppDbContext db) : IListStaffHandler
         var roles = roleByUser
             .GroupBy(x => x.UserId)
             .ToDictionary(g => g.Key, g => g.First().Name);
+        var sessions = await ActiveSessionCounts.ByUserAsync(db, pageIds, ct);
 
         return ListEnvelope<StaffAccountDto>.Cursor(
             [.. items.Select(r => new StaffAccountDto(
                 r.Id, r.Email!, r.FullName, roles.GetValueOrDefault(r.Id), r.IsActive,
-                r.TwoFactorEnabled, r.LockoutEnd, r.ActiveSessions))],
+                r.TwoFactorEnabled, r.LockoutEnd, sessions.GetValueOrDefault(r.Id)))],
             hasMore,
             hasMore ? new SupplierUserCursor(items[^1].Email!, items[^1].Id).Encode() : null,
             pageSize,

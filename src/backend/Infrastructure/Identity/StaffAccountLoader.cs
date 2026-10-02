@@ -7,6 +7,9 @@
 // management permission, and for the same reason: the recovery path afterwards is a hand-written database
 // update, and a product that can lock every administrator out of itself through its own interface has a
 // defect.
+//
+// The read-back counts active sessions through ActiveSessionCounts, the same count the staff list shows, so the
+// figure an administrator sees after a change matches the one on the list behind it.
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
@@ -16,6 +19,7 @@ using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 internal static class StaffAccountLoader
@@ -26,9 +30,9 @@ internal static class StaffAccountLoader
     public static async Task<StaffAccountDto> ToDtoAsync(AppDbContext db, UserManager<AppUser> userManager, AppUser user, CancellationToken ct)
     {
         var role = (await userManager.GetRolesAsync(user)).FirstOrDefault();
-        var sessions = await db.RefreshTokens.CountAsync(t => t.UserId == user.Id && t.RevokedAt == null, ct);
+        var sessions = await ActiveSessionCounts.ByUserAsync(db, [user.Id], ct);
         return new StaffAccountDto(user.Id, user.Email!, user.FullName, role, user.IsActive,
-            user.TwoFactorEnabled, user.LockoutEnd, sessions);
+            user.TwoFactorEnabled, user.LockoutEnd, sessions.GetValueOrDefault(user.Id));
     }
 
     public static async Task<bool> WouldLeaveNoAdministratorAsync(
