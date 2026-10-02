@@ -15,7 +15,7 @@ either dead or waiting for a surface. Both are called out below.
 | Permission | Held by default | Gates |
 |---|---|---|
 | `admin.apiKeys.manage` | `system_admin` | `CreateApiKey`, `ListApiKeys`, `RevokeApiKey` |
-| `admin.integrations.manage` | `system_admin` | `ListErpSupplierGroups`, `ListIntegrations`, `RetryErpSupplierPush`, `TestIntegration`, `UpdateIntegration` |
+| `admin.integrations.manage` | `system_admin` | `ListErpSupplierGroups`, `ListIntegrations`, `RetryErpSupplierPush`, `TestIntegration`, `UpdateIntegration`, checked in RegistryWideAwardSends, not on a route |
 | `admin.organizations.manage` | `system_admin` | `AddOrgUnit`, `CreateOrganization`, `CreateSupplierOrgLink`, `ListOrganizations`, `ListSupplierOrgLinks`, `RemoveOrgUnit`, `RemoveSupplierOrgLink` |
 | `admin.roles.manage` | `system_admin` | `ListRoles`, `UpdateRolePermissions` |
 | `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteEmailTemplate`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListEmailTemplates`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertEmailTemplate`, `UpsertUiStringOverride` |
@@ -34,7 +34,7 @@ either dead or waiting for a surface. Both are called out below.
 | `evaluation.submit` | `evaluator`, `system_admin` | `SubmitEvaluatorScores` |
 | `evaluation.template.manage` | `procurement_manager`, `system_admin` | `ActivateEvaluationTemplate`, `AddCriterion`, `ArchiveEvaluationTemplate`, `CreateEvaluationTemplate`, `ForkEvaluationTemplate`, `RemoveCriterion`, `UpdateCriterion` |
 | `governance.read` | `ministry_viewer`, `system_admin` | `GetCategoryCoverage`, `GetGovernanceOverview`, `GetMinistryAwardAnalytics`, `GetMinistryRfqDetail`, `ListMinistryRfqs`, `ListMinistrySuppliers` |
-| `integration.retry` | `system_admin` | `RetryAwardErpSync`, checked in RetryErpSyncHandler, not on a route, checked in SystemStatusHandler, not on a route |
+| `integration.retry` | `system_admin` | `RetryAwardErpSync`, checked in RegistryWideAwardSends, not on a route, checked in SystemStatusHandler, not on a route |
 | `offering.search` | `procurement_manager`, `procurement_officer`, `system_admin` | `SearchBuyerOfferings`, checked in SearchHandler, not on a route |
 | `proposal.create` | `supplier_admin`, `supplier_user`, `system_admin` | `GetProposal`, `GetProposalByCode`, `ListMyProposals`, `StartProposal`, `SupplierDeclineInvitation`, `SupplierPostClarification` |
 | `proposal.decline` | `supplier_admin`, `system_admin` | `DeclineAwardOffer` |

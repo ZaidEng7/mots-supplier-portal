@@ -8,10 +8,15 @@
 //
 // THE PLATFORM ADMINISTRATOR'S SCOPE IS WIDE ON PURPOSE. They belong to no organisation, so neither of the
 // narrower scopes reaches them, and without their own the banner stayed silent for the one person whose
-// Operations page lists every award's send and who can retry it. A caller with neither a supplier nor an
-// organisation who holds integration.retry is told when any award in the registry has failed, which is no
-// more than that page already shows them. Having no organisation is not enough on its own: a reviewer or
-// the ministry's viewer has none either, and is told nothing.
+// Operations page lists every award's send and who can retry it. They are told when any award in the registry
+// has failed, which is no more than that page already shows them. Who they are is RegistryWideAwardSends, the
+// same rule the award's retry uses to serve across the registry: no supplier, no organisation,
+// integration.retry, and admin.integrations.manage. Having no organisation is not enough on its own: a
+// reviewer or the ministry's viewer has none either, and is told nothing, and neither is an account with no
+// organisation whose role was granted integration.retry and nothing more.
+//
+// The organisation is asked before the platform, so anybody with one is told about their own organisation's
+// awards only, whatever they hold.
 //
 // Not configured is not the same as degraded, and it is not shown to everybody. It means purchase orders are
 // not sent to the ERP in this environment: while the transport is the logging stand-in, an award's purchase
@@ -27,6 +32,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Platform;
 using MotsSupplierPortal.Domain.Awards;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Awards;
 using MotsSupplierPortal.Infrastructure.Notifications;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -50,7 +56,7 @@ public sealed class SystemStatusHandler(AppDbContext db, IScopeContext scope, IO
                 a => a.ErpSyncStatus == ErpSyncStatus.Failed
                      && db.Rfqs.Any(r => r.Id == a.RfqId && r.OrganizationId == organizationId), ct);
         }
-        else if (scope.HasPermission(Permissions.IntegrationRetry))
+        else if (RegistryWideAwardSends.AreServedTo(scope))
         {
             degraded = await db.Awards.AsNoTracking().AnyAsync(a => a.ErpSyncStatus == ErpSyncStatus.Failed, ct);
         }

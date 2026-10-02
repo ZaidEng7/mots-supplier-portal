@@ -12,16 +12,24 @@
 // putting the role back afterwards. The refused retry must leave the award failed, and the control is the manager of
 // the award's own organisation retrying the same award successfully.
 //
-// HAVING NO ORGANISATION IS NOT THE WHOLE TEST. The wider path also needs integration.retry, and it is never taken by a
-// supplier's account, which has no organisation either. The route refuses a caller without the permission before the
-// handler runs, so that rule can only be seen in the handler, and the supplier's case is asked there too rather than by
-// editing a role every supplier in the suite holds. Both must answer not found and leave the award failed. The control
-// is the same handler with a platform administrator's scope retrying the same award, so the two refusals are not
-// refusals of everything.
+// HAVING NO ORGANISATION IS NOT BEING THE PLATFORM ADMINISTRATOR. A procurement manager with no organisation can
+// exist, re-roled from a role that needs none before role changes refused that, or written by hand, and a deployment
+// may grant integration.retry to the procurement manager's role, so such an account must not be served across the
+// registry. The wider path needs admin.integrations.manage as well, the system administrator's alone by default. That
+// is tested through the real route by granting integration.retry to the procurement manager for the length of the
+// test, signing in a manager with no organisation, and retrying another organisation's award: not found, and the award
+// still failed. The control is the system administrator retrying the same award successfully straight after.
+//
+// THE REST OF THE RULE IS ASKED OF THE HANDLER. The wider path is never taken by a supplier's account, which has no
+// organisation either, nor by a caller with no organisation who lacks either permission, nor by a caller from another
+// organisation who holds both. The route refuses a caller without integration.retry before the handler runs, so those
+// rules can only be seen in the handler, and the supplier's case is asked there too rather than by editing a role
+// every supplier in the suite holds. Each must answer not found and leave the award failed. The control is the same
+// handler with a platform administrator's scope retrying the same award, so the refusals are not refusals of
+// everything.
 //
 // THE AWARDS COME FROM FailedAwardSeed, forced into a failed send rather than driven through approval, issue and a
-// failing adapter, and each is removed at the end of its test, so that no ERP sync job run elsewhere in the suite picks
-// up the Requested it was retried into.
+// failing adapter, and each is removed at the end of its test, as FailedAwardSeed explains.
 //
 // Nothing here calls an ERP.
 
@@ -49,6 +57,16 @@ public sealed class AwardErpSyncRetryTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.Awards.AsNoTracking().SingleAsync(a => a.Id == awardId);
+    }
+
+    private static async Task<string[]> PermissionsOfAsync(HttpClient admin, string role)
+    {
+        var roles = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/roles");
+        return roles.GetProperty("roles").EnumerateArray()
+            .Single(r => r.GetProperty("name").GetString() == role)
+            .GetProperty("permissions").EnumerateArray()
+            .Select(p => p.GetString()!)
+            .ToArray();
     }
 
     private async Task<List<MotsSupplierPortal.Domain.Audit.AuditLog>> RetriesAsync(Guid awardId)
@@ -96,12 +114,7 @@ public sealed class AwardErpSyncRetryTests(PostgresApiFixture fixture)
     {
         var (rfqCode, awardId, orgId) = await FailedAwardSeed.CreateAsync(fixture, "Retry Scoped");
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
-        var roles = await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/roles");
-        var original = roles.GetProperty("roles").EnumerateArray()
-            .Single(r => r.GetProperty("name").GetString() == Roles.ProcurementManager)
-            .GetProperty("permissions").EnumerateArray()
-            .Select(p => p.GetString()!)
-            .ToArray();
+        var original = await PermissionsOfAsync(admin, Roles.ProcurementManager);
 
         try
         {
@@ -139,6 +152,46 @@ public sealed class AwardErpSyncRetryTests(PostgresApiFixture fixture)
     }
 
     [Fact]
+    public async Task A_manager_with_no_organisation_granted_integration_retry_is_not_the_platform_administrator()
+    {
+        var (rfqCode, awardId, _) = await FailedAwardSeed.CreateAsync(fixture, "Retry Orgless");
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+        var original = await PermissionsOfAsync(admin, Roles.ProcurementManager);
+
+        try
+        {
+            var granted = await admin.PutAsJsonAsync(
+                $"/api/v1/admin/roles/{Roles.ProcurementManager}/permissions",
+                new { permissions = original.Append(Permissions.IntegrationRetry).Distinct().ToArray() });
+            granted.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var orgless = await StaffTestClient.CreateAsync(fixture, Roles.ProcurementManager, organizationId: null);
+
+            var refused = await orgless.PostAsync($"/api/v1/rfqs/{rfqCode}/award/retry-erp-sync", content: null);
+
+            refused.StatusCode.Should().Be(
+                HttpStatusCode.NotFound,
+                "no organisation and integration.retry is not the platform administrator, who also holds admin.integrations.manage");
+            (await ReadAsync(awardId)).ErpSyncStatus.Should().Be(ErpSyncStatus.Failed);
+            (await RetriesAsync(awardId)).Should().BeEmpty();
+
+            var retried = await admin.PostAsync($"/api/v1/rfqs/{rfqCode}/award/retry-erp-sync", content: null);
+
+            retried.StatusCode.Should().Be(HttpStatusCode.OK, "the system administrator is still served across the registry");
+            (await retried.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("erpSyncStatus").GetString()
+                .Should().Be("Requested");
+            (await ReadAsync(awardId)).ErpSyncStatus.Should().Be(ErpSyncStatus.Requested);
+        }
+        finally
+        {
+            var restored = await admin.PutAsJsonAsync(
+                $"/api/v1/admin/roles/{Roles.ProcurementManager}/permissions", new { permissions = original });
+            restored.StatusCode.Should().Be(HttpStatusCode.OK, "a role this test edited must be put back");
+            await FailedAwardSeed.RemoveAsync(fixture, awardId);
+        }
+    }
+
+    [Fact]
     public async Task A_tender_that_does_not_exist_is_not_found_for_the_system_administrator()
     {
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
@@ -149,16 +202,23 @@ public sealed class AwardErpSyncRetryTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task A_supplier_or_a_caller_without_integration_retry_is_not_served_across_the_registry()
+    public async Task A_supplier_or_a_caller_without_both_permissions_is_not_served_across_the_registry()
     {
         var (rfqCode, awardId, _) = await FailedAwardSeed.CreateAsync(fixture, "Retry Refused");
+        string[] both = [Permissions.IntegrationRetry, Permissions.AdminIntegrationsManage];
 
         try
         {
             var refusedScopes = new (string Who, IScopeContext Scope)[]
             {
-                ("a supplier's account granted integration.retry", new TestScope(supplierId: Guid.CreateVersion7(), retries: true)),
-                ("a caller with no organisation and no integration.retry", new TestScope(supplierId: null, retries: false)),
+                ("a supplier's account granted both", new TestScope(supplierId: Guid.CreateVersion7(), organizationId: null, both)),
+                ("a caller with no organisation and neither", new TestScope(supplierId: null, organizationId: null)),
+                ("a caller with no organisation and only integration.retry",
+                    new TestScope(supplierId: null, organizationId: null, Permissions.IntegrationRetry)),
+                ("a caller with no organisation and only admin.integrations.manage",
+                    new TestScope(supplierId: null, organizationId: null, Permissions.AdminIntegrationsManage)),
+                ("a caller from another organisation granted both",
+                    new TestScope(supplierId: null, organizationId: Guid.CreateVersion7(), both)),
             };
 
             foreach (var (who, refusedScope) in refusedScopes)
@@ -168,7 +228,7 @@ public sealed class AwardErpSyncRetryTests(PostgresApiFixture fixture)
                 (await ReadAsync(awardId)).ErpSyncStatus.Should().Be(ErpSyncStatus.Failed);
             }
 
-            (await RetryThroughTheHandlerAsync(new TestScope(supplierId: null, retries: true), rfqCode))
+            (await RetryThroughTheHandlerAsync(new TestScope(supplierId: null, organizationId: null, both), rfqCode))
                 .Should().BeOfType<AwardMutationResult.Success>("the same award is found for the platform administrator");
             (await ReadAsync(awardId)).ErpSyncStatus.Should().Be(ErpSyncStatus.Requested);
         }
@@ -188,12 +248,12 @@ public sealed class AwardErpSyncRetryTests(PostgresApiFixture fixture)
         return await handler.HandleAsync(new RetryErpSyncCommand(rfqCode), CancellationToken.None);
     }
 
-    private sealed class TestScope(Guid? supplierId, bool retries) : IScopeContext
+    private sealed class TestScope(Guid? supplierId, Guid? organizationId, params string[] permissions) : IScopeContext
     {
         public Guid? UserId { get; } = Guid.CreateVersion7();
         public Guid? SupplierId { get; } = supplierId;
-        public Guid? OrganizationId => null;
+        public Guid? OrganizationId { get; } = organizationId;
         public bool IsAuthenticated => true;
-        public bool HasPermission(string permission) => retries && permission == Permissions.IntegrationRetry;
+        public bool HasPermission(string permission) => permissions.Contains(permission, StringComparer.Ordinal);
     }
 }

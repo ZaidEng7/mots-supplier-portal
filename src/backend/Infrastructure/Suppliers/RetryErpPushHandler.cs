@@ -6,10 +6,11 @@
 // SupplierErpPushJob for this supplier after the commit, as approval does, so the push runs straight away rather than
 // at the next sweep. Whether that run writes anything is still the job's decision, by the connection's write switch.
 //
-// THE SUPPLIER IS FOUND BY ITS CODE ACROSS THE REGISTRY, NOT THROUGH AN ORGANISATION. The award's retry loads through
-// the caller's organisation, and a system administrator has none, so that loader answers not found for exactly the
-// person the permission is for. The push serves the deployment, and the route is gated by admin.integrations.manage,
-// which no organisation's role holds.
+// THE SUPPLIER IS FOUND BY ITS CODE ACROSS THE REGISTRY, NOT THROUGH AN ORGANISATION. A supplier belongs to no buying
+// body and the push serves the deployment, so there is no organisation to load it through, and the route is gated by
+// admin.integrations.manage, which no organisation's role holds. The award's retry is the other shape: it is scoped to
+// the caller's organisation when they have one, and serves across the registry only the platform administrator, who
+// has none and holds integration.retry and this same permission.
 //
 // IT SAVES THROUGH THE RECORD, AS EVERY PERSON'S CHANGE TO A SUPPLIER DOES, SO THE VERSION MOVES. The job's own
 // targeted updates move it too. A save that read the push before the retry, such as a reviewer's approval on a page

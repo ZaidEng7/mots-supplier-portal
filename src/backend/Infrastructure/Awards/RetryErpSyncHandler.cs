@@ -6,10 +6,12 @@
 // THE PLATFORM ADMINISTRATOR FINDS THE AWARD ACROSS THE REGISTRY, NOT THROUGH AN ORGANISATION. The shared loader looks
 // the tender up inside the caller's organisation, and the system administrator, the only role that holds
 // integration.retry by default, belongs to none, so the retry answered not found to exactly the person the Operations
-// page offers it to, on an award the same page had just listed. A caller with neither a supplier nor an organisation who
-// holds integration.retry is therefore served across the registry, as the supplier push's retry is. Anybody with an
-// organisation keeps the scoped load, so a deployment that grants integration.retry to an organisation's role still
-// retries only that organisation's awards, and a supplier's account never takes the wider path whatever it is granted.
+// page offers it to, on an award the same page had just listed. Who is served across the registry is decided by
+// RegistryWideAwardSends, the same rule the status banner asks: no supplier, no organisation, integration.retry, and
+// admin.integrations.manage, the permission the supplier push's retry is gated by. Having no organisation is not enough
+// on its own, because a reviewer or an evaluator has none either. Anybody with an organisation keeps the scoped load,
+// so a deployment that grants integration.retry to an organisation's role still retries only that organisation's
+// awards, and a supplier's account never takes the wider path whatever it is granted.
 
 namespace MotsSupplierPortal.Infrastructure.Awards;
 
@@ -34,7 +36,7 @@ public sealed class RetryErpSyncHandler(AppDbContext db, IScopeContext scope, IA
 {
     public async Task<AwardMutationResult> HandleAsync(RetryErpSyncCommand command, CancellationToken ct)
     {
-        var loaded = ServesThePlatform()
+        var loaded = RegistryWideAwardSends.AreServedTo(scope)
             ? await LoadAcrossTheRegistryAsync(command.RfqReferenceCode, ct)
             : await AwardLoader.LoadScopedAsync(db, scope, command.RfqReferenceCode, ct);
         if (loaded is null || loaded.Value.Award is null) return new AwardMutationResult.NotFoundOrOutOfScope();
@@ -54,9 +56,6 @@ public sealed class RetryErpSyncHandler(AppDbContext db, IScopeContext scope, IA
         await db.SaveChangesAsync(ct);
         return new AwardMutationResult.Success(AwardDtoMapper.ToDto(award, rfq.ReferenceCode, await AwardWinner.CodeAsync(db, award, ct)));
     }
-
-    private bool ServesThePlatform() =>
-        scope.SupplierId is null && scope.OrganizationId is null && scope.HasPermission(Permissions.IntegrationRetry);
 
     private async Task<(Rfq Rfq, Award? Award)?> LoadAcrossTheRegistryAsync(string rfqReferenceCode, CancellationToken ct)
     {

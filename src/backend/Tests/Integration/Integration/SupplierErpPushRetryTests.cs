@@ -1,15 +1,15 @@
 // A person starting again a push to the ERP that failed, and the reviewer's view of how far the push has got.
 //
-// THE SYSTEM ADMINISTRATOR IS THE CASE WORTH A TEST. The award's retry finds its award through the caller's
-// organisation, and a system administrator has none, so a retry built the same way would answer not found to exactly
-// the person the permission is for. The retry here is pressed by one, through the real route, and the trail must name
-// them rather than the system.
+// THE SYSTEM ADMINISTRATOR IS THE CASE WORTH A TEST. They belong to no organisation, so a retry that looked the
+// supplier up through the caller's organisation would answer not found to exactly the person the permission is for.
+// The retry here is pressed by one, through the real route, and the trail must name them rather than the system.
 //
 // THE PERMISSION IS admin.integrations.manage, NOT A REVIEWER'S AND NOT integration.retry. A reviewer reads the push's
 // state on the same page and may not start it again: that is a decision about the ERP connection, whose settings the
-// same permission guards. integration.retry retries an award's send through the caller's organisation, and a
-// deployment may grant it to an organisation's role; the push acts on the whole registry, so a role holding only that
-// is refused, which is tested by granting it to one.
+// same permission guards. integration.retry retries an award's send within the caller's organisation when they have
+// one, and across the registry only for the platform administrator, who also holds admin.integrations.manage; a
+// deployment may grant it to an organisation's role. The push acts on the whole registry, so a role holding only
+// integration.retry is refused, which is tested by granting it to one.
 //
 // A SUPPLIER OUT OF SERVICE IS NOT RETRIED. One a person suspended or deactivated is not created in the ERP, so a
 // retry of its failed push is refused with the domain's sentence.

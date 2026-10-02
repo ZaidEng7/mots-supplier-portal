@@ -7,6 +7,16 @@
 // removed first, which keeps that true rather than accumulating roles nobody can see.
 //
 //
+// A ROLE THAT NEEDS AN ORGANIZATION IS REFUSED FOR AN ACCOUNT WITH NONE
+//
+// The invitation refuses an officer or a manager without an organization, and this applies the same list,
+// Roles.RequiringAnOrganization, to the account being changed. Without it the rule could be walked around in two
+// steps: invite a reviewer, who needs no organization, then make them a manager. That account meets an empty product,
+// and it also looks to the award retry and the status banner like the platform administrator, who has no
+// organization either.
+// Re-assigning a role the account already holds changes nothing and is not refused.
+//
+//
 // TWO LOCKOUTS IT REFUSES
 //
 // Demoting yourself out of the administrator role is the same lockout as deactivating yourself, one step less
@@ -51,6 +61,11 @@ public sealed class ChangeStaffRoleHandler(
         if (current.Contains(command.Role))
         {
             return new StaffAccountResult.Success(await StaffAccountLoader.ToDtoAsync(db, userManager, user, ct));
+        }
+
+        if (user.OrganizationId is null && Roles.RequiringAnOrganization.Contains(command.Role, StringComparer.Ordinal))
+        {
+            return new StaffAccountResult.OrganizationRequired(command.Role);
         }
 
         if (user.Id == scope.UserId && current.Contains(Roles.SystemAdmin) && command.Role != Roles.SystemAdmin)

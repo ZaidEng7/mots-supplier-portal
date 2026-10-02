@@ -451,9 +451,10 @@ Paths are under `src/backend` unless they start with `src/frontend`.
   30-second timeout (`ErpSupplierRegistrar.RequestTimeout`).
 - `Api/Endpoints/ReviewEndpoints.cs`: `POST /api/v1/review/{referenceCode}/retry-erp-push`
   (`RetryErpSupplierPush`), behind `admin.integrations.manage`, which only `system_admin` holds by
-  default. It is not behind `integration.retry`: that permission retries an award's send through the
-  caller's organisation, and a deployment may grant it to an organisation's role, while the push is one
-  queue for the whole registry (§8.7).
+  default. It is not behind `integration.retry`: that permission retries an award's send within the
+  caller's organisation when they have one, and across the registry only for the platform administrator,
+  who has no organisation and also holds `admin.integrations.manage`. A deployment may grant it to an
+  organisation's role, while the push is one queue for the whole registry (§8.7).
 - `Api/Endpoints/IntegrationEndpoints.cs`: `GET /api/v1/admin/integrations/{key}/supplier-groups`
   (`ListErpSupplierGroups`), and the switch and the group on `PUT /api/v1/admin/integrations/{key}`,
   both behind `admin.integrations.manage`.
@@ -714,8 +715,9 @@ The scheduler never retries a run (`AutomaticRetry(Attempts = 0)`), because the 
 **A failed push waits for a person.** The job never picks up a `Failed` push by itself. **Retry** on the
 review page posts to `/api/v1/review/{referenceCode}/retry-erp-push`, behind `admin.integrations.manage`,
 the permission of Connected systems, where the push is switched on. It is not a reviewer's decision, and
-not `integration.retry`, which retries an award's send through the caller's organisation and may be
-granted to an organisation's role, while the push serves the whole registry. `RetryErpPushHandler`
+not `integration.retry`, which retries an award's send within the caller's organisation when they have one
+(across the registry only for the platform administrator, who also holds `admin.integrations.manage`) and
+may be granted to an organisation's role, while the push serves the whole registry. `RetryErpPushHandler`
 finds the supplier by its code across the registry, not through an organisation. The retry moves the
 push back to `Requested`, or to `Linked` when there is an `ExternalId`, restarts the count, and makes the
 next attempt due now. It saves through the record, which moves the version (§8.3). It writes

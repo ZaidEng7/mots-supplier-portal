@@ -5,9 +5,9 @@
 // The retry and the status banner care about the send's state, not about how the award got there.
 //
 // IT IS REMOVED AT THE END OF EVERY TEST THAT MAKES ONE. The database is shared by every integration class: an award
-// left failed would turn another class's status read degraded, and one a test retried would sit in Requested for the
-// next ERP sync job run elsewhere to pick up against a tender that was never awarded. Remove deletes the row, so a test
-// calls it in a finally whatever state it left the award in.
+// left failed would turn another class's status read degraded, and any award left behind, failed or retried, would
+// move counts read across the whole registry, such as the ERP sync monitor's. Remove deletes the row, so a test calls
+// it in a finally whatever state it left the award in.
 
 namespace MotsSupplierPortal.Tests.Integration;
 

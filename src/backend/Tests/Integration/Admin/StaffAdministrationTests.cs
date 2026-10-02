@@ -36,6 +36,14 @@
 // role on an account with no SupplierId is a broken account - InviteStaffHandler's own reasoning, from the
 // other side.
 //
+// A role change cannot go around the invitation's organisation rule. An evaluator invited without an
+// organisation, which that role allows, is refused the officer's and the manager's role with the same
+// field-level failure the invitation gives, and keeps the role it had, with no change on the trail. Such an
+// account would meet an empty product, and with no organisation it would also look like the platform
+// administrator to the award retry and the status banner. The control is an evaluator invited WITH an
+// organisation, made a manager by the same request, so the refusal is about the missing organisation rather
+// than about leaving the evaluator's role.
+//
 // Acting on your own account is refused for deactivation, for a demotion out of system_admin and for an
 // MFA reset, because each one would leave the actor outside the surface that could undo it. The control
 // proves those three are about SELF rather than about system_admin: another administrator can be
@@ -243,6 +251,46 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
 
         (await admin.PutAsJsonAsync($"/api/v1/staff/{invitedId}/role", new { role = Roles.SupplierAdmin }))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task A_role_that_needs_an_organisation_is_refused_for_an_account_with_none()
+    {
+        var admin = await AdminAsync();
+        var orglessId = await InviteAsync(admin, Roles.Evaluator);
+
+        foreach (var role in new[] { Roles.ProcurementManager, Roles.ProcurementOfficer })
+        {
+            var refused = await admin.PutAsJsonAsync($"/api/v1/staff/{orglessId}/role", new { role });
+
+            refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+            var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
+            problem.GetProperty("code").GetString().Should().Be("VALIDATION_FAILED");
+            var error = problem.GetProperty("errors").EnumerateArray().Should().ContainSingle().Subject;
+            error.GetProperty("field").GetString().Should().Be("organizationId");
+            error.GetProperty("code").GetString().Should().Be(
+                "ORGANIZATION_REQUIRED", $"a '{role}' needs an organisation, as the invitation says of one");
+        }
+
+        await using (var check = fixture.Services.CreateAsyncScope())
+        {
+            var userManager = check.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var user = await userManager.FindByIdAsync(orglessId.ToString());
+            (await userManager.GetRolesAsync(user!)).Should().BeEquivalentTo([Roles.Evaluator], "a refused change changes nothing");
+
+            var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.AuditLogs.AsNoTracking().AnyAsync(a => a.AggregateId == orglessId && a.Action == "staff_role_changed"))
+                .Should().BeFalse("nothing changed, so the trail has nothing to record");
+        }
+
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var withOrgId = await InviteAsync(admin, Roles.Evaluator, org.Id);
+
+        var changed = await admin.PutAsJsonAsync($"/api/v1/staff/{withOrgId}/role", new { role = Roles.ProcurementManager });
+
+        changed.StatusCode.Should().Be(HttpStatusCode.OK, await changed.Content.ReadAsStringAsync());
+        (await changed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("role").GetString()
+            .Should().Be(Roles.ProcurementManager, "the same change is allowed for an account that has an organisation");
     }
 
     [Fact]
