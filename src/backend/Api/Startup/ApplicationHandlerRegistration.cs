@@ -409,6 +409,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<IListSessionsHandler, ListSessionsHandler>();
         builder.Services.AddScoped<IRevokeSessionHandler, RevokeSessionHandler>();
         builder.Services.AddScoped<IRevokeAllSessionsHandler, RevokeAllSessionsHandler>();
+        builder.Services.AddScoped<ILogoutHandler, LogoutHandler>();
         builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
         builder.Services.AddScoped<PermissionResolver>();
     }

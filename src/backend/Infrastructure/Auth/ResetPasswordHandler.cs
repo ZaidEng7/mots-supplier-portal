@@ -6,6 +6,9 @@
 // Every existing session is invalidated on success. Resetting a password must not leave old sessions alive,
 // because the person holding one may be who the reset is protecting against.
 //
+// The audit row is added before the save that revokes those sessions, so the two are one write. It used to be
+// added after that save, and with nothing saving again it was dropped.
+//
 // A token error from the framework is reported as an invalid link rather than as a weak password, so the caller
 // is told which of the two actually happened.
 
@@ -56,9 +59,9 @@ public sealed class ResetPasswordHandler(
         {
             session.RevokedAt = DateTimeOffset.UtcNow;
         }
-        await db.SaveChangesAsync(ct);
 
         await auditLogger.LogAsync("User", user.Id, "password_reset", user.Id, user.FullName, ct: ct);
+        await db.SaveChangesAsync(ct);
 
         return new ResetPasswordResult.Success();
     }

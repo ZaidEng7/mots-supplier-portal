@@ -502,7 +502,10 @@ Bad credentials → `401` (`TOKEN_INVALID` / generic message, no account enumera
 #### `POST /auth/refresh` — rotating refresh
 
 No body; sends the refresh cookie. Response `200 OK` returns a new `accessToken` (and rotates the refresh
-cookie). Reused/rotated token → `401` (`TOKEN_INVALID`) **and** family revocation (theft response).
+cookie). A token rotated away more than 10 seconds earlier → `401` (`TOKEN_INVALID`) **and** family revocation
+(theft response, recorded as `refresh_reuse_detected`). A token rotated away within the last 10 seconds, which is a
+second request from the same browser → `401` with the family and the cookie left alone. An expired or revoked token
+→ `401`, cookie cleared, nothing else revoked.
 
 #### `POST /auth/logout`
 

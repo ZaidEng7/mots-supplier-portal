@@ -32,6 +32,22 @@
 //
 // The refresh path re-issues against an already-established session rather than re-authenticating, so it
 // defaults to password-only rather than claiming a factor it did not see.
+//
+//
+// EVERY AUDITED OUTCOME IS SAVED, AND ONCE
+//
+// The audit logger only adds a row; saving it is the caller's job. Every refusal here used to add its row and
+// return without a save, so a failed password, a lockout, a wrong second-factor code and a refusal for a missing
+// enrolment were written to memory and dropped with the request. Each of them now saves the row it adds.
+//
+// A successful sign-in used to save the new session first and add its row afterwards, so that row was dropped
+// too. Issuing a session now only adds the token, and the sign-in adds its row and saves both together, so a
+// session is never stored without the record that it was opened, and the record is written exactly once. The
+// refresh path shares the issuing step and saves the rotation in one write of its own.
+//
+// The refresh path also passes the instant it retired the old token, and the new token is created at that same
+// instant. That shared timestamp is how a later refusal tells a token that was rotated away from one that was
+// revoked outright: only a rotated token has a successor in its family created no earlier than its revocation.
 
 namespace MotsSupplierPortal.Infrastructure.Auth;
 
@@ -39,6 +55,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
@@ -68,13 +85,13 @@ public sealed class LoginHandler(
 
         if (checkResult.IsLockedOut)
         {
-            await auditLogger.LogAsync("User", user.Id, "login_locked_out", user.Id, user.FullName, ct: ct);
+            await AuditAndSaveAsync(user, SessionAuditActions.LoginLockedOut, ct);
             return new LoginResult.LockedOut();
         }
 
         if (!checkResult.Succeeded)
         {
-            await auditLogger.LogAsync("User", user.Id, "login_failed", user.Id, user.FullName, ct: ct);
+            await AuditAndSaveAsync(user, SessionAuditActions.LoginFailed, ct);
             return new LoginResult.InvalidCredentials();
         }
 
@@ -93,7 +110,7 @@ public sealed class LoginHandler(
 
         if (mfaMandatoryForRole && !user.TwoFactorEnabled)
         {
-            await auditLogger.LogAsync("User", user.Id, "login_blocked_mfa_enrollment_required", user.Id, user.FullName, ct: ct);
+            await AuditAndSaveAsync(user, SessionAuditActions.LoginBlockedMfaEnrollmentRequired, ct);
             return new LoginResult.MfaEnrollmentRequired();
         }
 
@@ -108,7 +125,7 @@ public sealed class LoginHandler(
 
             if (!await VerifySecondFactorAsync(user, command.TotpCode))
             {
-                await auditLogger.LogAsync("User", user.Id, "login_mfa_failed", user.Id, user.FullName, ct: ct);
+                await AuditAndSaveAsync(user, SessionAuditActions.LoginMfaFailed, ct);
                 return new LoginResult.MfaInvalid();
             }
 
@@ -116,10 +133,15 @@ public sealed class LoginHandler(
         }
 
         var tokens = await IssueTokenPairAsync(user, familyId: Guid.CreateVersion7(), command.Ip, command.UserAgent, ct, factors);
-
-        await auditLogger.LogAsync("User", user.Id, "login_succeeded", user.Id, user.FullName, ct: ct);
+        await AuditAndSaveAsync(user, SessionAuditActions.LoginSucceeded, ct);
 
         return new LoginResult.Success(tokens);
+    }
+
+    private async Task AuditAndSaveAsync(AppUser user, string action, CancellationToken ct)
+    {
+        await auditLogger.LogAsync("User", user.Id, action, user.Id, user.FullName, ct: ct);
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task<bool> VerifySecondFactorAsync(AppUser user, string code)
@@ -137,12 +159,15 @@ public sealed class LoginHandler(
     private bool RequiresMfa(string role) =>
         _mfaRequiredRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
 
-    internal async Task<TokenPair> IssueTokenPairAsync(AppUser user, Guid familyId, string? ip, string? userAgent, CancellationToken ct, IReadOnlyList<string>? authMethods = null)
+    internal async Task<TokenPair> IssueTokenPairAsync(
+        AppUser user, Guid familyId, string? ip, string? userAgent, CancellationToken ct,
+        IReadOnlyList<string>? authMethods = null, DateTimeOffset? issuedAt = null)
     {
         var permissions = await permissionResolver.ResolveAsync(user);
         var roles = await identityProvider.GetRolesAsync(user);
         var access = jwtTokenService.IssueAccessToken(user.Id, user.Email!, user.SupplierId, user.OrganizationId, roles, permissions, authMethods ?? ["pwd"]);
 
+        var createdAt = issuedAt ?? DateTimeOffset.UtcNow;
         var refreshPlainText = TokenHasher.GenerateOpaqueToken();
         db.RefreshTokens.Add(new Domain.Identity.RefreshToken
         {
@@ -150,12 +175,11 @@ public sealed class LoginHandler(
             UserId = user.Id,
             TokenHash = TokenHasher.Hash(refreshPlainText),
             FamilyId = familyId,
-            CreatedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(_jwtOptions.RefreshTokenDays),
+            CreatedAt = createdAt,
+            ExpiresAt = createdAt.AddDays(_jwtOptions.RefreshTokenDays),
             Ip = ip,
             UserAgent = userAgent,
         });
-        await db.SaveChangesAsync(ct);
 
         return new TokenPair(access.Token, access.ExpiresAt, refreshPlainText);
     }

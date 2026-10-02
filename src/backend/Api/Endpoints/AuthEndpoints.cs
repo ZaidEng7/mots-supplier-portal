@@ -56,6 +56,21 @@
 // shared constant, not the flags, is what these calls depend on for correctness.
 //
 //
+// SIGNING OUT ENDS THE SESSION ON THE SERVER TOO
+//
+// Deleting the cookie only forgets the session in this browser. Signing out also revokes the session the cookie
+// belongs to, so a copy of the cookie stops working and the session leaves the person's list. It still answers
+// 204 with no cookie or an unknown one, because from the browser's side there is nothing to refuse.
+//
+//
+// ONE REFRESH REFUSAL LEAVES THE COOKIE ALONE
+//
+// A refresh refused as superseded lost a race with another request carrying the same cookie, and that other
+// request has rotated the session and set the successor in the browser. Clearing the cookie on this answer could
+// land after that and delete the successor, signing out the tab that won. Every other refusal clears it, because
+// the token in it is dead.
+//
+//
 // RATE LIMITS
 //
 // Signing in, forgotten password and changing a password each carry a per-target limit on top of the
@@ -259,14 +274,18 @@ public static class AuthEndpoints
                 RefreshTokenResult.Success s => LoginOk(httpContext, s.Tokens),
                 RefreshTokenResult.ReuseDetected => ClearAndUnauthorized(httpContext),
                 RefreshTokenResult.Invalid => ClearAndUnauthorized(httpContext),
+                RefreshTokenResult.Superseded => Results.Unauthorized(),
                 _ => Results.Problem(),
             };
         })
         .WithName("RefreshToken")
         .AllowAnonymous();
 
-        group.MapPost("/logout", (HttpContext httpContext) =>
+        group.MapPost("/logout", async (HttpContext httpContext, ILogoutHandler handler, CancellationToken ct) =>
         {
+            httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken);
+            await handler.HandleAsync(refreshToken, ct);
+
             httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
             return Results.NoContent();
         })
