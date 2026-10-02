@@ -1,8 +1,9 @@
 // SCR-045: what the chrome banner is allowed to say.
 //
 // Row-scoped server-side: a supplier is told only about their own award's sync, buyer staff only about their own
-// organization's, and "no ERP configured at all" only reaches callers who could act on it. The client asks one
-// question and the server decides what this caller may know.
+// organization's, and the platform administrator, who has no organization, about any award's. That purchase orders are
+// not sent to the ERP in this environment only reaches callers who could act on it. The client asks one question and
+// the server decides what this caller may know.
 
 import { apiFetch } from './auth'
 

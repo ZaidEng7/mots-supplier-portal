@@ -15,6 +15,11 @@
 // Degraded wins when both conditions are true: an actual failed sync is the more urgent of the two, and stacking two
 // banners in chrome is how chrome stops being read. It is role="status" rather than "alert", because the inventory's
 // own wording is non-blocking, so it should not interrupt a screen reader mid-sentence.
+//
+// NOT CONFIGURED SAYS PURCHASE ORDERS ARE NOT SENT TO THE ERP, AND NO MORE. It used to say no real ERP integration was
+// configured at all, which stopped being true when the portal began reading its suppliers from the ERP every hour and,
+// once switched on, creating approved ones there: an administrator was told there was no ERP on the very screen that
+// imports from it. What the flag still means is that an award's purchase order goes to a stand-in that only logs it.
 
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
