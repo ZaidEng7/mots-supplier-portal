@@ -11,6 +11,14 @@
 // THE CONTROL runs the same job with a scanner that answers clean, and requires the document to reach review. Without
 // it, a job that threw on every answer would pass the outage test.
 //
+// A SECOND RUN OF THE JOB LEAVES A DOCUMENT IT ALREADY SCANNED ALONE. Failing is what makes the job server run the job
+// again, and it runs any job at least once rather than exactly once, so a run can meet a document that is no longer
+// pending. These scan a document once and then again with a scanner that counts its calls. The second run has to
+// finish without asking the scanner, and leave the document's state, its storage key and its file's bytes as the
+// first run left them. The second answer is clean and then infected for a document scanned clean, and clean for a
+// document refused. The first version asked the scanner and then failed every time: the move of a clean file onto
+// itself, the refusal of a document in review, and the read of a refused document's deleted file all threw.
+//
 // A TENDER OR BID FILE ASKED FOR DURING AN OUTAGE ANSWERS 503 AND STAYS PENDING. Those files are scanned when first
 // downloaded rather than by a job, so the outage reaches the reader directly: a 404 would tell a supplier the tender
 // specification is gone. These run through the API on a host whose scanner cannot answer, and the control is the same
@@ -28,6 +36,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
@@ -43,7 +52,15 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
 {
     private sealed class FixedScanner(ScanOutcome outcome) : IVirusScanner
     {
-        public Task<ScanOutcome> ScanAsync(Stream content, CancellationToken ct) => Task.FromResult(outcome);
+        private int _calls;
+
+        public int Calls => _calls;
+
+        public Task<ScanOutcome> ScanAsync(Stream content, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult(outcome);
+        }
     }
 
     private async Task<(Guid DocumentId, string Key)> PendingDocumentAsync()
@@ -73,14 +90,17 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
         return (document.Id, key);
     }
 
-    private async Task RunScanAsync(Guid documentId, ScanOutcome outcome)
+    private Task RunScanAsync(Guid documentId, ScanOutcome outcome) => RunScanAsync(documentId, new FixedScanner(outcome));
+
+    private async Task RunScanAsync(Guid documentId, IVirusScanner scanner)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var job = new DocumentScanJob(
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             scope.ServiceProvider.GetRequiredService<IFileStorage>(),
-            new FixedScanner(outcome),
-            scope.ServiceProvider.GetRequiredService<IAuditLogger>());
+            scanner,
+            scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+            NullLogger<DocumentScanJob>.Instance);
 
         await job.ScanAsync(documentId, CancellationToken.None);
     }
@@ -90,6 +110,37 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.SupplierDocuments.AsNoTracking().Where(d => d.Id == documentId).Select(d => d.State).SingleAsync();
+    }
+
+    private async Task<(DocumentState State, string StorageKey)> StoredAsync(Guid documentId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.SupplierDocuments.AsNoTracking().Where(d => d.Id == documentId)
+            .Select(d => new { d.State, d.StorageKey }).SingleAsync();
+        return (row.State, row.StorageKey);
+    }
+
+    private async Task<string> ContentAtAsync(string key)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        await using var content = await storage.OpenReadAsync(key, CancellationToken.None);
+        return await new StreamReader(content).ReadToEndAsync();
+    }
+
+    // The scan tests leave nothing behind for the classes that run after them: the document row goes, and so does
+    // whatever file it still points at. The supplier stays, under its own unique name, like every supplier a test
+    // makes.
+    private async Task ForgetAsync(Guid documentId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        var (_, key) = await StoredAsync(documentId);
+
+        await storage.DeleteAsync(key, CancellationToken.None);
+        await db.SupplierDocuments.Where(d => d.Id == documentId).ExecuteDeleteAsync();
     }
 
     // Each host makes its own signing key when none is configured, so a token issued by the fixture is refused by a
@@ -186,6 +237,52 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
         await RunScanAsync(documentId, ScanOutcome.Clean);
 
         (await StateOfAsync(documentId)).Should().Be(DocumentState.UnderReview);
+    }
+
+    [Theory]
+    [InlineData(ScanOutcome.Clean)]
+    [InlineData(ScanOutcome.Infected)]
+    public async Task A_second_scan_of_a_document_already_scanned_clean_changes_nothing(ScanOutcome secondAnswer)
+    {
+        var (documentId, _) = await PendingDocumentAsync();
+        try
+        {
+            await RunScanAsync(documentId, ScanOutcome.Clean);
+            var scanned = await StoredAsync(documentId);
+            scanned.State.Should().Be(DocumentState.UnderReview, "the first run scans it clean");
+            var scanner = new FixedScanner(secondAnswer);
+
+            await RunScanAsync(documentId, scanner);
+
+            scanner.Calls.Should().Be(0, "a document that is no longer pending is not scanned again");
+            (await StoredAsync(documentId)).Should().Be(scanned, "the second run leaves the document as the first left it");
+            (await ContentAtAsync(scanned.StorageKey)).Should().Be(
+                "%PDF-1.4 renewed licence", "the second run leaves the supplier's scanned file where it is");
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
+    }
+
+    [Fact]
+    public async Task A_second_scan_of_a_refused_document_changes_nothing()
+    {
+        var (documentId, _) = await PendingDocumentAsync();
+        try
+        {
+            await RunScanAsync(documentId, ScanOutcome.Infected);
+            var scanner = new FixedScanner(ScanOutcome.Clean);
+
+            await RunScanAsync(documentId, scanner);
+
+            scanner.Calls.Should().Be(0, "a refused document's file is gone, and there is nothing left to scan");
+            (await StateOfAsync(documentId)).Should().Be(DocumentState.ScanRejected);
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
     }
 
     [Fact]
