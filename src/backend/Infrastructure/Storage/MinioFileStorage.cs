@@ -31,6 +31,13 @@
 // disposal to it, and never materialises the file in memory on this path at all.
 //
 //
+// AN EXISTENCE CHECK READS THE METADATA, AND ONLY A NOT-FOUND ANSWER MEANS ABSENT
+//
+// It asks for the object's metadata rather than the object, so nothing is downloaded. Any other failure is thrown
+// rather than reported as absent, because "the store did not answer" and "the file is gone" call for different
+// actions.
+//
+//
 // A SIGNED LINK ALWAYS DOWNLOADS AND NEVER RENDERS INLINE
 //
 // And the filename in that header is built to the standard rather than interpolated. The name is whatever the
@@ -94,6 +101,19 @@ public sealed class MinioFileStorage : IFileStorage
     {
         var response = await _client.GetObjectAsync(_bucket, key, ct);
         return response.ResponseStream;
+    }
+
+    public async Task<bool> ExistsAsync(string key, CancellationToken ct)
+    {
+        try
+        {
+            await _client.GetObjectMetadataAsync(_bucket, key, ct);
+            return true;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
     }
 
     public async Task MoveAsync(string sourceKey, string destinationKey, CancellationToken ct)

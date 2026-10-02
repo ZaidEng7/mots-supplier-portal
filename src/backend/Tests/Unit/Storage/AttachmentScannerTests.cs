@@ -34,6 +34,8 @@ public sealed class AttachmentScannerTests
         public Task<Stream> OpenReadAsync(string key, CancellationToken ct) =>
             Task.FromResult<Stream>(new MemoryStream([1, 2, 3]));
 
+        public Task<bool> ExistsAsync(string key, CancellationToken ct) => Task.FromResult(Keys.Contains(key));
+
         public Task MoveAsync(string sourceKey, string destinationKey, CancellationToken ct) => Task.CompletedTask;
 
         public Task DeleteAsync(string key, CancellationToken ct)

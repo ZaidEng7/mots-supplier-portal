@@ -449,6 +449,7 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.ITriggerRecurringJobHandler, MotsSupplierPortal.Infrastructure.Admin.TriggerRecurringJobHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetOutboxMonitorHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IRetryStuckScansHandler, MotsSupplierPortal.Infrastructure.Admin.RetryStuckScansHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
