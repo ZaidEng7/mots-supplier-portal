@@ -61,6 +61,12 @@
 // the connection row, which keeps only the latest run for the screen; the trail keeps every one, so "what did the
 // hourly sync do on Tuesday" has an answer. A run refused because the lock is taken never started, and writes no row
 // at all.
+//
+// A CLOSING ROW THAT CANNOT BE RECORDED IS HANDLED BY WHICH ROW IT WAS. ErpImportCompleted is recorded inside the run's
+// try, so a throw there closes the run as one that threw: ErpImportFailed is saved in its place, naming that exception,
+// and the exception reaches the caller instead of the report, though every supplier the run wrote stays written. A
+// throw while recording ErpImportFailed is logged and swallowed by RecordFailureAsync, so the exception that ended the
+// run is still the one the caller sees, and the trail keeps the opening row with no closing one.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
