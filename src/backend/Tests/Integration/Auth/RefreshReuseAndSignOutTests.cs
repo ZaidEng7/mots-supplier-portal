@@ -7,18 +7,23 @@
 //
 // TOKEN ROTATED A MOMENT AGO. A second refresh with the token the first one just rotated is refused, and that is
 // all: the successor still refreshes, so the family was not revoked, no reuse row is stored, and the answer does
-// not clear the cookie, because by the time it arrives the browser may hold the successor.
+// not clear the cookie, because by the time it arrives the browser may hold the successor. It is the one refusal
+// that carries its own code, REFRESH_SUPERSEDED, which is what the interface retries on; an ended session answers
+// the plain TOKEN_INVALID.
 //
 // TOKEN ROTATED LONG AGO. Past the grace period the same presentation is theft. The family is revoked, so the
 // successor stops working too, the cookie is cleared, and exactly one reuse row is stored - the successor's own
-// refusal afterwards is an ended session, not a second theft. There is no clock to inject, so the rotation is
-// moved back past the grace in storage, using the handler's own grace value so the test follows it.
+// refusal afterwards is an ended session, not a second theft, and is answered as one with its cookie cleared even
+// though it was revoked only a moment before. There is no clock to inject, so the rotation is moved back past the
+// grace in storage, using the handler's own grace value so the test follows it.
 //
 // EXPIRED, AND SIGNED OUT. Each is refused as an ended session: the cookie is cleared, no reuse row is stored,
 // nothing is revoked that was not already, and the person's other session, signed in beside it, still refreshes.
-// The signed-out token is presented as an old tab would present it, after the grace period has passed, because
-// inside the grace a token with no successor and a token that has one are both only refused; past it, only the
-// absence of a successor keeps the sign-out from being taken for theft.
+// The signed-out token is presented twice. At once, inside the grace period, it is refused as an ended session with
+// its cookie cleared, not as superseded: it has no successor, and the successor is looked for before the grace is,
+// so a refusal that checked the grace first would leave a dead cookie in the browser. Then as an old tab would
+// present it, after the grace period has passed, where only the absence of a successor keeps the sign-out from
+// being taken for theft.
 //
 // SIGNING OUT. It used to delete the cookie and leave the session live on the server for up to thirty days. Now it
 // revokes the family, so the session leaves the active-session count an administrator sees, the cookie stops
@@ -29,7 +34,12 @@
 // The whole family goes, not only the token presented: a sign-out carrying a token rotated a moment ago, as a
 // request racing a refresh does, still ends the session its successor belongs to.
 //
-// With no cookie, or one that names no session, signing out still answers 204 and records nothing.
+// With no cookie, or one that names no session, signing out still answers 204 and records nothing. A session that
+// was already ended is signed out of again without a second row, because that sign-out ended nothing.
+//
+// And when the server cannot end the session at all, the browser still forgets it: the cookie is cleared and the
+// answer is still 204. The failure is a handler swapped for one that throws, on a host derived for that one test.
+// The revocation used to run first, so a database error answered 500 and left the cookie in place.
 
 namespace MotsSupplierPortal.Tests.Integration.Auth;
 
@@ -37,8 +47,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Api.Endpoints;
+using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Auth;
@@ -89,6 +102,8 @@ public sealed class RefreshReuseAndSignOutTests(PostgresApiFixture fixture)
         var (parallel, _) = await SessionSteps.RefreshAsync(fixture, first);
 
         parallel.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await SessionSteps.CodeOf(parallel)).Should().Be("REFRESH_SUPERSEDED",
+            "this refusal alone tells the interface that another request won and a retry may succeed");
         SessionSteps.SetCookieFor(parallel).Should().BeNull(
             "clearing the cookie here could delete the successor the winning request has just set");
         (await SessionSteps.UnrevokedInFamilyAsync(fixture, family)).Should().Be(1, "the successor is still live");
@@ -120,6 +135,9 @@ public sealed class RefreshReuseAndSignOutTests(PostgresApiFixture fixture)
 
         var (owner, _) = await SessionSteps.RefreshAsync(fixture, successor);
         owner.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "neither holder keeps the session");
+        SessionSteps.SetCookieFor(owner).Should().Contain("expires=Thu, 01 Jan 1970",
+            "the successor was revoked a moment ago with nothing after it, so it is an ended session, not a superseded one");
+        (await SessionSteps.CodeOf(owner)).Should().Be("TOKEN_INVALID");
 
         (await SessionSteps.AuditRowsAsync(fixture, userId, SessionAuditActions.RefreshReuseDetected)).Should().Be(1,
             "the replay is recorded once; the successor refused afterwards belongs to an ended session");
@@ -139,6 +157,7 @@ public sealed class RefreshReuseAndSignOutTests(PostgresApiFixture fixture)
 
         refused.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         SessionSteps.SetCookieFor(refused).Should().Contain("expires=Thu, 01 Jan 1970", "an ended session's cookie is cleared");
+        (await SessionSteps.CodeOf(refused)).Should().Be("TOKEN_INVALID", "only a superseded refusal carries its own code");
         (await SessionSteps.AuditRowsAsync(fixture, userId, SessionAuditActions.RefreshReuseDetected)).Should().Be(0);
         (await SessionSteps.UnrevokedInFamilyAsync(fixture, expiredFamily)).Should().Be(1,
             "an expired session is over already; nothing is revoked");
@@ -155,6 +174,12 @@ public sealed class RefreshReuseAndSignOutTests(PostgresApiFixture fixture)
         var (_, other) = await SessionSteps.SignInAsync(fixture, email, StaffTestClient.Password);
 
         (await SessionSteps.LogoutAsync(fixture, signedOut)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var (atOnce, _) = await SessionSteps.RefreshAsync(fixture, signedOut);
+        atOnce.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        SessionSteps.SetCookieFor(atOnce).Should().Contain("expires=Thu, 01 Jan 1970",
+            "inside the grace period a token with no successor is still an ended session, and its dead cookie is cleared");
+        (await SessionSteps.CodeOf(atOnce)).Should().Be("TOKEN_INVALID", "nothing superseded it; it was signed out");
 
         var signedOutAt = await RevokedAtAsync(signedOut!, "signing out revokes the session on the server");
         await AlterTokenAsync(signedOut!, revokedAt: signedOutAt - RefreshTokenHandler.ParallelRefreshGrace - TimeSpan.FromSeconds(5));
@@ -196,6 +221,31 @@ public sealed class RefreshReuseAndSignOutTests(PostgresApiFixture fixture)
         refresh.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "a copy of the cookie no longer works");
 
         (await SessionSteps.AuditRowsAsync(fixture, userId, SessionAuditActions.Logout)).Should().Be(1);
+
+        (await SessionSteps.LogoutAsync(fixture, cookie)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await SessionSteps.AuditRowsAsync(fixture, userId, SessionAuditActions.Logout)).Should().Be(1,
+            "signing out of a session that is already over ends nothing, so nothing more is recorded");
+    }
+
+    private sealed class FailingLogoutHandler : ILogoutHandler
+    {
+        public Task HandleAsync(string? refreshToken, CancellationToken ct) =>
+            throw new InvalidOperationException("The session store could not be reached.");
+    }
+
+    [Fact]
+    public async Task Signing_out_clears_the_cookie_and_answers_204_even_when_the_server_cannot_end_the_session()
+    {
+        await using var failing = fixture.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services => services.AddScoped<ILogoutHandler, FailingLogoutHandler>()));
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add("Cookie", $"{AuthEndpoints.RefreshCookieName}=a-session-the-server-cannot-reach");
+        var signOut = await failing.CreateClient().SendAsync(request);
+
+        signOut.StatusCode.Should().Be(HttpStatusCode.NoContent, "from the browser's side signing out always succeeds");
+        SessionSteps.SetCookieFor(signOut).Should().Contain("expires=Thu, 01 Jan 1970",
+            "the browser forgets the session whether or not the server managed to end it");
     }
 
     [Fact]

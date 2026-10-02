@@ -8,8 +8,12 @@
 // figure matches the sessions the person's list showed before. Every unrevoked token is still revoked, expired
 // ones included, but a sign-in that had already expired was not a session this ended.
 //
-// The audit row is added before the save that revokes the sessions, so the two are one write. It used to be added
-// after that save, and with nothing saving again it was dropped.
+// The tokens are read and revoked under SessionLock, so a refresh in flight either finishes first and its successor
+// is among the tokens read, or waits and finds its token revoked. Exactly the tokens read are revoked, so the count
+// describes what this did, and none of them has an earlier revocation overwritten.
+//
+// The audit row is stored in the same transaction as the revocation. It used to be added after the save that
+// revoked the sessions, and with nothing saving again it was dropped.
 
 namespace MotsSupplierPortal.Infrastructure.Auth;
 
@@ -23,7 +27,7 @@ public sealed class RevokeAllSessionsHandler(AppDbContext db, IScopeContext scop
 {
     public async Task<int> HandleAsync(string? currentRefreshToken, bool excludeCurrent, CancellationToken ct)
     {
-        if (scope.UserId is null)
+        if (scope.UserId is not { } userId)
         {
             return 0;
         }
@@ -32,20 +36,26 @@ public sealed class RevokeAllSessionsHandler(AppDbContext db, IScopeContext scop
         if (excludeCurrent && !string.IsNullOrEmpty(currentRefreshToken))
         {
             var hash = TokenHasher.Hash(currentRefreshToken);
-            var current = await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
-            currentFamilyId = current?.FamilyId;
+            currentFamilyId = await db.RefreshTokens.AsNoTracking()
+                .Where(t => t.TokenHash == hash)
+                .Select(t => (Guid?)t.FamilyId)
+                .FirstOrDefaultAsync(ct);
         }
 
-        var tokens = await db.RefreshTokens
-            .Where(t => t.UserId == scope.UserId && t.RevokedAt == null && (currentFamilyId == null || t.FamilyId != currentFamilyId))
+        await using var transaction = await SessionLock.BeginAsync(db, userId, ct);
+
+        var tokens = await db.RefreshTokens.AsNoTracking()
+            .Where(t => t.UserId == userId && t.RevokedAt == null && (currentFamilyId == null || t.FamilyId != currentFamilyId))
             .ToListAsync(ct);
 
         var revokedFamilies = tokens.Where(t => t.IsActive).Select(t => t.FamilyId).Distinct().Count();
+        var ids = tokens.Select(t => t.Id).ToList();
 
-        foreach (var t in tokens) t.RevokedAt = DateTimeOffset.UtcNow;
-
-        await auditLogger.LogAsync("User", scope.UserId.Value, SessionAuditActions.SessionsRevokedAll, scope.UserId, ct: ct);
+        await SessionLock.RevokeAsync(db, t => ids.Contains(t.Id), DateTimeOffset.UtcNow, ct);
+        await auditLogger.LogAsync("User", userId, SessionAuditActions.SessionsRevokedAll, userId, ct: ct);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
         return revokedFamilies;
     }
 }

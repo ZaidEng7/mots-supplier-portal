@@ -13,9 +13,15 @@
 // runs out gets several 401s at once, and each used to send its own refresh carrying the same cookie. The server
 // rotated the token on the first and took every later one for a replayed stolen token, so it ended the session
 // and the user was signed out by their own page. Once the shared request settles the slot is empty again, so a
-// later 401 starts a fresh refresh rather than reusing an old answer. Two tabs share the cookie but not this slot;
-// for them the server now gives a token rotated a moment ago a short grace, refusing the losing tab's refresh
-// without ending the session.
+// later 401 starts a fresh refresh rather than reusing an old answer, whether the shared one succeeded or failed.
+// Two tabs share the cookie but not this slot; for them the server now gives a token rotated a moment ago a short
+// grace, refusing the losing tab's refresh without ending the session.
+//
+// That refusal is the one 401 with a code of its own, REFRESH_SUPERSEDED, and on it alone the refresh is sent once
+// more, inside the same slot, so every caller waiting on it shares the retry rather than sending one each. The tab
+// that won has by then been handed the successor, and the cookie jar both tabs share now holds it, so the second
+// attempt carries a live token. Any other 401 is a session that is over and is never retried. A second superseded
+// answer is final too, so a token that keeps losing ends in an expired session rather than a loop.
 //
 // CHANGEPASSWORD is SCR-903, a signed-in user changing their own password. It is separate from resetPassword
 // deliberately: a reset proves identity with a token from an email, a change proves it with the current
@@ -134,22 +140,41 @@ export async function login(email: string, password: string, totpCode?: string):
 let refreshInFlight: Promise<TokenResponse | null> | null = null
 
 export function refresh(): Promise<TokenResponse | null> {
-  refreshInFlight ??= requestRefresh().finally(() => {
+  refreshInFlight ??= refreshRetryingSuperseded().finally(() => {
     refreshInFlight = null
   })
   return refreshInFlight
 }
 
-async function requestRefresh(): Promise<TokenResponse | null> {
+const SUPERSEDED = 'superseded'
+
+async function refreshRetryingSuperseded(): Promise<TokenResponse | null> {
+  const first = await requestRefresh()
+  if (first !== SUPERSEDED) return first
+
+  const second = await requestRefresh()
+  return second === SUPERSEDED ? null : second
+}
+
+async function requestRefresh(): Promise<TokenResponse | null | typeof SUPERSEDED> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     })
-    if (!res.ok) return null
-    return await res.json()
+    if (res.ok) return await res.json()
+    return res.status === 401 && (await isSuperseded(res)) ? SUPERSEDED : null
   } catch {
     return null
+  }
+}
+
+async function isSuperseded(res: Response): Promise<boolean> {
+  try {
+    const body = (await res.json()) as { code?: string; error?: string } | null
+    return body?.code === 'REFRESH_SUPERSEDED' || body?.error === 'refresh_superseded'
+  } catch {
+    return false
   }
 }
 

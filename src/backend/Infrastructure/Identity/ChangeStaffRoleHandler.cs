@@ -29,6 +29,11 @@
 //
 // A permission set is stamped into the access token at sign-in, so a role change that left sessions alive would
 // leave the OLD permissions in force until they expired.
+//
+// The role change, the ended sessions and the audit row are one transaction under SessionLock. A refresh in flight
+// either finishes first and its successor is ended here, or waits and finds its session over. Without the lock a
+// refresh that had read the old role could issue a successor after the sessions were ended, handing back the old
+// permissions and keeping that session alive.
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
@@ -38,6 +43,7 @@ using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class ChangeStaffRoleHandler(
@@ -79,15 +85,17 @@ public sealed class ChangeStaffRoleHandler(
             return new StaffAccountResult.WouldLockOutAdministration();
         }
 
-        if (current.Count > 0) await userManager.RemoveFromRolesAsync(user, current);
-        await userManager.AddToRoleAsync(user, command.Role);
+        await using (var transaction = await SessionLock.BeginAsync(db, user.Id, ct))
+        {
+            if (current.Count > 0) await userManager.RemoveFromRolesAsync(user, current);
+            await userManager.AddToRoleAsync(user, command.Role);
 
-        await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, DateTimeOffset.UtcNow), ct);
-
-        await auditLogger.LogAsync("StaffAccount", user.Id, "staff_role_changed", scope.UserId,
-            fromState: current.FirstOrDefault(), toState: command.Role, ct: ct);
-        await db.SaveChangesAsync(ct);
+            await SessionLock.RevokeAsync(db, t => t.UserId == user.Id, DateTimeOffset.UtcNow, ct);
+            await auditLogger.LogAsync("StaffAccount", user.Id, "staff_role_changed", scope.UserId,
+                fromState: current.FirstOrDefault(), toState: command.Role, ct: ct);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
 
         return new StaffAccountResult.Success(await StaffAccountLoader.ToDtoAsync(db, userManager, user, ct));
     }

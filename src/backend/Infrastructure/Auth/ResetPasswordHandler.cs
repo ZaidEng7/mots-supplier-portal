@@ -6,8 +6,14 @@
 // Every existing session is invalidated on success. Resetting a password must not leave old sessions alive,
 // because the person holding one may be who the reset is protecting against.
 //
-// The audit row is added before the save that revokes those sessions, so the two are one write. It used to be
-// added after that save, and with nothing saving again it was dropped.
+// The new password, the revoked sessions and the audit row are one transaction, opened by SessionLock before the
+// password is written. The framework saves the password through its own call, and that save used to commit on its
+// own before the revocation and the row, so a failure between them left a changed password with every old session
+// still live and nothing recorded. The lock also makes a refresh in flight either finish first, so its successor is
+// revoked here, or wait and find its session ended. The audit row used to be added after the last save, and with
+// nothing saving again it was dropped.
+//
+// The link is consumed before that transaction and stays consumed whatever happens after it, as it always has.
 //
 // A token error from the framework is reported as an invalid link rather than as a weak password, so the caller
 // is told which of the two actually happened.
@@ -15,7 +21,6 @@
 namespace MotsSupplierPortal.Infrastructure.Auth;
 
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Identity;
@@ -41,6 +46,8 @@ public sealed class ResetPasswordHandler(
             return new ResetPasswordResult.InvalidOrExpiredToken();
         }
 
+        await using var transaction = await SessionLock.BeginAsync(db, user.Id, ct);
+
         var identityToken = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, identityToken, command.NewPassword);
         if (!result.Succeeded)
@@ -54,14 +61,10 @@ public sealed class ResetPasswordHandler(
             return new ResetPasswordResult.WeakPassword([.. result.Errors.Select(e => e.Description)]);
         }
 
-        var activeSessions = db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null);
-        await foreach (var session in activeSessions.AsAsyncEnumerable().WithCancellation(ct))
-        {
-            session.RevokedAt = DateTimeOffset.UtcNow;
-        }
-
+        await SessionLock.RevokeAsync(db, t => t.UserId == user.Id, DateTimeOffset.UtcNow, ct);
         await auditLogger.LogAsync("User", user.Id, "password_reset", user.Id, user.FullName, ct: ct);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return new ResetPasswordResult.Success();
     }

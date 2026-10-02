@@ -62,13 +62,23 @@
 // belongs to, so a copy of the cookie stops working and the session leaves the person's list. It still answers
 // 204 with no cookie or an unknown one, because from the browser's side there is nothing to refuse.
 //
+// The cookie is deleted before the server is asked to end the session, and a failure there is logged rather than
+// answered. When the revocation came first, a database error answered 500 with the cookie still in place, and the
+// person who pressed sign out was left signed in. The browser forgetting the session must not depend on the server
+// managing to end it; the log is where a session left live on the server shows up.
 //
-// ONE REFRESH REFUSAL LEAVES THE COOKIE ALONE
+//
+// ONE REFRESH REFUSAL LEAVES THE COOKIE ALONE, AND SAYS SO
 //
 // A refresh refused as superseded lost a race with another request carrying the same cookie, and that other
 // request has rotated the session and set the successor in the browser. Clearing the cookie on this answer could
 // land after that and delete the successor, signing out the tab that won. Every other refusal clears it, because
 // the token in it is dead.
+//
+// It is the one refusal that carries its own code, refresh_superseded, so the interface can tell it from a dead
+// session. Another tab of the same browser may be the one that won, and the cookie it was handed is now in the
+// shared cookie jar, so the interface tries the refresh once more. Every other 401 here is the plain token-invalid
+// refusal and is not retried.
 //
 //
 // RATE LIMITS
@@ -212,6 +222,7 @@ public sealed class ResetPasswordRequestValidator : AbstractValidator<ResetPassw
 public static class AuthEndpoints
 {
     public const string RefreshCookieName = "mots_refresh_token";
+    public const string RefreshSupersededCode = "refresh_superseded";
     private const string RefreshCookiePath = "/api/v1/auth";
 
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
@@ -274,19 +285,33 @@ public static class AuthEndpoints
                 RefreshTokenResult.Success s => LoginOk(httpContext, s.Tokens),
                 RefreshTokenResult.ReuseDetected => ClearAndUnauthorized(httpContext),
                 RefreshTokenResult.Invalid => ClearAndUnauthorized(httpContext),
-                RefreshTokenResult.Superseded => Results.Unauthorized(),
+                RefreshTokenResult.Superseded => Results.Json(
+                    new { error = RefreshSupersededCode }, statusCode: StatusCodes.Status401Unauthorized),
                 _ => Results.Problem(),
             };
         })
         .WithName("RefreshToken")
         .AllowAnonymous();
 
-        group.MapPost("/logout", async (HttpContext httpContext, ILogoutHandler handler, CancellationToken ct) =>
+        group.MapPost("/logout", async (
+            HttpContext httpContext,
+            ILogoutHandler handler,
+            ILoggerFactory loggerFactory,
+            CancellationToken ct) =>
         {
             httpContext.Request.Cookies.TryGetValue(RefreshCookieName, out var refreshToken);
-            await handler.HandleAsync(refreshToken, ct);
-
             httpContext.Response.Cookies.Delete(RefreshCookieName, new CookieOptions { Path = RefreshCookiePath });
+
+            try
+            {
+                await handler.HandleAsync(refreshToken, ct);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                loggerFactory.CreateLogger(typeof(AuthEndpoints)).LogError(exception,
+                    "Signing out cleared the cookie but could not end the session on the server.");
+            }
+
             return Results.NoContent();
         })
         .WithName("Logout")

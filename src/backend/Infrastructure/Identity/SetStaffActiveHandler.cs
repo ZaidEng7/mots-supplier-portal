@@ -11,6 +11,9 @@
 //
 // Every live session dies with the account. Leaving them alive would make "deactivated" mean "cannot sign in
 // again", which is not what an administrator removing an account in error needs it to mean.
+//
+// The flag, the ended sessions and the audit row are one transaction under SessionLock, so a refresh in flight
+// either finishes first and its successor is ended here, or waits and finds the account inactive.
 
 namespace MotsSupplierPortal.Infrastructure.Identity;
 
@@ -20,6 +23,7 @@ using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class SetStaffActiveHandler(
@@ -38,18 +42,21 @@ public sealed class SetStaffActiveHandler(
             return new StaffAccountResult.WouldLockOutAdministration();
         }
 
-        user.IsActive = isActive;
-        await userManager.UpdateAsync(user);
-
-        if (!isActive)
+        await using (var transaction = await SessionLock.BeginAsync(db, user.Id, ct))
         {
-            await db.RefreshTokens.Where(t => t.UserId == user.Id && t.RevokedAt == null)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, DateTimeOffset.UtcNow), ct);
-        }
+            user.IsActive = isActive;
+            await userManager.UpdateAsync(user);
 
-        await auditLogger.LogAsync("StaffAccount", user.Id,
-            isActive ? "staff_reactivated" : "staff_deactivated", scope.UserId, ct: ct);
-        await db.SaveChangesAsync(ct);
+            if (!isActive)
+            {
+                await SessionLock.RevokeAsync(db, t => t.UserId == user.Id, DateTimeOffset.UtcNow, ct);
+            }
+
+            await auditLogger.LogAsync("StaffAccount", user.Id,
+                isActive ? "staff_reactivated" : "staff_deactivated", scope.UserId, ct: ct);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
 
         return new StaffAccountResult.Success(await StaffAccountLoader.ToDtoAsync(db, userManager, user, ct));
     }

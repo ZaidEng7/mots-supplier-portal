@@ -9,7 +9,12 @@
 // empty one, so a step that ended the session reads as having handed nothing back.
 //
 // The audit counts read storage, never the response, because the defect these tests exist for was rows that were
-// added and never saved: every answer looked right and the table stayed empty.
+// added and never saved: every answer looked right and the table stayed empty. They count only rows filed under the
+// person and naming that same person as the actor, because every session row is something that person did, and a
+// row stored with no actor or the wrong one answers nothing an investigation asks.
+//
+// The concurrent steps send their requests through one client each, released together, so the server receives
+// them as close to the same instant as a browser's parallel requests arrive.
 
 namespace MotsSupplierPortal.Tests.Integration.Auth;
 
@@ -50,6 +55,28 @@ internal static class SessionSteps
         return await fixture.CreateRawClient().SendAsync(request);
     }
 
+    public static async Task<HttpResponseMessage[]> AtOnceAsync(params Func<Task<HttpResponseMessage>>[] sends)
+    {
+        var go = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sent = sends.Select(async send =>
+        {
+            await go.Task;
+            return await send();
+        }).ToList();
+
+        go.SetResult();
+        return await Task.WhenAll(sent);
+    }
+
+    public static async Task<string?> CodeOf(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        if (string.IsNullOrWhiteSpace(body)) return null;
+
+        using var json = JsonDocument.Parse(body);
+        return json.RootElement.TryGetProperty("code", out var code) ? code.GetString() : null;
+    }
+
     public static string? CookieOf(HttpResponseMessage response)
     {
         var pair = SetCookieFor(response)?.Split(';')[0];
@@ -74,7 +101,7 @@ internal static class SessionSteps
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        return await db.AuditLogs.CountAsync(a => a.AggregateId == userId && a.Action == action);
+        return await db.AuditLogs.CountAsync(a => a.AggregateId == userId && a.ActorUserId == userId && a.Action == action);
     }
 
     public static async Task<Guid> FamilyOfAsync(PostgresApiFixture fixture, string cookie)

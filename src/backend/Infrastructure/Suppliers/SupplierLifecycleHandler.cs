@@ -17,6 +17,12 @@
 // Setting the supplier's state alone would look identical in the database and leave every one of its users
 // able to keep working. That is why the tests assert an actual failed sign-in and an actual failed refresh
 // rather than inspecting the state column.
+//
+// A deactivation is one transaction, opened by SessionLock for every one of the supplier's users before anything is
+// written: the transition, the inactive accounts, the ended sessions and the audit row. The framework saves each
+// account through its own call, and those saves used to commit one at a time, the transition with the first of them.
+// The lock makes a refresh in flight for any of those users either finish first, so its successor is ended here, or
+// wait and find its session over.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
@@ -26,6 +32,7 @@ using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Suppliers;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Auth;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class SupplierLifecycleHandler(
@@ -68,9 +75,17 @@ public sealed class SupplierLifecycleHandler(
             return new SupplierLifecycleResult.Invalid(ex.Message);
         }
 
+        List<AppUser> supplierUsers = revokeUserAccess
+            ? await userManager.Users.Where(u => u.SupplierId == supplier.Id).ToListAsync(ct)
+            : [];
+
+        await using var transaction = revokeUserAccess
+            ? await SessionLock.BeginAsync(db, supplierUsers.Select(u => u.Id), ct)
+            : null;
+
         if (revokeUserAccess)
         {
-            await RevokeSupplierUsersAsync(supplier.Id, ct);
+            await RevokeAccessAsync(supplierUsers, ct);
         }
 
         await auditLogger.LogAsync(
@@ -84,6 +99,11 @@ public sealed class SupplierLifecycleHandler(
 
         await db.SaveChangesAsync(ct);
 
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(ct);
+        }
+
         return new SupplierLifecycleResult.Success(supplier.LifecycleState.ToString());
     }
 
@@ -96,10 +116,8 @@ public sealed class SupplierLifecycleHandler(
         && stateBefore == SupplierLifecycleState.Suspended
         && supplier.LifecycleState == SupplierLifecycleState.Suspended;
 
-    private async Task RevokeSupplierUsersAsync(Guid supplierId, CancellationToken ct)
+    private async Task RevokeAccessAsync(List<AppUser> users, CancellationToken ct)
     {
-        var users = await userManager.Users.Where(u => u.SupplierId == supplierId).ToListAsync(ct);
-
         foreach (var user in users)
         {
             user.IsActive = false;
@@ -107,11 +125,6 @@ public sealed class SupplierLifecycleHandler(
         }
 
         var userIds = users.Select(u => u.Id).ToList();
-        var liveSessions = db.RefreshTokens.Where(t => userIds.Contains(t.UserId) && t.RevokedAt == null);
-
-        await foreach (var session in liveSessions.AsAsyncEnumerable().WithCancellation(ct))
-        {
-            session.RevokedAt = DateTimeOffset.UtcNow;
-        }
+        await SessionLock.RevokeAsync(db, t => userIds.Contains(t.UserId), DateTimeOffset.UtcNow, ct);
     }
 }

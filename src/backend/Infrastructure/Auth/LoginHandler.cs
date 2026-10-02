@@ -43,7 +43,7 @@
 // A successful sign-in used to save the new session first and add its row afterwards, so that row was dropped
 // too. Issuing a session now only adds the token, and the sign-in adds its row and saves both together, so a
 // session is never stored without the record that it was opened, and the record is written exactly once. The
-// refresh path shares the issuing step and saves the rotation in one write of its own.
+// refresh path shares the issuing step and stores the rotation in one transaction of its own.
 //
 // The refresh path also passes the instant it retired the old token, and the new token is created at that same
 // instant. That shared timestamp is how a later refusal tells a token that was rotated away from one that was

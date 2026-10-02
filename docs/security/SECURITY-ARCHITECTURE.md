@@ -96,20 +96,44 @@ sequenceDiagram
   participant A as Auth API
   participant DB as RefreshToken store
   C->>A: POST /auth/refresh (cookie RT_n)
-  A->>DB: lookup hash(RT_n)
+  A->>DB: lookup hash(RT_n), take the person's session lock, read RT_n again
   alt RT_n valid & unused
     A->>DB: mark RT_n Rotated, insert RT_(n+1) in same family
     A-->>C: new access JWT + Set-Cookie RT_(n+1)
-  else RT_n already Rotated/used (replay)
+  else RT_n rotated away within the last 10 s (second request from the same browser)
+    A-->>C: 401 refresh_superseded, cookie left alone, family kept
+  else RT_n rotated away more than 10 s ago (replay)
     A->>DB: REVOKE entire token family (breach signal)
-    A-->>C: 401 + force re-login
-    Note over A,DB: AuditLog: security.refresh.reuse_detected
+    A-->>C: 401 + cookie cleared + force re-login
+    Note over A,DB: AuditLog: refresh_reuse_detected
+  else RT_n expired, or revoked with no successor (ended session)
+    A-->>C: 401 + cookie cleared, nothing revoked or recorded
   end
 ```
 
-- Refresh tokens form a **family** (chain) per login session. Presenting an already-rotated token is
-  treated as **theft**: the whole family is revoked and the user must re-authenticate. This bounds the
-  damage of a stolen refresh token to a single rotation window.
+- Refresh tokens form a **family** (chain) per login session. Presenting a token that was rotated away
+  **more than 10 seconds** earlier is treated as **theft**: the whole family is revoked, `refresh_reuse_detected`
+  is recorded, and the user must re-authenticate. This bounds the damage of a stolen refresh token to a single
+  rotation window.
+- **The 10-second grace.** A token rotated away within the last 10 seconds is a second request that left the same
+  browser with the same cookie: two tabs, or a page whose parallel requests met an expired access token together.
+  It is refused (`401`, code `REFRESH_SUPERSEDED`) without revoking the family, and the cookie is left alone because
+  the browser may already hold the successor. The interface retries such a refusal once. **Trade-off:** if a
+  thief's copy rotates first and the owner's browser presents the same token inside the window, the owner is refused
+  without the family being revoked, so that one replay goes unrecorded, the thief keeps that session and the owner
+  signs in again. Past the window either order is caught. The window is a named value
+  (`RefreshTokenHandler.ParallelRefreshGrace`) and kept short for that reason.
+- A token that expired, or was revoked with no successor (signed out, revoked from the session list, ended by a
+  password reset or deactivation), is an ended session, not a theft signal: refused with the cookie cleared, nothing
+  revoked and nothing recorded. The successor check comes before the grace check, so a token signed out a moment ago
+  is never mistaken for one a parallel request rotated.
+- **Serialised per person.** Every operation that rotates or ends a person's sessions (refresh, sign-out, revoking
+  one or all sessions, password reset and change, deactivating a supplier user or a supplier, and the staff
+  deactivation, role and MFA-reset changes) runs in one transaction under a Postgres transaction-scoped advisory lock
+  keyed on that person (`SessionLock`), and re-reads what it acts on after taking it. Without it a sign-out could miss
+  a successor a concurrent refresh was issuing, and two refreshes of one token could both rotate it into two live
+  sessions. A revocation only fills an empty `RevokedAt`; the rotation instant is never overwritten, because the
+  successor created at that instant is what marks the old token as rotated.
 - Server-side record: `{ Id, UserId, TokenHash (SHA-256), FamilyId, ExpiresAt, RotatedAt?, RevokedAt?,
   RevokedReason, CreatedIp, CreatedUserAgentHash, RowVersion }`.
 - Logout revokes the current family; "log out all sessions" revokes all families for the user.
@@ -536,7 +560,7 @@ disclosure, Denial of service, Elevation of privilege.
 | # | Asset / Flow | STRIDE | Threat scenario | Mitigation(s) | Residual / owner |
 |---|---|---|---|---|---|
 | T1 | Login / tokens | **S**poofing | Credential stuffing / password guessing to impersonate a supplier | Breached-password check, lockout + per-IP throttle, anti-enumeration, MFA-ready, optional step-up | Low; monitor login anomalies |
-| T2 | Session | **S/I** | Stolen refresh token replayed from attacker device | HttpOnly+Secure+SameSite cookie, **rotation with family reuse-detection revokes on replay**, session list + force-logout | Low |
+| T2 | Session | **S/I** | Stolen refresh token replayed from attacker device | HttpOnly+Secure+SameSite cookie, **rotation with family reuse-detection revokes on a replay more than 10 s after rotation** (inside 10 s it is refused without revoking, §1.2), rotation and revocation serialised per person, session list + force-logout | Low; if a thief rotates first and the owner presents the same token inside the 10 s grace, the owner is refused without the replay being recorded or the family ended, so the thief keeps that session (§1.2 trade-off) |
 | T3 | Access control | **E**levation | Supplier user forges `supplierId`/ids to read a competitor's proposal (IDOR) | Row-scoping + EF global filters + resource policy handlers, opaque slugs, deny-by-default | Low |
 | T4 | Cross-org data | **I**nfo disclosure | Procurement in Org A reads Org B's RFQ/evaluation | Org-scoped filters + policy handlers; ministry read-only aggregate default | Low |
 | T5 | Evaluation | **T**ampering | Evaluator sees peers' scores or edits after submit, biasing outcome | Blind-until-consolidated state + scope; domain-enforced transitions; immutable submitted scores | Low; `[ASSUMPTION]` blindness confirmed |
