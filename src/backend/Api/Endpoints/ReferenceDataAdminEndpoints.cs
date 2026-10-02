@@ -1,8 +1,8 @@
-// The administrator's surface for the five reference tables: categories, document types, currencies, units and
-// delivery terms. They used to be seed-only, so a ministry could not add a document type without a
+// The administrator's surface for the six reference tables: categories, document types, currencies, units,
+// regions and delivery terms. They used to be seed-only, so a ministry could not add a document type without a
 // deployment.
 //
-// The table is a path segment checked against a list, so there is one family of routes rather than five,
+// The table is a path segment checked against a list, so there is one family of routes rather than six,
 // because the operations are identical. An unrecognised table answers not-found rather than quietly doing
 // nothing, which is the same answer an unknown filter value gets.
 //

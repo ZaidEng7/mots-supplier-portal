@@ -44,6 +44,16 @@
 //
 // Its eleven standard terms are named one by one rather than counted, because a count passes against eleven of
 // anything, and the set belongs to the standards body rather than to this product to trim.
+//
+// A term typed in lower case is stored in upper case, and every later step must find it by the code it was typed
+// with. Only the stored row used to be upper-cased, so creating "dpu" saved DPU and then answered not-found. The
+// test sends lower case on every write, then reads storage and the audit rows for the upper-case code: a fix that
+// upper-cased the write but not the read-back, the lookup or the audit row fails one of them. The same lower-case
+// code sent twice must be a conflict: a duplicate check that compared the typed code would let it through to the
+// unique index, which answers 500. The upper-case duplicate is the control that both spellings name one row.
+//
+// The row is removed afterwards. A run that failed before the deactivation would otherwise leave a twelfth active
+// term, and the eleven-term test above reads the whole table.
 
 namespace MotsSupplierPortal.Tests.Integration.Admin;
 
@@ -235,6 +245,61 @@ public sealed class ReferenceDataAdminTests(PostgresApiFixture fixture)
         finally
         {
             await admin.PostAsJsonAsync("/api/v1/admin/reference/incoterms/FAS/reactivate", new { });
+        }
+    }
+
+    [Fact]
+    public async Task An_incoterm_typed_in_lower_case_is_stored_audited_and_found_in_upper_case()
+    {
+        var admin = await AdminAsync();
+        var upper = $"Q{(char)('A' + Random.Shared.Next(26))}{(char)('A' + Random.Shared.Next(26))}";
+        var lower = upper.ToLowerInvariant();
+        var payload = new { nameAr = "شرط تسليم", nameEn = "Delivery term", isRequired = (bool?)null, expiryTracked = (bool?)null };
+
+        try
+        {
+            var created = await admin.PostAsJsonAsync($"/api/v1/admin/reference/incoterms/{lower}", payload);
+            created.StatusCode.Should().Be(HttpStatusCode.OK, await created.Content.ReadAsStringAsync());
+            (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString().Should().Be(upper);
+
+            (await admin.PostAsJsonAsync($"/api/v1/admin/reference/incoterms/{lower}", payload))
+                .StatusCode.Should().Be(HttpStatusCode.Conflict, "the same code typed twice is a duplicate, not a server error");
+            (await admin.PostAsJsonAsync($"/api/v1/admin/reference/incoterms/{upper}", payload))
+                .StatusCode.Should().Be(HttpStatusCode.Conflict, "both spellings name the one row just created");
+
+            var renamed = await admin.PutAsJsonAsync($"/api/v1/admin/reference/incoterms/{lower}", new
+            {
+                nameAr = "شرط تسليم معدّل", nameEn = "Delivery term renamed", isRequired = (bool?)null, expiryTracked = (bool?)null,
+            });
+            renamed.StatusCode.Should().Be(HttpStatusCode.OK, await renamed.Content.ReadAsStringAsync());
+
+            var deactivated = await admin.PostAsJsonAsync($"/api/v1/admin/reference/incoterms/{lower}/deactivate", new { });
+            deactivated.StatusCode.Should().Be(HttpStatusCode.OK, await deactivated.Content.ReadAsStringAsync());
+
+            await using var scope = fixture.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var stored = await db.Set<Incoterm>().AsNoTracking().Where(i => i.Code == upper || i.Code == lower).ToListAsync();
+            stored.Should().ContainSingle().Which.Code.Should().Be(upper);
+            stored[0].NameEn.Should().Be("Delivery term renamed");
+            stored[0].IsActive.Should().BeFalse();
+
+            var audited = await db.AuditLogs.AsNoTracking()
+                .Where(a => a.ReferenceCode == upper || a.ReferenceCode == lower)
+                .Where(a => a.Action.StartsWith("reference.incoterms."))
+                .Select(a => new { a.Action, a.ReferenceCode })
+                .ToListAsync();
+            audited.Should().BeEquivalentTo(new[]
+            {
+                new { Action = "reference.incoterms.created", ReferenceCode = (string?)upper },
+                new { Action = "reference.incoterms.updated", ReferenceCode = (string?)upper },
+                new { Action = "reference.incoterms.deactivated", ReferenceCode = (string?)upper },
+            });
+        }
+        finally
+        {
+            await using var cleanup = fixture.Services.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Set<Incoterm>().Where(i => i.Code == upper || i.Code == lower).ExecuteDeleteAsync();
         }
     }
 }
