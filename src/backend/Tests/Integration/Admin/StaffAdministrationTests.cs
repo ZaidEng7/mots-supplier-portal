@@ -16,6 +16,16 @@
 // absence is asserted by predicate over the whole page rather than by counting, because the suite's other
 // tests contribute rows too.
 //
+// The active-session figure counts sign-ins that are still alive, not token rows. It once counted every
+// unrevoked row, and the development data showed seventy-six of them standing for nine sign-ins. The account
+// is seeded with one sign-in holding two live tokens, a second sign-in holding one, a sign-in whose only token
+// expired without being revoked, which is what an old sign-in leaves behind, and one whose only token was
+// revoked. Each dead token sits in a sign-in of its own, so counting it by any route moves the answer off two,
+// and so does counting tokens rather than sign-ins. The figure is read from the list and from a staff change's
+// read-back, the two places an administrator sees it. The change is re-assigning the role the account already
+// holds, because it revokes nothing and so leaves the seeded sessions there to be counted. The seeded tokens
+// are removed afterwards, so nothing else that reads the session table meets them.
+//
 // Deactivation is set up with a live session, so "kills its sessions" is measurable rather than vacuous,
 // and its control is that this is deactivation and not deletion: the row is still there and can come back.
 // The account is the actor on audit rows, and an audit trail pointing at a row that no longer exists is
@@ -67,15 +77,8 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid();
     }
 
-    [Fact]
-    public async Task The_list_carries_the_facts_an_administrator_needs_and_no_supplier_users()
+    private static async Task<List<JsonElement>> ListEveryStaffAccountAsync(HttpClient admin)
     {
-        var admin = await AdminAsync();
-        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
-        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
-
-        await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff List Outsider Co");
-
         var rows = new List<JsonElement>();
         string? cursor = null;
         for (var page = 0; page < 20; page++)
@@ -90,6 +93,20 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
             if (cursor is null) break;
         }
 
+        return rows;
+    }
+
+    [Fact]
+    public async Task The_list_carries_the_facts_an_administrator_needs_and_no_supplier_users()
+    {
+        var admin = await AdminAsync();
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
+
+        await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff List Outsider Co");
+
+        var rows = await ListEveryStaffAccountAsync(admin);
+
         var invited = rows.Single(r => r.GetProperty("userId").GetGuid() == invitedId);
         invited.GetProperty("role").GetString().Should().Be(Roles.ProcurementOfficer);
         invited.GetProperty("isActive").GetBoolean().Should().BeTrue();
@@ -101,6 +118,57 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         var supplierUserIds = await db.Users.Where(u => u.SupplierId != null).Select(u => u.Id).ToListAsync();
         rows.Select(r => r.GetProperty("userId").GetGuid()).Should().NotIntersectWith(supplierUserIds,
             "staff are the accounts with no SupplierId - a supplier's team is administered by that supplier");
+    }
+
+    [Fact]
+    public async Task Active_sessions_are_counted_by_sign_in_and_only_while_alive()
+    {
+        var admin = await AdminAsync();
+        var invitedId = await InviteAsync(admin, Roles.Evaluator);
+
+        var now = DateTimeOffset.UtcNow;
+        var twoTokenSignIn = Guid.CreateVersion7();
+        RefreshToken Token(Guid familyId, DateTimeOffset expiresAt, DateTimeOffset? revokedAt = null) => new()
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = invitedId,
+            FamilyId = familyId,
+            TokenHash = $"session-count-probe-{Guid.NewGuid():N}",
+            CreatedAt = now.AddHours(-2),
+            ExpiresAt = expiresAt,
+            RevokedAt = revokedAt,
+        };
+
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.RefreshTokens.AddRange(
+                Token(Guid.CreateVersion7(), expiresAt: now.AddHours(-1)),
+                Token(Guid.CreateVersion7(), expiresAt: now.AddDays(7), revokedAt: now.AddMinutes(-5)),
+                Token(twoTokenSignIn, expiresAt: now.AddDays(7)),
+                Token(twoTokenSignIn, expiresAt: now.AddDays(7)),
+                Token(Guid.CreateVersion7(), expiresAt: now.AddDays(7)));
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            var listed = (await ListEveryStaffAccountAsync(admin))
+                .Single(r => r.GetProperty("userId").GetGuid() == invitedId);
+            listed.GetProperty("activeSessionCount").GetInt32().Should().Be(2,
+                "two sign-ins are alive; the expired and the revoked ones are over, and a sign-in is one session however many live tokens it holds");
+
+            var readBack = await admin.PutAsJsonAsync($"/api/v1/staff/{invitedId}/role", new { role = Roles.Evaluator });
+            readBack.StatusCode.Should().Be(HttpStatusCode.OK, await readBack.Content.ReadAsStringAsync());
+            (await readBack.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("activeSessionCount").GetInt32()
+                .Should().Be(2, "the read-back after a staff change shows the same figure as the list");
+        }
+        finally
+        {
+            await using var cleanup = fixture.Services.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.RefreshTokens.Where(t => t.UserId == invitedId).ExecuteDeleteAsync();
+        }
     }
 
     [Fact]
