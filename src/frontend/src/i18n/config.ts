@@ -401,6 +401,7 @@ const resources = {
           currencies: 'العملات',                           // [reused] matches reference.currencies
           'units-of-measure': 'وحدات القياس',               // [reused] §7's own term
           regions: 'المناطق',                              // [reused] §7's own term
+          incoterms: 'شروط التسليم الدولية',
         },
         loadFailed: 'تعذّر تحميل لوحة إدارة النظام',
         retry: 'إعادة المحاولة',                           // [reused]
@@ -2471,6 +2472,7 @@ const resources = {
           currencies: 'Currencies',
           'units-of-measure': 'Units of measure',
           regions: 'Regions',
+          incoterms: 'Delivery terms (Incoterms)',
         },
         loadFailed: 'Could not load platform administration',
         retry: 'Try again',

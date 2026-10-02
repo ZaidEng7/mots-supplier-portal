@@ -24,14 +24,20 @@
 // The sweep asserts it covers the sites it claims to - the denominator before the rule, because an empty list would pass every
 // assertion after it - and then that every enumerable key resolves in each language.
 //
+// A name with a hyphen in it is a quoted key in the catalogue, 'document-types': rather than documentTypes:, so the matcher
+// takes the name bare or quoted. Before that, no site here had a hyphenated name, and a matcher that only read bare names
+// would have reported the two hyphenated tables, document-types and units-of-measure, as missing.
+//
 // The last test is the control: a matcher that found every name would keep this green forever, which is the failure this
 // repository has now found in six other sweeps. It also pins the specific regression - the wizard namespace does NOT carry the
-// profile model's name for the currency, which is exactly why the profile grid must not read from it.
+// profile model's name for the currency, which is exactly why the profile grid must not read from it. The control runs the
+// sweep's own matcher rather than a copy of it, so loosening the matcher loosens the control with it and it goes red.
 
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { PROFILE_DISPLAY_FIELDS, LEGAL_INFO_FIELDS } from '../routes/profileDisplayFields'
+import { REFERENCE_TABLES } from '../api/referenceAdmin'
 
 
 const CONFIG = readFileSync(resolve(process.cwd(), 'src/i18n/config.ts'), 'utf8')
@@ -69,6 +75,15 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     site: 'ReviewApplicationPage - the chip saying how far creating the supplier in the ERP has got',
     namespace: 'review.erpPush',
     keys: ['Requested', 'Linked', 'Created', 'Failed'],
+  },
+  {
+    // The tables come from REFERENCE_TABLES in api/referenceAdmin.ts, the list the Reference Data page draws its table
+    // picker and its heading from. The server's sixth table, incoterms, had no label here at all: the overview's
+    // reference-data card fell back to printing the raw name "incoterms", and adding the table to the page without a
+    // label would have printed the whole key over it in both languages.
+    site: 'ReferenceDataPage - the table picker and the heading of the table being edited',
+    namespace: 'adminOverview.tables',
+    keys: REFERENCE_TABLES,
   },
   {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',
@@ -138,6 +153,10 @@ function child(source: string, name: string): string {
   throw new Error(`no direct child named ${name}`)
 }
 
+function defines(fields: string, key: string): boolean {
+  return new RegExp(`(^|[\\s,{])['"]?${key}['"]?\\s*:`).test(fields)
+}
+
 function namespaceFields(language: 'ar' | 'en', namespace: string): string {
   const from = language === 'en' ? CONFIG.lastIndexOf('en: {') : CONFIG.indexOf('ar: {')
   const resource = CONFIG.slice(from)
@@ -158,7 +177,7 @@ describe('dynamic translation keys', () => {
       for (const { site, namespace, keys } of ENUMERABLE_SITES) {
         const fields = namespaceFields(language, namespace)
         for (const key of keys) {
-          if (!new RegExp(`(^|[\\s,{])${key}\\s*:`).test(fields)) {
+          if (!defines(fields, key)) {
             missing.push(`${namespace}.${key}  — built by ${site}`)
           }
         }
@@ -169,9 +188,16 @@ describe('dynamic translation keys', () => {
 
   it('the check can fail', () => {
     const fields = namespaceFields('en', 'profile.fields')
-    expect(/(^|[\s,{])description\s*:/.test(fields)).toBe(true)
-    expect(/(^|[\s,{])aFieldNobodyDefined\s*:/.test(fields)).toBe(false)
-    expect(/(^|[\s,{])defaultCurrency\s*:/.test(namespaceFields('en', 'onboarding.fields'))).toBe(false)
-    expect(/(^|[\s,{])defaultCurrency\s*:/.test(fields)).toBe(true)
+    expect(defines(fields, 'description')).toBe(true)
+    expect(defines(fields, 'aFieldNobodyDefined')).toBe(false)
+    expect(defines(namespaceFields('en', 'onboarding.fields'), 'defaultCurrency')).toBe(false)
+    expect(defines(fields, 'defaultCurrency')).toBe(true)
+
+    const tables = namespaceFields('en', 'adminOverview.tables')
+    expect(defines(tables, 'document-types')).toBe(true)
+    expect(defines(tables, 'units-of-weight')).toBe(false)
+    expect(defines(tables, 'incoterm')).toBe(false)
+    expect(defines(tables, 'types')).toBe(false)
+    expect(defines(tables, 'measure')).toBe(false)
   })
 })

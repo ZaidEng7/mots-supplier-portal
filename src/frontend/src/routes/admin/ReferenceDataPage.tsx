@@ -1,8 +1,8 @@
 // SCR-710, SCR-711 and SCR-712 at /back-office/reference, for system_admin, P1 (FR-ADM-004).
 //
 // T-034 and T-059 landed the whole admin write surface in batch 9 and no screen consumed it, so adding a document type still
-// meant a request by hand. Three inventory rows, one screen: the operations are identical across the five tables and only
-// DocumentType carries extra flags, so five near-identical pages would be five places for the next change to miss - which
+// meant a request by hand. Three inventory rows, one screen: the operations are identical across the six tables and only
+// DocumentType carries extra flags, so six near-identical pages would be six places for the next change to miss - which
 // is the same argument the single handler behind them already makes.
 //
 // NO DELETE, AND THE CODE IS NOT EDITABLE. Both are D-28: every one of these tables is referenced BY CODE from live rows
@@ -15,8 +15,9 @@
 // THE REFUSALS. A duplicate code is one this screen can word itself; an invalid reference item is one only the server can
 // explain, so its own message wins; everything else falls back to the caller's wording. They are written as statements rather
 // than a chain, because the middle case defers to the SERVER's wording. The server names the rule that was broken - a
-// duplicate code, or one longer than the column allows, since Currency.Code is 3 by ISO and the others 50, and a too-long
-// code used to answer 500 from Postgres - and showing "invalid" instead would leave an administrator guessing which.
+// duplicate code, or one longer than the column allows, since Currency and Incoterm codes are 3 by their standards and the
+// others 50, and a too-long code used to answer 500 from Postgres - and showing "invalid" instead would leave an
+// administrator guessing which.
 //
 // WHERE a refusal is shown depends on whether it has a field to point at: a rejected NEW code belongs beside the code input,
 // and a rejected rename or deactivation has no input of its own, so it goes to the toast. Doing both put the same sentence on
@@ -28,7 +29,7 @@
 // means "this table has no such flag".
 //
 // BRULE-016's LINK SETS are fetched only on the document-types table: these links exist for no other table, and a request
-// that could only ever return the same rows on four of five tabs is a request not worth making. The line beside them says
+// that could only ever return the same rows on five of six tabs is a request not worth making. The line beside them says
 // what a link DOES rather than that it does nothing, because BRULE-016 has been live since D-59.
 //
 // BRULE-023's consequence is stated once and near the control rather than in a tooltip.

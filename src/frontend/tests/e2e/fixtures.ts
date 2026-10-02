@@ -90,7 +90,7 @@
 //
 //   T-060 declares the public allow-list and the admin catalogue behind SCR-724. T-079/SCR-720's audit
 //   explorer must not swallow /audit/export - it only reads the search on load. T-080/SCR-710-712's
-//   reference-data editor asks per table, so the fixture answers any of the five. A-7's two assignment
+//   reference-data editor asks per table, so the fixture answers any table. A-7's two assignment
 //   pickers on the RFQ detail page are asked for on every buyer view.
 //
 //   Phase 4 / D-66 WITHHOLDS the commercial values. The flag is off outside the demonstration seeder, so
