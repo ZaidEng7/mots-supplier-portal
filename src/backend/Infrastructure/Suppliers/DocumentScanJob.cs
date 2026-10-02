@@ -14,13 +14,16 @@
 // can be scanned again once the scanner is back.
 //
 // Already scanned: nothing happens. The job server runs a job at least once rather than exactly once, and runs a
-// failed one again, so a run can find the document already scanned clean or refused. The run stops as soon as it has
-// read the row, before the file is read or the scanner asked, and logs that it skipped. It used to read the file and
-// ask the scanner first and meet the state only afterwards. A clean answer then tried to move the clean file onto
-// itself; the move is a copy and then a delete of the source, which is the same object, and only the object store's
-// refusal to copy an object onto itself kept that from deleting the supplier's file. An infected answer was turned
-// away by the document for its state, and a refused document's file was already gone. Each one failed the job, so the
-// job server ran it again, scanning the file each time, until its retries ran out.
+// failed one again, so a run can find the document already scanned: refused, or clean and anywhere in review since.
+// A document in any state but PendingScan stops the run as soon as the row is read, before the file is read or the
+// scanner asked, and the run logs that it skipped. It used to read the file and ask the scanner first and meet the
+// state only afterwards. A document scanned clean had its file read and the scanner asked, and then the job failed
+// on the answer. A clean answer tried to move the clean file onto itself; the move is a copy and then a delete of the
+// source, which is the same object, and only the object store's refusal to copy an object onto itself kept that from
+// deleting the supplier's file. An infected answer was turned away by the document for its state. A refused
+// document failed sooner, on reading its file, which was deleted when it was refused, so the scanner was never
+// asked. Either way the job failed, so the job server ran it again, failing the same way each time, until its
+// retries ran out.
 //
 // The written architecture describes THIS job as the thing that moves a document into review. It used to
 // stop one state short, which is why the documented reviewer queue returned nothing. Both transitions land
