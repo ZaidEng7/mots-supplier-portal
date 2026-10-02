@@ -148,11 +148,14 @@ before touching one.
    `supplier.marked_removed_from_erp`.
 8. **Outcome.** `RecordSync` on the ERP connection row stores the time, a one-line summary, and one of
    three outcomes: **Succeeded**; **NeedsAttention** if anything failed, suspensions were held back or a
-   rename was held; **Failed** if the run threw. Connected systems shows it as the last import. Then the
-   lock is released.
+   rename was held; **Failed** if the run threw. Connected systems shows it as the last import. The
+   same save writes the run's closing audit row under the actor `ErpImportRun` named: `ErpImportCompleted`
+   with the trigger and the counts in `Changes`, or `ErpImportFailed` with the trigger, the failure
+   (`Interrupted`, or the exception's type) and its message. A failure to write it is logged and never
+   replaces the run's own exception. Then the lock is released. A run refused for the lock writes no row.
 
 **The preview** takes the same decisions and changes no supplier; it saves one audit row, `ErpImportPreviewed`. **Run the preview** posts to `/preview`.
-`PreviewErpImportHandler` saves one `ErpImportPreviewed` audit row, then reads
+`PreviewErpImportHandler` saves one `ErpImportPreviewed` audit row, naming the person who asked, then reads
 `LinkedSuppliersInPortal.ReadForPreviewAsync` (the same query, with what only the preview reports), the
 tax numbers of unlinked suppliers, the registration numbers, and the ERP. It then calls
 `ErpImportPreviewBuilder.Build`, which uses the same `ErpSyncPlan`, `ErpImportAdmission`,
@@ -665,7 +668,9 @@ switch off, the group may be set or cleared, and a blank one is stored as none.
   saving an address. A blank group clears it. A refusal from `SetSupplierCreation` answers 422
   (`integration_settings_refused`) with its sentence, and nothing is saved, the address included. A
   change to either writes `IntegrationSupplierCreationChanged`, with the person as the actor, `Off` or
-  `On` as the states, and the group as the reason.
+  `On` as the states, and the group as the reason. Every save also writes `IntegrationConnectionUpdated`,
+  and every **Test connection** writes `IntegrationConnectionTested`, both with the person as the actor;
+  the test's row has `Succeeded` or `Failed` as its state and the test's detail as its reason.
 
 **The group does not follow the address.** It is the name of a group on the ERP it was chosen from.
 Pointed at another ERP, the connection keeps it, and every create fails on a group that ERP may not have.
