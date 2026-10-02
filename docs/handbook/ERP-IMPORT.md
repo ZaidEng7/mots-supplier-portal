@@ -151,8 +151,14 @@ before touching one.
    rename was held; **Failed** if the run threw. Connected systems shows it as the last import. The
    same save writes the run's closing audit row under the actor `ErpImportRun` named: `ErpImportCompleted`
    with the trigger and the counts in `Changes`, or `ErpImportFailed` with the trigger, the failure
-   (`Interrupted`, or the exception's type) and its message. A failure to write it is logged and never
-   replaces the run's own exception. Then the lock is released. A run refused for the lock writes no row.
+   (`Interrupted`, or the exception's type) and its message. If recording `ErpImportCompleted` throws,
+   the run is closed as one that threw: the change tracker is cleared, `ErpImportFailed` is saved in its
+   place with that exception's type as the failure, the connection shows **Failed**, and the exception
+   reaches the caller instead of the report, though every supplier the run wrote stays written. If
+   recording `ErpImportFailed` throws, that error is logged ("Could not record the failed ERP import.")
+   and swallowed, so the exception that ended the run still reaches the caller; the connection keeps the
+   previous run's outcome, and the trail has `ErpImportRun` with no closing row. Then the lock is
+   released. A run refused for the lock writes no row.
 
 **The preview** takes the same decisions and changes no supplier; it saves one audit row, `ErpImportPreviewed`. **Run the preview** posts to `/preview`.
 `PreviewErpImportHandler` saves one `ErpImportPreviewed` audit row, naming the person who asked, then reads
@@ -301,9 +307,13 @@ To make the change safely:
 - **"a quarter" is hard-coded as words** in `ErpMissingSupplierPolicy`'s held-back messages. Change the
   constant and the words together. Administrators read `TogetherHeldBack`'s message, not `Decide`'s. The
   constant is a `double`, so write a third as `1.0 / 3`, not `0.33`.
-- **`RowScopeGuardTests` reads the handlers' source.** `PreviewErpImportHandler` is on its exemption
-  list, and `RunErpImportHandler` passes because it reads the caller's scope to name who ran it. A new
-  handler that reads the whole registry needs an exemption there, with a reason.
+- **`RowScopeGuardTests` reads the handlers' source.** `PreviewErpImportHandler` and
+  `RunErpImportHandler` both read the whole registry, and both pass because they read `scope.UserId`
+  to name the person who asked for the preview or ran the import on the audit trail. That verdict is
+  about attribution, not about which rows they read, so neither is on the exemption list. A new
+  handler that reads the whole registry and never reads the caller's scope needs an exemption there,
+  with a reason. One that does read it must not have one: the test also fails on an exemption that
+  exempts nothing.
 
 **Open decisions to leave to the owner:**
 
