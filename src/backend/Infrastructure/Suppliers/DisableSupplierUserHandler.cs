@@ -4,6 +4,10 @@
 // is ended, so a session already open cannot keep working.
 //
 // The same pattern a password change uses to end other sessions.
+//
+// The audit row is added before the save that ends those sessions, so the one save stores it. The logger only
+// adds a row, and this row used to be added after the last save, so every disable answered success and left
+// nothing in the trail.
 
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
@@ -31,9 +35,9 @@ public sealed class DisableSupplierUserHandler(AppDbContext db, UserManager<AppU
         {
             session.RevokedAt = DateTimeOffset.UtcNow;
         }
-        await db.SaveChangesAsync(ct);
 
         await auditLogger.LogAsync("Supplier", scope.SupplierId.Value, "supplier_user_disabled", scope.UserId, ct: ct);
+        await db.SaveChangesAsync(ct);
 
         return new DisableSupplierUserResult.Success();
     }

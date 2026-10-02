@@ -29,6 +29,11 @@
 //
 // Deactivating an active supplier skips suspension, which is legal.
 //
+// The full-lifecycle trail is checked over the rows the transitions wrote, told apart from the rows that already
+// existed under the supplier's code before the first one. Registration stores a row of its own under that code,
+// with no reason, because registering is not a lifecycle transition. Reading every row under the code passed only
+// while registration's row was being dropped instead of stored.
+//
 // A field-level validation failure answers as unprocessable rather than as a bad request, which stays for a
 // malformed or unmodelled body and is a different kind of wrong.
 //
@@ -94,6 +99,15 @@ public sealed class SupplierLifecycleEndpointTests(PostgresApiFixture fixture)
         var (referenceCode, _) = await ApprovedSupplierAsync($"Lifecycle Full {Guid.NewGuid():N}"[..30]);
         var staff = await StaffTestClient.CreateAsync(fixture, Roles.OnboardingReviewer);
 
+        List<Guid> rowsBeforeTransitions;
+        await using (var before = fixture.Services.CreateAsyncScope())
+        {
+            rowsBeforeTransitions = await before.ServiceProvider.GetRequiredService<AppDbContext>().AuditLogs
+                .Where(a => a.ReferenceCode == referenceCode)
+                .Select(a => a.Id)
+                .ToListAsync();
+        }
+
         var suspend = await TransitionAsync(staff, referenceCode, "suspend", "Sanctions screening hit");
         suspend.StatusCode.Should().Be(HttpStatusCode.OK);
         (await suspend.Content.ReadFromJsonAsync<LifecycleResponse>())!.LifecycleState.Should().Be("Suspended");
@@ -110,7 +124,7 @@ public sealed class SupplierLifecycleEndpointTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var trail = await db.AuditLogs
-            .Where(a => a.ReferenceCode == referenceCode)
+            .Where(a => a.ReferenceCode == referenceCode && !rowsBeforeTransitions.Contains(a.Id))
             .OrderBy(a => a.OccurredAt).ThenBy(a => a.Id)
             .Select(a => new { a.Action, a.FromState, a.ToState, a.Reason })
             .ToListAsync();

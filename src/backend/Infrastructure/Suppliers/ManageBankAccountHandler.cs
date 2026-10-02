@@ -7,6 +7,11 @@
 // Revealing the real number is a separate, separately-permissioned, audited action, and what is recorded is
 // that it was accessed and by whom rather than the value.
 //
+// The reveal saves that row itself, because nothing else in it is written and the endpoint does not save either.
+// It once only added the row, so every reveal handed out a decrypted number and stored no record of who saw it.
+// The account is read untracked, so that save can carry the audit row and nothing else: revealing a number
+// changes nothing about the account.
+//
 // A new account is added to the tracked set explicitly. Its identifier is assigned by us rather than by the
 // database, so the graph-tracking heuristic would otherwise take it for an existing row and issue a
 // pointless update instead of an insert.
@@ -175,12 +180,13 @@ public sealed class ManageBankAccountHandler(AppDbContext db, IScopeContext scop
     public async Task<RevealBankAccountResult> RevealAsync(RevealBankAccountCommand command, CancellationToken ct)
     {
         if (scope.SupplierId is null) return new RevealBankAccountResult.NotFoundOrOutOfScope();
-        var account = await db.BankAccounts.FirstOrDefaultAsync(b => b.Id == command.BankAccountId && b.SupplierId == scope.SupplierId, ct);
+        var account = await db.BankAccounts.AsNoTracking().FirstOrDefaultAsync(b => b.Id == command.BankAccountId && b.SupplierId == scope.SupplierId, ct);
         if (account is null) return new RevealBankAccountResult.NotFoundOrOutOfScope();
 
         var plaintext = encryption.Decrypt(account.EncryptedAccountNumber);
 
         await auditLogger.LogAsync("Supplier", account.SupplierId, "bank_account_revealed", scope.UserId, reason: account.MaskedAccountNumber, ct: ct);
+        await db.SaveChangesAsync(ct);
 
         return new RevealBankAccountResult.Success(plaintext);
     }

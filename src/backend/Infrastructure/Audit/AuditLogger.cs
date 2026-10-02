@@ -15,6 +15,9 @@
 // Three callers had no save of their own and gained one. Without those, their audit rows would have been
 // written to memory and dropped.
 //
+// Five more were found later. Two had no save at all, and three added their row after their last save, which
+// drops it just the same. A caller adds its row before a save that will store it.
+//
 //
 // WHAT KIND OF ACTOR IT WAS
 //
