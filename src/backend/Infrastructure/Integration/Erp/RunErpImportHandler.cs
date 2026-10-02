@@ -55,9 +55,16 @@
 //
 // THE RUN'S AUDIT ROW IS WRITTEN AND SAVED BEFORE THE FIRST SUPPLIER IS TOUCHED, so a run that fails part-way is still
 // on the trail. A LogAsync with no SaveChangesAsync after it writes nothing, a mistake this product has made before.
+//
+// AND THE RUN'S END IS WRITTEN TOO: ErpImportCompleted when it finished, ErpImportFailed when it threw, with the actor
+// ErpImportRun names and, in Changes, the trigger and the counts, or what went wrong. Each is saved with the outcome on
+// the connection row, which keeps only the latest run for the screen; the trail keeps every one, so "what did the
+// hourly sync do on Tuesday" has an answer. A run refused because the lock is taken never started, and writes no row
+// at all.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -101,17 +108,27 @@ public sealed class RunErpImportHandler(
             try
             {
                 var (report, probableRenames) = await RunLockedAsync(actor, ct);
-                await RecordAsync(OutcomeOf(report, probableRenames), Summary(report, probableRenames), CancellationToken.None);
+                await RecordAsync(
+                    actor,
+                    SupplierAuditActions.ErpImportCompleted,
+                    OutcomeOf(report, probableRenames),
+                    Summary(report, probableRenames),
+                    new
+                    {
+                        trigger = trigger.ToString(),
+                        erpSuppliers = report.ErpSupplierCount,
+                        created = report.Created,
+                        updated = report.Updated,
+                        suspended = report.Suspended,
+                        refused = report.Refused,
+                        failed = report.Failed,
+                    },
+                    CancellationToken.None);
                 return report;
-            }
-            catch (OperationCanceledException)
-            {
-                await RecordFailureAsync("The import was interrupted before it finished.");
-                throw;
             }
             catch (Exception exception)
             {
-                await RecordFailureAsync($"The import failed: {exception.Message}");
+                await RecordFailureAsync(actor, trigger, exception);
                 throw;
             }
             finally
@@ -320,25 +337,62 @@ public sealed class RunErpImportHandler(
             ? IntegrationSyncOutcome.NeedsAttention
             : IntegrationSyncOutcome.Succeeded;
 
-    private async Task RecordAsync(IntegrationSyncOutcome outcome, string summary, CancellationToken ct)
+    // The run's outcome, recorded in one save in two places: on the ERP connection, where the screen reads the latest
+    // run, and as the row that closes the run on the audit trail, under the actor ErpImportRun named, with the outcome
+    // as its state, the summary as its reason and the details as JSON. A deployment with no connection row still gets
+    // the audit row.
+    private async Task RecordAsync(
+        Actor actor,
+        string action,
+        IntegrationSyncOutcome outcome,
+        string summary,
+        object details,
+        CancellationToken ct)
     {
         var connection = await db.IntegrationConnections
             .FirstOrDefaultAsync(c => c.Key == IntegrationConnection.ErpKey, ct);
-        if (connection is null) return;
+        connection?.RecordSync(outcome, summary);
 
-        connection.RecordSync(outcome, summary);
+        await audit.LogAsync(
+            aggregateType: "Supplier",
+            aggregateId: Guid.Empty,
+            action: action,
+            actorUserId: actor.UserId,
+            actorLabel: actor.Label,
+            toState: outcome.ToString(),
+            reason: summary,
+            changes: JsonSerializer.Serialize(details),
+            ct: ct);
+
         await db.SaveChangesAsync(ct);
     }
 
-    // A failed or interrupted run is recorded as such, and recording it must never hide why it failed. So the tracker is cleared
-    // first - whatever half-finished change caused the failure must not ride along into this save - and any error
-    // while recording is logged and swallowed, leaving the original exception to reach whoever ran the import.
-    private async Task RecordFailureAsync(string summary)
+    // A failed or interrupted run is recorded as such, and recording it must never hide why it failed. So the tracker is
+    // cleared first - whatever half-finished change caused the failure must not ride along into this save, and the
+    // ErpImportFailed row is added after the clear, or the clear would take it out again - and any error while
+    // recording is logged and swallowed, leaving the original exception to reach whoever ran the import. The failure is
+    // "Interrupted" for a cancelled run, and otherwise the exception's type, which names the setting or the system at
+    // fault; the run's counts are not known, because a run that throws returns no report, and the suppliers it had
+    // already written carry their own rows.
+    private async Task RecordFailureAsync(Actor actor, ErpImportTrigger trigger, Exception exception)
     {
+        var interrupted = exception is OperationCanceledException;
+
         try
         {
             db.ChangeTracker.Clear();
-            await RecordAsync(IntegrationSyncOutcome.Failed, summary, CancellationToken.None);
+            await RecordAsync(
+                actor,
+                SupplierAuditActions.ErpImportFailed,
+                IntegrationSyncOutcome.Failed,
+                interrupted ? "The import was interrupted before it finished." : $"The import failed: {exception.Message}",
+                new
+                {
+                    trigger = trigger.ToString(),
+                    failure = interrupted ? "Interrupted" : exception.GetType().Name,
+                    message = exception.Message,
+                },
+                CancellationToken.None);
         }
         catch (Exception recording)
         {

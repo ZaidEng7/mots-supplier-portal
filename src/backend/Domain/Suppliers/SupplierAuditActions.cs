@@ -29,8 +29,12 @@ public static class SupplierAuditActions
     public const string AutoReinstated = "supplier_auto_reinstated";
 
     // ErpImportRun is the run's own row, not a supplier's: written once per run, under the Supplier aggregate with an
-    // empty identifier, before the first supplier is touched. ImportedFromErp is a supplier the run created.
+    // empty identifier, before the first supplier is touched. ErpImportCompleted and ErpImportFailed close it, under the
+    // same aggregate and with the same actor, once the run has finished or has thrown; a run refused because the lock was
+    // taken writes none of the three. ImportedFromErp is a supplier the run created.
     public const string ErpImportRun = "ErpImportRun";
+    public const string ErpImportCompleted = "ErpImportCompleted";
+    public const string ErpImportFailed = "ErpImportFailed";
     public const string ImportedFromErp = "supplier.imported_from_erp";
 
     // A supplier the ERP no longer returns, disables or has not approved is suspended once if it is active, and only

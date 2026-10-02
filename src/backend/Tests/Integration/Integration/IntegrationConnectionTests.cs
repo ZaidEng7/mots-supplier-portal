@@ -28,6 +28,11 @@
 // THE ERP'S SUPPLIER GROUPS are read from the ERP itself, so here they are asserted only where no ERP answers: 503
 // with no connection, 502 from a closed local port, 404 for a connection that is not the ERP's. The read and its
 // filter are ErpSupplierSourceTests', against a stub. Nothing here calls a real ERP.
+//
+// EVERY SAVE AND EVERY TEST IS ON THE TRAIL WITH THE PERSON WHO DID IT. A save names the administrator; a test names
+// them too, with its answer as the state and its detail as the reason. The answer "no" comes from a closed local port
+// through the route; the answer "yes" needs an ERP that says yes, so that one is asked of the handler with a probe that
+// answers without calling anything. ResetAsync clears the stored test result as well, since these tests leave one.
 
 namespace MotsSupplierPortal.Tests.Integration.Integration;
 
@@ -37,9 +42,13 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Application.Integration;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Integration;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Integration;
+using MotsSupplierPortal.Infrastructure.Integration.Erp;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Tests.Integration;
 
@@ -61,6 +70,11 @@ public sealed class IntegrationConnectionTests(PostgresApiFixture fixture) : IAs
         row.Update(string.Empty, string.Empty, null, isEnabled: false, Guid.Empty);
         row.SetSupplierCreation(false, null, Guid.Empty);
         await db.SaveChangesAsync();
+
+        await db.IntegrationConnections.Where(c => c.Key == IntegrationConnection.ErpKey).ExecuteUpdateAsync(set => set
+            .SetProperty(c => c.LastTestedAt, (DateTimeOffset?)null)
+            .SetProperty(c => c.LastTestSucceeded, (bool?)null)
+            .SetProperty(c => c.LastTestDetail, (string?)null));
     }
 
     private const string Group = "Local Suppliers - SYP";
@@ -74,6 +88,16 @@ public sealed class IntegrationConnectionTests(PostgresApiFixture fixture) : IAs
 
         return await db.AuditLogs.AsNoTracking()
             .Where(a => a.Action == "IntegrationSupplierCreationChanged" && a.ActorUserId == actorUserId)
+            .ToListAsync();
+    }
+
+    private async Task<List<MotsSupplierPortal.Domain.Audit.AuditLog>> ConnectionTrailAsync(Guid actorUserId, string action)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        return await db.AuditLogs.AsNoTracking()
+            .Where(a => a.Action == action && a.ActorUserId == actorUserId)
             .ToListAsync();
     }
 
@@ -401,5 +425,87 @@ public sealed class IntegrationConnectionTests(PostgresApiFixture fixture) : IAs
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await officer.GetAsync($"{Erp}/supplier-groups"))
             .StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task A_saved_connection_is_on_the_trail_with_the_person_who_saved_it()
+    {
+        var (admin, adminId) = await StaffTestClient.CreateWithMfaAndIdAsync(fixture, Roles.SystemAdmin);
+
+        (await admin.PutAsJsonAsync(Erp, new
+        {
+            baseUrl = "http://erp.example:8001",
+            apiKey = "the-key",
+            apiSecret = "the-secret",
+            isEnabled = false,
+        })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var row = (await ConnectionTrailAsync(adminId, "IntegrationConnectionUpdated")).Should().ContainSingle(
+            "repointing a ministry's credential is the change somebody asks about, and a row with no actor answers "
+            + "only when, not who").Subject;
+        row.ActorKind.Should().Be(MotsSupplierPortal.Domain.Audit.AuditActorKind.User);
+        row.AggregateType.Should().Be("IntegrationConnection");
+    }
+
+    [Fact]
+    public async Task A_test_that_answers_no_is_on_the_trail_with_the_person_and_the_answer()
+    {
+        var (admin, adminId) = await StaffTestClient.CreateWithMfaAndIdAsync(fixture, Roles.SystemAdmin);
+
+        await admin.PutAsJsonAsync(Erp, new
+        {
+            baseUrl = "http://127.0.0.1:9/nowhere",
+            apiKey = "k",
+            apiSecret = "s",
+            isEnabled = true,
+        });
+
+        var response = await admin.PostAsync($"{Erp}/test", content: null);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("succeeded").GetBoolean().Should().BeFalse("the control: a closed port answers no");
+
+        var row = (await ConnectionTrailAsync(adminId, "IntegrationConnectionTested")).Should().ContainSingle(
+            "a test is a call to another ministry's system on somebody's authority, and the stored result keeps only "
+            + "the latest").Subject;
+        row.ActorKind.Should().Be(MotsSupplierPortal.Domain.Audit.AuditActorKind.User);
+        row.AggregateType.Should().Be("IntegrationConnection");
+        row.ToState.Should().Be("Failed");
+        row.Reason.Should().Be(body.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task A_test_that_answers_yes_is_on_the_trail_as_succeeded()
+    {
+        var person = Guid.CreateVersion7();
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var result = await new TestIntegrationHandler(
+                    scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                    new AnsweringProbe(new IntegrationTestResult(true, "Suppliers, contacts and addresses were read.")),
+                    new TestScope(person),
+                    scope.ServiceProvider.GetRequiredService<IAuditLogger>())
+                .HandleAsync(IntegrationConnection.ErpKey, CancellationToken.None);
+
+            result!.Succeeded.Should().BeTrue("the control: the probe answered yes");
+        }
+
+        var row = (await ConnectionTrailAsync(person, "IntegrationConnectionTested")).Should().ContainSingle().Subject;
+        row.ToState.Should().Be("Succeeded");
+        row.Reason.Should().Be("Suppliers, contacts and addresses were read.");
+    }
+
+    private sealed class AnsweringProbe(IntegrationTestResult answer) : IErpSupplierSourceProbe
+    {
+        public Task<IntegrationTestResult> TryReachAsync(CancellationToken ct) => Task.FromResult(answer);
+    }
+
+    private sealed class TestScope(Guid userId) : IScopeContext
+    {
+        public Guid? UserId { get; } = userId;
+        public Guid? SupplierId => null;
+        public Guid? OrganizationId => null;
+        public bool IsAuthenticated => true;
+        public bool HasPermission(string permission) => true;
     }
 }

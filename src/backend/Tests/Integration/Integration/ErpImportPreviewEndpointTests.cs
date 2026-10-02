@@ -23,6 +23,9 @@
 //
 // THE PERMISSION IS ASSERTED SEPARATELY because this route hands back every supplier the ERP has, with their tax
 // numbers and email addresses, and it is gated on the same permission as running the import for that reason.
+//
+// THE PREVIEW'S AUDIT ROW NAMES THE PERSON WHO ASKED. It is saved before the ERP is read, so a preview refused for
+// want of an ERP is on the trail too, which is what lets this test read it without any ERP answering.
 
 namespace MotsSupplierPortal.Tests.Integration.Integration;
 
@@ -30,7 +33,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Identity;
+using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Tests.Integration;
 
 [Collection(IntegrationTestCollection.Name)]
@@ -110,6 +117,27 @@ public sealed class ErpImportPreviewEndpointTests(PostgresApiFixture fixture) : 
 
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
         problem.GetProperty("detail").GetString().Should().Contain("/back-office/erp-import");
+    }
+
+    [Fact]
+    public async Task The_preview_is_on_the_audit_trail_with_the_person_who_asked_for_it()
+    {
+        var (admin, adminId) = await StaffTestClient.CreateWithMfaAndIdAsync(fixture, Roles.SystemAdmin);
+
+        (await admin.PostAsync(Preview, content: null)).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = (await db.AuditLogs.AsNoTracking()
+                .Where(a => a.Action == "ErpImportPreviewed" && a.ActorUserId == adminId)
+                .ToListAsync())
+            .Should().ContainSingle(
+                "the preview reads every supplier out of another ministry's system, and the row must say on whose "
+                + "authority").Subject;
+
+        row.ActorKind.Should().Be(AuditActorKind.User);
+        row.AggregateType.Should().Be("Supplier");
+        row.AggregateId.Should().Be(Guid.Empty);
     }
 }
 

@@ -16,8 +16,10 @@
 // a missing approval; a probable rename is held for a person and no company's history moves between records; a
 // supplier that left while suspended is suspended once for its absence if it is reactivated later; an empty read marks
 // nobody as gone; a document approval never lifts a suspension the sync made, nor brings back a supplier the ERP no
-// longer offers or has disabled, while a renewal approved meanwhile is honoured once the ERP offers it again; and every
-// supplier the import creates, and every suspension it makes, is on the audit trail with whoever ran it.
+// longer offers or has disabled, while a renewal approved meanwhile is honoured once the ERP offers it again; every
+// supplier the import creates, and every suspension it makes, is on the audit trail with whoever ran it; and so is the
+// run itself, opened and closed under that actor with its counts or its failure, while a run refused for the lock
+// writes nothing and a closing row that cannot be written never hides the failure it records.
 //
 // THE DOCUMENT TESTS GO THROUGH THE REVIEWER'S APPROVAL HANDLER, not through Reactivate, because the defect lived in
 // how that handler decides whose suspension came last. The expiry is produced the way time produces it: a document
@@ -33,6 +35,7 @@
 
 namespace MotsSupplierPortal.Tests.Integration.Integration;
 
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +44,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Application.Integration;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Integration;
 using MotsSupplierPortal.Domain.Suppliers;
@@ -72,6 +76,15 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     {
         public Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ErpSupplier>>(suppliers);
+
+        public Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    private sealed class InterruptedSource : IErpSupplierSource
+    {
+        public Task<IReadOnlyList<ErpSupplier>> ListSuppliersAsync(CancellationToken ct) =>
+            throw new OperationCanceledException();
 
         public Task<IReadOnlyList<string>> ListSupplierGroupsAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<string>>([]);
@@ -109,7 +122,8 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
         return await new PreviewErpImportHandler(
                 source,
                 scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-                scope.ServiceProvider.GetRequiredService<IAuditLogger>())
+                scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+                new TestScope())
             .HandleAsync(CancellationToken.None);
     }
 
@@ -1059,26 +1073,86 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
     [Fact]
     public async Task A_second_import_while_one_is_running_is_refused_rather_than_duplicating()
     {
-        await using var holder = fixture.Services.CreateAsyncScope();
-        var holderDb = holder.ServiceProvider.GetRequiredService<AppDbContext>();
-        await holderDb.Database.OpenConnectionAsync();
+        var person = Guid.CreateVersion7();
 
-        try
+        await using (var holder = fixture.Services.CreateAsyncScope())
         {
-            (await holderDb.Database.SqlQuery<bool>($"SELECT pg_try_advisory_lock({7_346_815_201_001L}) AS \"Value\"")
-                .SingleAsync()).Should().BeTrue("the test must actually hold the lock for this to prove anything");
+            var holderDb = holder.ServiceProvider.GetRequiredService<AppDbContext>();
+            await holderDb.Database.OpenConnectionAsync();
 
-            var act = () => RunAsync(new FixedSource(ErpRow(Unique("ERP-BUSY"))));
+            try
+            {
+                (await holderDb.Database.SqlQuery<bool>($"SELECT pg_try_advisory_lock({7_346_815_201_001L}) AS \"Value\"")
+                    .SingleAsync()).Should().BeTrue("the test must actually hold the lock for this to prove anything");
 
-            await act.Should().ThrowAsync<ErpImportBusyException>(
-                "two overlapping runs would both find the same new supplier missing and both create it");
+                var act = () => RunAsync(new FixedSource(ErpRow(Unique("ERP-BUSY"))), userId: person);
+
+                await act.Should().ThrowAsync<ErpImportBusyException>(
+                    "two overlapping runs would both find the same new supplier missing and both create it");
+            }
+            finally
+            {
+                await holderDb.Database.SqlQuery<bool>($"SELECT pg_advisory_unlock({7_346_815_201_001L}) AS \"Value\"")
+                    .SingleAsync();
+                await holderDb.Database.CloseConnectionAsync();
+            }
         }
-        finally
-        {
-            await holderDb.Database.SqlQuery<bool>($"SELECT pg_advisory_unlock({7_346_815_201_001L}) AS \"Value\"")
-                .SingleAsync();
-            await holderDb.Database.CloseConnectionAsync();
-        }
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        (await db.AuditLogs.AsNoTracking().AnyAsync(a => a.ActorUserId == person)).Should().BeFalse(
+            "a run refused for the lock never started, and a trail reading 'started, failed' would send somebody "
+            + "looking for a failure that did not happen");
+    }
+
+    // A RUN IS OPENED AND CLOSED ON THE TRAIL BY WHOEVER RAN IT: ErpImportRun before the first supplier, and
+    // ErpImportCompleted with every count once it has finished. Each count is a different number here, so a count
+    // written under another's name fails.
+    [Fact]
+    public async Task A_manual_run_is_opened_and_closed_on_the_trail_by_the_person_who_ran_it()
+    {
+        var kept = new[] { Unique("ERP-CLOSED-KEPT"), Unique("ERP-CLOSED-KEPT") };
+        var gone = new[] { Unique("ERP-CLOSED-GONE"), Unique("ERP-CLOSED-GONE"), Unique("ERP-CLOSED-GONE") };
+        await RunAsync(new FixedSource([.. kept.Select(ErpRow), .. gone.Select(ErpRow)]));
+
+        var person = Guid.CreateVersion7();
+        var report = await RunAsync(
+            new FixedSource(
+            [
+                .. kept.Select(ErpRow),
+                ErpRow(Unique("ERP-CLOSED-NEW")),
+                .. Enumerable.Range(0, 4).Select(_ => ErpRow(Unique("ERP-CLOSED-PUSHED")) with { CreatedByPortal = true }),
+            ]),
+            userId: person);
+
+        (report.Created, report.Updated, report.Suspended, report.Refused, report.Failed)
+            .Should().Be((1, 2, 3, 4, 0), "the control: the run did what the counts below are meant to say");
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var trail = await db.AuditLogs.AsNoTracking()
+            .Where(a => a.AggregateId == Guid.Empty && a.ActorUserId == person)
+            .OrderBy(a => a.OccurredAt).ThenBy(a => a.Id)
+            .ToListAsync();
+
+        trail.Select(a => a.Action).Should().Equal(
+            ["ErpImportRun", "ErpImportCompleted"],
+            "a run whose start is on the trail and whose end is not reads like one still running, or one that died");
+        trail.Should().OnlyContain(a =>
+            a.AggregateType == "Supplier" && a.ActorKind == AuditActorKind.User && a.ActorLabel == null);
+
+        var completed = trail[1];
+        completed.ToState.Should().Be("Succeeded");
+        completed.Reason.Should().Be("7 in the ERP: 1 created, 2 updated, 3 suspended, 4 refused, 0 failed.");
+
+        var changes = JsonDocument.Parse(completed.Changes!).RootElement;
+        changes.GetProperty("trigger").GetString().Should().Be("Manual");
+        changes.GetProperty("erpSuppliers").GetInt32().Should().Be(7);
+        changes.GetProperty("created").GetInt32().Should().Be(1);
+        changes.GetProperty("updated").GetInt32().Should().Be(2);
+        changes.GetProperty("suspended").GetInt32().Should().Be(3);
+        changes.GetProperty("refused").GetInt32().Should().Be(4);
+        changes.GetProperty("failed").GetInt32().Should().Be(0);
     }
 
     [Fact]
@@ -1118,6 +1192,104 @@ public sealed class ErpSupplierSyncTests(PostgresApiFixture fixture) : IAsyncLif
                 "a scheduled failure nobody records looks exactly like a run with nothing to do");
             row.LastSyncSummary.Should().Contain("InitialPassword");
         }
+    }
+
+    // A RUN THAT THROWS IS CLOSED ON THE TRAIL AS FAILED, under the actor that opened it and with what went wrong. The
+    // scheduled run is the one tested because it is the one nobody watches, and its scope is given a person on purpose:
+    // the hourly job has nobody to name, so its rows say "system" whoever the scope might hold.
+    [Fact]
+    public async Task A_scheduled_run_that_fails_is_closed_on_the_trail_as_failed_by_the_system()
+    {
+        Guid correlation;
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var failing = new RunErpImportHandler(
+                new FixedSource(),
+                scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+                scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
+                Options.Create(new ErpImportOptions { InitialPassword = null }),
+                scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+                new TestScope(Guid.CreateVersion7()),
+                NullLogger<RunErpImportHandler>.Instance);
+
+            var act = () => failing.HandleAsync(ErpImportTrigger.Scheduled, CancellationToken.None);
+            await act.Should().ThrowAsync<ErpImportNotConfiguredException>(
+                "the closing row is a record of the failure, not a replacement for it");
+
+            correlation = scope.ServiceProvider.GetRequiredService<IAuditContext>().CorrelationId;
+        }
+
+        await using (var scope = fixture.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var trail = await db.AuditLogs.AsNoTracking()
+                .Where(a => a.AggregateId == Guid.Empty && a.CorrelationId == correlation)
+                .OrderBy(a => a.OccurredAt).ThenBy(a => a.Id)
+                .ToListAsync();
+
+            trail.Select(a => a.Action).Should().Equal(["ErpImportRun", "ErpImportFailed"]);
+            trail.Should().OnlyContain(
+                a => a.ActorUserId == null && a.ActorLabel == "system" && a.ActorKind == AuditActorKind.System,
+                "an hourly run's rows name the system rather than nobody, and never a person who did not press anything");
+
+            var failed = trail[1];
+            failed.ToState.Should().Be("Failed");
+            failed.Reason.Should().Be("The import failed: No initial password is configured: set ErpImport:InitialPassword.");
+
+            var changes = JsonDocument.Parse(failed.Changes!).RootElement;
+            changes.GetProperty("trigger").GetString().Should().Be("Scheduled");
+            changes.GetProperty("failure").GetString().Should().Be("ErpImportNotConfiguredException");
+            changes.GetProperty("message").GetString().Should().Be(
+                "No initial password is configured: set ErpImport:InitialPassword.");
+        }
+    }
+
+    // AN INTERRUPTED RUN IS CLOSED AS INTERRUPTED, not as a failure of some named setting: a run cancelled part-way, by
+    // a shutdown or a caller going away, is somebody else's decision rather than something to fix.
+    [Fact]
+    public async Task A_run_that_is_interrupted_is_closed_on_the_trail_as_interrupted()
+    {
+        var person = Guid.CreateVersion7();
+
+        var act = () => RunAsync(new InterruptedSource(), userId: person);
+        await act.Should().ThrowAsync<OperationCanceledException>();
+
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var trail = await db.AuditLogs.AsNoTracking()
+            .Where(a => a.AggregateId == Guid.Empty && a.ActorUserId == person)
+            .OrderBy(a => a.OccurredAt).ThenBy(a => a.Id)
+            .ToListAsync();
+
+        trail.Select(a => a.Action).Should().Equal(["ErpImportRun", "ErpImportFailed"]);
+
+        var failed = trail[1];
+        failed.Reason.Should().Be("The import was interrupted before it finished.");
+
+        var changes = JsonDocument.Parse(failed.Changes!).RootElement;
+        changes.GetProperty("trigger").GetString().Should().Be("Manual");
+        changes.GetProperty("failure").GetString().Should().Be("Interrupted");
+    }
+
+    // RECORDING A FAILURE NEVER HIDES IT. The closing row is written in the same guarded save as the connection's
+    // outcome, so an audit store that refuses it leaves the import's own exception to reach whoever ran it.
+    [Fact]
+    public async Task A_failed_run_whose_closing_row_cannot_be_written_still_reports_its_own_failure()
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var failing = new RunErpImportHandler(
+            new FixedSource(),
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>(),
+            Options.Create(new ErpImportOptions { InitialPassword = null }),
+            new RefusingAudit(scope.ServiceProvider.GetRequiredService<IAuditLogger>(), "ErpImportFailed"),
+            new TestScope(Guid.CreateVersion7()),
+            NullLogger<RunErpImportHandler>.Instance);
+
+        var act = () => failing.HandleAsync(ErpImportTrigger.Manual, CancellationToken.None);
+
+        await act.Should().ThrowAsync<ErpImportNotConfiguredException>(
+            "an administrator told 'the audit store refused the row' would go looking in the wrong place");
     }
 
     [Fact]
