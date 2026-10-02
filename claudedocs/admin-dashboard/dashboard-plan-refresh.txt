@@ -1,0 +1,149 @@
+SUMMARY: All 13 PRs are still needed. Nothing of the dashboard exists on any branch, and #230 to #233 fully finished none of the plan's items. #230 did one part of item 5 (ErpImportRun now carries the actor, RunErpImportHandler.cs:87-91), and one part of item 12 was already true: the admin lands on /back-office/dashboard (loginDestination.ts:29). Most of what changed comes from the ERP work that merged since. That work added two recurring jobs, an hourly sync result, the supplier push with its switch, its WriteHosts gate and its Failed state, 16 new audit actions, and about 24 system audit rows a day. All of it fits into items 3, 5, 7, 9 and 10, so no new PR is needed, and "no schema changes" still holds: every new figure reads existing columns (Supplier.ErpPush*, IntegrationConnection.LastSync*/CreateSuppliersInErp, RefreshTokens, AuditLogs) or ErpOptions.WriteHosts. My spot-checks confirmed the cited evidence with one correction: a second DocumentScanJob run cannot delete a file on the infected path, because MarkScanRejected (:44) throws before the delete (:45). The danger is on the clean path, which moves clean/x onto itself (MinioFileStorage.cs:99-109 copies, then deletes the source).
+
+BUILD LIST:
+Stage A, fixes
+1. [changed] Add the Incoterms label (adminOverview.tables.incoterms: Arabic 'شروط التسليم الدولية', English 'Delivery terms (Incoterm)'), add 'incoterms' to REFERENCE_TABLES (referenceAdmin.ts:27), register adminOverview.tables over REFERENCE_TABLES in dynamicKeyCoverage.test.ts as the mutation-proof test, and fix the "five tables" and "only Currency is 3 characters" comments (ReferenceDataPage.tsx:4,17-18; referenceAdmin.ts:1). The same PR fixes a bug this exposes: creating 'dpu' saves 'DPU' (ReferenceDataAdminHandler.cs:154) but reads back 'dpu' (:170,:270) and returns 404, and ApplyAsync (:258) does not uppercase either. Normalise the incoterm code once, and add a test that 'dpu' gives 200 with code 'DPU'.
+2. [changed] Session counts in ListStaffHandler.cs:51 and StaffAccountLoader.cs:29 use the ListSessionsHandler.cs:32-33 rule (RevokedAt null, ExpiresAt > now, distinct FamilyId), written once as an EF-translatable expression that item 8 reuses. The test seeds an expired row, a revoked row, two rows in one family and one live row in a second family, and expects 2 from GET /api/v1/staff and from a ToDtoAsync-backed response.
+3. [changed] Give the org-less admin a platform path. RetryErpSyncHandler finds the award across the registry, using the pattern at RetryErpPushHandler.cs:40, because AwardLoader.cs:30 returns null with no OrganizationId. SystemStatusHandler.cs:30-41 gets a branch that sets erpDegraded when any Award is Failed. Both apply only when the caller has no SupplierId or OrganizationId and holds integration.retry. Tests: an org-less admin retrying a Failed award gets 200 and Requested (the Operations page Retry returns 404 today), and that admin sees erpDegraded=true. The same PR rewords erpBanner.notConfigured (config.ts:477, :2547) and the SystemStatusContracts/ErpStatusBanner comments to the purchase-order wording, because the current text has been false since #230.
+4. [changed] Save the security audit rows (AuditLogger.cs:54-73 never saves):
+   - Move LogAsync before the existing save in ResetPassword, RevokeSession and RevokeAllSessions.
+   - In LoginHandler, save on the four failure paths (:71,:77,:96,:111) and write login_succeeded before IssueTokenPairAsync.
+   - Stop writing refresh_rotated. Write refresh_reuse_detected only for a token that was rotated away and used more than about 10 s later. "Rotated away" is inferred as a token in the same family created at or after its RevokedAt, with no new column.
+   - Fix the same lost-row bug in DisableSupplierUserHandler.cs:36, ManageBankAccountHandler.cs:183, UploadDocumentHandler.cs:139, RegisterSupplierHandler.cs:149 and VerifyEmailHandler.cs:69.
+   - Define one shared list of session actions. Filter it out of GetAuditLogHandler.ScopedQuery (:118-125, covers list and export) and out of the old overview's 24 h count (GetAdminOverviewHandler.cs:87-88).
+   - Correct the ASVS and REQUIREMENTS-AUDIT docs, which already claim these rows are recorded.
+   - Add the logout revoke and the refresh grace if Q11 and Q12 are yes.
+   - Split into 4a (sign-in and sessions) and 4b (the other five handlers) if the review gets too large.
+5. [changed] ERP audit:
+   - Add scope.UserId to IntegrationConnectionUpdated (IntegrationHandlers.cs:105-109) and to ErpImportPreviewed. For the preview, inject IScopeContext and remove its RowScopeGuardTests exemption, which goes stale because the guard's vocabulary includes scope.UserId.
+   - Inside RunErpImportHandler, write ErpImportCompleted or ErpImportFailed next to RecordAsync and RecordFailureAsync. Each row carries the run's actor and the counts as JSON in `changes`. The failed row is added after ChangeTracker.Clear() and saved. ErpImportBusyException writes no row.
+   - Add a test that pins ErpImportRun's actor for a manual run and a scheduled run.
+   - Add an IntegrationConnectionTested row with the actor if Q14 is yes.
+6. [same] DocumentScanJob returns unless the document is in PendingScan. The check goes right after the load and before OpenReadAsync (DocumentScanJob.cs:31-34). Test that a second ScanAsync on an already-clean document leaves the file and the state unchanged, for both a Clean and an Infected outcome. This must land before item 13.
+
+Stage B, backend
+7. [changed] GET /api/v1/admin/dashboard, gated on admin.users.manage.
+   - Structure: permission flags are read once, then each section runs in parallel in its own child scope and DbContext. Synchronous Hangfire calls go inside Task.Run so the sections really run in parallel. Each section returns ok, failed or hidden. The endpoint never contacts the ERP. The only outside call is a MinIO ping capped at 5 s.
+   - Housekeeping: add RowScopeGuard entries and regenerate PERMISSIONS.md.
+   - System health:
+     - Verdicts for all 8 jobs. Grace is 10 min for the 5-minute jobs, including supplier-erp-push, and 2 h for the hourly and daily jobs, including erp-supplier-sync. A last state of Scheduled counts as retrying. erp-supplier-sync links to /back-office/erp-import.
+     - Hangfire queue: Retrying is the Scheduled count minus ErpSupplierSyncJob.RunAgainAsync jobs. Live servers come from heartbeats within 5 min.
+     - EmailJobs that failed in the last 7 days, and those retrying.
+     - Outbox.
+     - SupplierDocuments only (not tender or bid files) in PendingScan with UploadedAt older than 15 min.
+     - Pending migrations, by name.
+     - Reference lists.
+     - The purchase-order transport, labelled as such.
+     - An on-demand storage-and-scanner probe capped at 10 s.
+   - ERP block, hidden without admin.integrations.manage:
+     - Connection: source, enabled, host, https, last test.
+     - Hourly sync: last run, outcome, counts. Stale after 3 h while enabled; also flags an import that started and recorded no outcome.
+     - Supplier push: switch, group, whether the host is on WriteHosts (yes or no, through a helper shared with ErpSupplierRegistrar.cs:197-209), waiting, Failed and stalled counts.
+     - Each ERP sub-section fails on its own when a #230 or #232 migration is missing.
+8. [changed] People and access:
+   - Staff and supplier accounts counted separately, never summed, active and inactive apart.
+   - Per-role counts over active users, plus a distinct-user total.
+   - Sessions, using item 2's rule.
+   - Pending invitations from unexpired tokens, staff and supplier shown separately.
+   - Invited-never-signed-in, staff only: a staff_invited row and no RefreshTokens row ever, split by whether the link is still valid.
+   - Locked out means LockoutEnd > now.
+   - Two-factor required but missing, labelled "cannot sign in".
+   - Organisations by type.
+   - Supplier logins on '@erp-import.invalid' addresses, as an info count only.
+   - Frontend: a "Locked until" badge on StaffPage.tsx:223-228, from the lockoutEnd the API already returns, with new Arabic and English keys.
+9. [changed] Security and recent activity, gated on audit.read, landing after items 4 and 5.
+   - Security, counts for 24 h and 7 days: login_failed, login_locked_out, login_mfa_failed, login_blocked_mfa_enrollment_required, refresh_reuse_detected, password_reset, staff_mfa_reset.
+   - Sensitive changes: the 10 latest rows from a named allow-list. The list now also includes IntegrationConnectionUpdated, IntegrationSupplierCreationChanged, supplier.erp_push_retried and a manual ErpImportRun.
+   - Recent activity: the 24 h count and the latest 10 User or Integration rows. Leave out item 4's session list and system bookkeeping: scheduled ErpImportRun and ErpImportCompleted rows, and supplier.erp_push_attempt_failed. System rows get a count of their own.
+   - The actor's name comes from its own projection, not AuditLogEntryDto: a left join to Users, falling back to ActorLabel, then to "system".
+   - Every action shown gets an Arabic and an English label, including the 16 new ERP actions.
+   - Update the comment at AdminOverviewContracts.cs:9-11.
+10. [changed] Needs attention, computed on the server from the other sections' results.
+   - "All clear" appears only when every check ran and none fired. Otherwise the list names the checks that could not run.
+   - Links go to page roots, and a link is shown only when the viewer holds that page's permission.
+   - Jobs, outbox, award syncs and stuck scans go to /back-office/operations.
+   - These go to /back-office/integrations, or /back-office/erp-import for holders of supplier.import.run:
+     - a failed or stale hourly sync
+     - a failed last connection test
+     - a plain-http ERP address
+     - the push switch on with the host not on WriteHosts, or with no group set
+   - Failed or stalled pushes list up to 5 reference codes, each linking to /back-office/review/{code}, for holders of admin.integrations.manage.
+   - An empty reference table goes to /back-office/reference.
+   - Locked-out accounts, lapsed invitations and "cannot sign in" accounts go to /back-office/staff.
+   - The review-deadline item appears only if Q2 is yes.
+   - A security spike goes to /back-office/audit, for holders of audit.read.
+
+Stage C, frontend
+11. [changed] The page, built after the user approves a mock-up.
+   - Arabic and English. Light theme, and dark through the OS setting (the app has no theme toggle).
+   - Five parts, each with its own ok, failed (QueryError with retry) or hidden state.
+   - PageHeading actions: Refresh, and "Check storage and scanner", which probes only when pressed.
+   - PageHeading meta: "Updated at", and the version from the existing ['meta'] query (no version field in the dashboard response).
+   - refetchInterval 60_000.
+   - Reuses Metric, Card, Badge, ThresholdTiles, NextActionCard (once only) and SkeletonList.
+   - The same PR makes the Operations storage card probe only on a button press (OperationsPage.tsx:88) and registers every key built at runtime in dynamicKeyCoverage.test.ts.
+12. [changed] Landing on the dashboard already works, so this PR does routing and retirement only.
+   - /back-office/dashboard renders the admin dashboard for holders of admin.users.manage and the current greeting otherwise, with a test for each branch.
+   - /back-office/admin becomes a beforeLoad redirect with a written ROUTE_EXEMPTIONS reason, and the nav row (navigation.ts:154) is removed.
+   - Retire the API GET /api/v1/admin/overview: endpoint, handler, contracts, DI and mapping lines, client, AdminOverviewPage and its test.
+   - Move the AdminOverviewTests and ErpSyncVacuityTests assertions to the dashboard endpoint, and regenerate PERMISSIONS.md.
+   - Replace the e2e /api/v1/admin/overview mock with a /api/v1/admin/dashboard mock covering ok, failed and hidden sections, with no probe on load. The e2e back-office token holds admin.users.manage, so every e2e and a11y visit to the dashboard will use it.
+   - Keep adminOverview.tables, delete the other adminOverview.* keys, and update SCR-700's route in the UX docs.
+
+Stage D
+13. [changed] POST /api/v1/admin/scans/retry, gated on admin.users.manage, landing after item 6.
+   - Takes up to 100 SupplierDocuments in PendingScan with UploadedAt older than 15 min, oldest first.
+   - For each document: skip it if its scan job is Enqueued or Processing; otherwise delete its scan jobs in Failed and in Scheduled (waiting to retry, since Hangfire's default 10 retries apply), enqueue one new scan, and write document_scan_requeued with the caller as actor.
+   - Saves once at the end, because AuditLogger does not save. Returns the number requeued and the number still pending.
+   - Documents whose quarantine object is already gone (the move succeeded, the save failed) are reported, not requeued.
+   - Add a RowScopeGuard exemption and regenerate PERMISSIONS.md.
+
+Dropped or reworded parts (no whole PR dropped):
+- Item 5, "actor on ErpImportRun": done in #230 (RunErpImportHandler.cs:87-91, 138-146). Only the test remains, kept in item 5.
+- Item 5, "not from the endpoint's catch blocks": nothing to move. ErpImportEndpoints.cs:68-104 has never written audit rows.
+- Item 12, "the admin lands on the dashboard": already true (loginDestination.ts:29; LoginPage.test.tsx:190,203).
+- Item 12, "retire /admin/overview": there is no such frontend route. It now names the API GET /api/v1/admin/overview and the /back-office/admin page.
+- Item 11, "the running version" as a dashboard field: not needed, because /api/v1/meta already serves it (ApiEndpointRegistration.cs:194-210).
+- Deferred out of Phase 1:
+  - counts of suppliers suspended by the ERP (belongs in Phase 2's suppliers section; the last run's suspended count is in item 7)
+  - reading the import lock from pg_locks
+  - a list page of failed pushes
+  - an enrolment path for accounts that need two-factor (Q13)
+
+QUESTIONS:
+1. Save the security events? Still yes. It now also covers the five other lost rows in item 4.
+2. Review-deadline item (reverses A-5): reworded. If chosen, show it on the admin dashboard only, and count Submitted and UnderReview cases past ReviewSla.TargetFor(enteredQueueAt, review.slaWorkingDays) in working days. Leave out InfoRequested, where the timer pauses, and do not use the queue's 48 h and 120 h calendar tones. Amend A-5 (DECISIONS-TAKEN.md:454-464) in the same PR and keep its "[recommended, awaiting procurement]" tag.
+3. Invited-never-signed-in: yes, reworded to staff accounts only. Supplier invites are logged against the supplier, not the person (InviteSupplierUserHandler.cs:55), so they can be counted only while the token lives. The ERP-imported accounts are never counted.
+4. The feeds show the actor and are gated on audit.read: yes. Also, the hourly sync's system rows stay out of the feeds and get a count of their own.
+5. Thresholds: they still hold, with these additions:
+   - The 5-minute jobs, including supplier-erp-push, are late after 15 min.
+   - The hourly jobs, including erp-supplier-sync, are late after 3 h, and LastSyncAt older than 3 h while the connection is enabled counts as stale.
+   - The daily jobs are late after 26 h.
+   - A push is stalled when its next attempt is more than 15 min overdue while the switch is on, or when an in-flight marker is older than 10 min.
+   - An import that started and recorded no outcome after 30 min needs attention.
+6. Cap the scanner probe at 10 s and stop the Operations page probing when it opens: yes. Also cap the dashboard's MinIO ping at 5 s.
+7. Banner reword: yes, and ship it earlier, in item 3, because the current text has been false since #230. Please confirm that naming purchase orders alone is enough: the logging stand-in also holds the SupplierApproved and SupplierProfileChanged outbox events (ApproveApplicationHandler.cs:50, ComplianceReTrigger.cs:47).
+8. Audit the 8 unaudited admin actions in their own PR right after Phase 1: yes. They are field-config update, email-template save and delete, job trigger, outbox replay, document-type-categories set, and UI-string override save and delete. Add to that PR: stop the generic "Run now" from starting supplier-erp-push. Today only erp-supplier-sync is barred (RecurringJobs.cs:32-37), so Run now would run the push as "system" under admin.users.manage and write to the ERP whenever the switch is on.
+9. Mock-up before PR 11: yes. It should show the ERP block as it is today: push off, N suppliers waiting.
+10. NEW: what does the dashboard show about the ERP push while it is switched off? Recommended:
+   - Neutral information, "Push to ERP is off: N approved suppliers waiting". It is never a needs-attention item and never a warning colour.
+   - The supplier-erp-push job verdict shows normally. While off, the job succeeds without doing anything (SupplierErpPushJob.cs:176-188).
+   - The target host is shown with a yes or no for "on Erp:WriteHosts", never the list itself, so you can see at a glance that production cannot be written to.
+   - Push alerts (failed, stalled, host not allowed, no group) fire only while the switch is on.
+11. NEW: signing out does not end the session on the server (AuthEndpoints.cs:268-271), so even after item 2 the count includes signed-out sessions for up to 30 days. Recommended: revoke the presented token's family on sign-out, in item 4, with a test. The fallback is to label the figure "unexpired sessions".
+12. NEW: two refreshes at once can sign a user out. The frontend sends a refresh for every 401 at the same moment, and RefreshTokenHandler.cs:37-43 revokes the whole family for any revoked or expired token. Recommended: inside the 10 s grace, answer 401 without revoking the family and without an audit row; after it, revoke and audit. An expired token, or one ended by sign-out, reset or deactivation, gets a plain Invalid with no reuse row.
+13. NEW: accounts that must use two-factor but have not set it up cannot sign in, and cannot set it up either. LoginHandler.cs:94-98 refuses them before any session exists, and the enrolment routes need a session (MfaEndpoints.cs:27). So "Reset MFA" on a system_admin locks that person out. Recommended: the dashboard shows these accounts as "cannot sign in" with no Reset MFA suggestion, and the enrolment fix is logged as a separate task after Phase 1.
+14. NEW: should Test connection leave an audit row? Today it reaches the ERP and records nothing (IntegrationHandlers.cs:135-150). Recommended: yes, an IntegrationConnectionTested row with the actor, in item 5.
+15. NEW: what appears in a supplier's own audit trail? Recommended: leave out login_*, refresh_*, session_revoked, sessions_revoked_all and document_scan_requeued. Keep password_reset, password_changed and mfa_enrolled, as today.
+
+RISKS:
+- Item 4 changes sign-in and refresh behaviour, which is security-sensitive, so every path needs a test. The ASVS doc already marks these events as passing, and it stays wrong until item 4 lands.
+- Sign-in audit rows from before item 4 are lost and cannot be recovered. The security counts start from the deploy date, so a 0 must not be read as "nothing happened".
+- Saving failed-login rows makes the audit table grow under password-guessing attacks. I did not check whether any retention exists.
+- The dashboard must never call the ERP. That is your rule about the real ERP, and a 60 s auto-refresh would otherwise hit it constantly. It reads only database rows and configuration.
+- Each request opens about 6 parallel database connections plus Hangfire monitoring queries, every 60 s for each open tab. Watch the connection pool.
+- Environments where migrations are applied by hand may be missing the #230 or #232 migrations. The ERP sub-sections must fail on their own rather than fail the whole response.
+- "Never signed in" depends on RefreshTokens rows never being deleted. Any future sign-out or cleanup must revoke rows, not delete them.
+- Retiring the overview touches CI guards that are easy to break: the generated PERMISSIONS.md, the e2e fixtures, the a11y route count (73) and the route exemptions.
+- Some fast-suite tests read prose from source files, so rewording comments in items 1, 3 and 9 can fail them. Run the fast suites.
+- Order: 6 before 13; 4 and 5 before 9; 2 before 8; 7 before 10, 11 and 12; 11 before 12.

@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Admin dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&amp;family=Inter:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+.mots{--bg-app:#F6F7F6;--surface:#FFFFFF;--sunken:#EFF1EF;--text:#14201C;--text2:#4A5A54;--muted:#5F6E67;--border:#E1E6E3;--brand:#107A5E;--on-brand:#FFFFFF;--brand-subtle:#E7F2EE;--ok-fg:#1A7742;--ok-bg:#E6F4EB;--warn-fg:#8C5A14;--warn-bg:#FBF1E2;--bad-fg:#A32C1E;--bad-bg:#FBEAE7;--info-fg:#1F6FB2;--info-bg:#E8F1F9;--chrome:#14201C;--chrome-2:#1E2C27;--chrome-line:#33443E;--chrome-text:#F4F1EC;--chrome-muted:#A6B2AC;--gold:#C8A045;--shadow:0 1px 2px rgba(28,27,25,.06),0 1px 1px rgba(28,27,25,.04);background:var(--bg-app);color:var(--text);font-family:Inter,"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:14px;line-height:1.5}
+.mots[dir="rtl"]{font-family:"IBM Plex Sans Arabic",Inter,system-ui,sans-serif;line-height:1.65}
+.mots.dark{--bg-app:#14201C;--surface:#1C2421;--sunken:#151C1A;--text:#EDF2EF;--text2:#C4CFCA;--muted:#94A29C;--border:#3A4A44;--brand:#62BBA0;--on-brand:#08140F;--brand-subtle:rgba(47,160,128,.16);--ok-fg:#6FCF97;--ok-bg:rgba(30,135,75,.16);--warn-fg:#E3B15C;--warn-bg:rgba(183,121,31,.16);--bad-fg:#E8897E;--bad-bg:rgba(192,57,43,.18);--info-fg:#7FB0E0;--info-bg:rgba(37,99,166,.18);--chrome:#0F1916;--chrome-2:#1E2C27;--chrome-line:#2A3934;--shadow:0 1px 2px rgba(0,0,0,.4)}
+.num{font-family:Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;padding:14px 16px;border-block-end:1px solid var(--border)}
+.card-h h2{margin:0;font-size:14px;font-weight:600;color:var(--text)}
+.card-b{padding:16px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:9999px;font-size:12px;font-weight:500;white-space:nowrap;line-height:20px}
+.chip.ok{color:var(--ok-fg);background:var(--ok-bg)}
+.chip.warn{color:var(--warn-fg);background:var(--warn-bg)}
+.chip.bad{color:var(--bad-fg);background:var(--bad-bg)}
+.chip.info{color:var(--info-fg);background:var(--info-bg)}
+.chip.neutral{color:var(--text2);background:var(--sunken)}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:8px;font:inherit;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.btn:focus-visible,.link:focus-visible,.nav a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.btn.small{min-height:32px;padding:0 10px;font-size:13px}
+.link{color:var(--brand);font-weight:500;text-decoration:none;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;min-height:32px}
+.link:hover{text-decoration:underline}
+.mots[dir="rtl"] .dir-icon{transform:scaleX(-1)}
+.label{font-size:13px;color:var(--text2)}
+.muted{font-size:12px;color:var(--muted)}
+.big{font-size:30px;font-weight:600;letter-spacing:-0.02em;line-height:1.1}
+.mid{font-size:20px;font-weight:600;letter-spacing:-0.01em;line-height:1.2}
+.row{display:flex;align-items:center;gap:12px;padding:12px 16px;border-block-start:1px solid var(--border)}
+.row:first-child{border-block-start:0}
+.sev{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex:none}
+.sev.bad{background:var(--bad-bg);color:var(--bad-fg)}
+.sev.warn{background:var(--warn-bg);color:var(--warn-fg)}
+.sev.info{background:var(--info-bg);color:var(--info-fg)}
+.sev.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.kv{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:7px 0;border-block-start:1px solid var(--border);font-size:13px}
+.kv:first-child{border-block-start:0}
+.kv b{font-weight:600;color:var(--text)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:start;font-weight:500;color:var(--muted);font-size:12px;padding:8px 16px;border-block-end:1px solid var(--border);white-space:nowrap}
+.tbl td{padding:10px 16px;border-block-end:1px solid var(--border);vertical-align:top}
+.tbl tr:last-child td{border-block-end:0}
+.tbl .n{text-align:end}
+.scroll{overflow-x:auto}
+.nav a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border-radius:8px;color:var(--chrome-muted);text-decoration:none;font-size:14px}
+.nav a:hover{color:var(--chrome-text)}
+.nav a.on{background:var(--chrome-2);color:var(--chrome-text)}
+.nav svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav a.on svg{color:var(--gold)}
+.nav .group{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--chrome-muted);padding:16px 12px 6px}
+.mots[dir="rtl"] .nav .group{letter-spacing:0;text-transform:none;font-size:12px}
+</style>
+</helmet>
+<div class="mots {{themeClass}}" dir="{{dir}}" lang="{{lang}}" style="min-height: 100%; width: 100%;">
+<div style="display: flex; flex-wrap: wrap; min-height: 100%; align-items: stretch;">
+
+<nav aria-label="{{t.navLabel}}" style="flex: 1 1 232px; background: var(--chrome); color: var(--chrome-text); padding: 20px 12px; display: flex; flex-direction: column; gap: 2px; border-inline-end: 1px solid var(--chrome-line);">
+<div style="display: flex; align-items: center; gap: 10px; padding: 4px 12px 20px;">
+<div style="width: 32px; height: 32px; border-radius: 8px; background: var(--chrome-2); display: grid; place-items: center; color: var(--gold); font-weight: 600; font-size: 13px;">M</div>
+<div style="display: flex; flex-direction: column;">
+<span style="font-weight: 600; font-size: 14px;">{{t.brand}}</span>
+<span style="font-size: 12px; color: var(--chrome-muted);">{{t.brandSub}}</span>
+</div>
+</div>
+<div class="nav" style="display: flex; flex-direction: column; gap: 2px;">
+<a class="on" aria-current="page" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span>{{t.navDashboard}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>{{t.navSearch}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>{{t.navReports}}</span></a>
+<span class="group">{{t.navGroupTenders}}</span>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg><span>{{t.navEvaluations}}</span></a>
+<span class="group">{{t.navGroupSuppliers}}</span>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span>{{t.navReview}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>{{t.navReviewDashboard}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span>{{t.navRegister}}</span></a>
+<span class="group">{{t.navGroupMinistry}}</span>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 22h18"/><path d="M6 18v-7"/><path d="M10 18v-7"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M12 2 20 7H4z"/></svg><span>{{t.navGovernance}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg><span>{{t.navCoverage}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg><span>{{t.navTenderMonitor}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></svg><span>{{t.navNationalRegistry}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.7V17c0 .6-.5 1-1 1.2C7.9 18.8 7 20.2 7 22"/><path d="M14 14.7V17c0 .6.5 1 1 1.2 1.2.6 2 2 2 3.8"/><path d="M18 2H6v7a6 6 0 0 0 12 0z"/></svg><span>{{t.navAwards}}</span></a>
+<span class="group">{{t.navGroupAdmin}}</span>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></svg><span>{{t.navOrganizations}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="7" r="4"/><path d="M10.3 15H7a4 4 0 0 0-4 4v2"/><circle cx="18" cy="15" r="3"/><path d="M18 10.5V12M18 18v1.5M21.5 15H20M16 15h-1.5"/></svg><span>{{t.navStaff}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 17.4A2 2 0 0 0 2 18.8V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.2a2 2 0 0 0 1.4-.6l.8-.8a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5"/></svg><span>{{t.navRoles}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg><span>{{t.navReference}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span>{{t.navNotificationTemplates}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/></svg><span>{{t.navEmailWording}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 12h-5M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>{{t.navInterfaceText}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg><span>{{t.navSettings}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/></svg><span>{{t.navApiKeys}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg><span>{{t.navSupplierImport}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/></svg><span>{{t.navConnected}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 12h-5M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg><span>{{t.navAudit}}</span></a>
+<a href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span>{{t.navOperations}}</span></a>
+</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 32px 40px 56px; box-sizing: border-box;">
+<div style="max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span class="muted" style="font-size: 13px;">{{t.eyebrow}}</span>
+<h1 style="margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15;">{{t.title}}</h1>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;" class="muted">
+<span class="num">{{t.updated}}</span>
+<span>{{t.autoRefresh}}</span>
+<span class="num">{{t.version}}</span>
+<span class="chip neutral">{{t.sample}}</span>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px;">
+<button class="btn" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>{{t.probe}}</button>
+<button class="btn primary" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>{{t.refresh}}</button>
+</div>
+</header>
+
+<section class="card" aria-labelledby="attn-h">
+<div class="card-h">
+<h2 id="attn-h">{{t.attnTitle}}</h2>
+<sc-if value="{{showItems}}" hint-placeholder-val="{{ true }}"><span class="chip bad num">{{attnCount}}</span></sc-if>
+<sc-if value="{{allClear}}" hint-placeholder-val="{{ false }}"><span class="chip ok">{{t.allClearChip}}</span></sc-if>
+</div>
+<sc-if value="{{showItems}}" hint-placeholder-val="{{ true }}">
+<div>
+<sc-for list="{{attention}}" as="item" hint-placeholder-count="6">
+<div class="row">
+<span class="sev {{item.tone}}">
+<sc-if value="{{item.isBad}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg></sc-if>
+<sc-if value="{{item.isWarn}}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></sc-if>
+</span>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+<span style="font-weight: 500;">{{item.text}}</span>
+<span class="muted">{{item.hint}}</span>
+</div>
+<a class="link" href="#">{{item.action}}<svg class="dir-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+</div>
+</sc-for>
+<sc-if value="{{failedNote}}" hint-placeholder-val="{{ false }}">
+<div class="row" style="background: var(--sunken);">
+<span class="sev info"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+<span style="flex: 1 1 auto;">{{t.notRun}}</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{allClear}}" hint-placeholder-val="{{ false }}">
+<div class="row">
+<span class="sev ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg></span>
+<span style="flex: 1 1 auto; font-weight: 500;">{{t.allClear}}</span>
+</div>
+</sc-if>
+</section>
+
+<section aria-labelledby="health-h" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="health-h" style="margin: 0; font-size: 18px; font-weight: 600;">{{t.healthTitle}}</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start;">
+
+<div class="card">
+<div class="card-h"><h2>{{t.jobsTitle}}</h2><span class="chip warn num">{{t.jobsSummary}}</span></div>
+<div class="scroll">
+<table class="tbl">
+<thead><tr><th scope="col">{{t.colJob}}</th><th scope="col">{{t.colSchedule}}</th><th scope="col">{{t.colLastRun}}</th><th scope="col">{{t.colStatus}}</th></tr></thead>
+<tbody>
+<sc-for list="{{jobs}}" as="job" hint-placeholder-count="8">
+<tr><td>{{job.name}}</td><td class="muted" style="font-size: 13px;">{{job.schedule}}</td><td class="num">{{job.last}}</td><td><span class="chip {{job.tone}}">{{job.status}}</span></td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px;">
+<sc-for list="{{tiles}}" as="tile" hint-placeholder-count="8">
+<div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span class="label">{{tile.label}}</span><span class="chip {{tile.tone}}">{{tile.state}}</span></div>
+<span class="mid num">{{tile.value}}</span>
+<span class="muted">{{tile.detail}}</span>
+<sc-if value="{{tile.hasAction}}" hint-placeholder-val="{{ false }}"><button class="btn small" type="button" style="align-self: flex-start;">{{tile.action}}</button></sc-if>
+</div>
+</sc-for>
+</div>
+
+</div>
+</section>
+
+<section class="card" aria-labelledby="erp-h">
+<div class="card-h"><h2 id="erp-h">{{t.erpTitle}}</h2><span class="muted">{{t.erpScope}}</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+<div class="card-b" style="display: flex; flex-direction: column; gap: 10px; border-inline-end: 1px solid var(--border);">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span class="label">{{t.erpConn}}</span><span class="chip warn">{{t.erpHttp}}</span></div>
+<span class="mid">{{t.erpConnName}}</span>
+<div>
+<div class="kv"><span class="muted">{{t.erpHostLabel}}</span><span class="num">[ERP host]</span></div>
+<div class="kv"><span class="muted">{{t.erpLastTestLabel}}</span><span class="chip ok num">{{t.erpLastTest}}</span></div>
+</div>
+</div>
+<div class="card-b" style="display: flex; flex-direction: column; gap: 10px; border-inline-end: 1px solid var(--border);">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span class="label">{{t.syncTitle}}</span><span class="chip ok">{{t.syncOutcome}}</span></div>
+<span class="mid num">{{t.syncLast}}</span>
+<span class="num" style="font-size: 13px; color: var(--text2);">{{t.syncSummary}}</span>
+<span class="muted num">{{t.syncNext}}</span>
+</div>
+<div class="card-b" style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span class="label">{{t.pushTitle}}</span><span class="chip neutral">{{t.pushOff}}</span></div>
+<span style="font-weight: 500;">{{t.pushLine}}</span>
+<div>
+<div class="kv"><span class="muted">{{t.pushGroupLabel}}</span><span>All Supplier Groups</span></div>
+<div class="kv"><span class="muted">{{t.pushWriteLabel}}</span><b>{{t.pushWriteNo}}</b></div>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="people-h" style="display: flex; flex-direction: column; gap: 12px;">
+<h2 id="people-h" style="margin: 0; font-size: 18px; font-weight: 600;">{{t.peopleTitle}}</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: start;">
+
+<div class="card">
+<div class="card-h"><h2>{{t.accountsTitle}}</h2></div>
+<div class="card-b" style="display: flex; flex-direction: column; gap: 14px;">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+<div style="display: flex; flex-direction: column; gap: 4px;"><span class="label">{{t.staffAccounts}}</span><span class="big num">9</span><span class="muted num">{{t.staffSplit}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px;"><span class="label">{{t.supplierAccounts}}</span><span class="big num">104</span><span class="muted num">{{t.supplierSplit}}</span></div>
+</div>
+<div>
+<div class="kv"><span>{{t.sessions}}</span><b class="num">4</b></div>
+<div class="kv"><span>{{t.placeholderLogins}}</span><b class="num">95</b></div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-h"><h2>{{t.rolesTitle}}</h2><span class="muted num">{{t.rolesTotal}}</span></div>
+<div class="card-b">
+<sc-for list="{{roles}}" as="role" hint-placeholder-count="6">
+<div class="kv"><span>{{role.name}}</span><b class="num">{{role.count}}</b></div>
+</sc-for>
+</div>
+</div>
+
+<div class="card">
+<div class="card-h"><h2>{{t.accessTitle}}</h2></div>
+<div class="card-b">
+<div class="kv"><span>{{t.invStaff}}</span><b class="num">1</b></div>
+<div class="kv"><span>{{t.invSupplier}}</span><b class="num">3</b></div>
+<div class="kv"><span>{{t.neverSigned}}</span><span style="display: flex; gap: 8px; align-items: center;"><span class="muted">{{t.neverSignedNote}}</span><b class="num">2</b></span></div>
+<div class="kv"><span>{{t.lockedOut}}</span><span class="chip warn num">1</span></div>
+<div class="kv"><span>{{t.cannotSignIn}}</span><span class="chip warn num">1</span></div>
+<div class="kv"><span>{{t.orgs}}</span><span class="num" style="font-size: 13px;">{{t.orgsSplit}}</span></div>
+</div>
+</div>
+
+</div>
+</section>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; align-items: start;">
+
+<section class="card" aria-labelledby="sec-h">
+<div class="card-h"><h2 id="sec-h">{{t.secTitle}}</h2><span class="muted">{{t.auditOnly}}</span></div>
+<sc-if value="{{securityOk}}" hint-placeholder-val="{{ true }}">
+<div>
+<div class="scroll">
+<table class="tbl">
+<thead><tr><th scope="col">{{t.colEvent}}</th><th scope="col" class="n">{{t.col24h}}</th><th scope="col" class="n">{{t.col7d}}</th></tr></thead>
+<tbody>
+<sc-for list="{{security}}" as="s" hint-placeholder-count="7">
+<tr><td>{{s.name}}</td><td class="n num"><span class="chip {{s.tone}}">{{s.day}}</span></td><td class="n num">{{s.week}}</td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<p class="muted" style="margin: 0; padding: 10px 16px; border-block-start: 1px solid var(--border); background: var(--sunken);">{{t.secSince}}</p>
+<div style="padding: 14px 16px 6px; border-block-start: 1px solid var(--border);"><span class="label" style="font-weight: 600; color: var(--text);">{{t.sensitiveTitle}}</span></div>
+<div class="scroll">
+<table class="tbl">
+<tbody>
+<sc-for list="{{sensitive}}" as="c" hint-placeholder-count="4">
+<tr><td class="num muted" style="white-space: nowrap;">{{c.when}}</td><td>{{c.what}}<div class="muted">{{c.who}}</div></td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{securityFailed}}" hint-placeholder-val="{{ false }}">
+<div class="card-b" style="display: flex; flex-direction: column; align-items: flex-start; gap: 12px;">
+<span style="font-weight: 500;">{{t.sectionFailed}}</span>
+<span class="muted">{{t.sectionFailedHint}}</span>
+<button class="btn small" type="button">{{t.retry}}</button>
+</div>
+</sc-if>
+</section>
+
+<section class="card" aria-labelledby="act-h">
+<div class="card-h"><h2 id="act-h">{{t.actTitle}}</h2><span class="muted">{{t.auditOnly}}</span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 16px; border-block-end: 1px solid var(--border);">
+<div style="display: flex; flex-direction: column; gap: 4px;"><span class="label">{{t.actPeople}}</span><span class="big num">46</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px;"><span class="label">{{t.actSystem}}</span><span class="big num" style="color: var(--text2);">24</span></div>
+</div>
+<div class="scroll">
+<table class="tbl">
+<tbody>
+<sc-for list="{{activity}}" as="a" hint-placeholder-count="6">
+<tr><td class="num muted" style="white-space: nowrap;">{{a.when}}</td><td>{{a.what}}<div class="muted">{{a.who}}</div></td><td class="num muted" style="white-space: nowrap;">{{a.ref}}</td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<div style="padding: 10px 16px; border-block-start: 1px solid var(--border);"><a class="link" href="#">{{t.openAudit}}<svg class="dir-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+</div>
+
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"lang":{"editor":"enum","options":["en","ar"],"default":"en","section":"View"},"theme":{"editor":"enum","options":["light","dark"],"default":"light","section":"View"},"scenario":{"editor":"enum","options":["needs-attention","all-clear","section-failed"],"default":"needs-attention","section":"View"},"$preview":{"width":1440,"height":2240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const lang = this.props.lang === 'ar' ? 'ar' : 'en';
+    const dark = this.props.theme === 'dark';
+    const scenario = this.props.scenario ?? 'needs-attention';
+    const L = (en, ar) => (lang === 'ar' ? ar : en);
+
+    const t = {
+      navLabel: L('Back office', 'الإدارة الداخلية'),
+      brand: L('Supplier Portal', 'بوابة الموردين'),
+      brandSub: L('Ministry of Tourism', 'وزارة السياحة'),
+      navDashboard: L('Dashboard', 'لوحة التحكم'),
+      navSearch: L('Search', 'البحث'),
+      navReports: L('Reports', 'التقارير'),
+      navGroupTenders: L('Tenders', 'المناقصات'),
+      navEvaluations: L('My evaluations', 'تقييماتي'),
+      navGroupSuppliers: L('Suppliers', 'الموردون'),
+      navReview: L('Supplier Application Review', 'مراجعة طلبات الموردين'),
+      navReviewDashboard: L('Onboarding review', 'لوحة مراجعة التسجيل'),
+      navRegister: L('Supplier Register', 'سجل الموردين'),
+      navGroupMinistry: L('Ministry', 'الوزارة'),
+      navGovernance: L('Governance dashboard', 'لوحة الحوكمة'),
+      navCoverage: L('Category Coverage', 'تغطية الفئات'),
+      navTenderMonitor: L('Tender Monitor', 'رصد المناقصات'),
+      navNationalRegistry: L('National Supplier Registry', 'سجل الموردين الوطني'),
+      navAwards: L('Awards & Spend', 'الترسيات والإنفاق'),
+      navGroupAdmin: L('Administration', 'الإدارة'),
+      navOrganizations: L('Organizations', 'الجهات'),
+      navStaff: L('Staff', 'الموظفون'),
+      navRoles: L('Roles & Permissions', 'الأدوار والصلاحيات'),
+      navReference: L('Reference data', 'إدارة البيانات المرجعية'),
+      navNotificationTemplates: L('Notification templates', 'قوالب الإشعارات'),
+      navEmailWording: L('Email wording', 'نصوص رسائل البريد'),
+      navInterfaceText: L('Interface text', 'نصوص الواجهة'),
+      navSettings: L('System settings', 'إعدادات النظام'),
+      navApiKeys: L('API keys', 'مفاتيح الواجهة البرمجية'),
+      navSupplierImport: L('Supplier import', 'استيراد الموردين'),
+      navConnected: L('Connected systems', 'الأنظمة المرتبطة'),
+      navAudit: L('Audit log', 'سجل التغييرات'),
+      navOperations: L('Operations', 'التشغيل والمهام'),
+      eyebrow: L('Platform administration', 'إدارة المنصة'),
+      title: L('Dashboard', 'لوحة المتابعة'),
+      updated: L('Updated 14:32', 'آخر تحديث 14:32'),
+      autoRefresh: L('Refreshes every minute', 'يُحدَّث كل دقيقة'),
+      version: L('Version 1.0 · 81f05ee', 'الإصدار 1.0 · 81f05ee'),
+      sample: L('Sample figures', 'أرقام توضيحية'),
+      probe: L('Check storage and scanner', 'فحص التخزين والماسح'),
+      refresh: L('Refresh', 'تحديث'),
+      attnTitle: L('Needs attention', 'بحاجة إلى متابعة'),
+      allClearChip: L('All clear', 'لا شيء معلّق'),
+      allClear: L('All clear. Every check ran and nothing needs attention.', 'لا شيء يحتاج إلى متابعة. اكتملت جميع الفحوصات.'),
+      notRun: L('1 check could not run: Security. Refresh to try again.', 'تعذّر تشغيل فحص واحد: الأمان. حدّث الصفحة للمحاولة مجددًا.'),
+      healthTitle: L('System health', 'صحة النظام'),
+      jobsTitle: L('Scheduled jobs', 'المهام المجدولة'),
+      jobsSummary: L('7 of 8 on time', '7 من 8 في موعدها'),
+      colJob: L('Job', 'المهمة'),
+      colSchedule: L('Runs', 'التكرار'),
+      colLastRun: L('Last run', 'آخر تشغيل'),
+      colStatus: L('Status', 'الحالة'),
+      erpTitle: L('ERP', 'نظام الوزارة (ERP)'),
+      erpScope: L('Shown to holders of integration management', 'يظهر لمن يملك صلاحية إدارة التكاملات'),
+      erpConn: L('Connection', 'الاتصال'),
+      erpHttp: L('http, not https', 'http وليس https'),
+      erpConnName: L('Production ERP', 'نظام الإنتاج'),
+      erpHostLabel: L('Server', 'الخادم'),
+      erpLastTestLabel: L('Last connection test', 'آخر اختبار للاتصال'),
+      erpLastTest: L('Passed 11:28', 'نجح 11:28'),
+      syncTitle: L('Hourly supplier sync', 'مزامنة الموردين كل ساعة'),
+      syncOutcome: L('Succeeded', 'نجحت'),
+      syncLast: L('Last run 14:00', 'آخر تشغيل 14:00'),
+      syncSummary: L('110 in the ERP: 0 created, 110 updated, 0 suspended, 0 refused, 0 failed', '110 في نظام الوزارة: 0 أُنشئ، 110 حُدّث، 0 عُلّق، 0 رُفض، 0 فشل'),
+      syncNext: L('Next run 15:00', 'التشغيل التالي 15:00'),
+      pushTitle: L('Create approved suppliers in the ERP', 'إنشاء الموردين المعتمدين في نظام الوزارة'),
+      pushOff: L('Off', 'متوقف'),
+      pushLine: L('Push to ERP is off: 0 approved suppliers waiting', 'الإنشاء في نظام الوزارة متوقف: لا موردين معتمدين بالانتظار'),
+      pushGroupLabel: L('Default group', 'المجموعة الافتراضية'),
+      pushWriteLabel: L('This server may be written to', 'يُسمح بالكتابة إلى هذا الخادم'),
+      pushWriteNo: L('No', 'لا'),
+      peopleTitle: L('People and access', 'الأشخاص والصلاحيات'),
+      accountsTitle: L('Accounts', 'الحسابات'),
+      staffAccounts: L('Staff accounts', 'حسابات الموظفين'),
+      staffSplit: L('9 active · 1 inactive', '9 مفعّل · 1 معطّل'),
+      supplierAccounts: L('Supplier logins', 'حسابات الموردين'),
+      supplierSplit: L('104 active · 12 inactive', '104 مفعّل · 12 معطّل'),
+      sessions: L('Live sign-in sessions', 'جلسات دخول نشطة'),
+      placeholderLogins: L('Supplier logins imported from the ERP with a placeholder email', 'حسابات موردين مستوردة من نظام الوزارة ببريد مؤقت'),
+      rolesTitle: L('Roles of active staff', 'أدوار الموظفين المفعّلين'),
+      rolesTotal: L('9 people', '9 أشخاص'),
+      accessTitle: L('Invitations and sign-in', 'الدعوات وتسجيل الدخول'),
+      invStaff: L('Staff invitations waiting', 'دعوات موظفين بالانتظار'),
+      invSupplier: L('Supplier invitations waiting', 'دعوات موردين بالانتظار'),
+      neverSigned: L('Staff invited, never signed in', 'موظفون دُعوا ولم يسجّلوا الدخول'),
+      neverSignedNote: L('1 link expired', 'رابط واحد منتهٍ'),
+      lockedOut: L('Staff locked out', 'موظفون مقفلة حساباتهم'),
+      cannotSignIn: L('Cannot sign in: two-factor required, not set up', 'لا يستطيعون الدخول: التحقق بخطوتين مطلوب وغير مفعّل'),
+      orgs: L('Organisations', 'الجهات'),
+      orgsSplit: L('1 ministry · 3 directorates · 4 buying bodies', 'وزارة 1 · مديريات 3 · جهات شراء 4'),
+      secTitle: L('Security', 'الأمان'),
+      auditOnly: L('Shown to holders of audit access', 'يظهر لمن يملك صلاحية التدقيق'),
+      colEvent: L('Event', 'الحدث'),
+      col24h: L('Last 24 hours', 'آخر 24 ساعة'),
+      col7d: L('Last 7 days', 'آخر 7 أيام'),
+      secSince: L('Counted from 2 October 2026. Sign-in events were not stored before then, so an earlier zero does not mean nothing happened.', 'تُحتسب منذ 2 تشرين الأول 2026. لم تكن أحداث الدخول تُحفظ قبل ذلك، فالصفر قبله لا يعني أن شيئًا لم يحدث.'),
+      sensitiveTitle: L('Latest sensitive changes', 'آخر التغييرات الحساسة'),
+      sectionFailed: L('This section could not be loaded.', 'تعذّر تحميل هذا القسم.'),
+      sectionFailedHint: L('The other sections are unaffected. Try again in a moment.', 'لم تتأثر الأقسام الأخرى. حاول مرة أخرى بعد قليل.'),
+      retry: L('Try again', 'إعادة المحاولة'),
+      actTitle: L('Recent activity', 'النشاط الأخير'),
+      actPeople: L('Actions by people, last 24 hours', 'إجراءات الأشخاص، آخر 24 ساعة'),
+      actSystem: L('Actions by the system, last 24 hours', 'إجراءات النظام، آخر 24 ساعة'),
+      openAudit: L('Open the audit log', 'فتح سجل التدقيق'),
+    };
+
+    const attention = [
+      { tone: 'bad', text: L('2 purchase-order sends to the ERP failed', 'تعذّر إرسال 2 من أوامر الشراء إلى نظام الوزارة'), hint: L('RFQ-2026-000009, RFQ-2026-000011', 'RFQ-2026-000009، RFQ-2026-000011'), action: L('Operations', 'التشغيل والمهام') },
+      { tone: 'warn', text: L('3 documents have waited over 15 minutes for a virus scan', '3 مستندات تنتظر فحص الفيروسات منذ أكثر من 15 دقيقة'), hint: L('Oldest uploaded 13:41', 'أقدمها رُفع 13:41'), action: L('Operations', 'التشغيل والمهام') },
+      { tone: 'warn', text: L('4 applications are past their review deadline', '4 طلبات تجاوزت موعد المراجعة'), hint: L('Submitted or under review, counted in working days', 'مقدَّمة أو قيد المراجعة، محسوبة بأيام العمل'), action: L('Application review', 'مراجعة طلبات الموردين') },
+      { tone: 'warn', text: L('1 staff account is locked out', 'حساب موظف واحد مقفل'), hint: L('Locked until 14:55', 'مقفل حتى 14:55'), action: L('Staff', 'الموظفون') },
+      { tone: 'warn', text: L('1 administrator cannot sign in: two-factor is required but not set up', 'مسؤول واحد لا يستطيع الدخول: التحقق بخطوتين مطلوب وغير مفعّل'), hint: L('They cannot set it up without signing in first', 'لا يمكنه تفعيله دون تسجيل الدخول أولًا'), action: L('Staff', 'الموظفون') },
+      { tone: 'warn', text: L('The ERP address uses plain http, not https', 'عنوان نظام الوزارة يستخدم http وليس https'), hint: L('The connection key travels unencrypted', 'مفتاح الاتصال يُرسَل دون تشفير'), action: L('Connected systems', 'الأنظمة المرتبطة') },
+    ].map((a) => ({ ...a, isBad: a.tone === 'bad', isWarn: a.tone === 'warn' }));
+
+    const onTime = L('On time', 'في موعدها');
+    const every5 = L('Every 5 min', 'كل 5 دقائق');
+    const hourly = L('Hourly', 'كل ساعة');
+    const daily = L('Daily', 'يوميًا');
+    const jobs = [
+      { name: L('Supplier sync from the ERP', 'مزامنة الموردين من نظام الوزارة'), schedule: hourly, last: '14:00', status: onTime, tone: 'ok' },
+      { name: L('Create suppliers in the ERP', 'إنشاء الموردين في نظام الوزارة'), schedule: every5, last: '14:32', status: onTime, tone: 'ok' },
+      { name: L('Purchase-order sync', 'مزامنة أوامر الشراء'), schedule: every5, last: '14:30', status: L('Retrying', 'إعادة محاولة'), tone: 'warn' },
+      { name: L('Notification dispatch', 'إرسال الإشعارات'), schedule: every5, last: '14:30', status: onTime, tone: 'ok' },
+      { name: L('Tender timeline', 'الجدول الزمني للمناقصات'), schedule: every5, last: '14:30', status: onTime, tone: 'ok' },
+      { name: L('Idempotency cleanup', 'تنظيف مفاتيح التكرار'), schedule: hourly, last: '14:00', status: onTime, tone: 'ok' },
+      { name: L('Document expiry', 'انتهاء صلاحية المستندات'), schedule: daily, last: '03:00', status: onTime, tone: 'ok' },
+      { name: L('Draft registration cleanup', 'تنظيف التسجيلات غير المكتملة'), schedule: daily, last: '03:00', status: onTime, tone: 'ok' },
+    ];
+
+    const tiles = [
+      { label: L('Job queue', 'طابور المهام'), state: L('1 retrying', '1 إعادة محاولة'), tone: 'warn', value: L('0 running', '0 قيد التنفيذ'), detail: L('1 server live, heartbeat 14:32', 'خادم واحد يعمل، آخر نبضة 14:32'), hasAction: false },
+      { label: L('Emails, last 7 days', 'البريد، آخر 7 أيام'), state: L('Healthy', 'سليم'), tone: 'ok', value: L('0 failed', '0 فشل'), detail: L('0 retrying', '0 إعادة محاولة'), hasAction: false },
+      { label: L('Notifications', 'الإشعارات'), state: L('Healthy', 'سليم'), tone: 'ok', value: L('0 waiting', '0 بالانتظار'), detail: L('Nothing older than 15 minutes', 'لا شيء أقدم من 15 دقيقة'), hasAction: false },
+      { label: L('Virus scans', 'فحص الفيروسات'), state: L('Stuck', 'عالقة'), tone: 'warn', value: L('3 waiting', '3 بالانتظار'), detail: L('Over 15 minutes since upload', 'أكثر من 15 دقيقة منذ الرفع'), hasAction: true, action: L('Scan again', 'إعادة الفحص') },
+      { label: L('File storage', 'تخزين الملفات'), state: L('Reachable', 'متاح'), tone: 'ok', value: '41 ms', detail: L('Scanner not checked yet', 'لم يُفحص الماسح بعد'), hasAction: false },
+      { label: L('Database migrations', 'ترحيلات قاعدة البيانات'), state: L('Up to date', 'محدّثة'), tone: 'ok', value: L('All applied', 'جميعها مطبّقة'), detail: '20260930213253_ErpSupplierPush', hasAction: false },
+      { label: L('Reference lists', 'القوائم المرجعية'), state: L('Healthy', 'سليمة'), tone: 'ok', value: L('6 of 6', '6 من 6'), detail: L('Every table has active codes', 'لكل جدول رموز مفعّلة'), hasAction: false },
+      { label: L('Purchase orders', 'أوامر الشراء'), state: L('Not sent', 'لا تُرسَل'), tone: 'neutral', value: L('Logged only', 'تُسجَّل فقط'), detail: L('Purchase orders are not sent to the ERP in this environment', 'لا تُرسَل أوامر الشراء إلى نظام الوزارة في هذه البيئة'), hasAction: false },
+    ];
+
+    const roles = [
+      { name: L('System administrator', 'مسؤول النظام'), count: 1 },
+      { name: L('Procurement manager', 'مدير مشتريات'), count: 2 },
+      { name: L('Procurement officer', 'موظف مشتريات'), count: 3 },
+      { name: L('Reviewer', 'مراجع'), count: 2 },
+      { name: L('Evaluator', 'مقيّم'), count: 1 },
+      { name: L('Ministry viewer', 'مطّلع الوزارة'), count: 1 },
+    ];
+
+    const security = [
+      { name: L('Failed sign-ins', 'محاولات دخول فاشلة'), day: 3, week: 11, tone: 'warn' },
+      { name: L('Accounts locked', 'حسابات أُقفلت'), day: 1, week: 1, tone: 'warn' },
+      { name: L('Wrong two-factor code', 'رمز تحقق خاطئ'), day: 0, week: 2, tone: 'neutral' },
+      { name: L('Blocked: two-factor not set up', 'مُنع: التحقق بخطوتين غير مفعّل'), day: 1, week: 3, tone: 'warn' },
+      { name: L('Refresh token reused', 'إعادة استخدام رمز التحديث'), day: 0, week: 0, tone: 'neutral' },
+      { name: L('Password resets', 'إعادة تعيين كلمة المرور'), day: 0, week: 2, tone: 'neutral' },
+      { name: L('Two-factor reset by an administrator', 'إعادة تعيين التحقق بخطوتين من مسؤول'), day: 0, week: 1, tone: 'neutral' },
+    ];
+
+    const sensitive = [
+      { when: '11:28', what: L('ERP connection changed: server and key', 'تغيير اتصال نظام الوزارة: الخادم والمفتاح'), who: L('System administrator', 'مسؤول النظام') },
+      { when: '11:22', what: L('Creating suppliers in the ERP switched off', 'إيقاف إنشاء الموردين في نظام الوزارة'), who: L('System administrator', 'مسؤول النظام') },
+      { when: '10:05', what: L('Staff role changed to Reviewer', 'تغيير دور موظف إلى مراجع'), who: L('System administrator', 'مسؤول النظام') },
+      { when: L('Yesterday 16:40', 'أمس 16:40'), what: L('Supplier import from the ERP run by hand', 'تشغيل استيراد الموردين من نظام الوزارة يدويًا'), who: L('System administrator', 'مسؤول النظام') },
+    ];
+
+    const activity = [
+      { when: '14:21', what: L('Approved a supplier application', 'اعتماد طلب مورد'), who: L('Reviewer', 'مراجع'), ref: 'SUP-2026-000116' },
+      { when: '13:58', what: L('Published a tender', 'نشر مناقصة'), who: L('Procurement officer', 'موظف مشتريات'), ref: 'RFQ-2026-000014' },
+      { when: '13:40', what: L('Requested more information', 'طلب معلومات إضافية'), who: L('Reviewer', 'مراجع'), ref: 'SUP-2026-000113' },
+      { when: '12:15', what: L('Invited a staff member', 'دعوة موظف'), who: L('System administrator', 'مسؤول النظام'), ref: '—' },
+      { when: '11:22', what: L('Switched off creating suppliers in the ERP', 'إيقاف إنشاء الموردين في نظام الوزارة'), who: L('System administrator', 'مسؤول النظام'), ref: '—' },
+    ];
+
+    return {
+      t,
+      lang,
+      dir: lang === 'ar' ? 'rtl' : 'ltr',
+      themeClass: dark ? 'dark' : '',
+      showItems: scenario !== 'all-clear',
+      allClear: scenario === 'all-clear',
+      failedNote: scenario === 'section-failed',
+      securityOk: scenario !== 'section-failed',
+      securityFailed: scenario === 'section-failed',
+      attnCount: String(attention.length),
+      attention,
+      jobs,
+      tiles,
+      roles,
+      security,
+      sensitive,
+      activity,
+    };
+  }
+}
+</script>
+</body>
+</html>
