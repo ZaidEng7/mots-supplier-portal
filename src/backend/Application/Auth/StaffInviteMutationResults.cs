@@ -12,6 +12,12 @@
 //
 // The recovery path afterwards is a database write by hand, and a product that can lock every administrator
 // out of itself through its own interface has a defect rather than a policy.
+//
+//
+// THE ORGANIZATION REFUSAL
+//
+// A role change to a role that works within one buying body is refused for an account that belongs to none, as
+// the invitation refuses one without an organization. It carries the role, so the answer can name it.
 
 namespace MotsSupplierPortal.Application.Auth;
 
@@ -39,4 +45,6 @@ public abstract record StaffAccountResult
     public sealed record WouldLockOutAdministration : StaffAccountResult;
 
     public sealed record CannotActOnSelf : StaffAccountResult;
+
+    public sealed record OrganizationRequired(string Role) : StaffAccountResult;
 }

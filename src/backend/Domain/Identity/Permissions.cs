@@ -130,7 +130,9 @@
 // AwardReject are the approver's two answers, separate from each other for the same reason review
 // and approve are separate on a tender.
 //
-// IntegrationRetry clears a failed finance sync.
+// IntegrationRetry clears a failed finance sync. It reaches the caller's own organisation's awards. Only a
+// caller with no organisation who also holds AdminIntegrationsManage, which is the platform administrator, is
+// served across the registry, because an account with no organisation is not thereby the platform's.
 //
 //
 // THE ADMINISTRATIVE PERMISSIONS
@@ -211,9 +213,16 @@
 // image: keys other systems use to call US. Somebody who may issue a read-only feed key has not thereby been
 // trusted to point this product's credential at a server of their choosing. It also covers what that connection
 // writes: switching on the creation of suppliers in the ERP, and retrying a supplier's push there that failed,
-// which acts on the whole registry rather than on one organisation's rows.
+// which acts on the whole registry rather than on one organisation's rows. For the same reason it is what widens
+// IntegrationRetry from one organisation's awards to every award in the registry, for a caller with no
+// organisation, and what tells that caller's status banner about every award's failed send.
 //
 // The system administrator holds everything in the catalogue.
+//
+// RequiringAnOrganization names the two roles an account may hold only if it belongs to a buying body: the
+// officer and the manager, every one of whose queries is scoped to it. The staff invitation refuses them without
+// an organisation, and a role change refuses them for an account that has none, from this one list, so the two
+// cannot disagree about which roles need one.
 
 namespace MotsSupplierPortal.Domain.Identity;
 
@@ -309,6 +318,8 @@ public static class Roles
     public const string Evaluator = "evaluator";
     public const string MinistryViewer = "ministry_viewer";
     public const string SystemAdmin = "system_admin";
+
+    public static readonly IReadOnlyList<string> RequiringAnOrganization = [ProcurementOfficer, ProcurementManager];
 
     public static readonly IReadOnlyDictionary<string, string[]> DefaultPermissions = new Dictionary<string, string[]>
     {

@@ -193,10 +193,11 @@ There is no dead-letter queue. A push that fails for good stays on its supplier 
 sent any. The job never picks it up again by itself. The supplier's review page shows **ERP: failed** and
 the last error, and a **Retry** button to anyone holding `admin.integrations.manage`, which only the
 system administrator holds by default. That is the permission of Connected systems, where the push is
-switched on. It is not `integration.retry`: that one retries an award's send through the caller's
-organisation and may be granted to an organisation's role, while the push is one queue for the whole
-registry. Retry posts to `/api/v1/review/{referenceCode}/retry-erp-push`. It moves the push back to
-where it stopped (`Requested`, or `Linked` when the ERP has the Supplier record), restarts the count,
+switched on. It is not `integration.retry`: that one retries an award's send within the caller's
+organisation when they have one, and across the registry only for the platform administrator, who also
+holds `admin.integrations.manage`. It may be granted to an organisation's role, while the push is one
+queue for the whole registry. Retry posts to `/api/v1/review/{referenceCode}/retry-erp-push`. It moves
+the push back to where it stopped (`Requested`, or `Linked` when the ERP has the Supplier record), restarts the count,
 writes `supplier.erp_push_retried` with the person as the actor, and runs the push at once. It refuses,
 with a 409, a push that has not failed and a supplier out of service.
 

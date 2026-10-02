@@ -1,5 +1,8 @@
 // The caller's own active sessions, one row per session family, with the current one marked.
 //
+// Which tokens are alive is RefreshToken.Active, the rule ActiveSessionCounts also counts by, so the session
+// count an administrator sees beside an account is the number of rows its holder sees here.
+//
 // The families are reduced in the database and the result is a small, per-user-bounded set: a person has a
 // handful of active sessions, not thousands.
 //
@@ -14,6 +17,7 @@ namespace MotsSupplierPortal.Infrastructure.Auth;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : IListSessionsHandler
@@ -29,7 +33,8 @@ public sealed class ListSessionsHandler(AppDbContext db, IScopeContext scope) : 
         var currentFamilyId = await ResolveCurrentFamilyIdAsync(currentRefreshToken, ct);
 
         var sessions = await db.RefreshTokens
-            .Where(t => t.UserId == scope.UserId && t.RevokedAt == null && t.ExpiresAt > DateTimeOffset.UtcNow)
+            .Where(RefreshToken.Active)
+            .Where(t => t.UserId == scope.UserId)
             .GroupBy(t => t.FamilyId)
             .Select(g => g.OrderByDescending(t => t.CreatedAt).First())
             .ToListAsync(ct);

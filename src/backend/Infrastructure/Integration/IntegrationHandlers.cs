@@ -18,8 +18,14 @@
 // THE SECRET IS ENCRYPTED HERE AND NOWHERE ELSE ON THE WAY IN, and is never read back on the way out. Both halves
 // of that are in IntegrationViews and SecretCipher.
 //
-// EVERY EDIT IS AUDITED WITH THE SAVE, before the response is written. Changing where this product sends a
-// ministry's credential is exactly the kind of act somebody asks about six months later.
+// EVERY EDIT IS AUDITED WITH THE SAVE, before the response is written, and the row names the person who saved it.
+// Changing where this product sends a ministry's credential is exactly the kind of act somebody asks about six months
+// later, and a row that does not say who did it answers only half the question.
+//
+// EVERY TEST IS AUDITED WITH ITS ANSWER, in the same save as the stored result: IntegrationConnectionTested, with the
+// person as the actor, Succeeded or Failed as the state, and the detail as the reason. The stored result is overwritten
+// by the next test, and a test is a call to another ministry's system made on somebody's authority, so the trail keeps
+// every one.
 //
 // TURNING THE SUPPLIER WRITES ON OR OFF, OR CHANGING THEIR GROUP, IS AUDITED ON ITS OWN ROW, with the person as the
 // actor, the switch before and after as the states, and the group as the reason. It is the one setting here that
@@ -106,6 +112,7 @@ public sealed class UpdateIntegrationHandler(
             aggregateType: "IntegrationConnection",
             aggregateId: row.Id,
             action: "IntegrationConnectionUpdated",
+            actorUserId: scope.UserId,
             ct: ct);
 
         if ((row.CreateSuppliersInErp, row.DefaultSupplierGroup) != writesBefore)
@@ -134,7 +141,9 @@ public sealed class UpdateIntegrationHandler(
 
 public sealed class TestIntegrationHandler(
     AppDbContext db,
-    IErpSupplierSourceProbe probe) : ITestIntegrationHandler
+    IErpSupplierSourceProbe probe,
+    IScopeContext scope,
+    IAuditLogger audit) : ITestIntegrationHandler
 {
     public async Task<IntegrationTestResult?> HandleAsync(string key, CancellationToken ct)
     {
@@ -144,6 +153,16 @@ public sealed class TestIntegrationHandler(
         var result = await probe.TryReachAsync(ct);
 
         row.RecordTest(result.Succeeded, result.Detail);
+
+        await audit.LogAsync(
+            aggregateType: "IntegrationConnection",
+            aggregateId: row.Id,
+            action: "IntegrationConnectionTested",
+            actorUserId: scope.UserId,
+            toState: result.Succeeded ? "Succeeded" : "Failed",
+            reason: result.Detail,
+            ct: ct);
+
         await db.SaveChangesAsync(ct);
 
         return result;

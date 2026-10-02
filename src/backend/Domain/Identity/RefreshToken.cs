@@ -6,12 +6,22 @@
 //
 // Only the hash is stored, so the database never holds a token that could be replayed.
 //
-// A token is active while it has not been revoked and has not expired.
+// A token is active while it has not been revoked and has not expired. The rule is written once, as an
+// expression the database can run, and IsActive is that same expression compiled for a token already in
+// memory. A person's session list and the active-session count on the staff surfaces both filter on it, so the
+// count and the list cannot disagree. Inside a query the clock is the database's rather than this process's.
 
 namespace MotsSupplierPortal.Domain.Identity;
 
+using System.Linq.Expressions;
+
 public sealed class RefreshToken
 {
+    public static readonly Expression<Func<RefreshToken, bool>> Active =
+        t => t.RevokedAt == null && t.ExpiresAt > DateTimeOffset.UtcNow;
+
+    private static readonly Func<RefreshToken, bool> IsActiveNow = Active.Compile();
+
     public Guid Id { get; init; }
     public Guid UserId { get; init; }
     public required string TokenHash { get; init; }
@@ -22,5 +32,5 @@ public sealed class RefreshToken
     public string? Ip { get; init; }
     public string? UserAgent { get; init; }
 
-    public bool IsActive => RevokedAt is null && ExpiresAt > DateTimeOffset.UtcNow;
+    public bool IsActive => IsActiveNow(this);
 }

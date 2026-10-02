@@ -16,6 +16,20 @@
 // absence is asserted by predicate over the whole page rather than by counting, because the suite's other
 // tests contribute rows too.
 //
+// The active-session figure counts sign-ins that are still alive, not token rows. It once counted every
+// unrevoked row, and the development data showed seventy-six of them standing for nine sign-ins. The account
+// is seeded with six sign-ins, four of them alive. One holds two live tokens and one holds a single live token.
+// One has refreshed once, so it holds the token revoked when it rotated out beside the live one that replaced it,
+// which is what every session that has ever refreshed looks like. One holds an expired token beside a live one.
+// Of the two that are over, one's only token expired without being revoked, which is what an old sign-in leaves
+// behind, and the other's only token was revoked. A sign-in is alive while ANY of its tokens is, so counting
+// sign-ins whose every token is alive, or whose tokens include no revoked one, misses the two that hold a dead
+// token beside a live one and moves the answer off four. Counting a dead token where it stands alone moves it
+// too, and so does counting tokens rather than sign-ins. The figure is read from the list and from a staff
+// change's read-back, the two places an administrator sees it. The change is re-assigning the role the account
+// already holds, because it revokes nothing and so leaves the seeded sessions there to be counted. The seeded
+// tokens are removed afterwards, so nothing else that reads the session table meets them.
+//
 // Deactivation is set up with a live session, so "kills its sessions" is measurable rather than vacuous,
 // and its control is that this is deactivation and not deletion: the row is still there and can come back.
 // The account is the actor on audit rows, and an audit trail pointing at a row that no longer exists is
@@ -25,6 +39,14 @@
 // permissions the list cannot show. A role a staff account may not hold is refused, because a supplier
 // role on an account with no SupplierId is a broken account - InviteStaffHandler's own reasoning, from the
 // other side.
+//
+// A role change cannot go around the invitation's organisation rule. An evaluator invited without an
+// organisation, which that role allows, is refused the officer's and the manager's role with the same
+// field-level failure the invitation gives, and keeps the role it had, with no change on the trail. Such an
+// account would meet an empty product, and with no organisation it would also look like the platform
+// administrator to the award retry and the status banner. The control is an evaluator invited WITH an
+// organisation, made a manager by the same request, so the refusal is about the missing organisation rather
+// than about leaving the evaluator's role.
 //
 // Acting on your own account is refused for deactivation, for a demotion out of system_admin and for an
 // MFA reset, because each one would leave the actor outside the surface that could undo it. The control
@@ -67,15 +89,8 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid();
     }
 
-    [Fact]
-    public async Task The_list_carries_the_facts_an_administrator_needs_and_no_supplier_users()
+    private static async Task<List<JsonElement>> ListEveryStaffAccountAsync(HttpClient admin)
     {
-        var admin = await AdminAsync();
-        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
-        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
-
-        await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff List Outsider Co");
-
         var rows = new List<JsonElement>();
         string? cursor = null;
         for (var page = 0; page < 20; page++)
@@ -90,6 +105,20 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
             if (cursor is null) break;
         }
 
+        return rows;
+    }
+
+    [Fact]
+    public async Task The_list_carries_the_facts_an_administrator_needs_and_no_supplier_users()
+    {
+        var admin = await AdminAsync();
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var invitedId = await InviteAsync(admin, Roles.ProcurementOfficer, org.Id);
+
+        await SupplierTestClient.CreateVerifiedSupplierAsync(fixture, "Staff List Outsider Co");
+
+        var rows = await ListEveryStaffAccountAsync(admin);
+
         var invited = rows.Single(r => r.GetProperty("userId").GetGuid() == invitedId);
         invited.GetProperty("role").GetString().Should().Be(Roles.ProcurementOfficer);
         invited.GetProperty("isActive").GetBoolean().Should().BeTrue();
@@ -101,6 +130,63 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
         var supplierUserIds = await db.Users.Where(u => u.SupplierId != null).Select(u => u.Id).ToListAsync();
         rows.Select(r => r.GetProperty("userId").GetGuid()).Should().NotIntersectWith(supplierUserIds,
             "staff are the accounts with no SupplierId - a supplier's team is administered by that supplier");
+    }
+
+    [Fact]
+    public async Task Active_sessions_are_counted_by_sign_in_and_only_while_alive()
+    {
+        var admin = await AdminAsync();
+        var invitedId = await InviteAsync(admin, Roles.Evaluator);
+
+        var now = DateTimeOffset.UtcNow;
+        var twoTokenSignIn = Guid.CreateVersion7();
+        var refreshedSignIn = Guid.CreateVersion7();
+        var signInWithAnExpiredToken = Guid.CreateVersion7();
+        RefreshToken Token(Guid familyId, DateTimeOffset expiresAt, DateTimeOffset? revokedAt = null) => new()
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = invitedId,
+            FamilyId = familyId,
+            TokenHash = $"session-count-probe-{Guid.NewGuid():N}",
+            CreatedAt = now.AddHours(-2),
+            ExpiresAt = expiresAt,
+            RevokedAt = revokedAt,
+        };
+
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.RefreshTokens.AddRange(
+                Token(Guid.CreateVersion7(), expiresAt: now.AddHours(-1)),
+                Token(Guid.CreateVersion7(), expiresAt: now.AddDays(7), revokedAt: now.AddMinutes(-5)),
+                Token(twoTokenSignIn, expiresAt: now.AddDays(7)),
+                Token(twoTokenSignIn, expiresAt: now.AddDays(7)),
+                Token(Guid.CreateVersion7(), expiresAt: now.AddDays(7)),
+                Token(refreshedSignIn, expiresAt: now.AddDays(7), revokedAt: now.AddHours(-1)),
+                Token(refreshedSignIn, expiresAt: now.AddDays(7)),
+                Token(signInWithAnExpiredToken, expiresAt: now.AddHours(-1)),
+                Token(signInWithAnExpiredToken, expiresAt: now.AddDays(7)));
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            var listed = (await ListEveryStaffAccountAsync(admin))
+                .Single(r => r.GetProperty("userId").GetGuid() == invitedId);
+            listed.GetProperty("activeSessionCount").GetInt32().Should().Be(4,
+                "four sign-ins still hold a live token, two of them beside a dead one; the sign-ins whose only token expired or was revoked are over, and a sign-in is one session however many live tokens it holds");
+
+            var readBack = await admin.PutAsJsonAsync($"/api/v1/staff/{invitedId}/role", new { role = Roles.Evaluator });
+            readBack.StatusCode.Should().Be(HttpStatusCode.OK, await readBack.Content.ReadAsStringAsync());
+            (await readBack.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("activeSessionCount").GetInt32()
+                .Should().Be(4, "the read-back after a staff change shows the same figure as the list");
+        }
+        finally
+        {
+            await using var cleanup = fixture.Services.CreateAsyncScope();
+            var db = cleanup.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.RefreshTokens.Where(t => t.UserId == invitedId).ExecuteDeleteAsync();
+        }
     }
 
     [Fact]
@@ -175,6 +261,46 @@ public sealed class StaffAdministrationTests(PostgresApiFixture fixture)
 
         (await admin.PutAsJsonAsync($"/api/v1/staff/{invitedId}/role", new { role = Roles.SupplierAdmin }))
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task A_role_that_needs_an_organisation_is_refused_for_an_account_with_none()
+    {
+        var admin = await AdminAsync();
+        var orglessId = await InviteAsync(admin, Roles.Evaluator);
+
+        foreach (var role in new[] { Roles.ProcurementManager, Roles.ProcurementOfficer })
+        {
+            var refused = await admin.PutAsJsonAsync($"/api/v1/staff/{orglessId}/role", new { role });
+
+            refused.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, await refused.Content.ReadAsStringAsync());
+            var problem = await refused.Content.ReadFromJsonAsync<JsonElement>();
+            problem.GetProperty("code").GetString().Should().Be("VALIDATION_FAILED");
+            var error = problem.GetProperty("errors").EnumerateArray().Should().ContainSingle().Subject;
+            error.GetProperty("field").GetString().Should().Be("organizationId");
+            error.GetProperty("code").GetString().Should().Be(
+                "ORGANIZATION_REQUIRED", $"a '{role}' needs an organisation, as the invitation says of one");
+        }
+
+        await using (var check = fixture.Services.CreateAsyncScope())
+        {
+            var userManager = check.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var user = await userManager.FindByIdAsync(orglessId.ToString());
+            (await userManager.GetRolesAsync(user!)).Should().BeEquivalentTo([Roles.Evaluator], "a refused change changes nothing");
+
+            var db = check.ServiceProvider.GetRequiredService<AppDbContext>();
+            (await db.AuditLogs.AsNoTracking().AnyAsync(a => a.AggregateId == orglessId && a.Action == "staff_role_changed"))
+                .Should().BeFalse("nothing changed, so the trail has nothing to record");
+        }
+
+        var org = await OrganizationTestHelper.CreateOrganizationAsync(fixture);
+        var withOrgId = await InviteAsync(admin, Roles.Evaluator, org.Id);
+
+        var changed = await admin.PutAsJsonAsync($"/api/v1/staff/{withOrgId}/role", new { role = Roles.ProcurementManager });
+
+        changed.StatusCode.Should().Be(HttpStatusCode.OK, await changed.Content.ReadAsStringAsync());
+        (await changed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("role").GetString()
+            .Should().Be(Roles.ProcurementManager, "the same change is allowed for an account that has an organisation");
     }
 
     [Fact]

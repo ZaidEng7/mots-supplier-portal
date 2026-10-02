@@ -15,10 +15,17 @@
 // carrying the same tax number, and that itself is worth a person's attention, but this preview's job is to name
 // one and move on rather than to resolve it.
 //
-// THE PREVIEW IS AUDITED AND THE AUDIT IS SAVED BEFORE THE REPORT IS BUILT. It reads a list of suppliers out of
-// another ministry system on somebody's authority, which is worth a row whatever the outcome. A LogAsync with no
-// SaveChangesAsync after it writes nothing, which is how the three export routes in this product once logged for
-// months without recording anything.
+// THE PREVIEW IS AUDITED AND THE AUDIT IS SAVED BEFORE THE REPORT IS BUILT, and the row names the person who asked.
+// It reads a list of suppliers out of another ministry system on somebody's authority, which is worth a row whatever
+// the outcome, and a row with no actor does not say whose authority it was. A LogAsync with no SaveChangesAsync after
+// it writes nothing, which is how the three export routes in this product once logged for months without recording
+// anything.
+//
+// IT READS THE WHOLE REGISTRY ON PURPOSE, AND IT IS NOT ROW-SCOPED. It matches the ERP against every supplier the
+// portal holds, and a view limited to one organisation would report every supplier it could not see as new. It reads
+// the caller's scope only to name the person on the audit row. RowScopeGuardTests matches on that token, so it counts
+// this handler as scoped and lists no exemption for it, as for RunErpImportHandler; that verdict is about attribution,
+// not about which rows are read.
 
 namespace MotsSupplierPortal.Infrastructure.Integration.Erp;
 
@@ -30,7 +37,8 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 public sealed class PreviewErpImportHandler(
     IErpSupplierSource source,
     AppDbContext db,
-    IAuditLogger audit) : IPreviewErpImportHandler
+    IAuditLogger audit,
+    IScopeContext scope) : IPreviewErpImportHandler
 {
     public async Task<ErpImportPreviewReport> HandleAsync(CancellationToken ct)
     {
@@ -38,6 +46,7 @@ public sealed class PreviewErpImportHandler(
             aggregateType: "Supplier",
             aggregateId: Guid.Empty,
             action: "ErpImportPreviewed",
+            actorUserId: scope.UserId,
             ct: ct);
 
         await db.SaveChangesAsync(ct);

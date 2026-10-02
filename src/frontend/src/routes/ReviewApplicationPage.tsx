@@ -56,10 +56,11 @@
 // admin.integrations.manage, the permission the server holds the retry to: a reviewer reads the push here but starting
 // it again is a decision for whoever runs the connection to the ERP, and a button the server refuses with 403 would
 // promise what it cannot do. It is not integration.retry, which retries an award's send within the caller's
-// organisation and may be given to an organisation's role, while the push is one queue for the whole registry. A
-// refused retry - a push that is no longer failed, or a supplier out of service - shows the server's own sentence. The
-// retry reads the view again afterwards, because the chip must show where the push went, and because the retry moves
-// the supplier's version, which this page's document decisions send back.
+// organisation when they have one, and across the registry only for the platform administrator, who also holds
+// admin.integrations.manage. It may be given to an organisation's role, while the push is one queue for the whole
+// registry. A refused retry - a push that is no longer failed, or a supplier out of service - shows the server's own
+// sentence. The retry reads the view again afterwards, because the chip must show where the push went, and because the
+// retry moves the supplier's version, which this page's document decisions send back.
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'

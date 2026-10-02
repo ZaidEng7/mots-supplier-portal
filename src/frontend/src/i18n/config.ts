@@ -475,7 +475,7 @@ const resources = {
       },
       erpBanner: {
         degraded: 'مزامنة نظام ERP متوقفة مؤقتاً. تستمر جميع العمليات في البوابة كالمعتاد.',  // SCR-045
-        notConfigured: 'لا يوجد ربط فعلي بنظام ERP في هذه البيئة.',  // T-089
+        notConfigured: 'لا تُرسَل أوامر الشراء إلى نظام الوزارة في هذه البيئة.',  // T-089
       },
       ministry: {
         title: 'لوحة الحوكمة',
@@ -2546,7 +2546,7 @@ const resources = {
       },
       erpBanner: {
         degraded: 'ERP sync is paused. Everything in the portal continues as normal.',
-        notConfigured: 'No real ERP integration is configured in this environment.',
+        notConfigured: 'Purchase orders are not sent to the ERP in this environment.',
       },
       ministry: {
         title: 'Governance dashboard',

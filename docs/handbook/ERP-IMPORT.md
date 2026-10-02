@@ -148,11 +148,20 @@ before touching one.
    `supplier.marked_removed_from_erp`.
 8. **Outcome.** `RecordSync` on the ERP connection row stores the time, a one-line summary, and one of
    three outcomes: **Succeeded**; **NeedsAttention** if anything failed, suspensions were held back or a
-   rename was held; **Failed** if the run threw. Connected systems shows it as the last import. Then the
-   lock is released.
+   rename was held; **Failed** if the run threw. Connected systems shows it as the last import. The
+   same save writes the run's closing audit row under the actor `ErpImportRun` named: `ErpImportCompleted`
+   with the trigger and the counts in `Changes`, or `ErpImportFailed` with the trigger, the failure
+   (`Interrupted`, or the exception's type) and its message. If recording `ErpImportCompleted` throws,
+   the run is closed as one that threw: the change tracker is cleared, `ErpImportFailed` is saved in its
+   place with that exception's type as the failure, the connection shows **Failed**, and the exception
+   reaches the caller instead of the report, though every supplier the run wrote stays written. If
+   recording `ErpImportFailed` throws, that error is logged ("Could not record the failed ERP import.")
+   and swallowed, so the exception that ended the run still reaches the caller; the connection keeps the
+   previous run's outcome, and the trail has `ErpImportRun` with no closing row. Then the lock is
+   released. A run refused for the lock writes no row.
 
 **The preview** takes the same decisions and changes no supplier; it saves one audit row, `ErpImportPreviewed`. **Run the preview** posts to `/preview`.
-`PreviewErpImportHandler` saves one `ErpImportPreviewed` audit row, then reads
+`PreviewErpImportHandler` saves one `ErpImportPreviewed` audit row, naming the person who asked, then reads
 `LinkedSuppliersInPortal.ReadForPreviewAsync` (the same query, with what only the preview reports), the
 tax numbers of unlinked suppliers, the registration numbers, and the ERP. It then calls
 `ErpImportPreviewBuilder.Build`, which uses the same `ErpSyncPlan`, `ErpImportAdmission`,
@@ -298,9 +307,13 @@ To make the change safely:
 - **"a quarter" is hard-coded as words** in `ErpMissingSupplierPolicy`'s held-back messages. Change the
   constant and the words together. Administrators read `TogetherHeldBack`'s message, not `Decide`'s. The
   constant is a `double`, so write a third as `1.0 / 3`, not `0.33`.
-- **`RowScopeGuardTests` reads the handlers' source.** `PreviewErpImportHandler` is on its exemption
-  list, and `RunErpImportHandler` passes because it reads the caller's scope to name who ran it. A new
-  handler that reads the whole registry needs an exemption there, with a reason.
+- **`RowScopeGuardTests` reads the handlers' source.** `PreviewErpImportHandler` and
+  `RunErpImportHandler` both read the whole registry, and both pass because they read `scope.UserId`
+  to name the person who asked for the preview or ran the import on the audit trail. That verdict is
+  about attribution, not about which rows they read, so neither is on the exemption list. A new
+  handler that reads the whole registry and never reads the caller's scope needs an exemption there,
+  with a reason. One that does read it must not have one: the test also fails on an exemption that
+  exempts nothing.
 
 **Open decisions to leave to the owner:**
 
@@ -448,9 +461,10 @@ Paths are under `src/backend` unless they start with `src/frontend`.
   30-second timeout (`ErpSupplierRegistrar.RequestTimeout`).
 - `Api/Endpoints/ReviewEndpoints.cs`: `POST /api/v1/review/{referenceCode}/retry-erp-push`
   (`RetryErpSupplierPush`), behind `admin.integrations.manage`, which only `system_admin` holds by
-  default. It is not behind `integration.retry`: that permission retries an award's send through the
-  caller's organisation, and a deployment may grant it to an organisation's role, while the push is one
-  queue for the whole registry (§8.7).
+  default. It is not behind `integration.retry`: that permission retries an award's send within the
+  caller's organisation when they have one, and across the registry only for the platform administrator,
+  who has no organisation and also holds `admin.integrations.manage`. A deployment may grant it to an
+  organisation's role, while the push is one queue for the whole registry (§8.7).
 - `Api/Endpoints/IntegrationEndpoints.cs`: `GET /api/v1/admin/integrations/{key}/supplier-groups`
   (`ListErpSupplierGroups`), and the switch and the group on `PUT /api/v1/admin/integrations/{key}`,
   both behind `admin.integrations.manage`.
@@ -665,7 +679,9 @@ switch off, the group may be set or cleared, and a blank one is stored as none.
   saving an address. A blank group clears it. A refusal from `SetSupplierCreation` answers 422
   (`integration_settings_refused`) with its sentence, and nothing is saved, the address included. A
   change to either writes `IntegrationSupplierCreationChanged`, with the person as the actor, `Off` or
-  `On` as the states, and the group as the reason.
+  `On` as the states, and the group as the reason. Every save also writes `IntegrationConnectionUpdated`,
+  and every **Test connection** writes `IntegrationConnectionTested`, both with the person as the actor;
+  the test's row has `Succeeded` or `Failed` as its state and the test's detail as its reason.
 
 **The group does not follow the address.** It is the name of a group on the ERP it was chosen from.
 Pointed at another ERP, the connection keeps it, and every create fails on a group that ERP may not have.
@@ -709,8 +725,9 @@ The scheduler never retries a run (`AutomaticRetry(Attempts = 0)`), because the 
 **A failed push waits for a person.** The job never picks up a `Failed` push by itself. **Retry** on the
 review page posts to `/api/v1/review/{referenceCode}/retry-erp-push`, behind `admin.integrations.manage`,
 the permission of Connected systems, where the push is switched on. It is not a reviewer's decision, and
-not `integration.retry`, which retries an award's send through the caller's organisation and may be
-granted to an organisation's role, while the push serves the whole registry. `RetryErpPushHandler`
+not `integration.retry`, which retries an award's send within the caller's organisation when they have one
+(across the registry only for the platform administrator, who also holds `admin.integrations.manage`) and
+may be granted to an organisation's role, while the push serves the whole registry. `RetryErpPushHandler`
 finds the supplier by its code across the registry, not through an organisation. The retry moves the
 push back to `Requested`, or to `Linked` when there is an `ExternalId`, restarts the count, and makes the
 next attempt due now. It saves through the record, which moves the version (§8.3). It writes

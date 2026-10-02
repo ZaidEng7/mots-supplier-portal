@@ -11,6 +11,25 @@
 // THE CONTROL runs the same job with a scanner that answers clean, and requires the document to reach review. Without
 // it, a job that threw on every answer would pass the outage test.
 //
+// A SECOND RUN OF THE JOB LEAVES A DOCUMENT IT ALREADY SCANNED ALONE. Failing is what makes the job server run the job
+// again, and it runs any job at least once rather than exactly once, so a run can meet a document that is no longer
+// pending. These scan a document once and then again with a scanner that counts its calls. The second run has to
+// finish without asking the scanner, and leave the document's state, its storage key and its file's bytes as the
+// first run left them. The second answer is clean and then infected for a document scanned clean, and clean for a
+// document refused. The first version failed every one of those second runs, but not all in the same place. For a
+// document scanned clean it asked the scanner and then threw, on moving the clean file onto itself or on the
+// document in review turning away an infected verdict. For a refused document it threw on reading the deleted file,
+// before the scanner was asked. So for a refused document the scanner's count is zero under both versions, and what
+// tells them apart is the second run finishing at all.
+//
+// In review and refused are the two states the job leads to, but a later run can find a document anywhere past
+// PendingScan: approved, rejected or expired by then. So one more theory scans a document clean, writes each state
+// but PendingScan onto its row in turn, and runs the job again under the same requirements. The state is written
+// onto the row rather than reached through the document's own transitions, because from a document scanned clean
+// those cannot reach every state, a refused one for a start, and this theory is about the job rather than about
+// them. The states come from the enumeration itself, so a state added later is covered without anyone listing it,
+// and a check that skipped only the two states the job leads to fails for every other one.
+//
 // A TENDER OR BID FILE ASKED FOR DURING AN OUTAGE ANSWERS 503 AND STAYS PENDING. Those files are scanned when first
 // downloaded rather than by a job, so the outage reaches the reader directly: a 404 would tell a supplier the tender
 // specification is gone. These run through the API on a host whose scanner cannot answer, and the control is the same
@@ -28,6 +47,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
@@ -43,7 +63,15 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
 {
     private sealed class FixedScanner(ScanOutcome outcome) : IVirusScanner
     {
-        public Task<ScanOutcome> ScanAsync(Stream content, CancellationToken ct) => Task.FromResult(outcome);
+        private int _calls;
+
+        public int Calls => _calls;
+
+        public Task<ScanOutcome> ScanAsync(Stream content, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _calls);
+            return Task.FromResult(outcome);
+        }
     }
 
     private async Task<(Guid DocumentId, string Key)> PendingDocumentAsync()
@@ -73,14 +101,17 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
         return (document.Id, key);
     }
 
-    private async Task RunScanAsync(Guid documentId, ScanOutcome outcome)
+    private Task RunScanAsync(Guid documentId, ScanOutcome outcome) => RunScanAsync(documentId, new FixedScanner(outcome));
+
+    private async Task RunScanAsync(Guid documentId, IVirusScanner scanner)
     {
         await using var scope = fixture.Services.CreateAsyncScope();
         var job = new DocumentScanJob(
             scope.ServiceProvider.GetRequiredService<AppDbContext>(),
             scope.ServiceProvider.GetRequiredService<IFileStorage>(),
-            new FixedScanner(outcome),
-            scope.ServiceProvider.GetRequiredService<IAuditLogger>());
+            scanner,
+            scope.ServiceProvider.GetRequiredService<IAuditLogger>(),
+            NullLogger<DocumentScanJob>.Instance);
 
         await job.ScanAsync(documentId, CancellationToken.None);
     }
@@ -90,6 +121,45 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await db.SupplierDocuments.AsNoTracking().Where(d => d.Id == documentId).Select(d => d.State).SingleAsync();
+    }
+
+    private async Task<(DocumentState State, string StorageKey)> StoredAsync(Guid documentId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var row = await db.SupplierDocuments.AsNoTracking().Where(d => d.Id == documentId)
+            .Select(d => new { d.State, d.StorageKey }).SingleAsync();
+        return (row.State, row.StorageKey);
+    }
+
+    private async Task<string> ContentAtAsync(string key)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        await using var content = await storage.OpenReadAsync(key, CancellationToken.None);
+        return await new StreamReader(content).ReadToEndAsync();
+    }
+
+    private async Task ForceStateAsync(Guid documentId, DocumentState state)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.SupplierDocuments.Where(d => d.Id == documentId)
+            .ExecuteUpdateAsync(set => set.SetProperty(d => d.State, state));
+    }
+
+    // Every test that runs the scan job removes the document it made, so the classes that run after them never meet
+    // it: the document row goes, and so does whatever file it still points at. The audit rows the job wrote stay,
+    // because the audit table is append-only. The supplier stays too, under its own unique name.
+    private async Task ForgetAsync(Guid documentId)
+    {
+        await using var scope = fixture.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
+        var (_, key) = await StoredAsync(documentId);
+
+        await storage.DeleteAsync(key, CancellationToken.None);
+        await db.SupplierDocuments.Where(d => d.Id == documentId).ExecuteDeleteAsync();
     }
 
     // Each host makes its own signing key when none is configured, so a token issued by the fixture is refused by a
@@ -163,29 +233,115 @@ public sealed class ScannerOutageTests(PostgresApiFixture fixture)
     public async Task A_document_scanned_during_an_outage_stays_pending_with_its_file_kept()
     {
         var (documentId, key) = await PendingDocumentAsync();
+        try
+        {
+            var scan = () => RunScanAsync(documentId, ScanOutcome.Unavailable);
 
-        var scan = () => RunScanAsync(documentId, ScanOutcome.Unavailable);
-
-        await scan.Should().ThrowAsync<VirusScannerUnavailableException>(
-            "the job fails so the job server tries it again once the scanner is back");
-        (await StateOfAsync(documentId)).Should().Be(
-            DocumentState.PendingScan, "the first version marked it refused, as if a virus had been found");
-
-        await using var scope = fixture.Services.CreateAsyncScope();
-        var storage = scope.ServiceProvider.GetRequiredService<IFileStorage>();
-        await using var kept = await storage.OpenReadAsync(key, CancellationToken.None);
-        (await new StreamReader(kept).ReadToEndAsync()).Should().Be(
-            "%PDF-1.4 renewed licence", "the first version deleted the supplier's upload");
+            await scan.Should().ThrowAsync<VirusScannerUnavailableException>(
+                "the job fails so the job server tries it again once the scanner is back");
+            (await StateOfAsync(documentId)).Should().Be(
+                DocumentState.PendingScan, "the first version marked it refused, as if a virus had been found");
+            (await ContentAtAsync(key)).Should().Be(
+                "%PDF-1.4 renewed licence", "the first version deleted the supplier's upload");
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
     }
 
     [Fact]
     public async Task The_same_document_scanned_clean_reaches_review()
     {
         var (documentId, _) = await PendingDocumentAsync();
+        try
+        {
+            await RunScanAsync(documentId, ScanOutcome.Clean);
 
-        await RunScanAsync(documentId, ScanOutcome.Clean);
+            (await StateOfAsync(documentId)).Should().Be(DocumentState.UnderReview);
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
+    }
 
-        (await StateOfAsync(documentId)).Should().Be(DocumentState.UnderReview);
+    [Theory]
+    [InlineData(ScanOutcome.Clean)]
+    [InlineData(ScanOutcome.Infected)]
+    public async Task A_second_scan_of_a_document_already_scanned_clean_changes_nothing(ScanOutcome secondAnswer)
+    {
+        var (documentId, _) = await PendingDocumentAsync();
+        try
+        {
+            await RunScanAsync(documentId, ScanOutcome.Clean);
+            var scanned = await StoredAsync(documentId);
+            scanned.State.Should().Be(DocumentState.UnderReview, "the first run scans it clean");
+            var scanner = new FixedScanner(secondAnswer);
+
+            await RunScanAsync(documentId, scanner);
+
+            scanner.Calls.Should().Be(0, "a document that is no longer pending is not scanned again");
+            (await StoredAsync(documentId)).Should().Be(scanned, "the second run leaves the document as the first left it");
+            (await ContentAtAsync(scanned.StorageKey)).Should().Be(
+                "%PDF-1.4 renewed licence", "the second run leaves the supplier's scanned file where it is");
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
+    }
+
+    [Fact]
+    public async Task A_second_scan_of_a_refused_document_changes_nothing()
+    {
+        var (documentId, _) = await PendingDocumentAsync();
+        try
+        {
+            await RunScanAsync(documentId, ScanOutcome.Infected);
+            var scanner = new FixedScanner(ScanOutcome.Clean);
+
+            await RunScanAsync(documentId, scanner);
+
+            scanner.Calls.Should().Be(0, "the run stops once it has read the row, before the file or the scanner");
+            (await StateOfAsync(documentId)).Should().Be(DocumentState.ScanRejected);
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(StatesPastPendingScan))]
+    public async Task A_second_scan_of_a_document_in_any_state_past_pending_changes_nothing(DocumentState state)
+    {
+        var (documentId, _) = await PendingDocumentAsync();
+        try
+        {
+            await RunScanAsync(documentId, ScanOutcome.Clean);
+            var cleanKey = (await StoredAsync(documentId)).StorageKey;
+            await ForceStateAsync(documentId, state);
+            var scanner = new FixedScanner(ScanOutcome.Clean);
+
+            await RunScanAsync(documentId, scanner);
+
+            scanner.Calls.Should().Be(0, $"a document that is {state} is past PendingScan and is not scanned again");
+            (await StoredAsync(documentId)).Should().Be((state, cleanKey), "the second run leaves the document as it found it");
+            (await ContentAtAsync(cleanKey)).Should().Be(
+                "%PDF-1.4 renewed licence", "the second run leaves the supplier's scanned file where it is");
+        }
+        finally
+        {
+            await ForgetAsync(documentId);
+        }
+    }
+
+    public static TheoryData<DocumentState> StatesPastPendingScan()
+    {
+        var data = new TheoryData<DocumentState>();
+        foreach (var state in Enum.GetValues<DocumentState>().Where(s => s != DocumentState.PendingScan)) data.Add(state);
+        return data;
     }
 
     [Fact]

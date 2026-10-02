@@ -9,7 +9,7 @@
 // and the contract check correctly refused that: a field that was optional and becomes required breaks every
 // existing client that does not send it, even though nothing was removed.
 //
-// Two roles must be given an organization, and the rest must not.
+// Two roles must be given an organization, and the rest need not. They are Roles.RequiringAnOrganization.
 //
 // Every procurement query is scoped by the caller's organization, so an officer or a manager invited without
 // one signs in successfully, holds every permission their role grants, and meets an empty product. No tenders,
@@ -20,6 +20,13 @@
 // organization at all. A reviewer works the national supplier registry, which belongs to no buying body. The
 // ministry's viewer is cross-organization by rule, and pinning it to one would narrow it. A system
 // administrator has no tenancy. Requiring an organization of any of those would refuse a legitimate invitation.
+//
+// A role change asks the same of the account being changed. Its request names only the role, so the validator
+// cannot see the account, and the handler refuses one of those two roles for an account with no organization.
+// The refusal is answered as the invitation's is, a field-level validation failure on the organization, so a
+// client reads both the same way. It matters beyond the empty product: an account with no organization is also
+// what the platform administrator looks like, so re-roling a reviewer into a manager must not make a manager
+// who is scoped to nothing.
 //
 // A user who is not a staff account, whether a supplier's user or nobody at all, answers not-found rather than
 // refused. There is no information in that difference which an administrator needs and an attacker does not.
@@ -38,6 +45,7 @@ namespace MotsSupplierPortal.Api.Endpoints;
 
 using MotsSupplierPortal.Api.Errors;
 using FluentValidation;
+using FluentValidation.Results;
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Domain.Identity;
@@ -46,8 +54,6 @@ public sealed record InviteStaffRequest(string Email, string FullName, string Ro
 
 public sealed class InviteStaffRequestValidator : AbstractValidator<InviteStaffRequest>
 {
-    private static readonly string[] RequireAnOrganization = [Roles.ProcurementOfficer, Roles.ProcurementManager];
-
     public InviteStaffRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress();
@@ -56,7 +62,7 @@ public sealed class InviteStaffRequestValidator : AbstractValidator<InviteStaffR
 
         RuleFor(x => x.OrganizationId)
             .NotNull()
-            .When(x => x.Role is not null && RequireAnOrganization.Contains(x.Role, StringComparer.Ordinal))
+            .When(x => x.Role is not null && Roles.RequiringAnOrganization.Contains(x.Role, StringComparer.Ordinal))
             .WithMessage(x =>
                 $"A '{x.Role}' works within one buying body, and every screen they have is scoped to it. "
                 + "An invitation without an organization produces an account that signs in to an empty product.");
@@ -91,6 +97,15 @@ public static class StaffEndpoints
             Results.UnprocessableEntity(new { error = "cannot_act_on_own_account" }),
         StaffAccountResult.WouldLockOutAdministration =>
             Results.UnprocessableEntity(new { error = "would_lock_out_administration" }),
+        StaffAccountResult.OrganizationRequired refused => ValidationProblems.From(new ValidationResult(
+        [
+            new ValidationFailure(
+                nameof(InviteStaffRequest.OrganizationId),
+                $"A '{refused.Role}' works within one buying body, and this account belongs to none.")
+            {
+                ErrorCode = "NotNullValidator",
+            },
+        ])),
         _ => Results.Problem(),
     };
 

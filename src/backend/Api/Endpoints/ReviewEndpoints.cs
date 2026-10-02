@@ -53,8 +53,9 @@
 // a person. The retry sits beside the lifecycle because it is read and pressed from the same page, but it is not a
 // reviewer's decision: it is gated by admin.integrations.manage, the permission of the Connected systems settings
 // where the push is switched on, which only the system administrator holds. Not integration.retry: that one retries
-// an award's send through the caller's organisation, a deployment may grant it to an organisation's role, and the
-// push is one queue for the whole registry. It asks no precondition, like the award's retry and the lifecycle: a
+// an award's send within the caller's organisation when they have one, and across the registry only for the platform
+// administrator, who also holds admin.integrations.manage. A deployment may grant it to an organisation's role, and
+// the push is one queue for the whole registry. It asks no precondition, like the award's retry and the lifecycle: a
 // retry changes only the push's own state, and the domain refuses one on a push that has not failed, or on a
 // supplier out of service, with a conflict carrying its sentence.
 
