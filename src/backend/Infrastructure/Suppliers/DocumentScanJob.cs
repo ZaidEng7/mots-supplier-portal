@@ -13,6 +13,15 @@
 // was never told. If every retry runs out the document is still pending and its file still in quarantine, where it
 // can be scanned again once the scanner is back.
 //
+// Already scanned: nothing happens. The job server runs a job at least once rather than exactly once, and runs a
+// failed one again, so a run can find the document already scanned clean or refused. The run stops as soon as it has
+// read the row, before the file is read or the scanner asked, and logs that it skipped. It used to read the file and
+// ask the scanner first and meet the state only afterwards. A clean answer then tried to move the clean file onto
+// itself; the move is a copy and then a delete of the source, which is the same object, and only the object store's
+// refusal to copy an object onto itself kept that from deleting the supplier's file. An infected answer was turned
+// away by the document for its state, and a refused document's file was already gone. Each one failed the job, so the
+// job server ran it again, scanning the file each time, until its retries ran out.
+//
 // The written architecture describes THIS job as the thing that moves a document into review. It used to
 // stop one state short, which is why the documented reviewer queue returned nothing. Both transitions land
 // in the same save, so a reviewer never observes the intermediate state; only a crash between them does.
@@ -20,15 +29,27 @@
 namespace MotsSupplierPortal.Infrastructure.Suppliers;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
-public sealed class DocumentScanJob(AppDbContext db, IFileStorage fileStorage, IVirusScanner scanner, IAuditLogger auditLogger)
+public sealed class DocumentScanJob(
+    AppDbContext db, IFileStorage fileStorage, IVirusScanner scanner, IAuditLogger auditLogger, ILogger<DocumentScanJob> logger)
 {
     public async Task ScanAsync(Guid documentId, CancellationToken ct)
     {
         var document = await db.SupplierDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct);
         if (document is null) return;
+
+        if (document.State != DocumentState.PendingScan)
+        {
+            logger.LogInformation(
+                "Virus scan of document {ReferenceCode} skipped: it is {State}, not PendingScan, so an earlier run "
+                + "already scanned it.",
+                document.ReferenceCode, document.State);
+            return;
+        }
 
         var quarantineKey = document.StorageKey;
         await using var stream = await fileStorage.OpenReadAsync(quarantineKey, ct);
