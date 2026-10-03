@@ -2,8 +2,11 @@
 // security and file-upload settings.
 //
 // The admin dashboard already carried counters, six jobs registered and so many messages pending, which tells
-// an operator that something is wrong and nothing about what. These are the per-row views, plus the two
-// actions worth taking: run a job now, and replay a failed message.
+// an operator that something is wrong and nothing about what. These are the per-row views, plus the three
+// actions worth taking: run a job now, replay a failed message, and re-queue the virus scans that stalled.
+//
+// The scan re-queue takes no input. Which documents count as stalled, and how many one press handles, is the
+// handler's rule rather than the caller's choice, so an operator cannot widen it into rescanning the registry.
 //
 // They share the dashboard's permission rather than introducing one. This is the same authority looking
 // closer at the same facts.
@@ -100,5 +103,10 @@ public static class OperationsEndpoints
             await handler.HandleAsync(id, ct) ? Results.Accepted() : Results.NotFound())
             .RequirePermission(Permissions.AdminUsersManage)
             .WithName("ReplayOutboxMessage");
+
+        group.MapPost("/scans/retry", async (IRetryStuckScansHandler handler, CancellationToken ct) =>
+            Results.Ok(await handler.HandleAsync(ct)))
+            .RequirePermission(Permissions.AdminUsersManage)
+            .WithName("RetryStuckScans");
     }
 }

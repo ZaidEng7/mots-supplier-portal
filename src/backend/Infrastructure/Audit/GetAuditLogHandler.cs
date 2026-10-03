@@ -23,8 +23,8 @@
 // search is untouched and still finds every one of them.
 //
 // A re-queued document scan is left out as well, as staff work on the scanning queue rather than a change to the
-// supplier's file. Nothing writes that action yet. It is named ahead of the change that will write it so the row
-// never reaches a supplier, and naming it early costs nothing: an action nobody writes matches no row.
+// supplier's file. The operator's scan re-queue writes it against the supplier's document, naming the administrator
+// who asked for it, so without this rule it would land in the company's trail.
 
 namespace MotsSupplierPortal.Infrastructure.Audit;
 
