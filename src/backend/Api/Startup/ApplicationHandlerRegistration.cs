@@ -439,7 +439,6 @@ internal static class ApplicationHandlerRegistration
 
     private static void AddAdministrationHandlers(this WebApplicationBuilder builder)
     {
-        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IGetAdminDashboardHandler, MotsSupplierPortal.Infrastructure.Admin.Dashboard.GetAdminDashboardHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardSystemHealthDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.SystemHealthSectionHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardErpDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.ErpSectionHandler>();

@@ -151,7 +151,6 @@ export const BACK_OFFICE_NAV: readonly NavGroup[] = [
       { to: '/back-office/integrations', labelKey: 'integrations.title', icon: Plug, when: holds('admin.integrations.manage') },
       { to: '/back-office/audit', labelKey: 'auditExplorer.title', icon: ScrollText, when: holds('audit.read') },
       { to: '/back-office/operations', labelKey: 'operations.title', icon: Activity, when: holds('admin.users.manage') },
-      { to: '/back-office/admin', labelKey: 'adminOverview.title', icon: Settings, when: holds('admin.users.manage'), exact: true },
     ],
   },
 ]
@@ -206,6 +205,7 @@ export const ROUTE_EXEMPTIONS: Readonly<Record<string, string>> = {
   '/onboarding/offerings': 'An onboarding step, reached from the wizard that owns it, for the same reason as the contacts step above.',
   '/back-office/procurement/approvals': 'Opened from the procurement dashboard, which is the screen that says how many approvals are waiting.',
   '/back-office/notifications': 'The back office bell opens this, and the bell is on every screen in the shell. Same shape as the supplier side.',
+  '/back-office/admin': 'The address of the administrator\'s overview, which the dashboard replaced. It only redirects to the dashboard now, so old bookmarks and links still land somewhere, and the sidebar offers the dashboard itself.',
   '/back-office': 'The layout that wraps every back-office screen. It renders an Outlet and nothing of its own, so it is a container rather than a destination, and the shell points home at the dashboard instead.',
 }
 

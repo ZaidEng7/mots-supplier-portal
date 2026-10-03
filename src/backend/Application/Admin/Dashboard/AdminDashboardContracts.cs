@@ -1,8 +1,8 @@
 // The vocabulary for the system administrator's dashboard: one answer made of six sections, each of which is
 // ok, failed or hidden on its own.
 //
-// It is built to take over from the overview, whose answer is all or nothing: one query that throws there fails
-// the whole screen, at the moment an administrator most needs the rest of it.
+// It replaced the administrator's overview, whose answer was all or nothing: one query that threw there failed the
+// whole screen, at the moment an administrator most needed the rest of it.
 //
 //
 // A SECTION IS OK, FAILED OR HIDDEN, AND ONLY OK CARRIES DATA

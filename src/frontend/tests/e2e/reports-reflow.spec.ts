@@ -72,7 +72,6 @@ const backOfficeRoutes = [
   '/back-office/notifications',
   '/back-office/reports',
   '/back-office/ministry',
-  '/back-office/admin',
   '/back-office/settings',
   '/back-office/notification-templates',
   '/back-office/reference',

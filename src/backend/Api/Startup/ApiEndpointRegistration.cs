@@ -268,7 +268,6 @@ internal static class ApiEndpointRegistration
             .WithName("GetIncoterms")
             .WithTags("Reference");
 
-        app.MapAdminOverviewEndpoints();
         app.MapAdminDashboardEndpoints();
         app.MapOperationsEndpoints();
         app.MapUiStringEndpoints();

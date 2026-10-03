@@ -103,7 +103,6 @@
 import { lazy, Suspense } from 'react'
 import { PageOutlet } from './components/PageOutlet'
 
-const AdminOverviewPage = lazyRouteComponent(() => import('./routes/admin/AdminOverviewPage'), 'AdminOverviewPage')
 const SystemSettingsPage = lazyRouteComponent(() => import('./routes/admin/SystemSettingsPage'), 'SystemSettingsPage')
 const ApiKeysPage = lazyRouteComponent(() => import('./routes/admin/ApiKeysPage'), 'ApiKeysPage')
 const ErpImportPage = lazyRouteComponent(() => import('./routes/admin/ErpImportPage'), 'ErpImportPage')
@@ -487,7 +486,9 @@ const ministryAwardAnalyticsRoute = createRoute({
 const adminOverviewRoute = createRoute({
   getParentRoute: () => backOfficeLayoutRoute,
   path: '/admin',
-  component: AdminOverviewPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/back-office/dashboard' })
+  },
 })
 
 const systemSettingsRoute = createRoute({

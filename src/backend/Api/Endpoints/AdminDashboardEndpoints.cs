@@ -1,8 +1,8 @@
 // The system administrator's dashboard: one read answering six sections, each ok, failed or hidden on its own,
 // and beside it the probe of the object store and the virus scanner that runs only when somebody asks for it.
 //
-// The route is gated on the permission to manage users, the same gate as the overview it is built to take over
-// from, and for the same reason: the dashboard names the same actor as managing users does.
+// The route is gated on the permission to manage users, the same gate as the overview it replaced, and for the same
+// reason: the dashboard names the same actor as managing users does.
 //
 // Three sections need more than the route does, the ERP block admin.integrations.manage and the security and
 // recent activity feeds audit.read. Those are decided inside the handler, per section, rather than here, because

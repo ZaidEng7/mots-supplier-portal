@@ -1,14 +1,8 @@
-// FR-DSH-006 and SCR-700's platform-administration reads: the overview, the jobs monitor, the outbox, the ERP
-// sync, the security posture and the storage settings.
+// FR-DSH-006 and SCR-700's platform-administration reads: the jobs monitor, the outbox, the ERP sync, the security
+// posture and the storage settings. The administrator's dashboard has its own module, adminDashboard.ts.
 //
 // Operational health, not procurement data: nothing here identifies an RFQ, a proposal or a supplier, because
 // system_admin administers the platform and does not evaluate.
-//
-// THE OVERVIEW. The oldest pending outbox age is null when nothing is pending, and null is not zero: an empty
-// queue and a queue whose head arrived this second are different facts, and only the second one can be stuck.
-// The ERP flag is B-1 and BRULE-011's - false when the logging stand-in is registered rather than a real
-// transport. Without it the tile is an artifact asserting something untrue, because a draining outbox reads as
-// "the integration is working" while nothing has left the building.
 //
 // THE JOBS MONITOR is SCR-721: one recurring job as an operator needs to see it. The fault flag is false when
 // this application expects the job and Hangfire does not hold it - the operational fault the overview tile
@@ -40,31 +34,6 @@
 // this screen, answers a plain yes or no for each within ten seconds, and says when it asked.
 
 import { apiFetch } from './auth'
-
-export interface AdminOverview {
-  usersByRole: { role: string; count: number }[]
-  totalRoles: number
-  referenceData: { table: string; active: number; inactive: number }[]
-  outbox: {
-    pending: number
-    failed: number
-    oldestPendingAgeMinutes: number | null
-    erpTransportConfigured: boolean
-  }
-  jobs: {
-    recurringJobsEnabled: boolean
-    expectedJobs: string[]
-    registeredJobs: string[]
-    missingJobs: string[]
-  }
-  auditRowsLast24Hours: number
-}
-
-export async function getAdminOverview(): Promise<AdminOverview> {
-  const response = await apiFetch('/api/v1/admin/overview')
-  if (!response.ok) throw new Error('admin_overview_unavailable')
-  return (await response.json()) as AdminOverview
-}
 
 export interface RecurringJobRow {
   id: string

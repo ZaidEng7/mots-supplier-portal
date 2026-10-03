@@ -81,6 +81,9 @@
 ////   73  /back-office/integrations, where another system's address and credential are edited. It loads its list
 //       on arrival like every other admin screen, because listing connections touches nothing outside this
 //       product - only the test button reaches out, and nothing presses it
+//   73  unchanged when the administrator's dashboard replaced the overview: /back-office/admin stays in the
+//       router as a redirect to /back-office/dashboard, so the count holds and its two scans now land on
+//       the dashboard, which is what a bookmark to the old address shows
 //
 // The scan itself runs every route in both locales, with two false-clean guards before axe sees the
 // page. First, no 404 or 500: a page that fell through to the error boundary (a mock gap, a route
