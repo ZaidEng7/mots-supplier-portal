@@ -33,9 +33,11 @@
 //
 // THE STORAGE SETTINGS are SCR-725, read-only by design too, because the upload cap and the allow-list are a
 // security control. The allow-list maps an extension to the content type its magic bytes must match, and the
-// PAIRING is the rule. The reachability figure is probed when the request was served rather than read from a
-// cached health snapshot, and the backlog is there because a backlog that never drains is the failure this screen
-// exists to show.
+// PAIRING is the rule. The backlog is there because a backlog that never drains is the failure this screen exists
+// to show. Whether the object store and the virus scanner answer is not part of the settings any more: it is
+// probeStorage, a separate request the storage card makes only when somebody presses its button, because opening
+// the page used to call both services every time. The probe is the dashboard's, gated on admin.users.manage like
+// this screen, answers a plain yes or no for each within ten seconds, and says when it asked.
 
 import { apiFetch } from './auth'
 
@@ -161,8 +163,6 @@ export interface StorageSettings {
   maxUploadBytes: number
   allowedTypes: Record<string, string>
   bucket: string
-  objectStorageReachable: boolean
-  virusScannerReachable: boolean
   documentCount: number
   pendingScanCount: number
 }
@@ -171,4 +171,16 @@ export async function getStorageSettings(): Promise<StorageSettings> {
   const response = await apiFetch('/api/v1/admin/storage')
   if (!response.ok) throw new Error('storage_settings_unavailable')
   return (await response.json()) as StorageSettings
+}
+
+export interface StorageProbe {
+  objectStorageReachable: boolean
+  virusScannerReachable: boolean
+  checkedAt: string
+}
+
+export async function probeStorage(): Promise<StorageProbe> {
+  const response = await apiFetch('/api/v1/admin/dashboard/storage-probe', { method: 'POST' })
+  if (!response.ok) throw new Error('storage_probe_unavailable')
+  return (await response.json()) as StorageProbe
 }

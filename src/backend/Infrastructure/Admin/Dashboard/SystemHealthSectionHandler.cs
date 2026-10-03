@@ -179,13 +179,10 @@ public sealed class SystemHealthSectionHandler(
             : row.NextExecution is not { } next || asOf - next > schedule.Grace;
 
         if (late) return DashboardJobVerdict.Late;
+        if (row.LastState == FailedState.StateName) return DashboardJobVerdict.Failed;
+        if (row.LastState == ScheduledState.StateName) return DashboardJobVerdict.Retrying;
 
-        return row.LastState switch
-        {
-            FailedState.StateName => DashboardJobVerdict.Failed,
-            ScheduledState.StateName => DashboardJobVerdict.Retrying,
-            _ => DashboardJobVerdict.Ok,
-        };
+        return DashboardJobVerdict.Ok;
     }
 
     private static string LinkFor(string jobId, DashboardViewer viewer) =>
