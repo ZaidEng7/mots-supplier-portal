@@ -462,6 +462,7 @@ something else, that row is superseded and says so rather than being deleted.
 | **What it costs if wrong** | One setting value, under D-32's precedence. |
 | **Who should confirm it** | MOT procurement. |
 | **Supersedes** | D-11, which recorded that no duration exists and left the timer unbuilt. |
+| **Amended (PR 4, Q2)** | The same target now also feeds ONE needs-attention item on the system administrator's dashboard: the number of applications in `Submitted` or `UnderReview` whose target, `ReviewSla.TargetFor(entered the queue, review.slaWorkingDays)`, has passed. It is counted in working days, from the same queue-entry moment the reviewer's queue uses; `InfoRequested` is left out because the timer pauses there, and the queue's 48 h and 120 h calendar tones play no part. This reverses "never as a breach" for that one administrator-facing count only. The reviewer's queue still shows a target and no breach or badge. The reason: an administrator is the person who can see a queue that has stopped moving and act on it, by staffing or reassigning, and a target nobody is ever told has passed is a target in name only. Since the duration itself still awaits procurement, the item counts against the stated default and says nothing to suppliers. |
 
 ### A-6: Deadline extensions stay unbounded and require a reason `[recommended, awaiting procurement]`
 

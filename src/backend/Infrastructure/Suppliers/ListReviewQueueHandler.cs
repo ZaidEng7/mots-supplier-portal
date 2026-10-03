@@ -7,7 +7,8 @@
 // resubmitted after an information request, resumed, or pushed back in because a compliance field changed.
 //
 // The queue's age and its service target are measured from the most recent of those, read from the audit
-// trail. Measuring from creation would show a resubmitted application as weeks old on the day it arrived.
+// trail by ReviewQueueEntry, which the administrator's dashboard reads too. Measuring from creation would show a
+// resubmitted application as weeks old on the day it arrived.
 //
 // That is a second small query over the page's own rows rather than a join on the paged query, because at
 // most one page's worth of suppliers need it.
@@ -62,12 +63,6 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope, ISystemSettingReader settings) : IListReviewQueueHandler
 {
-    private static readonly string[] ReviewQueueEntryActions =
-    [
-        "application_submitted", "application_resubmitted", "application_review_resumed",
-        "compliance_field_changed_review_retriggered",
-    ];
-
     private static readonly IReadOnlyDictionary<string, SupplierOnboardingState> StateFilterMap = new Dictionary<string, SupplierOnboardingState>(StringComparer.Ordinal)
     {
         ["Submitted"] = SupplierOnboardingState.Submitted,
@@ -118,11 +113,7 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
         var items = hasMore ? rows[..pageSize] : rows;
 
         var pageIds = items.Select(r => r.Id).ToList();
-        var enteredQueueAtBySupplier = await db.AuditLogs
-            .Where(a => a.AggregateType == "Supplier" && pageIds.Contains(a.AggregateId) && ReviewQueueEntryActions.Contains(a.Action))
-            .GroupBy(a => a.AggregateId)
-            .Select(g => new { SupplierId = g.Key, EnteredAt = g.Max(a => a.OccurredAt) })
-            .ToDictionaryAsync(x => x.SupplierId, x => x.EnteredAt, ct);
+        var enteredQueueAtBySupplier = await ReviewQueueEntry.LatestBySupplierAsync(db, pageIds, ct);
 
         var reviewerIds = items.Where(r => r.AssignedReviewerId is not null).Select(r => r.AssignedReviewerId!.Value).Distinct().ToList();
         var reviewerNamesById = await db.Users
@@ -135,7 +126,7 @@ public sealed class ListReviewQueueHandler(AppDbContext db, IScopeContext scope,
         var dtos = items
             .Select(r =>
             {
-                var enteredAt = enteredQueueAtBySupplier.GetValueOrDefault(r.Id, r.CreatedAt);
+                var enteredAt = ReviewQueueEntry.EnteredAt(enteredQueueAtBySupplier, r.Id, r.CreatedAt);
                 return new ReviewQueueItemDto(
                     r.ReferenceCode, r.DisplayNameAr, r.DisplayNameEn, r.OnboardingState,
                     enteredAt,
