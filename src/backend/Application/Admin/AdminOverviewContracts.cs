@@ -7,8 +7,11 @@
 // many are switched off. A table with no active codes is a configuration fault that blocks registration, and
 // it was invisible.
 //
-// The audit figure is a count of rows written in the last day rather than a listing. The ministry's raw
-// audit access was deliberately removed, and an overview that listed rows would put it back.
+// The audit figure is a count of rows written in the last day rather than a listing. The overview is gated on
+// admin.users.manage alone, and a listing there would show audit rows to an administrator the audit search
+// would refuse. The administrator's dashboard that replaces it does list rows, the latest sensitive changes and
+// the recent activity feed, and hides both from a viewer without audit.read, the permission the audit search
+// itself is gated on.
 
 namespace MotsSupplierPortal.Application.Admin;
 
