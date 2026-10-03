@@ -15,11 +15,11 @@ either dead or waiting for a surface. Both are called out below.
 | Permission | Held by default | Gates |
 |---|---|---|
 | `admin.apiKeys.manage` | `system_admin` | `CreateApiKey`, `ListApiKeys`, `RevokeApiKey` |
-| `admin.integrations.manage` | `system_admin` | `ListErpSupplierGroups`, `ListIntegrations`, `RetryErpSupplierPush`, `TestIntegration`, `UpdateIntegration`, checked in RegistryWideAwardSends, not on a route |
+| `admin.integrations.manage` | `system_admin` | `ListErpSupplierGroups`, `ListIntegrations`, `RetryErpSupplierPush`, `TestIntegration`, `UpdateIntegration`, checked in GetAdminDashboardHandler, not on a route, checked in RegistryWideAwardSends, not on a route |
 | `admin.organizations.manage` | `system_admin` | `AddOrgUnit`, `CreateOrganization`, `CreateSupplierOrgLink`, `ListOrganizations`, `ListSupplierOrgLinks`, `RemoveOrgUnit`, `RemoveSupplierOrgLink` |
 | `admin.roles.manage` | `system_admin` | `ListRoles`, `UpdateRolePermissions` |
-| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteEmailTemplate`, `DeleteUiStringOverride`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListEmailTemplates`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertEmailTemplate`, `UpsertUiStringOverride` |
-| `audit.read` | `system_admin` | `ExportAuditLog`, `GetAuditLog`, `SearchAuditLog` |
+| `admin.users.manage` | `system_admin` | `ChangeStaffRole`, `DeactivateStaff`, `DeleteEmailTemplate`, `DeleteUiStringOverride`, `GetAdminDashboard`, `GetAdminOverview`, `GetErpSyncMonitor`, `GetFieldConfig`, `GetJobsMonitor`, `GetOneFieldConfig`, `GetOutboxMonitor`, `GetSecurityPosture`, `GetStorageSettings`, `InviteStaff`, `ListEmailTemplates`, `ListStaff`, `ListUiStringOverrides`, `ReactivateStaff`, `ReplayOutboxMessage`, `ResetStaffMfa`, `TriggerRecurringJob`, `UpdateFieldConfig`, `UpsertEmailTemplate`, `UpsertUiStringOverride`, checked in GetAdminDashboardHandler, not on a route |
+| `audit.read` | `system_admin` | `ExportAuditLog`, `GetAuditLog`, `SearchAuditLog`, checked in GetAdminDashboardHandler, not on a route |
 | `award.approve` | `procurement_manager`, `system_admin` | `ApproveAward`, `ExecuteAward`, checked in ProcurementDashboardHandler, not on a route |
 | `award.recommend` | `procurement_manager`, `procurement_officer`, `system_admin` | `GetAward`, `RecommendAward`, `RouteAwardForApproval` |
 | `award.reject` | `procurement_manager`, `system_admin` | `RejectAward` |

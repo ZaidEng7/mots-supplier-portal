@@ -269,6 +269,7 @@ internal static class ApiEndpointRegistration
             .WithTags("Reference");
 
         app.MapAdminOverviewEndpoints();
+        app.MapAdminDashboardEndpoints();
         app.MapOperationsEndpoints();
         app.MapUiStringEndpoints();
         app.MapSearchEndpoints();

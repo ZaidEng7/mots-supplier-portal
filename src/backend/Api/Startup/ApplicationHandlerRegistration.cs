@@ -440,6 +440,13 @@ internal static class ApplicationHandlerRegistration
     private static void AddAdministrationHandlers(this WebApplicationBuilder builder)
     {
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IGetAdminDashboardHandler, MotsSupplierPortal.Infrastructure.Admin.Dashboard.GetAdminDashboardHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardSystemHealthDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.SystemHealthSectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardErpDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.ErpSectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardPeopleAndAccessDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.PeopleAndAccessSectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardSecurityDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.SecuritySectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardRecentActivityDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.RecentActivitySectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.INeedsAttentionSectionHandler, MotsSupplierPortal.Infrastructure.Admin.Dashboard.NeedsAttentionSectionHandler>();
         builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
         builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
         builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();
