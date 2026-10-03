@@ -1996,6 +1996,7 @@ const resources = {
         active: 'مفعّل',                                        // [reused]
         inactive: 'معطّل',
         mfaOn: 'التحقق بخطوتين مُفعّل',
+        lockedUntil: 'مقفل حتى {{time}}',
         sessions: 'جلسات نشطة: {{count}}',
         deactivate: 'تعطيل',
         reactivate: 'إعادة التفعيل',
@@ -4287,6 +4288,7 @@ const resources = {
         active: 'Active',
         inactive: 'Deactivated',
         mfaOn: 'Two-factor enrolled',
+        lockedUntil: 'Locked until {{time}}',
         sessions: 'Active sessions: {{count}}',
         deactivate: 'Deactivate',
         reactivate: 'Reactivate',
