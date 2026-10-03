@@ -16,6 +16,10 @@
 // one outside it. A tile reading the whole table would move by two and would then never fall, which is the
 // failure mode that makes it useless as a sign of activity.
 //
+// It also leaves out the session rows, which are stored now and would make the figure follow office hours. One
+// row of every action SessionAuditActions names is seeded inside the window beside one ordinary row, so a count
+// that took in any of them, or read a shorter list of its own, moves by more than one.
+//
 // Job health names what is expected and what is actually registered, with the expected list taken from the
 // application's own so it cannot drift from what Program.cs registers. The integration host runs with
 // Jobs:EnableRecurring off, so NOTHING is registered and every expected job is missing - which is the case
@@ -121,14 +125,37 @@ public sealed class AdminOverviewTests(PostgresApiFixture fixture)
         after.Should().Be(before + 1, "the 25-hour-old row is outside the window");
     }
 
-    private static AuditLog NewAuditLog(DateTimeOffset occurredAt) => new()
+    [Fact]
+    public async Task Session_rows_are_left_out_of_the_24_hour_count()
+    {
+        var admin = await AdminAsync();
+
+        var before = (await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/overview"))
+            .GetProperty("auditRowsLast24Hours").GetInt32();
+
+        await using (var setup = fixture.Services.CreateAsyncScope())
+        {
+            var db = setup.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.AuditLogs.Add(NewAuditLog(DateTimeOffset.UtcNow.AddMinutes(-5)));
+            db.AuditLogs.AddRange(SessionAuditActions.All.Select(action =>
+                NewAuditLog(DateTimeOffset.UtcNow.AddMinutes(-5), action)));
+            await db.SaveChangesAsync();
+        }
+
+        var after = (await admin.GetFromJsonAsync<JsonElement>("/api/v1/admin/overview"))
+            .GetProperty("auditRowsLast24Hours").GetInt32();
+
+        after.Should().Be(before + 1, "only the ordinary row is activity; every session row is left out");
+    }
+
+    private static AuditLog NewAuditLog(DateTimeOffset occurredAt, string action = "probe.written") => new()
     {
         Id = Guid.CreateVersion7(),
         OccurredAt = occurredAt,
         ActorKind = AuditActorKind.System,
         AggregateType = "AdminOverviewProbe",
         AggregateId = Guid.CreateVersion7(),
-        Action = "probe.written",
+        Action = action,
         CorrelationId = Guid.CreateVersion7(),
     };
 

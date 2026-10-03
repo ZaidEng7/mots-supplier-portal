@@ -11,6 +11,20 @@
 //
 // The scoping is applied inside the query rather than by filtering results afterwards, so a row the caller
 // may not see is never fetched in the first place.
+//
+//
+// A SUPPLIER'S TRAIL LEAVES OUT THE SESSION ROWS
+//
+// Signing in, signing out, a refused sign-in and a revoked session are recorded against the person, and the
+// person belongs to the supplier, so without a rule they would fill the company's trail with every sign-in its
+// team ever made. SessionAuditActions names them, and its header says why they are left out and why a password
+// reset, a password change and a second-factor enrolment are not. The rule lives in the supplier's branch of the
+// scope, so the trail, its export and a single record's trail all leave out the same rows. A staff caller's
+// search is untouched and still finds every one of them.
+//
+// A re-queued document scan is left out as well, as staff work on the scanning queue rather than a change to the
+// supplier's file. Nothing writes that action yet. It is named ahead of the change that will write it so the row
+// never reaches a supplier, and naming it early costs nothing: an action nobody writes matches no row.
 
 namespace MotsSupplierPortal.Infrastructure.Audit;
 
@@ -22,6 +36,8 @@ using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : IGetAuditLogHandler
 {
+    private static readonly string[] HiddenFromSupplierTrail = [.. SessionAuditActions.All, "document_scan_requeued"];
+
     public async Task<IReadOnlyList<AuditLogEntryDto>> HandleAsync(Guid aggregateId, CancellationToken ct) =>
         await Project(ScopedQuery().Where(a => a.AggregateId == aggregateId)).ToListAsync(ct);
 
@@ -119,10 +135,12 @@ public sealed class GetAuditLogHandler(AppDbContext db, IScopeContext scope) : I
             .Where(u => u.SupplierId == supplierId)
             .Select(u => u.Id);
 
-        return db.AuditLogs.Where(a =>
-            (a.AggregateType == "Supplier" && a.AggregateId == supplierId) ||
-            (a.AggregateType == "SupplierDocument" && ownedDocumentIds.Contains(a.AggregateId)) ||
-            (a.AggregateType == "User" && ownedUserIds.Contains(a.AggregateId)));
+        return db.AuditLogs
+            .Where(a => !HiddenFromSupplierTrail.Contains(a.Action))
+            .Where(a =>
+                (a.AggregateType == "Supplier" && a.AggregateId == supplierId) ||
+                (a.AggregateType == "SupplierDocument" && ownedDocumentIds.Contains(a.AggregateId)) ||
+                (a.AggregateType == "User" && ownedUserIds.Contains(a.AggregateId)));
     }
 
     private static IQueryable<AuditLogEntryDto> Project(IQueryable<AuditLog> query) =>

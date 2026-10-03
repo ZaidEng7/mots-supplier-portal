@@ -8,6 +8,9 @@
 //
 // An address already verified is idempotent rather than an error. The opaque token itself can never be replayed,
 // because consuming it is single-use, so that only happens if the account somehow had two live tokens.
+//
+// The supplier's move out of draft and its audit row are stored by one save, with the row added before it. It
+// was once added after that save, so the trail never recorded a verification.
 
 namespace MotsSupplierPortal.Infrastructure.Registrations;
 
@@ -64,8 +67,6 @@ public sealed class VerifyEmailHandler(
             return new VerifyEmailResult.Success();
         }
 
-        await db.SaveChangesAsync(ct);
-
         await auditLogger.LogAsync(
             aggregateType: "Supplier",
             aggregateId: supplier.Id,
@@ -76,6 +77,7 @@ public sealed class VerifyEmailHandler(
             toState: nameof(SupplierOnboardingState.EmailVerified),
             referenceCode: supplier.ReferenceCode,
             ct: ct);
+        await db.SaveChangesAsync(ct);
 
         return new VerifyEmailResult.Success();
     }

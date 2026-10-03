@@ -38,6 +38,11 @@
 // The declared extension and the sniffed bytes must agree. A mismatch is audited, because a file claiming
 // to be a certificate and carrying something else is worth a record.
 //
+// The refusal saves that row itself. It once only added it and returned, so the record was never stored. The
+// save stores the row and nothing else, because the check runs before anything is changed: earlier versions
+// are superseded, the file is written and the code is allocated only after it, so a refused upload leaves the
+// supplier's documents exactly as they were. Moving any of that above the check would put it in this save.
+//
 //
 // THE PUBLIC CODE IS ALLOCATED BEFORE THE DOCUMENT IS CONSTRUCTED
 //
@@ -137,6 +142,7 @@ public sealed class UploadDocumentHandler(
         if (!FileTypeSniffer.TryDetectContentType(header[..Math.Max(headerRead, 0)], out var sniffedContentType) || sniffedContentType != expectedContentType)
         {
             await auditLogger.LogAsync("SupplierDocument", supplier.Id, "document_upload_content_mismatch", scope.UserId, referenceCode: supplier.ReferenceCode, ct: ct);
+            await db.SaveChangesAsync(ct);
             return new UploadDocumentResult.ContentMismatch();
         }
 

@@ -16,6 +16,10 @@
 //
 // Which session is "this one" is resolved the same way the revoke-all handler does it, by hashing the presented
 // token and finding its family, rather than a second way of answering the same question.
+//
+// The new password, the revoked sessions and the audit row are one transaction, opened by SessionLock before the
+// password is written, so a refresh of another session in flight either finishes first and its successor is
+// revoked here, or waits and finds that session ended.
 
 namespace MotsSupplierPortal.Infrastructure.Auth;
 
@@ -49,6 +53,8 @@ public sealed class ChangePasswordHandler(
             return new ChangePasswordResult.SameAsCurrent();
         }
 
+        await using var transaction = await SessionLock.BeginAsync(db, user.Id, ct);
+
         var result = await userManager.ChangePasswordAsync(user, command.CurrentPassword, command.NewPassword);
         if (!result.Succeeded)
         {
@@ -62,14 +68,14 @@ public sealed class ChangePasswordHandler(
             currentFamilyId = (await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct))?.FamilyId;
         }
 
-        var others = await db.RefreshTokens
-            .Where(t => t.UserId == user.Id && t.RevokedAt == null
-                        && (currentFamilyId == null || t.FamilyId != currentFamilyId))
-            .ToListAsync(ct);
-        foreach (var session in others) session.RevokedAt = DateTimeOffset.UtcNow;
-
+        await SessionLock.RevokeAsync(
+            db,
+            t => t.UserId == user.Id && (currentFamilyId == null || t.FamilyId != currentFamilyId),
+            DateTimeOffset.UtcNow,
+            ct);
         await auditLogger.LogAsync("User", user.Id, "password_changed", user.Id, user.FullName, ct: ct);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return new ChangePasswordResult.Success();
     }

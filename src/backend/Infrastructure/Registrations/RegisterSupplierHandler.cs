@@ -2,6 +2,10 @@
 //
 // No orphan records on failure.
 //
+// The audit row is part of that transaction too, added before its last save. It was once added after the
+// commit, when nothing would save again, so every registration answered success and the trail never showed one.
+// It goes in once the account exists, because the row names that account as its actor.
+//
 //
 // THE RESPONSE CANNOT TELL A PROBER WHETHER AN ACCOUNT EXISTS
 //
@@ -139,11 +143,6 @@ public sealed class RegisterSupplierHandler(
 
             var representative = supplier.Representatives[0];
             representative.UserId = user.Id;
-            await db.SaveChangesAsync(ct);
-
-            await transaction.CommitAsync(ct);
-
-            backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Id, CancellationToken.None));
 
             await auditLogger.LogAsync(
                 aggregateType: "Supplier",
@@ -154,6 +153,11 @@ public sealed class RegisterSupplierHandler(
                 toState: nameof(SupplierOnboardingState.Draft),
                 referenceCode: supplier.ReferenceCode,
                 ct: ct);
+            await db.SaveChangesAsync(ct);
+
+            await transaction.CommitAsync(ct);
+
+            backgroundJobs.Enqueue<EmailJobs>(job => job.SendVerificationEmailAsync(user.Id, CancellationToken.None));
 
             return new RegisterSupplierResult.Success(supplier.ReferenceCode);
         }

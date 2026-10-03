@@ -5,6 +5,10 @@
 //
 // Users are counted rather than listed, because the staff listing is its own screen and this is a dashboard.
 //
+// The audit figure is the last 24 hours of activity on the registry, and it leaves out the session rows that
+// SessionAuditActions names. Every sign-in, refresh-token reuse detection and sign-out is recorded, and counted
+// in they would make the figure follow office hours rather than the work. The audit search still shows them.
+//
 //
 // THE REFERENCE-DATA LIST IS HAND-WRITTEN, AND THE TEST READS THE REGISTRY
 //
@@ -38,6 +42,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Application.ReferenceData;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.ReferenceData;
 using MotsSupplierPortal.Application.Common;
@@ -85,6 +90,7 @@ public sealed class GetAdminOverviewHandler(
             .FirstOrDefaultAsync(ct);
 
         var auditRows = await db.AuditLogs
+            .Where(a => !SessionAuditActions.All.Contains(a.Action))
             .CountAsync(a => a.OccurredAt >= DateTimeOffset.UtcNow.AddHours(-24), ct);
 
         return new AdminOverviewDto(

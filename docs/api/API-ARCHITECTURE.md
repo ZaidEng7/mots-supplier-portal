@@ -502,11 +502,19 @@ Bad credentials → `401` (`TOKEN_INVALID` / generic message, no account enumera
 #### `POST /auth/refresh` — rotating refresh
 
 No body; sends the refresh cookie. Response `200 OK` returns a new `accessToken` (and rotates the refresh
-cookie). Reused/rotated token → `401` (`TOKEN_INVALID`) **and** family revocation (theft response).
+cookie). A token rotated away more than 10 seconds earlier → `401` (`TOKEN_INVALID`) **and** family revocation
+(theft response, recorded as `refresh_reuse_detected`). A token rotated away within the last 10 seconds, which is a
+second request from the same browser → `401` (`REFRESH_SUPERSEDED`) with the family and the cookie left alone; the
+SPA retries the refresh once on this code only, because the browser's cookie jar may by then hold the successor
+another tab received. An expired or revoked token → `401` (`TOKEN_INVALID`), cookie cleared, nothing else revoked.
+Rotation and every revocation of a person's sessions are serialised under one lock per person, so two refreshes of
+one token yield exactly one successor and the other is answered `REFRESH_SUPERSEDED`.
 
 #### `POST /auth/logout`
 
-Revokes the current refresh-token family; clears the cookie. `204 No Content`.
+Clears the cookie, then revokes the refresh-token family the cookie belongs to and records `logout` when it revoked
+anything. Always `204 No Content`: with no cookie or an unknown one, and also when the server could not end the
+session, which is logged rather than answered.
 
 ### 12.2 Supplier profile
 

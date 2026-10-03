@@ -1,36 +1,43 @@
 // Signing out one named session.
 //
 // Scoped to the caller's own sessions, so a family identifier belonging to somebody else simply does not match.
+//
+// It runs under SessionLock, so a refresh of that session either finishes first and its successor is revoked
+// here, or waits and finds the session ended. Only tokens not yet revoked are revoked, so a rotated token keeps the
+// time it was rotated at.
+//
+// The audit row is stored in the same transaction as the revocation. It used to be added after the save that
+// revoked the session, and with nothing saving again it was dropped.
 
 namespace MotsSupplierPortal.Infrastructure.Auth;
 
-using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Application.Auth;
 using MotsSupplierPortal.Application.Common;
+using MotsSupplierPortal.Domain.Audit;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
 public sealed class RevokeSessionHandler(AppDbContext db, IScopeContext scope, IAuditLogger auditLogger) : IRevokeSessionHandler
 {
     public async Task<bool> HandleAsync(Guid familyId, CancellationToken ct)
     {
-        if (scope.UserId is null)
+        if (scope.UserId is not { } userId)
         {
             return false;
         }
 
-        var tokens = await db.RefreshTokens
-            .Where(t => t.UserId == scope.UserId && t.FamilyId == familyId && t.RevokedAt == null)
-            .ToListAsync(ct);
+        await using var transaction = await SessionLock.BeginAsync(db, userId, ct);
 
-        if (tokens.Count == 0)
+        var revoked = await SessionLock.RevokeAsync(
+            db, t => t.UserId == userId && t.FamilyId == familyId, DateTimeOffset.UtcNow, ct);
+
+        if (revoked == 0)
         {
             return false;
         }
 
-        foreach (var t in tokens) t.RevokedAt = DateTimeOffset.UtcNow;
+        await auditLogger.LogAsync("User", userId, SessionAuditActions.SessionRevoked, userId, ct: ct);
         await db.SaveChangesAsync(ct);
-
-        await auditLogger.LogAsync("User", scope.UserId.Value, "session_revoked", scope.UserId, ct: ct);
+        await transaction.CommitAsync(ct);
         return true;
     }
 }

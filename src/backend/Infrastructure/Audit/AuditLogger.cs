@@ -15,6 +15,16 @@
 // Three callers had no save of their own and gained one. Without those, their audit rows would have been
 // written to memory and dropped.
 //
+// Five more were found later. Two had no save at all, and three added their row after their last save, which
+// drops it just the same. A caller adds its row before a save that will store it.
+//
+// The sign-in and session handlers were found at the same time, and were the largest group. Sign-in's four refusals,
+// a wrong password, a locked account, a wrong second-factor code and a missing enrolment, had no save at all. A
+// successful sign-in, a refresh-token reuse, revoking one session, revoking all of them and a password reset each
+// added their row after their last save. Sign-out, which recorded nothing then, now records itself. A sign-in
+// refusal writes nothing but its row, so it saves that on its own; every other one stores its row in the same
+// transaction as the change it records.
+//
 //
 // WHAT KIND OF ACTOR IT WAS
 //

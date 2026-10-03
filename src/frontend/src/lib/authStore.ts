@@ -6,6 +6,11 @@
 // screen. Only an established session can expire, and without that guard a 401 on a public page - a bad password on the
 // login form, say - would raise a "your session expired" overlay over the login screen of someone who never had one.
 //
+// An expiry already marked stays marked when it is reported again. Two requests refused together share one failed
+// refresh and each reports the expiry; the second used to read the status the first had just cleared, decide there
+// was no session to lose, and turn the flag back off, so the overlay never appeared when a page met the end of its
+// session with more than one request in flight. Only signing in again or signing out clears it.
+//
 // The remembered address is kept so the overlay does not ask a user who they are. In memory only, and cleared with the
 // session it belonged to - a deliberate sign-out clears it too, because the next person at this browser is not the last one
 // and offering their email back would be a small leak for no gain.
@@ -81,7 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken: null,
       claims: null,
       status: 'unauthenticated',
-      expired: get().status === 'authenticated',
+      expired: get().expired || get().status === 'authenticated',
       lastEmail: get().claims?.email ?? get().lastEmail,
     }),
 }))
