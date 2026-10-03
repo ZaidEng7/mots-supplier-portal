@@ -11,6 +11,10 @@
 // signed in, so they are the newest rows of their kind and the feed's first rows are theirs to assert. The seeding
 // then waits a quarter of a second, so the dashboard's moment of asking falls after every row it dated. The test
 // host runs no recurring jobs, which is what keeps the system's count still between the two readings.
+//
+// Every action SessionAuditActions names is seeded once under a person and once under the system, beside the few
+// written out by hand, so a count that took in any session row, or left them out by a shorter list of its own,
+// moves by more than it should. The overview's test held the same line before the overview was retired.
 
 namespace MotsSupplierPortal.Tests.Integration.Admin.Dashboard;
 
@@ -62,7 +66,11 @@ public sealed class RecentActivitySectionTests(PostgresApiFixture fixture)
             Row("login_succeeded", start.AddMilliseconds(21), AuditActorKind.User, adminId),
             Row("logout", start.AddMilliseconds(22), AuditActorKind.User, adminId),
             Row("login_failed", start.AddMilliseconds(23), AuditActorKind.System),
-        };
+        }.Concat(SessionAuditActions.All.SelectMany((action, i) => new[]
+        {
+            Row(action, start.AddMilliseconds(30 + (2 * i)), AuditActorKind.User, adminId),
+            Row(action, start.AddMilliseconds(31 + (2 * i)), AuditActorKind.System),
+        })).ToArray();
 
         var yesterday = Row("rfq_updated", DateTimeOffset.UtcNow.AddHours(-25), AuditActorKind.User, adminId);
         var ahead = Row("rfq_updated", DateTimeOffset.UtcNow.AddHours(1), AuditActorKind.User, adminId);

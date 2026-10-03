@@ -228,8 +228,8 @@ above.
 
 - **A fresh registration lands on "Your application is under review", not a dashboard.** Correct: a
   new supplier is in Draft. The seeded `supplier@mots.local` is already Active and does get one.
-- **The admin overview's "No real ERP integration is configured" is about the outbox only.** It sits on
-  the Outbox card. The outbox still drains to a log line, which is T-089 stating a vacuum rather than a
+- **The dashboard's Purchase orders tile says "Not sent" and "Logged only".** That is about the
+  outbox only. The outbox still drains to a log line, which is T-089 stating a vacuum rather than a
   failure. Awards still go to `StubErpPurchaseOrderAdapter`, which sends no purchase order. The supplier
   import is connected: it reads the ministry's ERP. It runs from **Supplier import**
   (`/back-office/erp-import`) and every hour by itself, once an ERP connection is configured, either on

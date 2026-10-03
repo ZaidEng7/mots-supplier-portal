@@ -10,18 +10,27 @@
 //
 // FRESHNESS. The page refetches every minute while it is open, says when the figures it shows were counted (the
 // server's generatedAt, not the moment the browser received them) and offers Refresh for anyone who will not wait.
-// The running version comes from /api/v1/meta, the same read the about page makes.
+// A background refetch that fails keeps the last figures on screen and says they could not be refreshed, rather
+// than replacing six good sections with one error at the moment the platform is struggling. Refresh is disabled
+// only while somebody's own press is running, so the minute's refetch does not take the button, or the keyboard
+// focus on it, away. The running version comes from /api/v1/meta, the same read the about page makes.
 //
 // THE STORAGE AND SCANNER CHECK is asked for, never automatic. It calls the object store and the virus scanner, and
-// opening a page should not call either. Its answer is kept beside the file-storage tile until the next check, with
-// the time it was asked, because a yes from an hour ago is a different fact from a yes now.
+// opening a page should not call either. Its answer is shown under the file-storage tile, with the time it was
+// asked and announced to a screen reader, until the next check. It never replaces the tile's own reading: the
+// server pings the object store on every refetch, and an answer from an hour ago must not outvote one from now.
 //
-// SCAN AGAIN, on the virus-scan tile, appears only while documents are stuck. It requeues up to a hundred, says how
-// many went back into the queue and which documents could not be requeued because their file was gone, and then
-// refetches, so the tile shows what is left.
+// SCAN AGAIN, on the virus-scan tile, appears while documents are stuck. It requeues up to a hundred, says how many
+// went back into the queue and which documents could not be requeued because their file was gone, and then
+// refetches, so the tile shows what is left. The button stays in place, disabled, once nothing is left, so the
+// keyboard focus on it is not dropped.
 //
 // COUNTS ARE LABELS AND NUMBERS, never sentences built around a number. "Failed: 3" reads correctly in Arabic and
-// English for every value, where "3 jobs failed" needs a plural form per language and per number.
+// English for every value, where "3 jobs failed" needs a plural form per language and per number. The thresholds a
+// count was measured against come from the server's answer, never from copy of the screen's own.
+//
+// SEVERITY IS SAID, NOT ONLY COLOURED. Each needs-attention row carries its severity as text a screen reader reads,
+// beside the icon and the tint.
 //
 // NOTHING HERE CALLS THE ERP. The ERP block shows what the database records about the connection, the hourly sync
 // and the push; the server builds it from rows and configuration only.
@@ -40,13 +49,14 @@ import { getMeta } from '../../api/meta'
 import { probeStorage, type StorageProbe } from '../../api/admin'
 import { dashboardAuditActionKey } from '../../api/dashboardAuditActions'
 import {
-  DASHBOARD_ATTENTION_GROUPS, attentionGroupOf, getAdminDashboard, retryStuckScans,
+  DASHBOARD_ATTENTION_GROUPS, DASHBOARD_JOB_SCHEDULES, attentionGroupOf, getAdminDashboard, retryStuckScans,
   type AdminDashboard, type DashboardAttentionItem, type DashboardAuditRow,
   type DashboardErp, type DashboardJobVerdict, type DashboardNeedsAttention, type DashboardPeopleAndAccess,
   type DashboardRecentActivity, type DashboardSection, type DashboardSecurity, type DashboardSystemHealth,
 } from '../../api/adminDashboard'
 
 const REFRESH_EVERY_MS = 60_000
+const SECURITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 const SERIOUS_CHECKS = new Set([
   'no_live_job_servers', 'object_storage_unreachable', 'purchase_order_sends_failed', 'outbox_failed',
@@ -72,6 +82,8 @@ const VERDICT_TONE: Record<DashboardJobVerdict, Tone> = {
   disabled: 'neutral',
 }
 
+type Translate = (key: string, options?: Record<string, unknown>) => string
+
 function useFormatters() {
   const { i18n } = useTranslation()
   const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
@@ -83,7 +95,7 @@ function useFormatters() {
 
 export function AdminDashboardPage() {
   const { t } = useTranslation()
-  const { when } = useFormatters()
+  const { n, when } = useFormatters()
   const { notify } = useToast()
 
   const query = useQuery({
@@ -93,6 +105,12 @@ export function AdminDashboardPage() {
   })
   const metaQuery = useQuery({ queryKey: ['meta'], queryFn: getMeta })
 
+  const [refreshing, setRefreshing] = useState(false)
+  const refresh = () => {
+    setRefreshing(true)
+    void query.refetch().finally(() => setRefreshing(false))
+  }
+
   const [lastProbe, setLastProbe] = useState<StorageProbe | null>(null)
   const probe = useMutation({ mutationFn: probeStorage, onSuccess: (answer) => setLastProbe(answer) })
 
@@ -101,17 +119,15 @@ export function AdminDashboardPage() {
     onSuccess: (result) => {
       notify({
         kind: result.quarantineFileMissing.length > 0 ? 'info' : 'success',
-        title: t('adminDashboard.health.scans.requeued', { value: result.requeued }),
+        title: t('adminDashboard.health.scans.requeued', { value: n(result.requeued) }),
         description: result.quarantineFileMissing.length > 0
-          ? t('adminDashboard.health.scans.fileMissing', { codes: result.quarantineFileMissing.join(', ') })
+          ? t('adminDashboard.health.scans.fileMissing', { codes: result.quarantineFileMissing.join(t('adminDashboard.listSeparator')) })
           : undefined,
       })
       void query.refetch()
     },
     onError: () => notify({ kind: 'danger', title: t('adminDashboard.health.scans.requeueFailed') }),
   })
-
-  const retry = () => void query.refetch()
 
   const version = metaQuery.data?.version
   const commit = metaQuery.data?.commit
@@ -137,9 +153,9 @@ export function AdminDashboardPage() {
             <ShieldCheck aria-hidden="true" size={16} />
             {t(probe.isPending ? 'adminDashboard.probing' : 'adminDashboard.probe')}
           </Button>
-          <Button disabled={query.isFetching} onClick={retry}>
+          <Button disabled={refreshing} aria-busy={refreshing} onClick={refresh}>
             <RefreshCw aria-hidden="true" size={16} />
-            {t(query.isFetching ? 'adminDashboard.refreshing' : 'adminDashboard.refresh')}
+            {t(refreshing ? 'adminDashboard.refreshing' : 'adminDashboard.refresh')}
           </Button>
         </div>
       }
@@ -155,52 +171,59 @@ export function AdminDashboardPage() {
     )
   }
 
-  if (query.isError) {
+  if (query.isError && !query.data) {
     return (
       <div className="flex flex-col gap-6">
         {header}
-        <QueryError error={query.error} errorText={t('adminDashboard.loadFailed')} onRetry={retry} />
+        <QueryError error={query.error} errorText={t('adminDashboard.loadFailed')} onRetry={refresh} />
       </div>
     )
   }
 
   const data: AdminDashboard = query.data
+  const nextSync = data.systemHealth.data?.jobs.jobs.find((job) => job.id === 'erp-supplier-sync')?.nextExecution ?? null
 
   return (
     <div className="flex flex-col gap-6">
       {header}
+      {query.isError ? (
+        <p role="status" className="m-0" style={{ color: 'var(--color-warning-fg)' }}>
+          {t('adminDashboard.refreshFailed', { time: when(data.generatedAt) })}
+        </p>
+      ) : null}
       {probe.isError ? (
-        <p role="alert" style={{ color: 'var(--color-danger-fg)' }}>{t('adminDashboard.probeFailed')}</p>
+        <p role="alert" className="m-0" style={{ color: 'var(--color-danger-fg)' }}>{t('adminDashboard.probeFailed')}</p>
       ) : null}
 
-      <SectionSlot section={data.needsAttention} title={t('adminDashboard.attention.title')} onRetry={retry}>
+      <SectionSlot section={data.needsAttention} title={t('adminDashboard.attention.title')} onRetry={refresh}>
         {(attention) => <NeedsAttention attention={attention} />}
       </SectionSlot>
 
-      <SectionSlot section={data.systemHealth} title={t('adminDashboard.health.title')} onRetry={retry}>
+      <SectionSlot section={data.systemHealth} title={t('adminDashboard.health.title')} onRetry={refresh}>
         {(health) => (
           <SystemHealth
             health={health}
             lastProbe={lastProbe}
             rescanning={rescan.isPending}
+            rescanned={rescan.isSuccess}
             onRescan={() => rescan.mutate()}
           />
         )}
       </SectionSlot>
 
-      <SectionSlot section={data.erp} title={t('adminDashboard.erp.title')} onRetry={retry}>
-        {(erp) => <Erp erp={erp} onRetry={retry} />}
+      <SectionSlot section={data.erp} title={t('adminDashboard.erp.title')} onRetry={refresh}>
+        {(erp) => <Erp erp={erp} nextSync={nextSync} onRetry={refresh} />}
       </SectionSlot>
 
-      <SectionSlot section={data.peopleAndAccess} title={t('adminDashboard.people.title')} onRetry={retry}>
+      <SectionSlot section={data.peopleAndAccess} title={t('adminDashboard.people.title')} onRetry={refresh}>
         {(people) => <PeopleAndAccess people={people} />}
       </SectionSlot>
 
       <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,23.75rem),1fr))]">
-        <SectionSlot section={data.security} title={t('adminDashboard.security.title')} onRetry={retry}>
-          {(security) => <Security security={security} />}
+        <SectionSlot section={data.security} title={t('adminDashboard.security.title')} onRetry={refresh}>
+          {(security) => <Security security={security} generatedAt={data.generatedAt} />}
         </SectionSlot>
-        <SectionSlot section={data.recentActivity} title={t('adminDashboard.activity.title')} onRetry={retry}>
+        <SectionSlot section={data.recentActivity} title={t('adminDashboard.activity.title')} onRetry={refresh}>
           {(activity) => <RecentActivity activity={activity} />}
         </SectionSlot>
       </div>
@@ -230,7 +253,7 @@ function SectionFailed({ title, onRetry }: Readonly<{ title: string; onRetry: ()
         <p className="m-0 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
           {t('adminDashboard.sectionFailedHint')}
         </p>
-        <Button size="sm" variant="ghost" onClick={onRetry}>{t('adminDashboard.retry')}</Button>
+        <Button size="sm" variant="secondary" onClick={onRetry}>{t('adminDashboard.retry')}</Button>
       </div>
     </Card>
   )
@@ -286,7 +309,9 @@ function NeedsAttention({ attention }: Readonly<{ attention: DashboardNeedsAtten
 
   const chip = attention.allClear
     ? <Badge tone="success">{t('adminDashboard.attention.allClearChip')}</Badge>
-    : attention.items.length > 0 ? <Badge tone="danger">{n(attention.items.length)}</Badge> : null
+    : attention.items.length > 0
+      ? <span aria-label={t('adminDashboard.attention.itemCount', { value: n(attention.items.length) })}><Badge tone="danger">{n(attention.items.length)}</Badge></span>
+      : null
 
   return (
     <Card title={t('adminDashboard.attention.title')} action={chip} flush>
@@ -330,15 +355,18 @@ function AttentionRow({ item }: Readonly<{ item: DashboardAttentionItem }>) {
   const { n } = useFormatters()
   const tone = SERIOUS_CHECKS.has(item.key) ? 'danger' : 'warning'
   const destination = item.link ? LINK_TITLES[item.link] : undefined
+  const hint = t(`adminDashboard.attention.hints.${item.key}`, { defaultValue: '' })
 
   return (
     <li className="flex flex-wrap items-center gap-3 px-4 py-3 [&:not(:first-child)]:border-t" style={{ borderColor: 'var(--color-border)' }}>
       <SeverityIcon tone={tone} />
       <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-0.5">
         <span className="flex flex-wrap items-center gap-2 font-[var(--fw-medium)]">
+          <span className="sr-only">{t(tone === 'danger' ? 'adminDashboard.attention.serious' : 'adminDashboard.attention.warning')}</span>
           {t(`adminDashboard.attention.items.${item.key}`, { defaultValue: item.key })}
           {item.count !== null ? <Badge tone={tone}>{n(item.count)}</Badge> : null}
         </span>
+        {hint ? <Muted>{hint}</Muted> : null}
         {item.references.length > 0 ? (
           <span className="flex flex-wrap gap-x-2 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)' }}>
             {item.references.map((reference) => reference.link ? (
@@ -382,16 +410,11 @@ function Tile({ label, chip, value, children, action }: Readonly<{
   )
 }
 
-function lateAfter(minutes: number, t: (key: string, options?: Record<string, unknown>) => string, n: (value: number) => string) {
-  return minutes % 60 === 0
-    ? t('adminDashboard.health.jobs.lateAfterHours', { value: n(minutes / 60) })
-    : t('adminDashboard.health.jobs.lateAfterMinutes', { value: n(minutes) })
-}
-
-function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
+function SystemHealth({ health, lastProbe, rescanning, rescanned, onRescan }: Readonly<{
   health: DashboardSystemHealth
   lastProbe: StorageProbe | null
   rescanning: boolean
+  rescanned: boolean
   onRescan: () => void
 }>) {
   const { t } = useTranslation()
@@ -404,10 +427,12 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
   const queueState = queue.liveServers === 0 ? 'noServer' : queueTone === 'warning' ? 'needsLook' : 'healthy'
   const emptyLists = health.referenceLists.filter((list) => list.active === 0)
   const listsWithCodes = health.referenceLists.length - emptyLists.length
-  const storageReachable = lastProbe ? lastProbe.objectStorageReachable : health.objectStorage.reachable
+  const reachable = health.objectStorage.reachable
+  const transport = health.purchaseOrderTransport
 
-  const healthy = <Badge tone="success">{t('adminDashboard.health.healthy')}</Badge>
-  const needsLook = <Badge tone="warning">{t('adminDashboard.health.needsLook')}</Badge>
+  const chip = (good: boolean, plural = false) => good
+    ? <Badge tone="success">{t(plural ? 'adminDashboard.health.healthyPlural' : 'adminDashboard.health.healthy')}</Badge>
+    : <Badge tone="warning">{t(plural ? 'adminDashboard.health.needsLookPlural' : 'adminDashboard.health.needsLook')}</Badge>
 
   return (
     <section aria-labelledby="dashboard-health" className="flex flex-col gap-3">
@@ -415,6 +440,7 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
       <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))]">
         <Card
           title={t('adminDashboard.health.jobs.title')}
+          headingLevel={3}
           action={
             health.jobs.recurringEnabled
               ? <Badge tone={onTime === jobs.length ? 'success' : 'warning'}>{t('adminDashboard.health.jobs.onTime', { onTime: n(onTime), total: n(jobs.length) })}</Badge>
@@ -425,19 +451,22 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
           <Table flush>
             <TableHead labels={[
               t('adminDashboard.health.jobs.job'),
-              t('adminDashboard.health.jobs.lateAfter'),
+              t('adminDashboard.health.jobs.runs'),
               t('adminDashboard.health.jobs.lastRun'),
               t('adminDashboard.health.jobs.status'),
             ]} />
             <TableBody>
-              {jobs.map((job) => (
-                <TableRow key={job.id}>
-                  <TableCell>{t(`adminDashboard.health.jobs.names.${job.id}`, { defaultValue: job.id })}</TableCell>
-                  <TableCell><Muted>{lateAfter(job.lateAfterMinutes, t, n)}</Muted></TableCell>
-                  <TableCell><span className="num">{job.lastExecution ? when(job.lastExecution) : t('adminDashboard.never')}</span></TableCell>
-                  <TableCell><Badge tone={VERDICT_TONE[job.verdict] ?? 'neutral'}>{t(`adminDashboard.health.jobs.verdicts.${job.verdict}`, { defaultValue: job.verdict })}</Badge></TableCell>
-                </TableRow>
-              ))}
+              {jobs.map((job) => {
+                const schedule = DASHBOARD_JOB_SCHEDULES[job.id]
+                return (
+                  <TableRow key={job.id}>
+                    <TableCell>{t(`adminDashboard.health.jobs.names.${job.id}`, { defaultValue: job.id })}</TableCell>
+                    <TableCell><Muted>{schedule ? t(`adminDashboard.health.jobs.schedules.${schedule}`) : '—'}</Muted></TableCell>
+                    <TableCell><span className="num">{job.lastExecution ? when(job.lastExecution) : t('adminDashboard.health.jobs.neverRun')}</span></TableCell>
+                    <TableCell><Badge tone={VERDICT_TONE[job.verdict] ?? 'neutral'}>{t(`adminDashboard.health.jobs.verdicts.${job.verdict}`, { defaultValue: job.verdict })}</Badge></TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </Card>
@@ -451,12 +480,12 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
             <Muted>{t('adminDashboard.health.queue.running', { value: n(queue.processing) })}</Muted>
             <Muted>{t('adminDashboard.health.queue.retrying', { value: n(queue.retrying) })}</Muted>
             <Muted>{t('adminDashboard.health.queue.failed', { value: n(queue.failed) })}</Muted>
-            <Muted>{t('adminDashboard.health.queue.servers', { value: n(queue.liveServers), minutes: n(queue.heartbeatWithinMinutes) })}</Muted>
+            <Muted>{t('adminDashboard.health.queue.servers', { value: n(queue.liveServers) })}</Muted>
           </Tile>
 
           <Tile
             label={t('adminDashboard.health.email.label', { days: n(health.email.windowDays) })}
-            chip={health.email.failedInWindow > 0 ? needsLook : healthy}
+            chip={chip(health.email.failedInWindow === 0)}
             value={t('adminDashboard.health.email.failed', { value: n(health.email.failedInWindow) })}
           >
             <Muted>{t('adminDashboard.health.email.retrying', { value: n(health.email.retrying) })}</Muted>
@@ -464,7 +493,7 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
 
           <Tile
             label={t('adminDashboard.health.outbox.label')}
-            chip={health.outbox.stuck > 0 || health.outbox.failed > 0 ? needsLook : healthy}
+            chip={chip(health.outbox.stuck === 0 && health.outbox.failed === 0, true)}
             value={t('adminDashboard.health.outbox.waiting', { value: n(health.outbox.pending) })}
           >
             <Muted>{t('adminDashboard.health.outbox.stuck', { value: n(health.outbox.stuck), minutes: n(health.outbox.stuckAfterMinutes) })}</Muted>
@@ -473,10 +502,10 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
 
           <Tile
             label={t('adminDashboard.health.scans.label')}
-            chip={health.scans.stuck > 0 ? <Badge tone="warning">{t('adminDashboard.health.scans.stuckChip')}</Badge> : healthy}
+            chip={health.scans.stuck > 0 ? <Badge tone="warning">{t('adminDashboard.health.scans.stuckChip')}</Badge> : chip(true)}
             value={t('adminDashboard.health.scans.stuck', { value: n(health.scans.stuck) })}
-            action={health.scans.stuck > 0 ? (
-              <Button size="sm" variant="secondary" disabled={rescanning} onClick={onRescan}>
+            action={health.scans.stuck > 0 || rescanned ? (
+              <Button size="sm" variant="secondary" disabled={rescanning || health.scans.stuck === 0} onClick={onRescan}>
                 {t(rescanning ? 'adminDashboard.health.scans.rescanning' : 'adminDashboard.health.scans.rescan')}
               </Button>
             ) : undefined}
@@ -486,19 +515,24 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
 
           <Tile
             label={t('adminDashboard.health.storage.label')}
-            chip={<Badge tone={storageReachable ? 'success' : 'danger'}>{t(storageReachable ? 'adminDashboard.health.storage.reachable' : 'adminDashboard.health.storage.unreachable')}</Badge>}
-            value={t(storageReachable ? 'adminDashboard.health.storage.reachable' : 'adminDashboard.health.storage.unreachable')}
+            chip={reachable ? chip(true) : <Badge tone="danger">{t('adminDashboard.health.needsLook')}</Badge>}
+            value={t(reachable ? 'adminDashboard.health.storage.reachable' : 'adminDashboard.health.storage.unreachable')}
           >
-            {lastProbe ? (
-              <>
-                <Muted>
-                  {t(lastProbe.virusScannerReachable ? 'adminDashboard.health.storage.scannerReachable' : 'adminDashboard.health.storage.scannerUnreachable')}
-                </Muted>
-                <Muted>{t('adminDashboard.health.storage.checkedAt', { time: when(lastProbe.checkedAt) })}</Muted>
-              </>
-            ) : (
-              <Muted>{t('adminDashboard.health.storage.scannerNotChecked')}</Muted>
-            )}
+            <span role="status" className="flex flex-col gap-0.5">
+              {lastProbe ? (
+                <>
+                  <Muted>{t('adminDashboard.health.storage.checkedAt', { time: when(lastProbe.checkedAt) })}</Muted>
+                  <Muted>
+                    {t(lastProbe.objectStorageReachable ? 'adminDashboard.health.storage.storageReachable' : 'adminDashboard.health.storage.storageUnreachable')}
+                  </Muted>
+                  <Muted>
+                    {t(lastProbe.virusScannerReachable ? 'adminDashboard.health.storage.scannerReachable' : 'adminDashboard.health.storage.scannerUnreachable')}
+                  </Muted>
+                </>
+              ) : (
+                <Muted>{t('adminDashboard.health.storage.scannerNotChecked')}</Muted>
+              )}
+            </span>
           </Tile>
 
           <Tile
@@ -515,7 +549,7 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
 
           <Tile
             label={t('adminDashboard.health.reference.label')}
-            chip={emptyLists.length > 0 ? needsLook : healthy}
+            chip={chip(emptyLists.length === 0, true)}
             value={t('adminDashboard.health.reference.withCodes', { active: n(listsWithCodes), total: n(health.referenceLists.length) })}
           >
             {emptyLists.length > 0 ? (
@@ -531,12 +565,16 @@ function SystemHealth({ health, lastProbe, rescanning, onRescan }: Readonly<{
 
           <Tile
             label={t('adminDashboard.health.purchaseOrders.label')}
-            chip={health.purchaseOrderTransport.configured
-              ? <Badge tone={health.purchaseOrderTransport.failedSends > 0 ? 'danger' : 'success'}>{t('adminDashboard.health.purchaseOrders.sent')}</Badge>
-              : <Badge tone="neutral">{t('adminDashboard.health.purchaseOrders.notSent')}</Badge>}
-            value={t('adminDashboard.health.purchaseOrders.failed', { value: n(health.purchaseOrderTransport.failedSends) })}
+            chip={!transport.configured
+              ? <Badge tone="neutral">{t('adminDashboard.health.purchaseOrders.notSent')}</Badge>
+              : transport.failedSends > 0
+                ? <Badge tone="danger">{t('adminDashboard.health.purchaseOrders.failing')}</Badge>
+                : <Badge tone="success">{t('adminDashboard.health.purchaseOrders.sent')}</Badge>}
+            value={transport.configured
+              ? t('adminDashboard.health.purchaseOrders.failed', { value: n(transport.failedSends) })
+              : t('adminDashboard.health.purchaseOrders.loggedOnly')}
           >
-            {health.purchaseOrderTransport.configured ? null : <Muted>{t('adminDashboard.health.purchaseOrders.notSentBody')}</Muted>}
+            {transport.configured ? null : <Muted>{t('adminDashboard.health.purchaseOrders.notSentBody')}</Muted>}
           </Tile>
         </ul>
       </div>
@@ -549,7 +587,7 @@ function PartFailed() {
   return <Muted>{t('adminDashboard.erp.partFailed')}</Muted>
 }
 
-function Erp({ erp, onRetry }: Readonly<{ erp: DashboardErp; onRetry: () => void }>) {
+function Erp({ erp, nextSync, onRetry }: Readonly<{ erp: DashboardErp; nextSync: string | null; onRetry: () => void }>) {
   const { t } = useTranslation()
   const { n, when } = useFormatters()
   const anyFailed = [erp.connection, erp.sync, erp.push].some((part) => part.status !== 'ok')
@@ -558,9 +596,7 @@ function Erp({ erp, onRetry }: Readonly<{ erp: DashboardErp; onRetry: () => void
   const sync = erp.sync.status === 'ok' ? erp.sync.data : null
   const push = erp.push.status === 'ok' ? erp.push.data : null
 
-  const syncTone: Tone = !sync?.outcome ? 'neutral'
-    : sync.outcome === 'Succeeded' ? 'success'
-      : sync.outcome === 'Failed' ? 'danger' : 'warning'
+  const syncTone: Tone = sync?.outcome === 'Succeeded' ? 'success' : sync?.outcome === 'Failed' ? 'danger' : 'warning'
 
   return (
     <Card title={t('adminDashboard.erp.title')} action={<Muted>{t('adminDashboard.erp.scope')}</Muted>} flush>
@@ -602,7 +638,7 @@ function Erp({ erp, onRetry }: Readonly<{ erp: DashboardErp; onRetry: () => void
             {sync ? (
               <span className="flex flex-wrap gap-1">
                 {sync.stale ? <Badge tone="warning">{t('adminDashboard.erp.sync.stale')}</Badge> : null}
-                <Badge tone={syncTone}>{t(sync.outcome ? `adminDashboard.erp.sync.outcomes.${sync.outcome}` : 'adminDashboard.erp.sync.notRunYet', { defaultValue: sync.outcome ?? '' })}</Badge>
+                {sync.outcome ? <Badge tone={syncTone}>{t(`adminDashboard.erp.sync.outcomes.${sync.outcome}`, { defaultValue: sync.outcome })}</Badge> : null}
               </span>
             ) : null}
           </div>
@@ -625,6 +661,7 @@ function Erp({ erp, onRetry }: Readonly<{ erp: DashboardErp; onRetry: () => void
                   <Pair label={t('adminDashboard.erp.sync.failed')}>{n(sync.counts.failed)}</Pair>
                 </Pairs>
               ) : null}
+              {sync.enabled && nextSync ? <Muted>{t('adminDashboard.erp.sync.nextRun', { time: when(nextSync) })}</Muted> : null}
             </>
           ) : <PartFailed />}
         </div>
@@ -652,7 +689,7 @@ function Erp({ erp, onRetry }: Readonly<{ erp: DashboardErp; onRetry: () => void
       </div>
       {anyFailed ? (
         <div className="px-4 pb-4">
-          <Button size="sm" variant="ghost" onClick={onRetry}>{t('adminDashboard.retry')}</Button>
+          <Button size="sm" variant="secondary" onClick={onRetry}>{t('adminDashboard.retry')}</Button>
         </div>
       ) : null}
     </Card>
@@ -669,7 +706,7 @@ function PeopleAndAccess({ people }: Readonly<{ people: DashboardPeopleAndAccess
     <section aria-labelledby="dashboard-people" className="flex flex-col gap-3">
       <SubHeading id="dashboard-people">{t('adminDashboard.people.title')}</SubHeading>
       <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,16.25rem),1fr))]">
-        <Card title={t('adminDashboard.people.accounts')}>
+        <Card title={t('adminDashboard.people.accounts')} headingLevel={3}>
           <div className="flex flex-col gap-3.5">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
@@ -691,7 +728,7 @@ function PeopleAndAccess({ people }: Readonly<{ people: DashboardPeopleAndAccess
           </div>
         </Card>
 
-        <Card title={t('adminDashboard.people.roles')} action={<Muted>{t('adminDashboard.people.rolesTotal', { value: n(people.staff.activeWithARole) })}</Muted>}>
+        <Card title={t('adminDashboard.people.roles')} headingLevel={3} action={<Muted>{t('adminDashboard.people.rolesTotal', { value: n(people.staff.activeWithARole) })}</Muted>}>
           <Pairs>
             {people.activeUsersByRole.map((role) => (
               <Pair key={role.role} label={t(`staff.roles.${role.role}`, { defaultValue: role.role })}>{n(role.activeUsers)}</Pair>
@@ -706,7 +743,7 @@ function PeopleAndAccess({ people }: Readonly<{ people: DashboardPeopleAndAccess
           ) : null}
         </Card>
 
-        <Card title={t('adminDashboard.people.access')}>
+        <Card title={t('adminDashboard.people.access')} headingLevel={3}>
           <Pairs>
             <Pair label={t('adminDashboard.people.staffInvitations')}>{n(people.staff.pendingInvitations)}</Pair>
             <Pair label={t('adminDashboard.people.supplierInvitations')}>{n(people.suppliers.pendingInvitations)}</Pair>
@@ -721,7 +758,7 @@ function PeopleAndAccess({ people }: Readonly<{ people: DashboardPeopleAndAccess
           </Pairs>
         </Card>
 
-        <Card title={t('adminDashboard.people.organisations')}>
+        <Card title={t('adminDashboard.people.organisations')} headingLevel={3}>
           <Pairs>
             {people.organisationsByType.map((type) => (
               <Pair key={type.type} label={t(`organizations.types.${type.type}`, { defaultValue: type.type })}>
@@ -735,7 +772,7 @@ function PeopleAndAccess({ people }: Readonly<{ people: DashboardPeopleAndAccess
   )
 }
 
-function actionLabel(action: string, t: (key: string, options?: Record<string, unknown>) => string) {
+function actionLabel(action: string, t: Translate) {
   return t(`dashboard.auditActions.${dashboardAuditActionKey(action)}`, { defaultValue: action })
 }
 
@@ -747,6 +784,7 @@ function AuditRows({ rows }: Readonly<{ rows: DashboardAuditRow[] }>) {
   }
   return (
     <Table flush>
+      <TableHead labels={[t('adminDashboard.audit.when'), t('adminDashboard.audit.what'), t('adminDashboard.audit.reference')]} />
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id}>
@@ -763,10 +801,12 @@ function AuditRows({ rows }: Readonly<{ rows: DashboardAuditRow[] }>) {
   )
 }
 
-function Security({ security }: Readonly<{ security: DashboardSecurity }>) {
-  const { t, i18n } = useTranslation()
-  const { n } = useFormatters()
-  const locale = i18n.language.startsWith('ar') ? 'ar' : 'en-GB'
+function Security({ security, generatedAt }: Readonly<{ security: DashboardSecurity; generatedAt: string }>) {
+  const { t } = useTranslation()
+  const { n, when } = useFormatters()
+  const countedSince = security.countedSince
+  const countedWithinTheWeek = countedSince !== null
+    && new Date(countedSince).getTime() > new Date(generatedAt).getTime() - SECURITY_WINDOW_MS
 
   return (
     <Card title={t('adminDashboard.security.title')} action={<Muted>{t('adminDashboard.auditOnly')}</Muted>} flush>
@@ -791,9 +831,11 @@ function Security({ security }: Readonly<{ security: DashboardSecurity }>) {
           ))}
         </TableBody>
       </Table>
-      {security.countedSince ? (
+      {countedSince === null || countedWithinTheWeek ? (
         <p className="m-0 px-4 py-2.5 text-[length:var(--text-caption)]" style={{ color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-sunken)', borderBlockStart: '1px solid var(--color-border)' }}>
-          {t('adminDashboard.security.countedSince', { date: formatDateTime(security.countedSince, locale) })}
+          {countedSince === null
+            ? t('adminDashboard.security.neverCounted')
+            : t('adminDashboard.security.countedSince', { date: when(countedSince) })}
         </p>
       ) : null}
       <h3 className="m-0 px-4 pb-1.5 pt-3.5 text-[length:var(--text-body-sm)] font-[var(--fw-semibold)]" style={{ borderBlockStart: '1px solid var(--color-border)' }}>

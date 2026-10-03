@@ -224,3 +224,19 @@ export const DASHBOARD_JOB_IDS = [
 ] as const
 
 export const DASHBOARD_JOB_VERDICTS: readonly DashboardJobVerdict[] = ['ok', 'late', 'failed', 'retrying', 'missing', 'disabled']
+
+// How often each recurring job runs, as RecurringJobRegistration schedules it, for the jobs table's "Runs" column. The
+// server sends each job's lateness threshold rather than its schedule, and the threshold is the schedule plus a grace,
+// so the screen keeps this one fact of its own. A job missing here shows no schedule rather than a wrong one.
+export type DashboardJobSchedule = 'everyFiveMinutes' | 'hourly' | 'daily'
+
+export const DASHBOARD_JOB_SCHEDULES: Readonly<Record<string, DashboardJobSchedule>> = {
+  'document-expiry-lifecycle': 'daily',
+  'draft-registration-cleanup': 'daily',
+  'outbox-dispatch': 'everyFiveMinutes',
+  'rfq-timeline': 'everyFiveMinutes',
+  'award-erp-sync': 'everyFiveMinutes',
+  'idempotency-cleanup': 'hourly',
+  'erp-supplier-sync': 'hourly',
+  'supplier-erp-push': 'everyFiveMinutes',
+}

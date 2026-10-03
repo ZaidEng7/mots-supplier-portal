@@ -10,7 +10,7 @@
 
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { act, fireEvent, screen, within } from '@testing-library/react'
-import { mockFetch, renderPage, type RecordedRequest } from '../../test/renderPage'
+import { expectRetryableFailure, mockFetch, renderPage, type RecordedRequest } from '../../test/renderPage'
 import i18n from '../../i18n/config'
 
 vi.mock('@tanstack/react-router', async () => {
@@ -122,12 +122,14 @@ describe('AdminDashboardPage', () => {
 
     renderPage(<AdminDashboardPage />)
 
-    const item = (await screen.findByText('Documents waiting over 15 minutes for a virus scan')).closest('li')!
+    const item = (await screen.findByText('Documents stuck waiting for a virus scan')).closest('li')!
     expect(within(item).getByText('3')).toBeInTheDocument()
     const link = item.querySelector('a[to="/back-office/operations"]')
     expect(link).toHaveTextContent('Operations')
+    expect(within(item).getByText('Warning:')).toHaveClass('sr-only')
+    expect(within(item).getByText(/^The supplier cannot use these documents/)).toBeInTheDocument()
 
-    const push = screen.getByText('Approved suppliers that could not be created in the ERP').closest('li')!
+    const push = screen.getByText('Approved suppliers whose creation in the ERP failed or stalled').closest('li')!
     expect(within(push).getByText('SUP-2026-000009')).toHaveAttribute('to', '/back-office/review/SUP-2026-000009')
     expect(within(push).getByText('SUP-2026-000011').tagName).toBe('SPAN')
   })
@@ -138,6 +140,7 @@ describe('AdminDashboardPage', () => {
     renderPage(<AdminDashboardPage />)
 
     expect(await screen.findByText('Recent activity')).toBeInTheDocument()
+    expect(screen.queryByText('ERP')).not.toBeInTheDocument()
     expect(screen.queryByText('Shown to holders of integration management')).not.toBeInTheDocument()
     expect(screen.queryByText('Hourly supplier sync')).not.toBeInTheDocument()
     expect(screen.getByText('Security')).toBeInTheDocument()
@@ -218,12 +221,105 @@ describe('AdminDashboardPage', () => {
   })
 
   it('says the dashboard could not load, and tries again on request', async () => {
-    restore = mockFetch(routes({ __status: 500 }))
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(routes({ __status: 500 }), recorded)
 
     renderPage(<AdminDashboardPage />)
 
     expect(await screen.findByText('Could not load the dashboard')).toBeInTheDocument()
     expect(screen.queryByText('Needs attention')).not.toBeInTheDocument()
+    await expectRetryableFailure('/api/v1/admin/dashboard', recorded)
+  })
+
+  it('tries the whole dashboard again from a section that failed', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch(routes(dashboard({ security: failed })), recorded)
+
+    renderPage(<AdminDashboardPage />)
+
+    const failedCard = (await screen.findByText('This section could not be loaded.')).closest('div.overflow-hidden') as HTMLElement
+    const reads = () => recorded.filter((r) => r.url.endsWith('/api/v1/admin/dashboard')).length
+    const before = reads()
+    fireEvent.click(within(failedCard).getByRole('button', { name: 'Try again' }))
+    await vi.waitFor(() => expect(reads()).toBeGreaterThan(before))
+  })
+
+  it('keeps the last figures on screen when a later refresh fails, and says so', async () => {
+    restore = mockFetch(routes(dashboard()))
+    renderPage(<AdminDashboardPage />)
+    expect(await screen.findByText('Supplier sync from the ERP')).toBeInTheDocument()
+
+    restore()
+    restore = mockFetch(routes({ __status: 500 }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(await screen.findByText(/^The figures could not be refreshed/)).toBeInTheDocument()
+    expect(screen.getByText('Supplier sync from the ERP')).toBeInTheDocument()
+    expect(screen.queryByText('Could not load the dashboard')).not.toBeInTheDocument()
+  })
+
+  it('says recurring jobs are switched off, names a missing job, an empty reference list and an unsent transport', async () => {
+    const base = dashboard()
+    const health = (base.systemHealth as { data: Record<string, unknown> }).data
+    restore = mockFetch(routes(dashboard({ systemHealth: ok({
+      ...health,
+      jobs: { recurringEnabled: false, jobs: [
+        { id: 'rfq-timeline', verdict: 'missing', lateAfterMinutes: 15, lastState: null, lastExecution: null, nextExecution: null, link: '/back-office/operations' },
+      ] },
+    }) })))
+
+    renderPage(<AdminDashboardPage />)
+
+    expect(await screen.findByText('Switched off in this deployment')).toBeInTheDocument()
+    expect(screen.getByText('Missing')).toBeInTheDocument()
+    expect(screen.getByText('Every 5 min')).toBeInTheDocument()
+    expect(screen.getByText('Not run yet')).toBeInTheDocument()
+    expect(screen.getByText('No active codes: Delivery terms (Incoterms)')).toBeInTheDocument()
+    expect(screen.getByText('Logged only')).toBeInTheDocument()
+    expect(screen.getByText('Purchase orders are not sent to the ERP in this environment')).toBeInTheDocument()
+  })
+
+  it('says purchase-order sends are failing when the transport is real and sends failed', async () => {
+    const base = dashboard()
+    const health = (base.systemHealth as { data: Record<string, unknown> }).data
+    restore = mockFetch(routes(dashboard({ systemHealth: ok({ ...health, purchaseOrderTransport: { configured: true, failedSends: 2 } }) })))
+
+    renderPage(<AdminDashboardPage />)
+
+    expect(await screen.findByText('Sends failing')).toBeInTheDocument()
+    expect(screen.getByText('Failed sends: 2')).toBeInTheDocument()
+    expect(screen.queryByText('Purchase orders are not sent to the ERP in this environment')).not.toBeInTheDocument()
+    expect(screen.queryByText('Logged only')).not.toBeInTheDocument()
+  })
+
+  it('never lets an earlier storage check outvote the reading the dashboard just took', async () => {
+    const base = dashboard()
+    const health = (base.systemHealth as { data: Record<string, unknown> }).data
+    restore = mockFetch(routes(dashboard({ systemHealth: ok({ ...health, objectStorage: { reachable: false } }) }), {
+      '/api/v1/admin/dashboard/storage-probe': { objectStorageReachable: true, virusScannerReachable: true, checkedAt: '2026-10-03T11:00:00Z' },
+    }))
+
+    renderPage(<AdminDashboardPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check storage and scanner' }))
+    expect(await screen.findByText('File storage: reachable')).toBeInTheDocument()
+    expect(screen.getByText('Not answering')).toBeInTheDocument()
+    expect(screen.queryByText('Reachable')).not.toBeInTheDocument()
+  })
+
+  it('says from when the security counts run only while that is inside the week, and says so when nothing was ever counted', async () => {
+    const base = dashboard()
+    const security = (base.security as { data: Record<string, unknown> }).data
+    restore = mockFetch(routes(dashboard({ security: ok({ ...security, countedSince: '2026-08-01T00:00:00Z' }) })))
+    const first = renderPage(<AdminDashboardPage />)
+    expect(await screen.findByText('Wrong password at sign-in')).toBeInTheDocument()
+    expect(screen.queryByText(/^Counted from/)).not.toBeInTheDocument()
+    first.unmount()
+    restore()
+
+    restore = mockFetch(routes(dashboard({ security: ok({ ...security, countedSince: null }) })))
+    renderPage(<AdminDashboardPage />)
+    expect(await screen.findByText(/^No sign-in event has been stored yet/)).toBeInTheDocument()
   })
 
   it('refetches every minute while it is open', async () => {

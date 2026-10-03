@@ -10,6 +10,9 @@
 // table. Padded, a table draws its own frame a few pixels inside the card's, which reads as a box in a box and is
 // the one place this product's list screens visibly departed from the approved template. Everything else keeps the
 // padding, because everything else is content rather than a surface.
+//
+// `headingLevel` makes the title an <h3> for a card that sits inside a section which already has its own <h2>, so
+// the page's outline nests rather than putting the section and its cards at one level.
 
 import { useId, type ReactNode } from 'react'
 import { CardHeadingIdContext } from './cardHeading'
@@ -18,11 +21,13 @@ interface CardProps {
   title?: string
   action?: ReactNode
   flush?: boolean
+  headingLevel?: 2 | 3
   children: ReactNode
 }
 
-export function Card({ title, action, flush = false, children }: CardProps) {
+export function Card({ title, action, flush = false, headingLevel = 2, children }: CardProps) {
   const headingId = useId()
+  const Heading = headingLevel === 3 ? 'h3' : 'h2'
 
   return (
     <div
@@ -39,9 +44,9 @@ export function Card({ title, action, flush = false, children }: CardProps) {
           style={{ borderBlockEnd: '1px solid var(--color-border)' }}
         >
           {title ? (
-            <h2 id={headingId} className="text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
+            <Heading id={headingId} className="text-[length:var(--text-body)] font-[var(--fw-semibold)]" style={{ color: 'var(--color-text-primary)' }}>
               {title}
-            </h2>
+            </Heading>
           ) : (
             <span />
           )}
