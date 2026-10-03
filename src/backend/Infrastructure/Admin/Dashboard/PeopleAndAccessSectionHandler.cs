@@ -50,8 +50,11 @@
 // means no sign-in ever. That figure depends on it staying true: a cleanup that deleted old session rows would
 // make everybody it touched look as if they had never signed in.
 //
-// They are split by whether the invitation is still pending in the sense above. The rest are the ones whose link
-// expired, and the ones who set a password and then never signed in.
+// They are split four ways by what became of their staff invitation links. Still valid is pending in the sense
+// above. Used means a link was consumed, so the person reached the page that sets a password and has not signed in
+// since. Expired means links were minted and every one ran out unused: the lapsed invitation. No link yet means
+// none was ever minted, which is the moment between the invitation and its email job's first attempt, or an email
+// job that never got that far; a failing email shows in system health, not here.
 //
 // Supplier invitations cannot be followed this way. InviteSupplierUserHandler records them against the supplier
 // rather than the person, so a supplier invitation is visible only while its token lives, which is what the
@@ -148,8 +151,8 @@ public sealed class PeopleAndAccessSectionHandler(AppDbContext db, IConfiguratio
 
         var (staffSessions, supplierSessions) = await ActiveSessionCounts.ByAccountKindAsync(db, ct);
 
-        var staffInvitationPending = InvitationPending(SecurityTokenPurpose.StaffInvite, asOf);
-        var pendingStaff = await db.Users.Where(u => u.IsActive).CountAsync(staffInvitationPending, ct);
+        var pendingStaff = await db.Users.Where(u => u.IsActive)
+            .CountAsync(InvitationPending(SecurityTokenPurpose.StaffInvite, asOf), ct);
         var pendingSuppliers = await db.Users.Where(u => u.IsActive)
             .CountAsync(InvitationPending(SecurityTokenPurpose.SupplierUserInvite, asOf), ct);
 
@@ -158,7 +161,15 @@ public sealed class PeopleAndAccessSectionHandler(AppDbContext db, IConfiguratio
             .Where(u => db.AuditLogs.Any(a =>
                 a.Action == StaffInvitedAction && a.AggregateType == StaffInvitedAggregate && a.AggregateId == u.Id))
             .Where(u => !db.RefreshTokens.Any(t => t.UserId == u.Id))
-            .Select(staffInvitationPending)
+            .Select(u => new
+            {
+                Used = db.SecurityTokens.Any(t =>
+                    t.UserId == u.Id && t.Purpose == SecurityTokenPurpose.StaffInvite && t.ConsumedAt != null),
+                Valid = db.SecurityTokens.Any(t =>
+                    t.UserId == u.Id && t.Purpose == SecurityTokenPurpose.StaffInvite && t.ConsumedAt == null
+                    && t.ExpiresAt > asOf),
+                Minted = db.SecurityTokens.Any(t => t.UserId == u.Id && t.Purpose == SecurityTokenPurpose.StaffInvite),
+            })
             .ToListAsync(ct);
 
         var organisations = await db.Organizations
@@ -194,8 +205,10 @@ public sealed class PeopleAndAccessSectionHandler(AppDbContext db, IConfiguratio
                     .Select(r => new DashboardRoleCountDto(r.Name, r.ActiveUsers)),
             ],
             StaffInvitedNeverSignedIn: new DashboardStaffInvitedNeverSignedInDto(
-                LinkStillValid: invitedNeverSignedIn.Count(pending => pending),
-                LinkNoLongerValid: invitedNeverSignedIn.Count(pending => !pending)),
+                LinkStillValid: invitedNeverSignedIn.Count(i => !i.Used && i.Valid),
+                LinkExpired: invitedNeverSignedIn.Count(i => !i.Used && !i.Valid && i.Minted),
+                NoLinkYet: invitedNeverSignedIn.Count(i => !i.Minted),
+                LinkUsed: invitedNeverSignedIn.Count(i => i.Used)),
             TwoFactorRequiredRoles: twoFactorRequiredRoles,
             SupplierLoginsOnPlaceholderAddresses:
                 accounts.SingleOrDefault(a => a.Supplier && a.IsActive)?.Placeholder ?? 0,

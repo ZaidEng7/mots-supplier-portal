@@ -44,7 +44,9 @@
 //
 // StaffInvitedNeverSignedIn is staff only. A supplier's team invitation is recorded against the supplier rather
 // than the person, so a supplier invitation can be followed only while its link lives, which PendingInvitations
-// already does.
+// already does. It is split by what became of the link: still valid, expired unused, not sent yet, or used. A used
+// link with no sign-in after it is a person who set a password and never came back, which is not a lapsed
+// invitation, so it has a figure of its own rather than sitting beside the expired ones.
 //
 // LockedOut counts the accounts whose lockout has not yet run out.
 //
@@ -52,9 +54,24 @@
 // created on an address that cannot receive mail, because the ERP held none for that supplier.
 //
 // OrganisationsByType has one row for every type of buying body, with active and inactive apart.
+//
+//
+// WHAT NEEDS ATTENTION READS FROM HERE
+//
+// NeedsAttention gathers, under names of their own, the figures the needs attention section turns into items:
+// accounts locked out, staff invitations that lapsed, and accounts that cannot sign in. It is computed from the
+// figures above rather than counted again, so the item and the figure beside it on the screen cannot disagree, and
+// it is left out of the answer the browser receives, because every number in it is already there.
+//
+// Lapsed means a staff invitation whose links all expired unused, with no sign-in ever. An invitation whose link
+// was used, or whose email has not minted a link yet, is not lapsed. Staff and supplier figures stay apart here
+// too: the locked-out and cannot-sign-in items link to the staff list, which lists staff only, so whether a
+// supplier's figure becomes an item is the needs attention section's decision and not something a sum here could
+// make for it.
 
 namespace MotsSupplierPortal.Application.Admin.Dashboard;
 
+using System.Text.Json.Serialization;
 using MotsSupplierPortal.Domain.Organizations;
 
 public sealed record DashboardPeopleAndAccessDto(
@@ -64,7 +81,16 @@ public sealed record DashboardPeopleAndAccessDto(
     DashboardStaffInvitedNeverSignedInDto StaffInvitedNeverSignedIn,
     IReadOnlyList<string> TwoFactorRequiredRoles,
     int SupplierLoginsOnPlaceholderAddresses,
-    IReadOnlyList<DashboardOrganisationTypeCountDto> OrganisationsByType);
+    IReadOnlyList<DashboardOrganisationTypeCountDto> OrganisationsByType)
+{
+    [JsonIgnore]
+    public DashboardPeopleAttentionFigures NeedsAttention => new(
+        LockedOutStaff: Staff.LockedOut,
+        LockedOutSuppliers: Suppliers.LockedOut,
+        LapsedStaffInvitations: StaffInvitedNeverSignedIn.LinkExpired,
+        StaffWhoCannotSignIn: Staff.CannotSignIn,
+        SuppliersWhoCannotSignIn: Suppliers.CannotSignIn);
+}
 
 public sealed record DashboardAccountsDto(
     int Active,
@@ -78,6 +104,13 @@ public sealed record DashboardAccountsDto(
 
 public sealed record DashboardRoleCountDto(string Role, int ActiveUsers);
 
-public sealed record DashboardStaffInvitedNeverSignedInDto(int LinkStillValid, int LinkNoLongerValid);
+public sealed record DashboardStaffInvitedNeverSignedInDto(int LinkStillValid, int LinkExpired, int NoLinkYet, int LinkUsed);
 
 public sealed record DashboardOrganisationTypeCountDto(OrganizationType Type, int Active, int Inactive);
+
+public sealed record DashboardPeopleAttentionFigures(
+    int LockedOutStaff,
+    int LockedOutSuppliers,
+    int LapsedStaffInvitations,
+    int StaffWhoCannotSignIn,
+    int SuppliersWhoCannotSignIn);

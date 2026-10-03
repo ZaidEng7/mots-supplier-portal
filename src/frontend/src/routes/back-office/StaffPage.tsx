@@ -23,6 +23,10 @@
 //
 // Each row carries both facts that make it actionable: whether the second factor is enrolled, and how many sessions are live -
 // because a deactivation that left sessions alive would only stop the NEXT sign-in.
+//
+// A row whose lockout has not yet run out also says until when, from the lockoutEnd the list already returns. A lockout end in
+// the past is history rather than a lock, the same rule the administrator's dashboard counts by, so it shows nothing. The time
+// is the business time zone's, as every other timestamp on the back office is.
 
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -37,6 +41,7 @@ import {
 } from '../../api/staff'
 import { SupplierApiError } from '../../api/supplier'
 import { listOrganizations } from '../../api/organizations'
+import { formatDateTime } from '../../lib/datetime'
 
 const STAFF_ROLES = ['onboarding_reviewer', 'procurement_officer', 'procurement_manager', 'evaluator', 'ministry_viewer', 'system_admin'] as const
 
@@ -145,8 +150,12 @@ export function StaffPage() {
   )
 }
 
+function isLockedOut(lockoutEnd: string | null): lockoutEnd is string {
+  return lockoutEnd !== null && new Date(lockoutEnd).getTime() > Date.now()
+}
+
 function StaffAccounts() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { notify } = useToast()
   const queryClient = useQueryClient()
   const staffQuery = useQuery({ queryKey: ['staff'], queryFn: () => listStaff() })
@@ -223,6 +232,11 @@ function StaffAccounts() {
                     <Badge tone={account.isActive ? 'success' : 'neutral'}>
                       {account.isActive ? t('staff.active') : t('staff.inactive')}
                     </Badge>
+                    {isLockedOut(account.lockoutEnd) ? (
+                      <Badge tone="warning">
+                        {t('staff.lockedUntil', { time: formatDateTime(account.lockoutEnd, i18n.language) })}
+                      </Badge>
+                    ) : null}
                     {account.mfaEnabled ? <Badge tone="info">{t('staff.mfaOn')}</Badge> : null}
                     {account.activeSessionCount > 0 ? (
                       <Badge tone="neutral">{t('staff.sessions', { count: account.activeSessionCount })}</Badge>

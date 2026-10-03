@@ -89,6 +89,8 @@ public sealed class PeopleAndAccessSectionTests(PostgresApiFixture fixture)
         after.EnumerateObject().Select(p => p.Name).Should().NotContain(
             name => name.Contains("total", StringComparison.OrdinalIgnoreCase),
             "staff and supplier accounts are never added together");
+        after.TryGetProperty("needsAttention", out _).Should().BeFalse(
+            "the figures gathered for the needs attention section are already in the answer once");
     }
 
     [Fact]
@@ -182,7 +184,7 @@ public sealed class PeopleAndAccessSectionTests(PostgresApiFixture fixture)
     }
 
     [Fact]
-    public async Task Staff_invited_and_never_signed_in_is_split_by_whether_the_link_still_works()
+    public async Task Staff_invited_and_never_signed_in_is_split_by_what_became_of_the_link()
     {
         var admin = await AdminAsync();
         await using var seed = new Seed(fixture);
@@ -190,26 +192,38 @@ public sealed class PeopleAndAccessSectionTests(PostgresApiFixture fixture)
 
         var waiting = await seed.InvitedAsync();
         await seed.TokenAsync(waiting, SecurityTokenPurpose.StaffInvite);
+        var resent = await seed.InvitedAsync();
+        await seed.TokenAsync(resent, SecurityTokenPurpose.StaffInvite, expired: true);
+        await seed.TokenAsync(resent, SecurityTokenPurpose.StaffInvite);
         var expired = await seed.InvitedAsync();
         await seed.TokenAsync(expired, SecurityTokenPurpose.StaffInvite, expired: true);
+        await seed.TokenAsync(expired, SecurityTokenPurpose.StaffInvite, expired: true);
+        await seed.TokenAsync(expired, SecurityTokenPurpose.PasswordReset);
         var acceptedOnly = await seed.InvitedAsync();
         await seed.TokenAsync(acceptedOnly, SecurityTokenPurpose.StaffInvite, used: true);
-        await seed.InvitedAsync();
+        var acceptedThenMintedAgain = await seed.InvitedAsync();
+        await seed.TokenAsync(acceptedThenMintedAgain, SecurityTokenPurpose.StaffInvite, used: true, expired: true);
+        await seed.TokenAsync(acceptedThenMintedAgain, SecurityTokenPurpose.StaffInvite);
+        var noInvitationLinkYet = await seed.InvitedAsync();
+        await seed.TokenAsync(noInvitationLinkYet, SecurityTokenPurpose.PasswordReset);
 
         var signedInOnce = await seed.InvitedAsync();
         await seed.SessionAsync(signedInOnce, Guid.CreateVersion7(), revoked: true);
         var neverInvited = await seed.UserAsync();
-        await seed.TokenAsync(neverInvited, SecurityTokenPurpose.StaffInvite);
-        await seed.InvitedAsync(isActive: false);
+        await seed.TokenAsync(neverInvited, SecurityTokenPurpose.StaffInvite, expired: true);
+        var lapsedButDeactivated = await seed.InvitedAsync(isActive: false);
+        await seed.TokenAsync(lapsedButDeactivated, SecurityTokenPurpose.StaffInvite, expired: true);
 
         var after = await SectionAsync(admin);
 
         Moved(before, after, "staffInvitedNeverSignedIn").Should().BeEquivalentTo(
-            new Dictionary<string, int> { ["linkStillValid"] = 1, ["linkNoLongerValid"] = 3 },
-            "a session row that has ended still means the person signed in once, an account nobody invited is not "
-            + "an invitation, and a deactivated one is not counted");
+            new Dictionary<string, int> { ["linkStillValid"] = 2, ["linkExpired"] = 1, ["noLinkYet"] = 1, ["linkUsed"] = 2 },
+            "a link minted again after an expired one is still valid, a used link is not lapsed whatever was minted "
+            + "after it, a password reset link is not an invitation link nor a lapsed one, a session row that has ended still means the "
+            + "person signed in once, an account nobody invited is not an invitation, and a deactivated one is not "
+            + "counted");
         Moved(before, after, "staff").Should().BeEquivalentTo(
-            Figures(active: 6, inactive: 1, activeWithARole: 5, pendingInvitations: 2));
+            Figures(active: 8, inactive: 1, activeWithARole: 7, pendingInvitations: 2));
     }
 
     [Fact]
@@ -241,7 +255,7 @@ public sealed class PeopleAndAccessSectionTests(PostgresApiFixture fixture)
 
             var withLink = await SectionAsync(admin);
             Moved(before, withLink, "staffInvitedNeverSignedIn").Should().BeEquivalentTo(
-                new Dictionary<string, int> { ["linkStillValid"] = 1, ["linkNoLongerValid"] = 0 });
+                new Dictionary<string, int> { ["linkStillValid"] = 1, ["linkExpired"] = 0, ["noLinkYet"] = 0, ["linkUsed"] = 0 });
             Moved(before, withLink, "staff")["pendingInvitations"].Should().Be(1);
 
             const string password = "DashboardInvitee#2026!";
@@ -251,7 +265,7 @@ public sealed class PeopleAndAccessSectionTests(PostgresApiFixture fixture)
 
             var acceptedNotSignedIn = await SectionAsync(admin);
             Moved(before, acceptedNotSignedIn, "staffInvitedNeverSignedIn").Should().BeEquivalentTo(
-                new Dictionary<string, int> { ["linkStillValid"] = 0, ["linkNoLongerValid"] = 1 },
+                new Dictionary<string, int> { ["linkStillValid"] = 0, ["linkExpired"] = 0, ["noLinkYet"] = 0, ["linkUsed"] = 1 },
                 "the link was used, and any the email job minted since are not an open invitation");
             Moved(before, acceptedNotSignedIn, "staff")["pendingInvitations"].Should().Be(0);
 
