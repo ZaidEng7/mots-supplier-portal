@@ -1,12 +1,10 @@
-// Two reads the administrator's overview and the dashboard's system health section both report: the health of
-// each reference table, and the state of the outbox.
+// Two reads the dashboard's system health section reports: the health of each reference table, and the state of
+// the outbox. They were the administrator's overview's queries, moved here unchanged when the dashboard was built
+// beside it, and they stayed when the overview was retired.
 //
-// They are written once so the two screens cannot disagree while both exist. The overview came first, and these
-// are its queries, moved here unchanged.
-//
-// The reference tables are hand-written, one line each, and the overview's test reads the registry of tables, so
-// a table added to the registry and not to this list fails loudly rather than going missing from the one place an
-// administrator checks whether a catalogue is empty.
+// The reference tables are hand-written, one line each, and the system health section's test reads the registry
+// of tables, so a table added to the registry and not to this list fails loudly rather than going missing from the
+// one place an administrator checks whether a catalogue is empty.
 //
 // The oldest pending message is a time rather than an age, so each caller measures it from its own instant.
 

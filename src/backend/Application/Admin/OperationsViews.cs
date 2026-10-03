@@ -4,8 +4,8 @@
 //
 // THE JOBS MONITOR
 //
-// Registered is false when this application expects a job and the scheduler does not have it. The overview's
-// health figure already counts that fault; this carries it per row so it is obvious which job.
+// Registered is false when this application expects a job and the scheduler does not have it. The dashboard's
+// job verdicts call that job missing; this carries it per row so it is obvious which job.
 //
 // The schedule is absent for a job that is not registered, because there is none to report.
 //

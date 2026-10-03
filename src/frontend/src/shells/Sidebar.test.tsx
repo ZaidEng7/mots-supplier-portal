@@ -46,7 +46,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { to: '/back-office/rfqs', labelKey: 'rfq.title', icon: List },
       { to: '/back-office/review', labelKey: 'review.title', icon: List, exact: true },
-      { to: '/back-office/admin', labelKey: 'adminOverview.title', icon: List, when: (c) => c.can('admin.users.manage') },
+      { to: '/back-office/operations', labelKey: 'operations.title', icon: List, when: (c) => c.can('admin.users.manage') },
     ],
   },
 ]

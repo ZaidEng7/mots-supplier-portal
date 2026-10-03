@@ -39,6 +39,7 @@ import { resolve } from 'node:path'
 import { PROFILE_DISPLAY_FIELDS, LEGAL_INFO_FIELDS } from '../routes/profileDisplayFields'
 import { REFERENCE_TABLES } from '../api/referenceAdmin'
 import { DASHBOARD_AUDIT_ACTIONS, dashboardAuditActionKey } from '../api/dashboardAuditActions'
+import { DASHBOARD_ATTENTION_GROUPS, DASHBOARD_ATTENTION_KEYS, DASHBOARD_JOB_IDS, DASHBOARD_JOB_VERDICTS } from '../api/adminDashboard'
 
 
 const CONFIG = readFileSync(resolve(process.cwd(), 'src/i18n/config.ts'), 'utf8')
@@ -95,6 +96,31 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     site: 'Admin dashboard - the security counts, the sensitive changes and the recent activity feed',
     namespace: 'dashboard.auditActions',
     keys: DASHBOARD_AUDIT_ACTIONS.map(dashboardAuditActionKey),
+  },
+  {
+    // The needs-attention checks the server raises, from DASHBOARD_ATTENTION_CHECKS in api/adminDashboard.ts, which
+    // mirrors DashboardNeedsAttentionChecks. Each item on the dashboard is labelled by its key, so a check without a
+    // label here would print the key in both languages.
+    site: 'Admin dashboard - each item under needs attention',
+    namespace: 'adminDashboard.attention.items',
+    keys: DASHBOARD_ATTENTION_KEYS,
+  },
+  {
+    // The parts of the dashboard a check belongs to, named when a check could not run.
+    site: 'Admin dashboard - the note naming the checks that could not run',
+    namespace: 'adminDashboard.attention.groups',
+    keys: DASHBOARD_ATTENTION_GROUPS,
+  },
+  {
+    // The eight recurring jobs the system health section judges, and the verdicts it gives them.
+    site: 'Admin dashboard - the scheduled jobs table, its job names',
+    namespace: 'adminDashboard.health.jobs.names',
+    keys: DASHBOARD_JOB_IDS,
+  },
+  {
+    site: 'Admin dashboard - the scheduled jobs table, its status chips',
+    namespace: 'adminDashboard.health.jobs.verdicts',
+    keys: DASHBOARD_JOB_VERDICTS,
   },
   {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',

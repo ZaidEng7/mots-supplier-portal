@@ -143,6 +143,55 @@ export const reviewerToken = fakeJwt({
   ],
 })
 
+// The administrator's dashboard as the reviewer token, which holds admin.users.manage, sees it on /back-office/dashboard:
+// every section answered, a few items needing attention, and the ERP block hidden because the token lacks
+// admin.integrations.manage.
+export const ADMIN_DASHBOARD = {
+  generatedAt: '2026-10-03T11:32:00Z',
+  systemHealth: { status: 'ok', data: {
+    jobs: { recurringEnabled: true, jobs: [
+      { id: 'outbox-dispatch', verdict: 'ok', lateAfterMinutes: 15, lastState: 'Succeeded', lastExecution: '2026-10-03T11:30:00Z', nextExecution: '2026-10-03T11:35:00Z', link: '/back-office/operations' },
+      { id: 'award-erp-sync', verdict: 'retrying', lateAfterMinutes: 15, lastState: 'Scheduled', lastExecution: '2026-10-03T11:30:00Z', nextExecution: '2026-10-03T11:35:00Z', link: '/back-office/operations' },
+    ] },
+    queue: { enqueued: 0, processing: 0, retrying: 1, failed: 0, liveServers: 1, heartbeatWithinMinutes: 5 },
+    email: { failedInWindow: 0, retrying: 0, windowDays: 7 },
+    outbox: { pending: 0, stuck: 0, stuckAfterMinutes: 15, failed: 0, oldestPendingAt: null },
+    scans: { stuck: 3, stuckAfterMinutes: 15 },
+    pendingMigrations: [],
+    referenceLists: [{ table: 'categories', active: 12, inactive: 2 }],
+    purchaseOrderTransport: { configured: false, failedSends: 0 },
+    objectStorage: { reachable: true },
+  } },
+  erp: { status: 'hidden', data: null },
+  peopleAndAccess: { status: 'ok', data: {
+    staff: { active: 9, inactive: 1, activeWithARole: 9, activeSessions: 4, peopleWithActiveSessions: 3, pendingInvitations: 1, lockedOut: 1, cannotSignIn: 0 },
+    suppliers: { active: 104, inactive: 12, activeWithARole: 104, activeSessions: 2, peopleWithActiveSessions: 2, pendingInvitations: 3, lockedOut: 0, cannotSignIn: 0 },
+    activeUsersByRole: [{ role: 'system_admin', activeUsers: 1 }, { role: 'procurement_officer', activeUsers: 3 }],
+    staffInvitedNeverSignedIn: { linkStillValid: 1, linkExpired: 1, noLinkYet: 0, linkUsed: 0 },
+    twoFactorRequiredRoles: ['system_admin'],
+    supplierLoginsOnPlaceholderAddresses: 95,
+    organisationsByType: [{ type: 'Ministry', active: 1, inactive: 0 }, { type: 'MotBody', active: 3, inactive: 0 }],
+  } },
+  security: { status: 'ok', data: {
+    countedSince: '2026-10-02T00:00:00Z',
+    events: [{ action: 'login_failed', last24Hours: 3, last7Days: 11, spiking: false }],
+    sensitiveChanges: [{ id: '0199b0d0-0000-7000-8000-0000000000c1', occurredAt: '2026-10-03T08:28:00Z', action: 'staff_role_changed', actorKind: 'User', actorName: 'System administrator', aggregateType: 'User', referenceCode: null }],
+  } },
+  recentActivity: { status: 'ok', data: {
+    last24Hours: 46,
+    systemLast24Hours: 24,
+    latest: [{ id: '0199b0d0-0000-7000-8000-0000000000c2', occurredAt: '2026-10-03T11:21:00Z', action: 'staff_invited', actorKind: 'User', actorName: 'System administrator', aggregateType: 'User', referenceCode: null }],
+  } },
+  needsAttention: { status: 'ok', data: {
+    allClear: false,
+    items: [
+      { key: 'scans_stuck', count: 3, link: '/back-office/operations', references: [] },
+      { key: 'staff_locked_out', count: 1, link: '/back-office/staff', references: [] },
+    ],
+    checksNotRun: [],
+  } },
+}
+
 export const REFERENCE_CODE = 'SUP-2026-000001'
 export const RFQ_REFERENCE_CODE = 'RFQ-2026-000001'
 export const PROPOSAL_REFERENCE_CODE = 'PRP-2026-000001'
@@ -371,14 +420,7 @@ export async function mockBackend(page: Page) {
       totalAwardedValue: null,
       commercialValuesVisible: false,
     } })
-    if (p === '/api/v1/admin/overview') return route.fulfill({ json: {
-      usersByRole: [{ role: 'system_admin', count: 1 }],
-      totalRoles: 8,
-      referenceData: [{ table: 'categories', active: 12, inactive: 2 }],
-      outbox: { pending: 2, failed: 1, oldestPendingAgeMinutes: 14 },
-      jobs: { recurringJobsEnabled: true, expectedJobs: ['rfq-auto-close'], registeredJobs: ['rfq-auto-close'], missingJobs: [] },
-      auditRowsLast24Hours: 143,
-    } })
+    if (p === '/api/v1/admin/dashboard') return route.fulfill({ json: ADMIN_DASHBOARD })
     if (p === '/api/v1/admin/roles') return route.fulfill({ json: { roles: [{ name: 'system_admin', permissions: ['admin.roles.manage'] }], allPermissions: ['admin.roles.manage'] } })
     if (p === '/api/v1/suppliers/me/offerings') return route.fulfill({ json: [] })
     if (p === '/api/v1/reference/units-of-measure') return route.fulfill({ json: [{ code: 'unit', nameAr: 'وحدة', nameEn: 'Unit' }] })

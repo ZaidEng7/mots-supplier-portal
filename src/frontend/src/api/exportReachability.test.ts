@@ -47,8 +47,10 @@ const USED_ONLY_INSIDE_THE_API_LAYER: Record<string, string> = {
 }
 
 const DELIBERATELY_UNSURFACED: Record<string, string> = {
-  DASHBOARD_AUDIT_ACTIONS: "The label list for the administrator's dashboard feeds, landed with the dashboard's backend so the server-side test that every written action has a label can hold from the start. The dashboard page reads it when it ships; this entry then goes stale and must be removed.",
-  dashboardAuditActionKey: "Turns an audit action into its label key for the same dashboard feeds, beside DASHBOARD_AUDIT_ACTIONS and leaving with it when the dashboard page uses both.",
+  DASHBOARD_AUDIT_ACTIONS: "The list of every audit action the server writes, kept so the backend's DashboardAuditActionLabelTests and the i18n coverage sweep can hold each one to a label. The dashboard labels whatever action a row carries through dashboardAuditActionKey, so no screen needs the list itself.",
+  DASHBOARD_ATTENTION_KEYS: "Every needs-attention check the server can raise, for the i18n coverage sweep. The dashboard labels whatever item the server sends by its key, so no screen needs the list itself.",
+  DASHBOARD_JOB_IDS: "The eight recurring jobs the system health section judges, for the i18n coverage sweep. The dashboard labels whatever job the server sends by its id.",
+  DASHBOARD_JOB_VERDICTS: "The verdicts a job can be given, for the i18n coverage sweep. The dashboard's tone map is typed on the same union, so a verdict added there without a label fails the sweep.",
 }
 
 function collectExports(): Map<string, string> {

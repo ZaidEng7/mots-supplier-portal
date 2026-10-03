@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
-import { renderPage } from '../test/renderPage'
+import { mockFetch, renderPage } from '../test/renderPage'
 
 const { BackOfficeDashboardPage } = await import('./BackOfficeDashboardPage')
 const { useAuthStore } = await import('../lib/authStore')
@@ -29,6 +29,35 @@ describe('BackOfficeDashboardPage', () => {
     expect(screen.getByText(/officer@example.test/)).toBeInTheDocument()
     expect(screen.getByText('rfq.read')).toBeInTheDocument()
     expect(screen.getByText('rfq.create')).toBeInTheDocument()
+  })
+
+  it('lands a holder of admin.users.manage on the administrator\'s dashboard instead of the greeting', async () => {
+    const restore = mockFetch({
+      '/api/v1/admin/dashboard': {
+        generatedAt: '2026-10-03T11:32:00Z',
+        systemHealth: { status: 'hidden', data: null },
+        erp: { status: 'hidden', data: null },
+        peopleAndAccess: { status: 'hidden', data: null },
+        security: { status: 'hidden', data: null },
+        recentActivity: { status: 'hidden', data: null },
+        needsAttention: { status: 'ok', data: { allClear: true, items: [], checksNotRun: [] } },
+      },
+      '/api/v1/meta': { version: '1.0.0', commit: null, maintenance: null },
+    })
+    useAuthStore.setState({
+      accessToken: 'token',
+      status: 'authenticated',
+      claims: { userId: 'u-1', email: 'admin@example.test', permissions: ['admin.users.manage'] },
+    })
+
+    try {
+      renderPage(<BackOfficeDashboardPage />)
+
+      expect(await screen.findByText('Needs attention')).toBeInTheDocument()
+      expect(screen.queryByText(/admin@example.test/)).not.toBeInTheDocument()
+    } finally {
+      restore()
+    }
   })
 
   it('renders for a session with no claims at all rather than throwing', () => {

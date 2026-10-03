@@ -10,7 +10,7 @@
 // IT READS WHAT THE OPERATIONS PAGE ALREADY READS
 //
 // The job rows come from the jobs monitor, the purchase-order transport and its failed sends from the
-// purchase-order send monitor, the outbox and the reference lists from the reads the overview uses, and the object
+// purchase-order send monitor, the outbox and the reference lists from OperationalHealthReads, and the object
 // store from its readiness check. This section adds the judgement on top: which job is late, what counts as
 // stuck, which scheduled jobs are retries. A second copy of any of those reads could drift from the screen an
 // administrator opens next to check it. The one exception is the mail figures and the import's second tries,

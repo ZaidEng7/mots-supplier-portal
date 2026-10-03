@@ -1855,6 +1855,46 @@
         ]
       }
     },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "description": "Requires the `admin.users.manage` permission.",
+        "operationId": "GetAdminDashboard",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/dashboard/storage-probe": {
+      "post": {
+        "description": "Requires the `admin.users.manage` permission.",
+        "operationId": "ProbeDashboardStorage",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
+        ]
+      }
+    },
     "/api/v1/admin/document-type-categories": {
       "get": {
         "description": "Requires the `reference.manage` permission.",
@@ -2534,26 +2574,6 @@
         ]
       }
     },
-    "/api/v1/admin/overview": {
-      "get": {
-        "description": "Requires the `admin.users.manage` permission.",
-        "operationId": "GetAdminOverview",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "403": {
-            "description": "FORBIDDEN"
-          }
-        },
-        "tags": [
-          "Admin"
-        ],
-        "x-required-permissions": [
-          "admin.users.manage"
-        ]
-      }
-    },
     "/api/v1/admin/reference/{table}": {
       "get": {
         "description": "Requires the `reference.manage` permission.",
@@ -2818,6 +2838,26 @@
         ],
         "x-required-permissions": [
           "admin.roles.manage"
+        ]
+      }
+    },
+    "/api/v1/admin/scans/retry": {
+      "post": {
+        "description": "Requires the `admin.users.manage` permission.",
+        "operationId": "RetryStuckScans",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "FORBIDDEN"
+          }
+        },
+        "tags": [
+          "Admin"
+        ],
+        "x-required-permissions": [
+          "admin.users.manage"
         ]
       }
     },

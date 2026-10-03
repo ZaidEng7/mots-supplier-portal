@@ -1,6 +1,8 @@
 // The jobs monitor: when each scheduled job last ran, whether it worked, and when it runs again.
 //
-// The overview already reports whether the expected jobs are REGISTERED. This adds what an operator asks next.
+// Switching recurring jobs off, or losing one, silently stops a scheduled transition: submission windows never
+// open or close, document expiry is never flagged, the outbox is never drained, awards never reconcile. This is
+// where a missing job, and what an operator asks next about the others, becomes visible.
 //
 // It is driven by the EXPECTED list rather than by what the scheduler happens to hold. A monitor listing only
 // what exists could never show the one thing worth showing: a job that should be there and is not.
@@ -8,8 +10,8 @@
 // Anything registered but unexpected is appended, because an orphan left by an old deployment is equally an
 // operator's problem.
 //
-// Read from this host's own storage rather than the process-wide static facade, for the reason the overview
-// gives.
+// Read from this host's own storage rather than the process-wide static facade. The static one is process-wide,
+// and in a test process running more than one host the first host wins.
 
 namespace MotsSupplierPortal.Infrastructure.Admin;
 

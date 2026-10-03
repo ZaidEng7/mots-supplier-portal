@@ -81,9 +81,10 @@ public sealed class ErpSyncVacuityTests(PostgresApiFixture fixture)
     {
         var admin = await StaffTestClient.CreateWithMfaAsync(fixture, MotsSupplierPortal.Domain.Identity.Roles.SystemAdmin);
 
-        var overview = await admin.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/admin/overview");
+        var dashboard = await admin.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/v1/admin/dashboard");
 
-        overview.GetProperty("outbox").GetProperty("erpTransportConfigured").GetBoolean()
+        dashboard.GetProperty("systemHealth").GetProperty("data").GetProperty("purchaseOrderTransport")
+            .GetProperty("configured").GetBoolean()
             .Should().BeFalse("an operator is entitled to know that a draining outbox is reaching a log file");
     }
 }
