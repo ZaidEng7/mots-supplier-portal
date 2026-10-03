@@ -26,7 +26,9 @@
 //
 // A row whose lockout has not yet run out also says until when, from the lockoutEnd the list already returns. A lockout end in
 // the past is history rather than a lock, the same rule the administrator's dashboard counts by, so it shows nothing. The time
-// is the business time zone's, as every other timestamp on the back office is.
+// is the business time zone's, as every other timestamp on the back office is. A deactivated account says nothing about a
+// lockout either: it cannot sign in whatever the lockout says, and the dashboard counts locked-out active staff only, so a
+// badge there would be a lock the dashboard's figure does not include.
 
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -232,7 +234,7 @@ function StaffAccounts() {
                     <Badge tone={account.isActive ? 'success' : 'neutral'}>
                       {account.isActive ? t('staff.active') : t('staff.inactive')}
                     </Badge>
-                    {isLockedOut(account.lockoutEnd) ? (
+                    {account.isActive && isLockedOut(account.lockoutEnd) ? (
                       <Badge tone="warning">
                         {t('staff.lockedUntil', { time: formatDateTime(account.lockoutEnd, i18n.language) })}
                       </Badge>

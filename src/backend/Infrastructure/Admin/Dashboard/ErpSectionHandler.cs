@@ -133,6 +133,8 @@ public sealed class ErpSectionHandler(
             row?.LastTestSucceeded);
     }
 
+    // The run the connection records, and its closing row; or, when the connection records none, the latest closing
+    // row on the trail, which is then the only record of a run there is.
     private async Task<DashboardErpSyncDto> SyncAsync(DateTimeOffset asOf, CancellationToken ct)
     {
         var row = await db.IntegrationConnections
@@ -147,8 +149,6 @@ public sealed class ErpSectionHandler(
 
         var closings = db.AuditLogs.AsNoTracking().Where(a => ClosingActions.Contains(a.Action));
 
-        // The run the connection records, and its closing row; or, when the connection records none, the latest
-        // closing row on the trail, which is then the only record of a run there is.
         var closingBy = lastRunAt + ClosingRowWithin;
         var closing = lastRunAt is { } recorded
             ? await closings
@@ -194,7 +194,8 @@ public sealed class ErpSectionHandler(
             Trigger(details),
             closing?.Action == SupplierAuditActions.ErpImportCompleted ? Counts(details) : null,
             enabled && (lastRunAt is null || lastRunAt < asOf - SyncStaleAfter),
-            unfinished);
+            unfinished,
+            enabled);
     }
 
     private async Task<DashboardErpPushDto> PushAsync(DateTimeOffset asOf, CancellationToken ct)

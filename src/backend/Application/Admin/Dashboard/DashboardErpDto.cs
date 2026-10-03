@@ -45,6 +45,10 @@
 // Stale means the connection is enabled and no run has recorded an outcome in the last three hours, which includes one
 // that never has. A disabled connection is never stale: it is not meant to sync.
 //
+// Enabled is whether the connection in force is enabled, the same judgement Stale uses. Nothing clears the last
+// outcome when a connection is switched off, so a failure recorded before that stays the last outcome for good; the
+// needs-attention section reads Enabled to leave such a failure out rather than alert on it forever.
+//
 // UnfinishedRunStartedAt is the start of an import, an ErpImportRun row, that began more than thirty minutes ago and has
 // recorded no outcome since: no closing row of its own, and no run recorded after it started. Imports never overlap, so
 // that is an import that hung or died without saying how. The earliest such start is given. It is null when there is
@@ -107,7 +111,8 @@ public sealed record DashboardErpSyncDto(
     ErpImportTrigger? Trigger,
     DashboardErpSyncCounts? Counts,
     bool Stale,
-    DateTimeOffset? UnfinishedRunStartedAt);
+    DateTimeOffset? UnfinishedRunStartedAt,
+    bool Enabled);
 
 public sealed record DashboardErpSyncCounts(
     int ErpSuppliers,

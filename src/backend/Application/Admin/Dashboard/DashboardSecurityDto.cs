@@ -27,8 +27,9 @@
 //
 // SPIKING
 //
-// Each event says whether it is spiking, by the rule in DashboardSecuritySpike, judged over the same two counts
-// and CountedSince. Needs attention raises "a security spike" when any event is.
+// Each event says whether it is spiking, by the rule in DashboardSecuritySpike, judged over its 24-hour count and
+// its rows from CountedSince up to those 24 hours, so a count that reaches back further than CountedSince does not
+// raise the average the rule compares against. Needs attention raises "a security spike" when any event is.
 //
 //
 // THE SENSITIVE CHANGES

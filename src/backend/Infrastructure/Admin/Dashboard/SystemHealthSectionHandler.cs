@@ -13,7 +13,9 @@
 // purchase-order send monitor, the outbox and the reference lists from the reads the overview uses, and the object
 // store from its readiness check. This section adds the judgement on top: which job is late, what counts as
 // stuck, which scheduled jobs are retries. A second copy of any of those reads could drift from the screen an
-// administrator opens next to check it.
+// administrator opens next to check it. The one exception is the mail figures and the import's second tries,
+// which no screen shows: they are counted in the scheduler's own tables, in one query, as SchedulerCountsAsync
+// explains, because the scheduler's monitoring calls could only page through every failed job ever kept.
 //
 // Every window is measured from the one instant the dashboard was asked at, never from the clock at the moment a
 // query happens to run.
@@ -47,11 +49,9 @@
 namespace MotsSupplierPortal.Infrastructure.Admin.Dashboard;
 
 using Hangfire;
-using Hangfire.Common;
 using Hangfire.States;
-using Hangfire.Storage;
-using Hangfire.Storage.Monitoring;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotsSupplierPortal.Application.Admin;
 using MotsSupplierPortal.Application.Admin.Dashboard;
@@ -68,7 +68,8 @@ public sealed class SystemHealthSectionHandler(
     IGetJobsMonitorHandler jobsMonitor,
     IGetErpSyncMonitorHandler purchaseOrderSends,
     JobStorage jobStorage,
-    HealthCheckService healthChecks)
+    HealthCheckService healthChecks,
+    IConfiguration configuration)
     : IDashboardSectionHandler<DashboardSystemHealthDto>
 {
     public static readonly TimeSpan StuckAfter = TimeSpan.FromMinutes(15);
@@ -80,8 +81,6 @@ public sealed class SystemHealthSectionHandler(
     private static readonly TimeSpan EmailWindow = TimeSpan.FromDays(7);
 
     private const string OperationsPage = "/back-office/operations";
-
-    private const int PageSize = 500;
 
     private static readonly JobSchedule EveryFiveMinutes = new(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10));
 
@@ -110,7 +109,7 @@ public sealed class SystemHealthSectionHandler(
         var objectStorage = DependencyProbes.ObjectStorageAnswersAsync(healthChecks, ObjectStoragePingLimit, ct);
 
         var jobs = Jobs(request);
-        var (queue, email) = SchedulerFigures(asOf);
+        var (queue, email) = await SchedulerFiguresAsync(asOf, ct);
 
         var outbox = await OperationalHealthReads.OutboxAsync(db, ct);
         var stuckMessages = await db.OutboxMessages.AsNoTracking().CountAsync(
@@ -192,56 +191,102 @@ public sealed class SystemHealthSectionHandler(
             ? RecurringJobs.StartedFromTheirOwnScreen[jobId]
             : OperationsPage;
 
-    private (DashboardJobQueueDto Queue, DashboardEmailDto Email) SchedulerFigures(DateTimeOffset asOf)
+    // The scheduler's own statistics give the queue, and its server list the heartbeats. The three figures that
+    // depend on which job a row is, failed and retrying mail and the import's second tries, are counted in one
+    // query against the scheduler's tables instead, as SchedulerCountsAsync describes.
+    private async Task<(DashboardJobQueueDto Queue, DashboardEmailDto Email)> SchedulerFiguresAsync(
+        DateTimeOffset asOf, CancellationToken ct)
     {
         var monitoring = jobStorage.GetMonitoringApi();
 
         var statistics = monitoring.GetStatistics();
-        var scheduled = Every<ScheduledJobDto>(monitoring.ScheduledJobs);
-        var failed = Every<FailedJobDto>(monitoring.FailedJobs);
         var servers = monitoring.Servers();
 
-        var importSecondTries = scheduled.Count(job => IsImportSecondTry(job.Value.Job));
         var liveServers = servers.Count(server =>
             server.Heartbeat is { } heartbeat && asOf - Utc(heartbeat) <= HeartbeatWithin);
 
-        var emailsFailed = failed.Count(job =>
-            IsEmail(job.Value.Job) && job.Value.FailedAt is { } failedAt && Utc(failedAt) >= asOf - EmailWindow);
-        var emailsRetrying = scheduled.Count(job => IsEmail(job.Value.Job));
+        var counts = await SchedulerCountsAsync(asOf - EmailWindow, ct);
 
         return (
             new DashboardJobQueueDto(
                 statistics.Enqueued,
                 statistics.Processing,
-                scheduled.Count - importSecondTries,
+                statistics.Scheduled - counts.ImportSecondTries,
                 statistics.Failed,
                 liveServers,
                 (int)HeartbeatWithin.TotalMinutes),
-            new DashboardEmailDto(emailsFailed, emailsRetrying, (int)EmailWindow.TotalDays));
+            new DashboardEmailDto(counts.EmailsFailed, counts.EmailsRetrying, (int)EmailWindow.TotalDays));
     }
 
-    private static List<KeyValuePair<string, TJob>> Every<TJob>(Func<int, int, JobList<TJob>> page)
+    // Failed jobs are never removed by the scheduler, because Failed is not a final state, so reading them through
+    // the monitoring calls would page through every failure the deployment has ever had, with its full state data,
+    // on each dashboard read; and that list is ordered by job id, so stopping early would not be correct either.
+    // The counts are therefore one query in the database: the job's current state, the time that state was entered
+    // (state.createdat, which for a failure is when it failed), and the class and method stored in the job's
+    // invocation data. The class is compared without its assembly, as the part before the first comma, and both the
+    // compact ("t", "m") and the older ("Type", "Method") field names are read, so a job written under either form
+    // is counted.
+    //
+    // The scheduler's tables live in the schema the deployment configures under Hangfire:SchemaName, the same
+    // setting PersistenceRegistration hands the scheduler, in the application's own database. That name comes from
+    // configuration, never from a request, and is quoted as an identifier; the time and the names are parameters.
+    private async Task<SchedulerCounts> SchedulerCountsAsync(DateTimeOffset failedSince, CancellationToken ct)
     {
-        var every = new List<KeyValuePair<string, TJob>>();
+        var schema = Quote(configuration.GetValue("Hangfire:SchemaName", defaultValue: "hangfire")!);
 
-        for (var from = 0; ; from += PageSize)
+        var sql = $"""
+            SELECT
+                COUNT(*) FILTER (WHERE j.statename = 'Failed' AND x.type = @email AND s.createdat >= @failedSince),
+                COUNT(*) FILTER (WHERE j.statename = 'Scheduled' AND x.type = @email),
+                COUNT(*) FILTER (WHERE j.statename = 'Scheduled' AND x.type = @import AND x.method = @secondTry)
+            FROM {schema}."job" j
+            LEFT JOIN {schema}."state" s ON s."id" = j."stateid"
+            CROSS JOIN LATERAL (SELECT
+                split_part(COALESCE(j."invocationdata" ->> 't', j."invocationdata" ->> 'Type'), ',', 1) AS type,
+                COALESCE(j."invocationdata" ->> 'm', j."invocationdata" ->> 'Method') AS method) x
+            WHERE j."statename" IN ('Failed', 'Scheduled')
+            """;
+
+        var connection = db.Database.GetDbConnection();
+        await db.Database.OpenConnectionAsync(ct);
+
+        try
         {
-            var batch = page(from, PageSize);
-            every.AddRange(batch);
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            Add(command, "email", typeof(EmailJobs).FullName!);
+            Add(command, "import", typeof(ErpSupplierSyncJob).FullName!);
+            Add(command, "secondTry", nameof(ErpSupplierSyncJob.RunAgainAsync));
+            Add(command, "failedSince", failedSince.ToUniversalTime());
 
-            if (batch.Count < PageSize) return every;
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
+
+            return new SchedulerCounts(
+                (int)reader.GetInt64(0), (int)reader.GetInt64(1), (int)reader.GetInt64(2));
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
         }
     }
 
-    private static bool IsImportSecondTry(Job? job) =>
-        job?.Type == typeof(ErpSupplierSyncJob) && job.Method.Name == nameof(ErpSupplierSyncJob.RunAgainAsync);
+    private static void Add(System.Data.Common.DbCommand command, string name, object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
 
-    private static bool IsEmail(Job? job) => job?.Type == typeof(EmailJobs);
+    private static string Quote(string identifier) => "\"" + identifier.Replace("\"", "\"\"") + "\"";
 
     private static DateTimeOffset Utc(DateTime value) =>
         new(value.Kind == DateTimeKind.Local
             ? value.ToUniversalTime()
             : DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private sealed record SchedulerCounts(int EmailsFailed, int EmailsRetrying, int ImportSecondTries);
 
     private sealed record JobSchedule(TimeSpan Every, TimeSpan Grace)
     {

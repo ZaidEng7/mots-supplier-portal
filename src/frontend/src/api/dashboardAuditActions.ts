@@ -16,11 +16,15 @@
 // nested object, so the stored text cannot be the key as it is. No two actions turn into the same key, which the
 // coverage test also checks.
 //
-// document_scan_requeued is written by the stuck-scan retry built alongside the dashboard, and is listed here
-// ahead of it so the two changes can land in either order.
+// document_scan_requeued is written by the stuck-scan retry that shipped with the dashboard.
+//
+// The list runs in groups, in this order: signing in and the session's life, from SessionAuditActions; the
+// account's own credentials and registration; staff administration, roles, keys and settings; the ERP connection,
+// the import, the push and the exports read by other systems; a supplier's standing; onboarding review; the
+// supplier's profile; documents; organisations; reference data, one set of four for each of the six tables;
+// tenders; proposals; evaluation; and awards and the purchase order sent to the ERP. A blank line separates them.
 
 export const DASHBOARD_AUDIT_ACTIONS = [
-  // Signing in and the session's life, from SessionAuditActions.
   'login_succeeded',
   'login_failed',
   'login_locked_out',
@@ -31,7 +35,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'session_revoked',
   'sessions_revoked_all',
 
-  // The account's own credentials and registration.
   'register',
   'state_change',
   'terms_accepted',
@@ -40,7 +43,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'password_change_refused',
   'password_reset',
 
-  // Staff administration, roles, keys and settings.
   'staff_invited',
   'staff_role_changed',
   'staff_deactivated',
@@ -53,7 +55,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'notification.template.updated',
   'notification.template.reverted',
 
-  // The ERP connection, the import, the push and the exports read by other systems.
   'IntegrationConnectionUpdated',
   'IntegrationSupplierCreationChanged',
   'IntegrationConnectionTested',
@@ -79,7 +80,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'MinistrySupplierFeedExported',
   'MinistryRfqFeedExported',
 
-  // A supplier's standing.
   'supplier_suspended',
   'supplier_reactivated',
   'supplier_deactivated',
@@ -88,7 +88,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'supplier_auto_reinstated',
   'compliance_field_changed_review_retriggered',
 
-  // Onboarding review.
   'application_submitted',
   'application_resubmitted',
   'application_claimed',
@@ -99,7 +98,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'application_approved',
   'application_rejected',
 
-  // The supplier's profile.
   'profile_updated',
   'legal_info_updated',
   'logo_uploaded',
@@ -130,7 +128,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'supplier_user_invited',
   'supplier_user_disabled',
 
-  // Documents.
   'document_uploaded',
   'document_upload_content_mismatch',
   'document_scan_clean',
@@ -143,14 +140,12 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'document_access_granted',
   'draft_cleanup_deleted',
 
-  // Organisations.
   'organization_created',
   'organization_link_created',
   'organization_link_removed',
   'org_unit_added',
   'org_unit_removed',
 
-  // Reference data, one set of four for each of the six tables.
   'reference.categories.created',
   'reference.categories.updated',
   'reference.categories.deactivated',
@@ -176,7 +171,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'reference.incoterms.deactivated',
   'reference.incoterms.reactivated',
 
-  // Tenders.
   'rfq_created',
   'rfq_updated',
   'rfq_item_added',
@@ -216,7 +210,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'rfq_completed',
   'rfq_cancelled',
 
-  // Proposals.
   'proposal_started',
   'proposal_item_priced',
   'proposal_item_removed',
@@ -240,7 +233,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'proposal.declined',
   'proposal.not_selected',
 
-  // Evaluation.
   'evaluation_template_created',
   'evaluation_template_forked',
   'evaluation_template_activated',
@@ -261,7 +253,6 @@ export const DASHBOARD_AUDIT_ACTIONS = [
   'evaluation_finalized',
   'evaluation_reopened',
 
-  // Awards and the purchase order sent to the ERP.
   'award.recommended',
   'award.re_recommended',
   'award.pending_approval',

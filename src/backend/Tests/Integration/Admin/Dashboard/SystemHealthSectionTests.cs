@@ -21,8 +21,9 @@
 //
 // The fixture's own host runs jobs from the shared scheduler storage while these tests run, so a count over it
 // moves under the test's feet. The queue test builds a scheduler storage in a schema of its own in the same
-// database, hands it to a derived host as the job storage, seeds exactly what it counts, and drops the schema at
-// the end. The derived host runs no jobs, as every derived host here does not, so nothing it seeds is ever taken.
+// database, hands it to a derived host as the job storage and names it as that host's Hangfire:SchemaName (the mail
+// figures are counted in the scheduler's tables by that name), seeds exactly what it counts, and drops the schema
+// at the end. A seeded failure's time is the time its Failed state row was written, which the test moves back. The derived host runs no jobs, as every derived host here does not, so nothing it seeds is ever taken.
 //
 //
 // THE REST IS SEEDED IN THE SHARED DATABASE AND COUNTED AS A DIFFERENCE
@@ -235,11 +236,14 @@ public sealed class SystemHealthSectionTests(PostgresApiFixture fixture)
 
             client.Create(Job.FromExpression<OutboxDispatcher>(j => j.DispatchPendingAsync(CancellationToken.None)), new EnqueuedState());
 
-            client.Create(Email(), new FailedAt(DateTime.UtcNow.AddMinutes(-5)));
-            client.Create(Email(), new FailedAt(DateTime.UtcNow.AddDays(-6)));
-            client.Create(Email(), new FailedAt(DateTime.UtcNow.AddDays(-8)));
-            client.Create(Job.FromExpression<OutboxDispatcher>(j => j.DispatchPendingAsync(CancellationToken.None)),
-                new FailedAt(DateTime.UtcNow.AddMinutes(-5)));
+            var failures = new List<(string JobId, DateTime At)>();
+            void FailAt(Job job, DateTime at) => failures.Add((client.Create(job, new FailedAt(at)), at));
+
+            FailAt(Email(), DateTime.UtcNow.AddMinutes(-5));
+            FailAt(Email(), DateTime.UtcNow.AddDays(-6));
+            FailAt(Email(), DateTime.UtcNow.AddDays(-8));
+            FailAt(Job.FromExpression<OutboxDispatcher>(j => j.DispatchPendingAsync(CancellationToken.None)),
+                DateTime.UtcNow.AddMinutes(-5));
 
             using (var connection = storage.GetConnection())
             {
@@ -255,9 +259,23 @@ public sealed class SystemHealthSectionTests(PostgresApiFixture fixture)
                     $"UPDATE \"{schema}\".server SET lastheartbeat = @at WHERE id = 'dashboard-silent-server'", sql);
                 silence.Parameters.AddWithValue("at", DateTime.UtcNow.AddMinutes(-6));
                 (await silence.ExecuteNonQueryAsync()).Should().Be(1);
+
+                // The section reads when a job failed from the time its Failed state was written, so each seeded
+                // failure's state row is moved back to the failure time it was given.
+                foreach (var (jobId, at) in failures)
+                {
+                    await using var backdate = new NpgsqlCommand(
+                        $"UPDATE \"{schema}\".state SET createdat = @at "
+                        + $"WHERE id = (SELECT stateid FROM \"{schema}\".job WHERE id = @job)", sql);
+                    backdate.Parameters.AddWithValue("at", new DateTimeOffset(at, TimeSpan.Zero));
+                    backdate.Parameters.AddWithValue("job", long.Parse(jobId, System.Globalization.CultureInfo.InvariantCulture));
+                    (await backdate.ExecuteNonQueryAsync()).Should().Be(1);
+                }
             }
 
-            await using var host = HostWith(services => services.AddSingleton<JobStorage>(storage));
+            await using var host = HostWith(
+                services => services.AddSingleton<JobStorage>(storage),
+                ("Hangfire:SchemaName", schema));
             var health = await SystemHealthAsync(host, admin);
 
             var queue = health.GetProperty("queue");
@@ -604,17 +622,23 @@ public sealed class SystemHealthSectionTests(PostgresApiFixture fixture)
             }
         });
 
-    private WebApplicationFactory<Program> HostWith(Action<IServiceCollection> overrides)
+    private WebApplicationFactory<Program> HostWith(
+        Action<IServiceCollection> overrides, params (string Key, string Value)[] settings)
     {
         var fixtureKey = fixture.Services.GetRequiredService<JwtSigningKeyProvider>().GetValidationKey();
 
-        return fixture.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        return fixture.WithWebHostBuilder(builder =>
         {
-            overrides(services);
+            foreach (var (key, value) in settings) builder.UseSetting(key, value);
 
-            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme,
-                options => options.TokenValidationParameters.IssuerSigningKey = fixtureKey);
-        }));
+            builder.ConfigureTestServices(services =>
+            {
+                overrides(services);
+
+                services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme,
+                    options => options.TokenValidationParameters.IssuerSigningKey = fixtureKey);
+            });
+        });
     }
 
     private static HttpClient SignedInOn(WebApplicationFactory<Program> host, HttpClient signedIn)

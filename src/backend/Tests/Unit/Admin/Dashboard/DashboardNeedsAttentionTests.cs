@@ -49,7 +49,7 @@ public sealed class DashboardNeedsAttentionTests
         new(DashboardErpSource.Database, true, "erp.example", true, AsOf.AddDays(-1), true);
 
     private static readonly DashboardErpSyncDto QuietSync =
-        new(AsOf.AddMinutes(-20), IntegrationSyncOutcome.Succeeded, null, null, false, null);
+        new(AsOf.AddMinutes(-20), IntegrationSyncOutcome.Succeeded, null, null, false, null, Enabled: true);
 
     private static readonly DashboardErpPushDto QuietPush =
         new(SwitchOn: true, DefaultGroup: "LOCAL", HostOnWriteHosts: true, Waiting: 9, Failed: 0, Stalled: 0, ReferenceCodes: []);
@@ -203,6 +203,19 @@ public sealed class DashboardNeedsAttentionTests
 
         Compute(Quiet(erp: Erp(connection: connection))).AllClear.Should().BeTrue(
             "no usable address is not plain http, and a test nobody ran did not fail");
+    }
+
+    [Fact]
+    public void A_failed_sync_is_an_alert_only_while_the_connection_is_enabled()
+    {
+        var failed = QuietSync with { Outcome = IntegrationSyncOutcome.Failed };
+
+        Compute(Quiet(erp: Erp(sync: failed with { Enabled = false }))).AllClear.Should().BeTrue(
+            "nothing clears the last outcome when the connection is switched off, so a failure from before that "
+            + "would otherwise never let the dashboard be all clear");
+        Compute(Quiet(erp: Erp(sync: failed))).Items.Should().ContainSingle(
+            "the control: the same failure while the connection is enabled")
+            .Which.Key.Should().Be(Checks.ErpSyncFailed);
     }
 
     [Fact]

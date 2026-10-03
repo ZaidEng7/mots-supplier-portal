@@ -23,6 +23,15 @@
 // the first row written. A batch taken newest first, or in insertion order, or without the cap, leaves out a
 // different one or none.
 //
+// Documents whose quarantine file is gone do not take up the batch: a whole batch of them ahead of a document that
+// can be requeued does not stop that one being requeued.
+//
+// Two presses at the same moment on a document that never had a scan job queue one scan and write one row between
+// them, because the second waits for the first.
+//
+// When the job server fails part way through a press, which a derived host stands in for with a job client that fails
+// on its second job, the scan already queued keeps its audit row and the failure still reaches the caller.
+//
 // Tender attachments and bid files are pending too until first downloaded, and backdating them must not bring them
 // into the batch: they gain no job, no audit row and no change of state.
 //
@@ -48,6 +57,9 @@ using FluentAssertions;
 using Hangfire;
 using Hangfire.Common;
 using Hangfire.States;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MotsSupplierPortal.Application.Admin;
@@ -56,6 +68,7 @@ using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
 using MotsSupplierPortal.Domain.Rfqs;
 using MotsSupplierPortal.Domain.Suppliers;
+using MotsSupplierPortal.Infrastructure.Identity;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Suppliers;
 using MotsSupplierPortal.Tests.Integration;
@@ -162,6 +175,34 @@ public sealed class StuckScanRetryTests(PostgresApiFixture fixture)
         (ProcessingState)Activator.CreateInstance(
             typeof(ProcessingState), BindingFlags.Instance | BindingFlags.NonPublic, binder: null,
             args: ["scan-retry-test", "worker-1"], culture: null)!;
+
+    private WebApplicationFactory<Program> HostWith(Action<IServiceCollection> overrides)
+    {
+        var fixtureKey = fixture.Services.GetRequiredService<JwtSigningKeyProvider>().GetValidationKey();
+
+        return fixture.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            overrides(services);
+
+            services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme,
+                options => options.TokenValidationParameters.IssuerSigningKey = fixtureKey);
+        }));
+    }
+
+    // The real job client, except that the second job it is asked to create fails, as a job server that stopped
+    // answering part way through a press would.
+    private sealed class FailingOnSecondCreate(IBackgroundJobClient inner) : IBackgroundJobClient
+    {
+        private int _creates;
+
+        public string Create(Job job, IState state) =>
+            Interlocked.Increment(ref _creates) == 2
+                ? throw new InvalidOperationException("The job server stopped answering.")
+                : inner.Create(job, state);
+
+        public bool ChangeState(string jobId, IState state, string expectedState) =>
+            inner.ChangeState(jobId, state, expectedState);
+    }
 
     private IBackgroundJobClient Jobs() => fixture.Services.GetRequiredService<IBackgroundJobClient>();
 
@@ -379,6 +420,87 @@ public sealed class StuckScanRetryTests(PostgresApiFixture fixture)
             {
                 (await RequeueRowsOfAsync(document.Id)).Should().ContainSingle();
             }
+        }
+        finally
+        {
+            await ForgetAsync(seeded);
+        }
+    }
+
+    [Fact]
+    public async Task Documents_whose_file_is_gone_do_not_fill_the_batch_ahead_of_one_that_can_be_requeued()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+        var (_, supplierId, typeId) = await SupplierAsync();
+
+        // A whole batch of the oldest stuck documents have lost their file, and one more, newer than all of them and
+        // with its file, sits just past the first batch.
+        var missing = await PendingDocumentsAsync(supplierId, typeId,
+            Enumerable.Range(0, StuckScans.BatchSize).Select(i => LongAgo.AddMinutes(i)).ToList(), withFile: false);
+        var present = await PendingDocumentsAsync(supplierId, typeId, [LongAgo.AddDays(1)]);
+        try
+        {
+            var answer = await RetryAsync(admin);
+
+            answer.QuarantineFileMissing.Should().Contain(missing.Select(d => d.ReferenceCode));
+            (await RequeueRowsOfAsync(present[0].Id)).Should().ContainSingle(
+                "the documents that cannot be requeued are passed over and the call goes on to the one that can");
+            (await ScanJobsOfAsync(present[0].Id)).Should().ContainSingle().Which.State.Should().BeOneOf(Queued);
+            foreach (var document in missing)
+            {
+                (await ScanJobsOfAsync(document.Id)).Should().BeEmpty();
+            }
+        }
+        finally
+        {
+            await ForgetAsync([.. missing, .. present]);
+        }
+    }
+
+    [Fact]
+    public async Task Two_presses_at_once_queue_one_scan_for_a_document_that_had_none()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+        var (_, supplierId, typeId) = await SupplierAsync();
+        var seeded = await PendingDocumentsAsync(supplierId, typeId, [LongAgo]);
+        var document = seeded[0];
+        try
+        {
+            (await ScanJobsOfAsync(document.Id)).Should().BeEmpty("the precondition: no scan was ever queued");
+
+            await Task.WhenAll(RetryAsync(admin), RetryAsync(admin));
+
+            (await ScanJobsOfAsync(document.Id)).Should().ContainSingle(
+                "the second press waits for the first and then sees its scan on the way");
+            (await RequeueRowsOfAsync(document.Id)).Should().ContainSingle();
+        }
+        finally
+        {
+            await ForgetAsync(seeded);
+        }
+    }
+
+    [Fact]
+    public async Task When_queuing_fails_part_way_the_scans_already_queued_keep_their_audit_rows()
+    {
+        var admin = await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+        var (_, supplierId, typeId) = await SupplierAsync();
+        var seeded = await PendingDocumentsAsync(supplierId, typeId, [LongAgo, LongAgo.AddSeconds(1)]);
+        try
+        {
+            await using var host = HostWith(services => services.AddSingleton<IBackgroundJobClient>(sp =>
+                new FailingOnSecondCreate(new BackgroundJobClient(sp.GetRequiredService<JobStorage>()))));
+            var client = host.CreateClient();
+            client.DefaultRequestHeaders.Authorization = admin.DefaultRequestHeaders.Authorization;
+
+            (await client.PostAsync(Route, null)).StatusCode.Should().Be(HttpStatusCode.InternalServerError,
+                "the failure still reaches the caller");
+
+            (await ScanJobsOfAsync(seeded[0].Id)).Should().ContainSingle("the first scan was queued before the failure");
+            (await RequeueRowsOfAsync(seeded[0].Id)).Should().ContainSingle(
+                "a scan that was queued keeps the record of who queued it");
+            (await ScanJobsOfAsync(seeded[1].Id)).Should().BeEmpty();
+            (await RequeueRowsOfAsync(seeded[1].Id)).Should().BeEmpty("nothing was queued for the second");
         }
         finally
         {

@@ -16,6 +16,11 @@
 // the days actually counted, and with less than one whole day of history before the last 24 hours nothing is
 // judged a spike at all. The first day after the deploy cannot raise the item.
 //
+// The rows the average is made of are counted over those same days, from BaselineStart to the start of the last 24
+// hours, and not taken from the 7-day figure. An administrator removing a second factor was stored before that day
+// too, so its 7-day figure can hold rows from before it; divided by the days counted since it, they would make the
+// average too high in the first week and hide a real spike.
+//
 // Each event is judged on its own. A wave of wrong passwords and a wave of password resets are different things,
 // and summed they would let a steady trickle of one hide behind the other.
 
@@ -27,23 +32,27 @@ public static class DashboardSecuritySpike
 
     public const int SpikeFactor = 3;
 
-    public static bool IsSpiking(int last24Hours, int last7Days, DateTimeOffset? countedSince, DateTimeOffset asOf)
+    // The start of the days the average is taken over: the later of the day the counts start from and 7 days before
+    // the moment of asking. The caller counts each event's rows from here to the start of the last 24 hours.
+    public static DateTimeOffset BaselineStart(DateTimeOffset? countedSince, DateTimeOffset asOf) =>
+        countedSince is { } since && since > asOf.AddDays(-7) ? since : asOf.AddDays(-7);
+
+    public static bool IsSpiking(
+        int last24Hours, int beforeTheLast24Hours, DateTimeOffset? countedSince, DateTimeOffset asOf)
     {
         if (last24Hours < MinimumLast24Hours || countedSince is null)
         {
             return false;
         }
 
-        var dayStart = asOf.AddHours(-24);
-        var baselineStart = countedSince.Value > asOf.AddDays(-7) ? countedSince.Value : asOf.AddDays(-7);
-        var baselineDays = (dayStart - baselineStart).TotalDays;
+        var baselineDays = (asOf.AddHours(-24) - BaselineStart(countedSince, asOf)).TotalDays;
 
         if (baselineDays < 1)
         {
             return false;
         }
 
-        var dailyAverage = (last7Days - last24Hours) / baselineDays;
+        var dailyAverage = beforeTheLast24Hours / baselineDays;
         return last24Hours >= SpikeFactor * dailyAverage;
     }
 }

@@ -4,7 +4,9 @@
 // figures mean, and how far back a zero reaches, is in DashboardSecurityDto.
 //
 // Both windows end at the dashboard's one moment of asking and are counted in a single grouped query, so the 24-hour
-// figure is always a part of the 7-day one. A row written while the dashboard is being answered is left for the next
+// figure is always a part of the 7-day one. The same query counts, for the spike rule, each event's rows over the
+// days before the last 24 hours that fall on or after the day the counts start from, as DashboardSecuritySpike
+// describes; the displayed 7-day figure keeps every row of the week. A row written while the dashboard is being answered is left for the next
 // refresh rather than counted by one section and not another.
 //
 // The counts are made over every kind of actor. A wrong password is a security event whoever typed it.
@@ -38,21 +40,29 @@ public sealed class SecuritySectionHandler(AppDbContext db) : IDashboardSectionH
         var weekStart = asOf.AddDays(-7);
         var events = DashboardAuditActions.SecurityEvents.ToArray();
 
+        var countedSince = await CountedSinceAsync(ct);
+        var baselineStart = DashboardSecuritySpike.BaselineStart(countedSince, asOf);
+
         var counted = await db.AuditLogs.AsNoTracking()
             .Where(a => events.Contains(a.Action) && a.OccurredAt >= weekStart && a.OccurredAt <= asOf)
             .GroupBy(a => a.Action)
-            .Select(g => new { Action = g.Key, Week = g.Count(), Day = g.Count(a => a.OccurredAt >= dayStart) })
+            .Select(g => new
+            {
+                Action = g.Key,
+                Week = g.Count(),
+                Day = g.Count(a => a.OccurredAt >= dayStart),
+                Baseline = g.Count(a => a.OccurredAt >= baselineStart && a.OccurredAt < dayStart),
+            })
             .ToListAsync(ct);
-
-        var countedSince = await CountedSinceAsync(ct);
 
         var byAction = counted.ToDictionary(c => c.Action, StringComparer.Ordinal);
         var counts = events
             .Select(action =>
             {
-                var (day, week) = byAction.TryGetValue(action, out var c) ? (c.Day, c.Week) : (0, 0);
+                var (day, week, baseline) =
+                    byAction.TryGetValue(action, out var c) ? (c.Day, c.Week, c.Baseline) : (0, 0, 0);
                 return new DashboardSecurityEventCountDto(
-                    action, day, week, DashboardSecuritySpike.IsSpiking(day, week, countedSince, asOf));
+                    action, day, week, DashboardSecuritySpike.IsSpiking(day, baseline, countedSince, asOf));
             })
             .ToList();
 

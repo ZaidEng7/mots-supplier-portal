@@ -31,6 +31,11 @@
 // it and asked as of a moment far in the future, with rows seeded around that moment. Every reader of the table
 // asks up to now, so rows dated in 2091 are invisible to every dashboard, overview and search in this run, and the
 // oldest stored sign-in row is still today's, so the week before that moment counts as fully stored.
+//
+// One test asks three days from now instead, so that the day the counts start from falls inside the week, and seeds
+// administrator second-factor removals just before that day, as a deployment that stored them before the sign-in rows
+// holds. Those are not sign-in rows, so they move nothing; the rows meant for the last 24 hours are in the future and
+// invisible to everybody else.
 
 namespace MotsSupplierPortal.Tests.Integration.Admin.Dashboard;
 
@@ -169,6 +174,32 @@ public sealed class SecuritySectionTests(PostgresApiFixture fixture)
 
         security.CountedSince.Should().NotBeNull().And.BeBefore(asOf.AddDays(-7),
             "today's sign-in rows are the oldest, so the whole week before 2091 counts as stored");
+    }
+
+    [Fact]
+    public async Task Rows_older_than_the_day_the_counts_start_from_do_not_hide_a_spike()
+    {
+        // Asked three days from now, so the day the counts start from, this run's oldest sign-in row, falls inside
+        // the week and leaves two days and a little of baseline before the last 24 hours.
+        await StaffTestClient.CreateWithMfaAsync(fixture, Roles.SystemAdmin);
+        var asOf = DateTimeOffset.UtcNow.AddDays(3);
+        var countedSince = (await RunSectionAsync(asOf)).CountedSince;
+        countedSince.Should().NotBeNull().And.BeAfter(asOf.AddDays(-7), "the precondition: the counts start inside the week");
+
+        // An administrator removing a second factor was stored before the sign-in rows were, so its rows can predate
+        // that day: two hundred of them, just before it. Thirty in the last 24 hours are a spike against what was
+        // counted since, and would not be against two hundred spread over two days.
+        var rows = Enumerable.Range(0, 200).Select(i => Row("staff_mfa_reset", countedSince!.Value.AddMinutes(-1).AddSeconds(-i)))
+            .Concat(Enumerable.Range(0, 30).Select(i => Row("staff_mfa_reset", asOf.AddHours(-1).AddMinutes(-i))))
+            .ToList();
+        await SeedAsync(rows);
+
+        var resets = (await RunSectionAsync(asOf)).Events.Single(e => e.Action == "staff_mfa_reset");
+
+        resets.Last24Hours.Should().Be(30);
+        resets.Last7Days.Should().BeGreaterThanOrEqualTo(230, "the displayed week keeps every row in it, older ones included");
+        resets.Spiking.Should().BeTrue(
+            "the average is made of the rows counted since the counts start, not of rows from before that day");
     }
 
     [Fact]

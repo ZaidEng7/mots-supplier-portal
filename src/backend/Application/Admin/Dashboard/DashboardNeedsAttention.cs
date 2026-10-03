@@ -58,7 +58,8 @@
 //   connection   erp_connection_test_failed       the last connection test failed
 //                erp_address_not_https            the address in force is plain http; no usable address is not
 //                                                 an alert here, since then nothing is being sent anywhere
-//   sync         erp_sync_failed                  the last hourly sync failed
+//   sync         erp_sync_failed                  the last hourly sync failed and the connection is enabled;
+//                                                 a failure from before it was switched off is not an alert
 //                erp_sync_stale                   the hourly sync is stale
 //                erp_import_unfinished            an import started and recorded no outcome
 //   push         erp_push_host_not_on_write_hosts the switch is on and the server in use is not on Erp:WriteHosts
@@ -283,7 +284,7 @@ public static class DashboardNeedsAttention
 
     private static void ErpSync(DashboardErpSyncDto sync, Found found)
     {
-        if (sync.Outcome == IntegrationSyncOutcome.Failed)
+        if (sync.Enabled && sync.Outcome == IntegrationSyncOutcome.Failed)
         {
             found.Add(DashboardNeedsAttentionChecks.ErpSyncFailed, null, found.ErpLink);
         }

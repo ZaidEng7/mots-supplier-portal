@@ -5,14 +5,16 @@
 // it as pending with nothing they can do about it. The administrator can re-queue those scans from the operations
 // screen.
 //
-// A document counts as stuck once it has been pending for longer than PendingLongerThan. One call handles at most
+// A document counts as stuck once it has been pending for longer than PendingLongerThan. One call requeues at most
 // BatchSize of them, the oldest first, so a backlog is cleared over several presses rather than in one long request.
+// Documents it cannot requeue do not take up the batch: it looks further, up to ten batches' worth, as
+// RetryStuckScansHandler describes.
 // The dashboard's stuck-scan figure means the same thing, so the two read the same threshold from here.
 //
 // Requeued is how many scans this call put back in the queue. StillPending is how many stuck documents it left as
 // they were: those whose scan is already queued or running, those whose file is no longer in quarantine, and those
-// past the first BatchSize. QuarantineFileMissing names, by reference code, the documents in this batch whose file
-// is no longer in quarantine. A new scan of one of those would fail on reading the file, so they are reported for a
+// the call did not reach. QuarantineFileMissing names, by reference code, the documents this call examined whose
+// file is no longer in quarantine. A new scan of one of those would fail on reading the file, so they are reported for a
 // person to look at rather than re-queued.
 //
 // The handler is given the caller's identifier rather than reading it from the scope, because it names the person on

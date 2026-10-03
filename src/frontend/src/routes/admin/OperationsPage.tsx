@@ -49,7 +49,8 @@
 // in the building. It is asked for with the button beside it rather than when the page opens: the probe calls the object
 // store and the virus scanner, and opening this page used to call both every time whether anybody wanted the answer or not.
 // Until the button is pressed the card says it has not checked, rather than showing a chip it has no answer for, and once it
-// has it says when it asked. The cap is in megabytes, because nobody reads 20971520 as twenty. And both halves of each type
+// has it says when it asked. That last answer stays on the card while a new check runs and when one fails, beside the
+// failure, rather than the card falling back to saying it never checked. The cap is in megabytes, because nobody reads 20971520 as twenty. And both halves of each type
 // pair are shown, because the PAIRING is the rule: a .pdf whose bytes are a PNG is refused, and a list of bare extensions
 // would hide that.
 
@@ -61,7 +62,7 @@ import {Badge, Button, Card, PageHeading, Select, SkeletonTable, Table, TableBod
 import { formatDateTime } from '../../lib/datetime'
 import {
   getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
-  getSecurityPosture, getStorageSettings, probeStorage,
+  getSecurityPosture, getStorageSettings, probeStorage, type StorageProbe,
 } from '../../api/admin'
 import { retryAwardErpSync } from '../../api/awards'
 
@@ -113,7 +114,10 @@ export function OperationsPage() {
     onError: () => notify({ kind: 'danger', title: t('operations.errors.erpRetryFailed') }),
   })
 
-  const probeMutation = useMutation({ mutationFn: probeStorage })
+  // The last answer the probe gave, kept here rather than read from the mutation: the mutation forgets its data while a
+  // second check is pending and after one fails, and the card would then say it had never checked.
+  const [lastProbe, setLastProbe] = useState<StorageProbe | null>(null)
+  const probeMutation = useMutation({ mutationFn: probeStorage, onSuccess: (probe) => setLastProbe(probe) })
 
   const replayMutation = useMutation({
     mutationFn: (id: string) => replayOutboxMessage(id),
@@ -487,16 +491,16 @@ export function OperationsPage() {
           {storageQuery.data ? (
             <>
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                {probeMutation.data ? (
+                {lastProbe ? (
                   <>
-                    <Badge tone={probeMutation.data.objectStorageReachable ? 'success' : 'danger'}>
-                      {t('operations.storage.objectStore')}: {t(probeMutation.data.objectStorageReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
+                    <Badge tone={lastProbe.objectStorageReachable ? 'success' : 'danger'}>
+                      {t('operations.storage.objectStore')}: {t(lastProbe.objectStorageReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
                     </Badge>
-                    <Badge tone={probeMutation.data.virusScannerReachable ? 'success' : 'danger'}>
-                      {t('operations.storage.scanner')}: {t(probeMutation.data.virusScannerReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
+                    <Badge tone={lastProbe.virusScannerReachable ? 'success' : 'danger'}>
+                      {t('operations.storage.scanner')}: {t(lastProbe.virusScannerReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
                     </Badge>
                     <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
-                      {t('operations.storage.checkedAt', { time: formatDateTime(probeMutation.data.checkedAt, locale) })}
+                      {t('operations.storage.checkedAt', { time: formatDateTime(lastProbe.checkedAt, locale) })}
                     </span>
                   </>
                 ) : (

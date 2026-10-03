@@ -46,7 +46,10 @@ const USED_ONLY_INSIDE_THE_API_LAYER: Record<string, string> = {
   getOffering: 'Added in batch 13 so updateOffering and deactivateOffering re-read before they write — the fix for an editor that patched an item it had never read. It is the read half of those two writes rather than a capability of its own.',
 }
 
-const DELIBERATELY_UNSURFACED: Record<string, string> = {}
+const DELIBERATELY_UNSURFACED: Record<string, string> = {
+  DASHBOARD_AUDIT_ACTIONS: "The label list for the administrator's dashboard feeds, landed with the dashboard's backend so the server-side test that every written action has a label can hold from the start. The dashboard page reads it when it ships; this entry then goes stale and must be removed.",
+  dashboardAuditActionKey: "Turns an audit action into its label key for the same dashboard feeds, beside DASHBOARD_AUDIT_ACTIONS and leaving with it when the dashboard page uses both.",
+}
 
 function collectExports(): Map<string, string> {
   const modules = import.meta.glob('./*.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>

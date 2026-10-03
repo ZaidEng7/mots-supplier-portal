@@ -32,7 +32,8 @@
 // THE STORAGE CARD surfaces an unreachable scanner rather than leaving it in a count: a red chip there explains every failing
 // upload in the building, and a backlog that never drains is the failure the card exists to show. It asks the object store
 // and the scanner only when its button is pressed: opening the page must make no probe request at all, which is asserted on
-// the requests the page actually sent, and the chips appear only from the probe's answer, with the time it was made.
+// the requests the page actually sent, and the chips appear only from the probe's answer, with the time it was made. A
+// second check that is still running, or that fails, leaves the first answer on the card rather than "not checked yet".
 //
 // FIVE INDEPENDENT QUERIES, and one card may fail without taking the others down: an operator whose outbox endpoint is broken
 // still needs the jobs table, and a single error boundary over the page would deny them that. With all five broken at once,
@@ -289,6 +290,42 @@ describe('OperationsPage (SCR-721)', () => {
 
     expect(await screen.findByText('The check could not be made. Try again.')).toBeInTheDocument()
     expect(screen.queryByText(/Object store: /)).not.toBeInTheDocument()
+  })
+
+  it('keeps the last answer on the card while a second check runs and after it fails', async () => {
+    restore = mockFetch({
+      ...healthy(),
+      [STORAGE_PROBE]: { objectStorageReachable: true, virusScannerReachable: false, checkedAt: '2026-09-05T10:00:00Z' },
+    })
+
+    renderPage(<OperationsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Check the connection now' }))
+    expect(await screen.findByText('Virus scanner: unreachable')).toBeInTheDocument()
+
+    // The second check is held until the test lets it answer, and then fails.
+    const answered = globalThis.fetch
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => { release = resolve })
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (!url.includes(STORAGE_PROBE)) return answered(input, init)
+      await held
+      return new Response(JSON.stringify({ status: 500 }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof fetch
+
+    await userEvent.click(screen.getByRole('button', { name: 'Check the connection now' }))
+
+    expect(await screen.findByRole('button', { name: 'Checking…' })).toBeDisabled()
+    expect(screen.getByText('Virus scanner: unreachable')).toBeInTheDocument()
+    expect(screen.getByText('Object store: reachable')).toBeInTheDocument()
+    expect(screen.queryByText('The object store and the virus scanner have not been checked yet.')).not.toBeInTheDocument()
+
+    release()
+
+    expect(await screen.findByText('The check could not be made. Try again.')).toBeInTheDocument()
+    expect(screen.getByText('Virus scanner: unreachable')).toBeInTheDocument()
+    expect(screen.getByText(/^Checked /)).toBeInTheDocument()
+    expect(screen.queryByText('The object store and the virus scanner have not been checked yet.')).not.toBeInTheDocument()
   })
 
   it('lets one card fail without taking the others down', async () => {

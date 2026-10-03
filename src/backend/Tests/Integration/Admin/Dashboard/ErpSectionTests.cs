@@ -246,7 +246,10 @@ public sealed class ErpSectionTests(PostgresApiFixture fixture) : IAsyncLifetime
                 BaseUrl = "https://erp-sync.test", IsEnabled = enabled,
                 LastSyncAt = Micro(DateTimeOffset.UtcNow - ago), LastSyncOutcome = IntegrationSyncOutcome.Succeeded,
             });
-            return Part(await DashboardAsync(host.Factory, admin), "sync").GetProperty("stale").GetBoolean();
+            var sync = Part(await DashboardAsync(host.Factory, admin), "sync");
+            sync.GetProperty("enabled").GetBoolean().Should().Be(enabled,
+                "the sync carries the connection's switch, which the needs-attention section reads");
+            return sync.GetProperty("stale").GetBoolean();
         }
 
         (await StaleAsync(TimeSpan.FromHours(3.1), enabled: true)).Should().BeTrue("no run has recorded an outcome in three hours");
