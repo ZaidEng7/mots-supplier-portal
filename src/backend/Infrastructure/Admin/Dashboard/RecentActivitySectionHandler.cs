@@ -29,7 +29,7 @@ public sealed class RecentActivitySectionHandler(AppDbContext db) : IDashboardSe
         var asOf = request.AsOf;
         var dayStart = asOf.AddHours(-24);
         var sessions = SessionAuditActions.All;
-        var leftOut = DashboardAuditActions.LeftOutOfTheFeed;
+        var leftOut = DashboardAuditActions.LeftOutOfTheFeed.ToArray();
 
         var activity = db.AuditLogs.AsNoTracking()
             .Where(a => a.OccurredAt <= asOf && !sessions.Contains(a.Action));

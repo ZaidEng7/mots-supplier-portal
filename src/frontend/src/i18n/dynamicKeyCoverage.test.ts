@@ -38,6 +38,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { PROFILE_DISPLAY_FIELDS, LEGAL_INFO_FIELDS } from '../routes/profileDisplayFields'
 import { REFERENCE_TABLES } from '../api/referenceAdmin'
+import { DASHBOARD_AUDIT_ACTIONS, dashboardAuditActionKey } from '../api/dashboardAuditActions'
 
 
 const CONFIG = readFileSync(resolve(process.cwd(), 'src/i18n/config.ts'), 'utf8')
@@ -84,6 +85,16 @@ const ENUMERABLE_SITES: { site: string; namespace: string; keys: readonly string
     site: 'ReferenceDataPage - the table picker and the heading of the table being edited',
     namespace: 'adminOverview.tables',
     keys: REFERENCE_TABLES,
+  },
+  {
+    // Every audit action the server writes, from DASHBOARD_AUDIT_ACTIONS in api/dashboardAuditActions.ts, which the
+    // backend's DashboardAuditActionLabelTests holds to the server's own audit writes. The administrator's dashboard
+    // labels its security counts, its sensitive changes and its recent activity feed from these, and the feed can
+    // show any action a person wrote, so an action without a label here would print its key in both languages.
+    // The keys are the actions with their dots turned into underscores, through the same function the screen uses.
+    site: 'Admin dashboard - the security counts, the sensitive changes and the recent activity feed',
+    namespace: 'dashboard.auditActions',
+    keys: DASHBOARD_AUDIT_ACTIONS.map(dashboardAuditActionKey),
   },
   {
     site: 'ReviewApplicationPage — the request-info checklist (MSP-77 field CODES, the wizard vocabulary)',
@@ -199,5 +210,16 @@ describe('dynamic translation keys', () => {
     expect(defines(tables, 'incoterm')).toBe(false)
     expect(defines(tables, 'types')).toBe(false)
     expect(defines(tables, 'measure')).toBe(false)
+
+    const auditActions = namespaceFields('en', 'dashboard.auditActions')
+    expect(defines(auditActions, dashboardAuditActionKey('supplier.erp_push_retried'))).toBe(true)
+    expect(defines(auditActions, 'login_failure')).toBe(false)
+  })
+
+  it('no two audit actions share a label key', () => {
+    const keys = DASHBOARD_AUDIT_ACTIONS.map(dashboardAuditActionKey)
+    expect(new Set(DASHBOARD_AUDIT_ACTIONS).size).toBe(DASHBOARD_AUDIT_ACTIONS.length)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.filter((key) => key.includes('.'))).toEqual([])
   })
 })

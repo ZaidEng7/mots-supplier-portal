@@ -17,6 +17,10 @@
 // A successful sign-in, a sign-out and a revoked session are not counted. They are the normal life of a session, and
 // a count of them would rise and fall with the working day.
 //
+// The successful sign-in is still read for one thing: with the four refusals it makes up SignInAttempts, the rows
+// one of which every attempt to sign in writes, and the oldest of those is the day the counts start from, as
+// DashboardSecurityDto explains.
+//
 //
 // THE SENSITIVE CHANGES
 //
@@ -56,6 +60,15 @@ public static class DashboardAuditActions
         SessionAuditActions.RefreshReuseDetected,
         "password_reset",
         "staff_mfa_reset",
+    ];
+
+    public static readonly IReadOnlyList<string> SignInAttempts =
+    [
+        SessionAuditActions.LoginSucceeded,
+        SessionAuditActions.LoginFailed,
+        SessionAuditActions.LoginLockedOut,
+        SessionAuditActions.LoginMfaFailed,
+        SessionAuditActions.LoginBlockedMfaEnrollmentRequired,
     ];
 
     public static readonly IReadOnlyList<string> SensitiveChanges =
