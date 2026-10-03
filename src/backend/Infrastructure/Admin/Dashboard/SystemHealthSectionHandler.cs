@@ -29,8 +29,9 @@
 // A job this application schedules without a line here fails the section rather than being judged against a
 // guess. The section's test keeps its own list of the eight, so a ninth fails there first.
 //
-// Outbox messages and supplier documents are stuck after 15 minutes. The threshold is public so that anything
-// acting on stuck documents uses the same line as the figure that reports them.
+// Outbox messages and supplier documents are stuck after 15 minutes. The documents' line is
+// StuckScans.PendingLongerThan, the one the stuck-scan retry acts on, so the figure counts exactly the documents
+// that pressing retry would take up. The outbox's line is StuckAfter, public for the same reason.
 //
 //
 // WHAT IT WILL NOT DO
@@ -115,8 +116,9 @@ public sealed class SystemHealthSectionHandler(
         var stuckMessages = await db.OutboxMessages.AsNoTracking().CountAsync(
             m => m.SyncStatus == OutboxSyncStatus.Pending && m.CreatedAt < stuckBefore, ct);
 
+        var scansStuckBefore = asOf - StuckScans.PendingLongerThan;
         var stuckScans = await db.SupplierDocuments.AsNoTracking().CountAsync(
-            d => d.State == DocumentState.PendingScan && d.UploadedAt < stuckBefore, ct);
+            d => d.State == DocumentState.PendingScan && d.UploadedAt < scansStuckBefore, ct);
 
         var pendingMigrations = (await db.Database.GetPendingMigrationsAsync(ct)).ToList();
 
@@ -130,7 +132,7 @@ public sealed class SystemHealthSectionHandler(
             email,
             new DashboardOutboxDto(
                 outbox.Pending, stuckMessages, (int)StuckAfter.TotalMinutes, outbox.Failed, outbox.OldestPendingAt),
-            new DashboardStuckScansDto(stuckScans, (int)StuckAfter.TotalMinutes),
+            new DashboardStuckScansDto(stuckScans, (int)StuckScans.PendingLongerThan.TotalMinutes),
             pendingMigrations,
             referenceLists,
             new DashboardPurchaseOrderTransportDto(
