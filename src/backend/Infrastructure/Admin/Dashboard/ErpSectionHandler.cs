@@ -6,28 +6,30 @@
 // settings, and it takes no ERP client, no connection provider and no HTTP client in its constructor, so it could not
 // call the ERP if it tried. ErpConnectionProvider is not used either, because it reads every column of the row and
 // decrypts the stored secret, and the dashboard needs neither. The precedence rule it applies, an address saved on the
-// row over the settings, is repeated in ConnectionAsync below, and the tests compare the two answers.
+// row over the settings, is repeated in InForce below, and the tests compare the two answers.
 //
-// THREE READS, EACH OF ONLY THE COLUMNS IT NEEDS. The connection comes first, from the columns the table was created
-// with. The sync then reads the columns NightlyErpSync (#230) added, and the push the ones ErpSupplierPush (#232) added,
-// each in its own query and inside its own catch, so an environment where a migration has not been applied by hand
-// loses that part and keeps the rest. A failed part is logged here with its name, like a failed section in the frame,
-// and the answer carries no text from the exception. Cancellation of the request is let through, as the frame lets it
-// through.
+// THREE PARTS, EACH READING ONLY THE COLUMNS IT NEEDS, IN QUERIES OF ITS OWN AND INSIDE A CATCH OF ITS OWN. The
+// connection reads the columns the table was created with, the sync the ones NightlyErpSync (#230) added, and the push
+// the ones ErpSupplierPush (#232) added, with the supplier columns its Pushable rule takes from both. Each part reads
+// the address in force and its switch itself, rather than being handed them by the connection, so an environment where
+// a migration has not been applied by hand loses the part that needs it and keeps the rest. A failed part is logged
+// here with its name, like a failed section in the frame, and the answer carries no text from the exception.
+// Cancellation of the request is let through, as the frame lets it through.
 //
 // THE QUERIES RUN ONE AFTER ANOTHER on the section's own database context, which serves one query at a time. There are
 // at most ten, all on the connection's single row, the audit table's index on action and time, or the supplier table.
 // The push's stalled queries are not run at all while the switch is off.
 //
 // THE CLOSING ROW IS FOUND FROM THE CONNECTION'S TIME. The import records the outcome on the connection and adds the
-// closing row in one save, the row a moment after, so the closing row of the run the connection records is the first one
-// at or after that time. Taking the latest closing row instead could put one run's counts beside another run's outcome.
+// closing row in one save, the row a moment after, so the closing row of the run the connection records is the first
+// one at or after that time, and within a minute of it. Taking the latest closing row instead could put one run's counts
+// beside another run's outcome.
 //
-// AN IMPORT IS UNFINISHED when it started more than thirty minutes ago, after the last outcome the connection records,
-// and has no closing row of its own on the trail, matched by its correlation and dated at or after its start. Each half
-// covers what the other cannot. The closing row is the record that this run ended. The connection's time settles every
-// run before it, including those from before the trail recorded endings, which have no closing row and never will, and
-// an import that died weeks ago and was followed by runs that finished.
+// AN IMPORT IS UNFINISHED when it started more than thirty minutes ago, after the last run the sync reports, and has no
+// closing row of its own on the trail, matched by its correlation and dated at or after its start. Each half covers what
+// the other cannot. The closing row is the record that this run ended. The last run's time settles every run before it,
+// including those from before the trail recorded endings, which have no closing row and never will, and an import that
+// died weeks ago and was followed by runs that finished.
 //
 // IT READS EVERY SUPPLIER, NOT THE CALLER'S. The push serves the deployment, not one buying body, and the section is a
 // system administrator's, gated by permission, as the integrations screen's waiting count is; RowScopeGuardTests lists
@@ -61,18 +63,20 @@ public sealed class ErpSectionHandler(
     public static readonly TimeSpan PushInFlightAfter = TimeSpan.FromMinutes(10);
     public const int ReferenceCodesShown = 5;
 
+    // How long after the connection's time a closing row can still belong to the run the connection records. The two
+    // are written in one save, so a minute is far more than the gap between them and far less than the hour between runs.
+    private static readonly TimeSpan ClosingRowWithin = TimeSpan.FromMinutes(1);
+
     private static readonly string[] ClosingActions =
         [SupplierAuditActions.ErpImportCompleted, SupplierAuditActions.ErpImportFailed];
 
-    private sealed record Connection(DashboardErpConnectionDto View, string? Address);
-
     public async Task<DashboardErpDto> RunAsync(DashboardRequest request, CancellationToken ct)
     {
-        var connection = await ConnectionAsync(ct);
-        var sync = await PartAsync("sync", () => SyncAsync(connection.View, request.AsOf, ct), ct);
-        var push = await PartAsync("push", () => PushAsync(connection.Address, request.AsOf, ct), ct);
+        var connection = await PartAsync("connection", () => ConnectionAsync(ct), ct);
+        var sync = await PartAsync("sync", () => SyncAsync(request.AsOf, ct), ct);
+        var push = await PartAsync("push", () => PushAsync(request.AsOf, ct), ct);
 
-        return new DashboardErpDto(connection.View, sync, push);
+        return new DashboardErpDto(connection, sync, push);
     }
 
     private async Task<DashboardSection<TData>> PartAsync<TData>(
@@ -90,10 +94,21 @@ public sealed class ErpSectionHandler(
         }
     }
 
-    // The address in force: the row's once somebody has saved one, the settings' until then, as ErpConnectionProvider
-    // decides it. A blank address on the row means "not configured here". An address that is not an absolute http or
-    // https URL has no host to show, though it is still the one in force.
-    private async Task<Connection> ConnectionAsync(CancellationToken ct)
+    private sealed record AddressInForce(string? Address, bool Enabled, DashboardErpSource Source);
+
+    // The address in force and its switch: the row's once somebody has saved an address, the settings' until then, as
+    // ErpConnectionProvider decides it. A blank address on the row means "not configured here".
+    private AddressInForce InForce(string? rowBaseUrl, bool rowEnabled)
+    {
+        var erp = settings.Value;
+
+        return !string.IsNullOrWhiteSpace(rowBaseUrl) ? new(rowBaseUrl, rowEnabled, DashboardErpSource.Database)
+            : !string.IsNullOrWhiteSpace(erp.BaseUrl) ? new(erp.BaseUrl, erp.Enabled, DashboardErpSource.Configuration)
+            : new(null, false, DashboardErpSource.None);
+    }
+
+    // An address that is not an absolute http or https URL has no host to show, though it is still the one in force.
+    private async Task<DashboardErpConnectionDto> ConnectionAsync(CancellationToken ct)
     {
         var row = await db.IntegrationConnections
             .AsNoTracking()
@@ -101,49 +116,61 @@ public sealed class ErpSectionHandler(
             .Select(c => new { c.BaseUrl, c.IsEnabled, c.LastTestedAt, c.LastTestSucceeded })
             .FirstOrDefaultAsync(ct);
 
-        var erp = settings.Value;
-        var (address, enabled, source) =
-            !string.IsNullOrWhiteSpace(row?.BaseUrl) ? (row.BaseUrl, row.IsEnabled, DashboardErpSource.Database)
-            : !string.IsNullOrWhiteSpace(erp.BaseUrl) ? (erp.BaseUrl, erp.Enabled, DashboardErpSource.Configuration)
-            : ((string?)null, false, DashboardErpSource.None);
+        var inForce = InForce(row?.BaseUrl, row?.IsEnabled ?? false);
 
-        var server = address is not null
-            && Uri.TryCreate(address, UriKind.Absolute, out var parsed)
+        var server = inForce.Address is not null
+            && Uri.TryCreate(inForce.Address, UriKind.Absolute, out var parsed)
             && (parsed.Scheme == Uri.UriSchemeHttp || parsed.Scheme == Uri.UriSchemeHttps)
                 ? parsed
                 : null;
 
-        return new Connection(
-            new DashboardErpConnectionDto(
-                source,
-                enabled,
-                server?.Authority,
-                server is null ? null : server.Scheme == Uri.UriSchemeHttps,
-                row?.LastTestedAt,
-                row?.LastTestSucceeded),
-            address);
+        return new DashboardErpConnectionDto(
+            inForce.Source,
+            inForce.Enabled,
+            server?.Authority,
+            server is null ? null : server.Scheme == Uri.UriSchemeHttps,
+            row?.LastTestedAt,
+            row?.LastTestSucceeded);
     }
 
-    private async Task<DashboardErpSyncDto> SyncAsync(
-        DashboardErpConnectionDto connection, DateTimeOffset asOf, CancellationToken ct)
+    private async Task<DashboardErpSyncDto> SyncAsync(DateTimeOffset asOf, CancellationToken ct)
     {
-        var last = await db.IntegrationConnections
+        var row = await db.IntegrationConnections
             .AsNoTracking()
             .Where(c => c.Key == IntegrationConnection.ErpKey)
-            .Select(c => new { c.LastSyncAt, c.LastSyncOutcome })
+            .Select(c => new { c.BaseUrl, c.IsEnabled, c.LastSyncAt, c.LastSyncOutcome })
             .FirstOrDefaultAsync(ct);
 
-        var lastRunAt = last?.LastSyncAt;
+        var enabled = InForce(row?.BaseUrl, row?.IsEnabled ?? false).Enabled;
+        var lastRunAt = row?.LastSyncAt;
+        var outcome = row?.LastSyncOutcome;
 
-        var closing = lastRunAt is null
-            ? null
-            : await db.AuditLogs
-                .AsNoTracking()
-                .Where(a => ClosingActions.Contains(a.Action) && a.OccurredAt >= lastRunAt)
+        var closings = db.AuditLogs.AsNoTracking().Where(a => ClosingActions.Contains(a.Action));
+
+        // The run the connection records, and its closing row; or, when the connection records none, the latest
+        // closing row on the trail, which is then the only record of a run there is.
+        var closingBy = lastRunAt + ClosingRowWithin;
+        var closing = lastRunAt is { } recorded
+            ? await closings
+                .Where(a => a.OccurredAt >= recorded && a.OccurredAt < closingBy)
                 .OrderBy(a => a.OccurredAt)
                 .ThenBy(a => a.Id)
-                .Select(a => new { a.Action, a.Changes })
+                .Select(a => new { a.Action, a.OccurredAt, a.ToState, a.Changes })
+                .FirstOrDefaultAsync(ct)
+            : await closings
+                .OrderByDescending(a => a.OccurredAt)
+                .ThenByDescending(a => a.Id)
+                .Select(a => new { a.Action, a.OccurredAt, a.ToState, a.Changes })
                 .FirstOrDefaultAsync(ct);
+
+        if (lastRunAt is null && closing is not null)
+        {
+            lastRunAt = closing.OccurredAt;
+            outcome = Enum.TryParse<IntegrationSyncOutcome>(closing.ToState, ignoreCase: false, out var parsed)
+                && Enum.IsDefined(parsed)
+                    ? parsed
+                    : null;
+        }
 
         var startedBefore = asOf - ImportUnfinishedAfter;
         var unfinished = await db.AuditLogs
@@ -163,31 +190,31 @@ public sealed class ErpSectionHandler(
 
         return new DashboardErpSyncDto(
             lastRunAt,
-            last?.LastSyncOutcome,
+            outcome,
             Trigger(details),
             closing?.Action == SupplierAuditActions.ErpImportCompleted ? Counts(details) : null,
-            connection.Enabled && (lastRunAt is null || lastRunAt < asOf - SyncStaleAfter),
+            enabled && (lastRunAt is null || lastRunAt < asOf - SyncStaleAfter),
             unfinished);
     }
 
-    private async Task<DashboardErpPushDto> PushAsync(string? address, DateTimeOffset asOf, CancellationToken ct)
+    private async Task<DashboardErpPushDto> PushAsync(DateTimeOffset asOf, CancellationToken ct)
     {
-        var writes = await db.IntegrationConnections
+        var row = await db.IntegrationConnections
             .AsNoTracking()
             .Where(c => c.Key == IntegrationConnection.ErpKey)
-            .Select(c => new { c.CreateSuppliersInErp, c.DefaultSupplierGroup })
+            .Select(c => new { c.BaseUrl, c.IsEnabled, c.CreateSuppliersInErp, c.DefaultSupplierGroup })
             .FirstOrDefaultAsync(ct);
 
-        var switchOn = writes?.CreateSuppliersInErp ?? false;
+        var address = InForce(row?.BaseUrl, row?.IsEnabled ?? false).Address;
+        var switchOn = row?.CreateSuppliersInErp ?? false;
 
         var waiting = await db.Suppliers.CountAsync(SupplierErpPushJob.Pushable, ct);
 
         var failed = db.Suppliers.Where(s => s.ErpPushStatus == SupplierErpPushStatus.Failed);
         var failedCount = await failed.CountAsync(ct);
-        var failedCodes = await FirstCodesAsync(failed, ct);
+        var attention = await FirstAsync(failed, ct);
 
         int? stalledCount = null;
-        IReadOnlyList<string> stalledCodes = [];
 
         if (switchOn)
         {
@@ -198,25 +225,35 @@ public sealed class ErpSectionHandler(
                 .Where(s => s.ErpPushNextAttemptAt < dueBefore || s.ErpPushStartedAt < startedBefore);
 
             stalledCount = await stalled.CountAsync(ct);
-            stalledCodes = await FirstCodesAsync(stalled, ct);
+            attention = [.. attention, .. await FirstAsync(stalled, ct)];
         }
 
         return new DashboardErpPushDto(
             switchOn,
-            writes?.DefaultSupplierGroup,
+            row?.DefaultSupplierGroup,
             address is not null && ErpWriteHosts.Lists(settings.Value.WriteHosts, address),
             waiting,
             failedCount,
             stalledCount,
-            failedCodes,
-            stalledCodes);
+            attention
+                .OrderBy(s => s.RequestedAt ?? DateTimeOffset.MaxValue)
+                .ThenBy(s => s.Id)
+                .Select(s => s.ReferenceCode)
+                .Take(ReferenceCodesShown)
+                .ToList());
     }
 
-    private static async Task<IReadOnlyList<string>> FirstCodesAsync(IQueryable<Supplier> suppliers, CancellationToken ct) =>
+    private sealed record Flagged(Guid Id, string ReferenceCode, DateTimeOffset? RequestedAt);
+
+    // The first few of a set, in the order the push takes them, oldest request first. The failed and the stalled sets
+    // never share a supplier, since a failed push is not one the push works on.
+    private static async Task<List<Flagged>> FirstAsync(IQueryable<Supplier> suppliers, CancellationToken ct) =>
         await suppliers
-            .OrderBy(s => s.ErpPushRequestedAt)
+            .AsNoTracking()
+            .OrderBy(s => s.ErpPushRequestedAt == null)
+            .ThenBy(s => s.ErpPushRequestedAt)
             .ThenBy(s => s.Id)
-            .Select(s => s.ReferenceCode)
+            .Select(s => new Flagged(s.Id, s.ReferenceCode, s.ErpPushRequestedAt))
             .Take(ReferenceCodesShown)
             .ToListAsync(ct);
 
