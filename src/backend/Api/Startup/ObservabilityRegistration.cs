@@ -70,7 +70,6 @@
 
 namespace MotsSupplierPortal.Api.Startup;
 
-using Hangfire;
 using Serilog;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -111,8 +110,6 @@ internal static class ObservabilityRegistration
 
     internal static WebApplicationBuilder AddHealthProbes(this WebApplicationBuilder builder, string connectionString)
     {
-        builder.Services.AddSingleton(_ => JobStorage.Current);
-
         builder.Services.AddHealthChecks()
             .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
             .AddCheck<MotsSupplierPortal.Infrastructure.Observability.MigrationsAppliedHealthCheck>(
