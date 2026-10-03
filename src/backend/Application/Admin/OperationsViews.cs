@@ -20,6 +20,12 @@
 // THE OUTBOX
 //
 // One message with its payload, for an operator deciding whether to replay it.
+//
+//
+// THE STORAGE SETTINGS
+//
+// The limits, the bucket and the counts only. Whether the object store and the scanner answer is a separate probe
+// made on demand, so opening the operations page calls neither of them.
 
 namespace MotsSupplierPortal.Application.Admin;
 
@@ -82,7 +88,5 @@ public sealed record StorageSettingsDto(
     long MaxUploadBytes,
     IReadOnlyDictionary<string, string> AllowedTypes,
     string Bucket,
-    bool ObjectStorageReachable,
-    bool VirusScannerReachable,
     int DocumentCount,
     int PendingScanCount);
