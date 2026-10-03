@@ -298,7 +298,6 @@ export async function mockBackend(page: Page) {
       maxUploadBytes: 20971520,
       allowedTypes: { '.pdf': 'application/pdf' },
       bucket: 'documents',
-      objectStorageReachable: true, virusScannerReachable: true,
       documentCount: 3, pendingScanCount: 0,
     } })
     if (p === '/api/v1/admin/security') return route.fulfill({ json: {

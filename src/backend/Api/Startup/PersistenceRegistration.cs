@@ -26,11 +26,20 @@
 // retry forty seconds out, and the upload tests waiting thirty seconds for a virus scan failed at random. A host
 // holding a fake ERP adapter could also have run a real sync job with it. It defaults to true, so every
 // deployment runs jobs exactly as before; only the suite's extra hosts set it false.
+//
+// The job storage and the job activator are this host's own registrations, not the library's defaults. Those
+// defaults read two process-wide statics, JobStorage.Current and JobActivator.Current, which every host that
+// configures Hangfire overwrites. A deployment holds one host, so it never mattered there; the test run holds
+// many at once, and a host that read the statics just after another host started picked up that host's services.
+// When the other host was disposed, every job this one ran failed against a disposed service provider. Registered
+// here, each host's server runs its jobs with its own container and reads its own queue whatever starts beside it.
 
 namespace MotsSupplierPortal.Api.Startup;
 
 using Hangfire;
+using Hangfire.AspNetCore;
 using Hangfire.PostgreSql;
+using Hangfire.PostgreSql.Factories;
 using Microsoft.EntityFrameworkCore;
 using MotsSupplierPortal.Infrastructure.Persistence;
 
@@ -47,17 +56,22 @@ internal static class PersistenceRegistration
         var hangfireSchema = builder.Configuration.GetValue("Hangfire:SchemaName", defaultValue: "hangfire")!;
         var prepareHangfireSchema = builder.Configuration.GetValue("Hangfire:PrepareSchema", defaultValue: true);
 
-        builder.Services.AddHangfire(config => config
+        var hangfireStorageOptions = new PostgreSqlStorageOptions
+        {
+            SchemaName = hangfireSchema,
+            PrepareSchemaIfNecessary = prepareHangfireSchema,
+        };
+
+        builder.Services.AddSingleton<JobStorage>(_ => new PostgreSqlStorage(
+            new NpgsqlConnectionFactory(connectionString, hangfireStorageOptions), hangfireStorageOptions));
+        builder.Services.AddSingleton<JobActivator>(sp =>
+            new AspNetCoreJobActivator(sp.GetRequiredService<IServiceScopeFactory>()));
+
+        builder.Services.AddHangfire((sp, config) => config
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
             .UseRecommendedSerializerSettings()
-            .UsePostgreSqlStorage(
-                c => c.UseNpgsqlConnection(connectionString),
-                new PostgreSqlStorageOptions
-                {
-                    SchemaName = hangfireSchema,
-                    PrepareSchemaIfNecessary = prepareHangfireSchema,
-                }));
+            .UseStorage(sp.GetRequiredService<JobStorage>()));
 
         if (builder.Configuration.GetValue("Hangfire:RunServer", defaultValue: true))
         {

@@ -440,6 +440,13 @@ internal static class ApplicationHandlerRegistration
     private static void AddAdministrationHandlers(this WebApplicationBuilder builder)
     {
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetAdminOverviewHandler, MotsSupplierPortal.Infrastructure.Admin.GetAdminOverviewHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IGetAdminDashboardHandler, MotsSupplierPortal.Infrastructure.Admin.Dashboard.GetAdminDashboardHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardSystemHealthDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.SystemHealthSectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardErpDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.ErpSectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardPeopleAndAccessDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.PeopleAndAccessSectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardSecurityDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.SecuritySectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IDashboardSectionHandler<MotsSupplierPortal.Application.Admin.Dashboard.DashboardRecentActivityDto>, MotsSupplierPortal.Infrastructure.Admin.Dashboard.RecentActivitySectionHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.INeedsAttentionSectionHandler, MotsSupplierPortal.Infrastructure.Admin.Dashboard.NeedsAttentionSectionHandler>();
         builder.Services.AddScoped<IGetFieldConfigHandler, GetFieldConfigHandler>();
         builder.Services.AddScoped<IGetOneFieldConfigHandler, GetOneFieldConfigHandler>();
         builder.Services.AddScoped<IUpdateFieldConfigHandler, UpdateFieldConfigHandler>();
@@ -449,10 +456,12 @@ internal static class ApplicationHandlerRegistration
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.ITriggerRecurringJobHandler, MotsSupplierPortal.Infrastructure.Admin.TriggerRecurringJobHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetOutboxMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetOutboxMonitorHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IReplayOutboxMessageHandler, MotsSupplierPortal.Infrastructure.Admin.ReplayOutboxMessageHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IRetryStuckScansHandler, MotsSupplierPortal.Infrastructure.Admin.RetryStuckScansHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetErpSyncMonitorHandler, MotsSupplierPortal.Infrastructure.Admin.GetErpSyncMonitorHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetSecurityPostureHandler, MotsSupplierPortal.Infrastructure.Admin.SecurityPostureHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Search.ISearchHandler, MotsSupplierPortal.Infrastructure.Search.SearchHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetStorageSettingsHandler, MotsSupplierPortal.Infrastructure.Admin.StorageSettingsHandler>();
+        builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.Dashboard.IProbeDashboardStorageHandler, MotsSupplierPortal.Infrastructure.Admin.Dashboard.ProbeDashboardStorageHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IGetUiStringBundleHandler, MotsSupplierPortal.Infrastructure.Admin.GetUiStringBundleHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IListUiStringOverridesHandler, MotsSupplierPortal.Infrastructure.Admin.ListUiStringOverridesHandler>();
         builder.Services.AddScoped<MotsSupplierPortal.Application.Admin.IUpsertUiStringOverrideHandler, MotsSupplierPortal.Infrastructure.Admin.UpsertUiStringOverrideHandler>();

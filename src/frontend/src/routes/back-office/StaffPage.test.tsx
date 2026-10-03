@@ -12,6 +12,10 @@
 // lower-case token would test a response the API never produces. The refusal is a thing to understand rather than to retry, so
 // it is named rather than reported as a generic failure.
 //
+// A lockout that has not run out says until when, in the business time zone. A lockout end in the past is the control: it is
+// history rather than a lock, so the row says nothing about it. Nor does a deactivated account's row, whose lockout the
+// dashboard does not count either; an active account locked until the same time beside it is the control.
+//
 // And a failed list offers a retry instead of a blank page.
 
 import { describe, expect, it, vi, afterEach } from 'vitest'
@@ -63,6 +67,38 @@ describe('StaffPage accounts', () => {
     expect(screen.getByText('admin@ministry.example')).toBeInTheDocument()
     expect(screen.getByText('Two-factor enrolled')).toBeInTheDocument()
     expect(screen.getByText('Active sessions: 2')).toBeInTheDocument()
+  })
+
+  it('says until when an account is locked out, and nothing once the lockout has run out', async () => {
+    restore = mockFetch({
+      '/api/v1/staff': page([
+        account({ lockoutEnd: '2099-01-15T09:30:00Z' }),
+        account({ userId: 'u-2', email: 'past@ministry.example', fullName: 'Past Lockout', lockoutEnd: '2020-01-15T09:30:00Z' }),
+      ]),
+    })
+
+    renderPage(<StaffPage />)
+
+    expect(await screen.findByText('Locked until 15 Jan 2099, 12:30')).toBeInTheDocument()
+    expect(screen.getByText('Past Lockout')).toBeInTheDocument()
+    expect(screen.getAllByText(/^Locked until/)).toHaveLength(1)
+  })
+
+  it('says nothing about a lockout on a deactivated account', async () => {
+    restore = mockFetch({
+      '/api/v1/staff': page([
+        account({ lockoutEnd: '2099-01-15T09:30:00Z' }),
+        account({ userId: 'u-2', email: 'gone@ministry.example', fullName: 'Deactivated Locked', isActive: false, lockoutEnd: '2099-01-15T09:30:00Z' }),
+      ]),
+    })
+
+    renderPage(<StaffPage />)
+
+    expect(await screen.findByText('Deactivated Locked')).toBeInTheDocument()
+    expect(screen.getAllByText('Locked until 15 Jan 2099, 12:30')).toHaveLength(1)
+    const deactivatedRow = screen.getByText('Deactivated Locked').closest('tr')
+    expect(deactivatedRow).not.toBeNull()
+    expect(deactivatedRow).not.toHaveTextContent(/Locked until/)
   })
 
   it('deactivates an account and reactivates a deactivated one', async () => {
