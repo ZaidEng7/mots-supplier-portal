@@ -2239,6 +2239,10 @@ const resources = {
         storage: {
           objectStore: 'مخزن الملفات', scanner: 'فاحص الفيروسات',
           reachable: 'متصل', unreachable: 'غير متصل',
+          check: 'افحص الاتصال الآن', checking: 'جارٍ الفحص…',
+          notChecked: 'لم يُفحص الاتصال بمخزن الملفات وفاحص الفيروسات بعد.',
+          checkedAt: 'فُحص في {{time}}',
+          checkFailed: 'تعذّر الفحص. حاول مرة أخرى.',
           pendingScans: '{{count}} ملفاً بانتظار الفحص',
           maxUpload: 'الحد الأقصى لحجم الملف',
           megabytes: '{{count}} ميغابايت',
@@ -4531,6 +4535,10 @@ const resources = {
         storage: {
           objectStore: 'Object store', scanner: 'Virus scanner',
           reachable: 'reachable', unreachable: 'unreachable',
+          check: 'Check the connection now', checking: 'Checking…',
+          notChecked: 'The object store and the virus scanner have not been checked yet.',
+          checkedAt: 'Checked {{time}}',
+          checkFailed: 'The check could not be made. Try again.',
           pendingScans: '{{count}} files awaiting scan',
           maxUpload: 'Maximum file size',
           megabytes: '{{count}} MB',

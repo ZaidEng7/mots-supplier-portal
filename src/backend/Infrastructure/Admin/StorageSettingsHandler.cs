@@ -1,4 +1,5 @@
-// The storage and scanning screen: the upload limits, and whether the two dependencies are answering.
+// The storage and scanning screen: the upload limits, the bucket, and how many documents are stored and waiting for
+// the scanner.
 //
 //
 // THE LIMITS COME FROM THE CODE THAT ENFORCES THEM
@@ -10,49 +11,29 @@
 // create exactly that gap.
 //
 //
-// REACHABILITY IS PROBED NOW, NOT READ FROM A CACHED SNAPSHOT
+// IT NO LONGER ASKS THE OBJECT STORE OR THE SCANNER
 //
-// An operator opening this screen is asking whether uploads work at this moment, and the readiness endpoint's
-// last result is not that question.
-//
-// Any failure is reported as unreachable, because a partial answer, reachable but erroring, is not something an
-// operator can act on differently. The exception text is swallowed deliberately: it is a dependency's internals,
-// and putting it on an administration screen would leak infrastructure detail to answer a yes-or-no question.
-// The health endpoint already carries the diagnostic version.
-//
-//
-// THE SCANNER PROBE IS ABOUT THE OUTCOME, NOT ABOUT WHETHER IT THREW
-//
-// Found by stopping the scanner and watching this report "reachable" anyway. The scanner does not throw when the
-// daemon is down: it reports the scan as unavailable (it used to report it as infected), so a caller watching for
-// exceptions sees nothing wrong.
-//
-// So: a clean verdict means the daemon answered. A working scanner cannot call an empty stream infected, which
-// makes anything else here - unavailable, or an infected verdict nobody could explain - "the scanner did not answer".
-// Inferred from the scanner's own contract and then confirmed both ways against a stopped and a running container.
+// It used to probe both every time the operations page opened, which made every visit to that page a call to two
+// services outside the database whether or not anybody wanted the answer. Whether they answer is now a separate
+// request, the storage probe beside the dashboard's system health section, made when somebody presses the button
+// on the storage card. DependencyProbes holds how the two are asked and why a scanner that did not throw is not
+// necessarily one that answered.
 
 namespace MotsSupplierPortal.Infrastructure.Admin;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MotsSupplierPortal.Application.Admin;
-using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Suppliers;
 using MotsSupplierPortal.Infrastructure.Persistence;
 using MotsSupplierPortal.Infrastructure.Storage;
 
 public sealed class StorageSettingsHandler(
     AppDbContext db,
-    MinioFileStorage fileStorage,
-    IVirusScanner scanner,
     IConfiguration configuration) : IGetStorageSettingsHandler
 {
     public async Task<StorageSettingsDto> HandleAsync(CancellationToken ct)
     {
-        var objectStorageReachable = await ProbeAsync(() => fileStorage.PingAsync(ct));
-
-        var scannerReachable = await ProbeScanAsync(scanner, ct);
-
         var documentCount = await db.SupplierDocuments.AsNoTracking().CountAsync(ct);
         var pendingScanCount = await db.SupplierDocuments.AsNoTracking()
             .CountAsync(d => d.State == DocumentState.PendingScan, ct);
@@ -61,35 +42,7 @@ public sealed class StorageSettingsHandler(
             FileTypeSniffer.MaxSizeBytes,
             FileTypeSniffer.AllowedExtensionToContentType,
             configuration["Minio:Bucket"] ?? string.Empty,
-            objectStorageReachable,
-            scannerReachable,
             documentCount,
             pendingScanCount);
-    }
-
-    private static async Task<bool> ProbeScanAsync(IVirusScanner scanner, CancellationToken ct)
-    {
-        try
-        {
-            using var empty = new MemoryStream();
-            return await scanner.ScanAsync(empty, ct) == ScanOutcome.Clean;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static async Task<bool> ProbeAsync(Func<Task> probe)
-    {
-        try
-        {
-            await probe();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

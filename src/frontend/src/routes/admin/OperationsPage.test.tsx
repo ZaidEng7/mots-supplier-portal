@@ -30,7 +30,9 @@
 // posture is read from what ENFORCES it.
 //
 // THE STORAGE CARD surfaces an unreachable scanner rather than leaving it in a count: a red chip there explains every failing
-// upload in the building, and a backlog that never drains is the failure the card exists to show.
+// upload in the building, and a backlog that never drains is the failure the card exists to show. It asks the object store
+// and the scanner only when its button is pressed: opening the page must make no probe request at all, which is asserted on
+// the requests the page actually sent, and the chips appear only from the probe's answer, with the time it was made.
 //
 // FIVE INDEPENDENT QUERIES, and one card may fail without taking the others down: an operator whose outbox endpoint is broken
 // still needs the jobs table, and a single error boundary over the page would deny them that. With all five broken at once,
@@ -58,6 +60,7 @@ const OUTBOX = '/api/v1/admin/outbox'
 const ERP = '/api/v1/admin/erp-sync'
 const SECURITY = '/api/v1/admin/security'
 const STORAGE = '/api/v1/admin/storage'
+const STORAGE_PROBE = '/api/v1/admin/dashboard/storage-probe'
 
 function jobs(overrides: Record<string, unknown> = {}) {
   return {
@@ -81,7 +84,7 @@ const SECURITY_POSTURE = {
 
 const STORAGE_SETTINGS = {
   maxUploadBytes: 10485760, allowedTypes: { pdf: 'application/pdf' }, bucket: 'documents',
-  objectStorageReachable: true, virusScannerReachable: true, documentCount: 42, pendingScanCount: 0,
+  documentCount: 42, pendingScanCount: 0,
 }
 
 function healthy(overrides: Record<string, unknown> = {}) {
@@ -243,13 +246,49 @@ describe('OperationsPage (SCR-721)', () => {
   })
 
   it('surfaces an unreachable scanner rather than leaving it in a count', async () => {
-    restore = mockFetch(healthy({
-      [STORAGE]: { ...STORAGE_SETTINGS, virusScannerReachable: false, pendingScanCount: 214 },
-    }))
+    restore = mockFetch({
+      ...healthy({ [STORAGE]: { ...STORAGE_SETTINGS, pendingScanCount: 214 } }),
+      [STORAGE_PROBE]: { objectStorageReachable: true, virusScannerReachable: false, checkedAt: '2026-09-05T10:00:00Z' },
+    })
 
     renderPage(<OperationsPage />)
 
     expect(await screen.findByText(/214/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Check the connection now' }))
+
+    expect(await screen.findByText('Virus scanner: unreachable')).toBeInTheDocument()
+    expect(screen.getByText('Object store: reachable')).toBeInTheDocument()
+  })
+
+  it('probes the object store and the scanner only when the button is pressed', async () => {
+    const recorded: RecordedRequest[] = []
+    restore = mockFetch({
+      ...healthy(),
+      [STORAGE_PROBE]: { objectStorageReachable: true, virusScannerReachable: true, checkedAt: '2026-09-05T10:00:00Z' },
+    }, recorded)
+
+    renderPage(<OperationsPage />)
+
+    expect(await screen.findByText('The object store and the virus scanner have not been checked yet.')).toBeInTheDocument()
+    expect(screen.queryByText(/Object store: /)).not.toBeInTheDocument()
+    expect(recorded.some((r) => r.url.includes(STORAGE_PROBE))).toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Check the connection now' }))
+
+    expect(await screen.findByText('Object store: reachable')).toBeInTheDocument()
+    expect(screen.getByText('Virus scanner: reachable')).toBeInTheDocument()
+    expect(screen.getByText(/^Checked /)).toBeInTheDocument()
+    expect(recorded.filter((r) => r.url.includes(STORAGE_PROBE)).map((r) => r.method)).toEqual(['POST'])
+  })
+
+  it('says so when the probe itself cannot be made', async () => {
+    restore = mockFetch({ ...healthy(), [STORAGE_PROBE]: { __status: 500 } })
+
+    renderPage(<OperationsPage />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Check the connection now' }))
+
+    expect(await screen.findByText('The check could not be made. Try again.')).toBeInTheDocument()
+    expect(screen.queryByText(/Object store: /)).not.toBeInTheDocument()
   })
 
   it('lets one card fail without taking the others down', async () => {

@@ -142,6 +142,7 @@ public sealed class RowScopeGuardTests
         ["MinistrySupplierFeedHandler"] = "supplier.registry.export, system_admin only: the ministry feed IS the whole national registry",
         ["MinistryRfqFeedHandler"] = "supplier.registry.export, system_admin only: every tender in the country crossed with everyone invited",
         ["StorageSettingsHandler"] = "system_admin: storage totals for the deployment, not for a tenant",
+        ["SystemHealthSectionHandler"] = "admin.users.manage, the admin dashboard: a count of stuck scans across the deployment, which is a fault of the deployment rather than of one supplier",
         ["GetErpSyncMonitorHandler"] = "system_admin: the ERP queue is one queue for the deployment",
         ["ListIntegrationsHandler"] = "admin.integrations.manage, system_admin only: it counts the approved suppliers the push would still create in the ERP, which is one queue for the deployment",
         ["RetryStuckScansHandler"] = "admin.users.manage: the virus-scan queue is one queue for the deployment; it re-queues stalled scans of every supplier's documents",

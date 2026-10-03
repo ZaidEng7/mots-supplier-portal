@@ -46,9 +46,12 @@
 // THE STORAGE PANEL is SCR-725, read-only for the same reason as the one above: the cap and the allow-list are §4.1's
 // security control, and the document rules administrators DO own live on SCR-710's screen. Reachability comes first and as a
 // chip, because it is the only thing on the card that can be wrong right now - a red one there explains every failing upload
-// in the building. The cap is in megabytes, because nobody reads 20971520 as twenty. And both halves of each type pair are
-// shown, because the PAIRING is the rule: a .pdf whose bytes are a PNG is refused, and a list of bare extensions would hide
-// that.
+// in the building. It is asked for with the button beside it rather than when the page opens: the probe calls the object
+// store and the virus scanner, and opening this page used to call both every time whether anybody wanted the answer or not.
+// Until the button is pressed the card says it has not checked, rather than showing a chip it has no answer for, and once it
+// has it says when it asked. The cap is in megabytes, because nobody reads 20971520 as twenty. And both halves of each type
+// pair are shown, because the PAIRING is the rule: a .pdf whose bytes are a PNG is refused, and a list of bare extensions
+// would hide that.
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,7 +61,7 @@ import {Badge, Button, Card, PageHeading, Select, SkeletonTable, Table, TableBod
 import { formatDateTime } from '../../lib/datetime'
 import {
   getJobsMonitor, triggerRecurringJob, getOutboxMonitor, replayOutboxMessage, getErpSyncMonitor,
-  getSecurityPosture, getStorageSettings,
+  getSecurityPosture, getStorageSettings, probeStorage,
 } from '../../api/admin'
 import { retryAwardErpSync } from '../../api/awards'
 
@@ -109,6 +112,8 @@ export function OperationsPage() {
     },
     onError: () => notify({ kind: 'danger', title: t('operations.errors.erpRetryFailed') }),
   })
+
+  const probeMutation = useMutation({ mutationFn: probeStorage })
 
   const replayMutation = useMutation({
     mutationFn: (id: string) => replayOutboxMessage(id),
@@ -481,13 +486,35 @@ export function OperationsPage() {
 
           {storageQuery.data ? (
             <>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                {probeMutation.data ? (
+                  <>
+                    <Badge tone={probeMutation.data.objectStorageReachable ? 'success' : 'danger'}>
+                      {t('operations.storage.objectStore')}: {t(probeMutation.data.objectStorageReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
+                    </Badge>
+                    <Badge tone={probeMutation.data.virusScannerReachable ? 'success' : 'danger'}>
+                      {t('operations.storage.scanner')}: {t(probeMutation.data.virusScannerReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
+                    </Badge>
+                    <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                      {t('operations.storage.checkedAt', { time: formatDateTime(probeMutation.data.checkedAt, locale) })}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-text-secondary)' }}>
+                    {t('operations.storage.notChecked')}
+                  </span>
+                )}
+                <Button variant="ghost" disabled={probeMutation.isPending} onClick={() => probeMutation.mutate()}>
+                  {t(probeMutation.isPending ? 'operations.storage.checking' : 'operations.storage.check')}
+                </Button>
+                {probeMutation.isError ? (
+                  <span role="alert" className="text-[length:var(--text-body-sm)]" style={{ color: 'var(--color-danger-fg)' }}>
+                    {t('operations.storage.checkFailed')}
+                  </span>
+                ) : null}
+              </div>
+
               <div className="mb-3 flex flex-wrap gap-2">
-                <Badge tone={storageQuery.data.objectStorageReachable ? 'success' : 'danger'}>
-                  {t('operations.storage.objectStore')}: {t(storageQuery.data.objectStorageReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
-                </Badge>
-                <Badge tone={storageQuery.data.virusScannerReachable ? 'success' : 'danger'}>
-                  {t('operations.storage.scanner')}: {t(storageQuery.data.virusScannerReachable ? 'operations.storage.reachable' : 'operations.storage.unreachable')}
-                </Badge>
                 <Badge tone={storageQuery.data.pendingScanCount > 0 ? 'warning' : 'neutral'}>
                   {t('operations.storage.pendingScans', { count: storageQuery.data.pendingScanCount })}
                 </Badge>

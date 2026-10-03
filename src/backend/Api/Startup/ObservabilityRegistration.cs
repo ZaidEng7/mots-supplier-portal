@@ -64,6 +64,9 @@
 //
 // Every readiness check is tagged as such, and nothing is tagged for liveness, so liveness runs zero
 // checks by design.
+//
+// The object store's check is also run on its own, by name, by the administrator's dashboard and its storage
+// probe, so its name is the constant DependencyProbes holds rather than a second copy of the string.
 
 namespace MotsSupplierPortal.Api.Startup;
 
@@ -115,7 +118,7 @@ internal static class ObservabilityRegistration
             .AddCheck<MotsSupplierPortal.Infrastructure.Observability.MigrationsAppliedHealthCheck>(
                 "migrations", tags: ["ready"])
             .AddCheck<MotsSupplierPortal.Infrastructure.Observability.ObjectStorageHealthCheck>(
-                "object-storage", tags: ["ready"])
+                MotsSupplierPortal.Infrastructure.Admin.DependencyProbes.ObjectStorageCheck, tags: ["ready"])
             .AddCheck<MotsSupplierPortal.Infrastructure.Observability.HangfireStorageHealthCheck>(
                 "hangfire-storage", tags: ["ready"]);
 
