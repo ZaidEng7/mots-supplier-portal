@@ -51,6 +51,7 @@ namespace MotsSupplierPortal.Infrastructure.Admin.Dashboard;
 using Hangfire;
 using Hangfire.States;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MotsSupplierPortal.Application.Admin;
@@ -228,19 +229,21 @@ public sealed class SystemHealthSectionHandler(
     // is counted.
     //
     // The scheduler's tables live in the schema the deployment configures under Hangfire:SchemaName, the same
-    // setting PersistenceRegistration hands the scheduler, in the application's own database. That name comes from
-    // configuration, never from a request, and is quoted as an identifier; the time and the names are parameters.
+    // setting PersistenceRegistration hands the scheduler, in the application's own database. The query text is a
+    // constant: the schema reaches the database as a parameter to set_config, which points this transaction's
+    // search_path at it, and the time and the names are parameters too. Nothing is spliced into the SQL, and the
+    // setting ends with the transaction, so a pooled connection goes back with its usual search_path.
     private async Task<SchedulerCounts> SchedulerCountsAsync(DateTimeOffset failedSince, CancellationToken ct)
     {
         var schema = Quote(configuration.GetValue("Hangfire:SchemaName", defaultValue: "hangfire")!);
 
-        var sql = $"""
+        const string sql = """
             SELECT
                 COUNT(*) FILTER (WHERE j.statename = 'Failed' AND x.type = @email AND s.createdat >= @failedSince),
                 COUNT(*) FILTER (WHERE j.statename = 'Scheduled' AND x.type = @email),
                 COUNT(*) FILTER (WHERE j.statename = 'Scheduled' AND x.type = @import AND x.method = @secondTry)
-            FROM {schema}."job" j
-            LEFT JOIN {schema}."state" s ON s."id" = j."stateid"
+            FROM "job" j
+            LEFT JOIN "state" s ON s."id" = j."stateid"
             CROSS JOIN LATERAL (SELECT
                 split_part(COALESCE(j."invocationdata" ->> 't', j."invocationdata" ->> 'Type'), ',', 1) AS type,
                 COALESCE(j."invocationdata" ->> 'm', j."invocationdata" ->> 'Method') AS method) x
@@ -248,27 +251,35 @@ public sealed class SystemHealthSectionHandler(
             """;
 
         var connection = db.Database.GetDbConnection();
-        await db.Database.OpenConnectionAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var dbTransaction = transaction.GetDbTransaction();
 
-        try
+        await using (var searchPath = connection.CreateCommand())
         {
-            await using var command = connection.CreateCommand();
-            command.CommandText = sql;
-            Add(command, "email", typeof(EmailJobs).FullName!);
-            Add(command, "import", typeof(ErpSupplierSyncJob).FullName!);
-            Add(command, "secondTry", nameof(ErpSupplierSyncJob.RunAgainAsync));
-            Add(command, "failedSince", failedSince.ToUniversalTime());
+            searchPath.Transaction = dbTransaction;
+            searchPath.CommandText = "SELECT set_config('search_path', @schema, true)";
+            Add(searchPath, "schema", schema);
+            await searchPath.ExecuteNonQueryAsync(ct);
+        }
 
-            await using var reader = await command.ExecuteReaderAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.Transaction = dbTransaction;
+        command.CommandText = sql;
+        Add(command, "email", typeof(EmailJobs).FullName!);
+        Add(command, "import", typeof(ErpSupplierSyncJob).FullName!);
+        Add(command, "secondTry", nameof(ErpSupplierSyncJob.RunAgainAsync));
+        Add(command, "failedSince", failedSince.ToUniversalTime());
+
+        SchedulerCounts counts;
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
             await reader.ReadAsync(ct);
-
-            return new SchedulerCounts(
+            counts = new SchedulerCounts(
                 (int)reader.GetInt64(0), (int)reader.GetInt64(1), (int)reader.GetInt64(2));
         }
-        finally
-        {
-            await db.Database.CloseConnectionAsync();
-        }
+
+        await transaction.CommitAsync(ct);
+        return counts;
     }
 
     private static void Add(System.Data.Common.DbCommand command, string name, object value)
