@@ -194,19 +194,18 @@ public sealed class ErpSupplierRegistrar(
         return Text(Member(Member(created, "data"), "name")) ?? throw NotTheErps(what, HttpMethod.Post);
     }
 
-    // The connection a write may use: the switch on, and the server named in Erp:WriteHosts, matched on its host or on its
-    // host and port. An address that does not parse is not a listed server.
+    // The connection a write may use: the switch on, and the server named in Erp:WriteHosts. ErpWriteHosts holds the
+    // match, on the server's host or on its host and port, and the dashboard's yes or no asks the same one. An address
+    // that does not parse is not a listed server, and the refusal then names the address as it was written.
     private async Task<ErpConnection> WritableConnectionAsync(CancellationToken ct)
     {
         var connection = await ErpWire.RequireConnectionAsync(connections, ct);
         if (!connection.CreateSuppliersInErp) throw new ErpWritesOffException();
 
-        var listed = Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var server)
-            && options.Value.WriteHosts.Any(host =>
-                string.Equals(host.Trim(), server.Authority, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(host.Trim(), server.Host, StringComparison.OrdinalIgnoreCase));
+        if (ErpWriteHosts.Lists(options.Value.WriteHosts, connection.BaseUrl)) return connection;
 
-        return listed ? connection : throw ErpWritesOffException.ServerNotAllowed(server?.Authority ?? connection.BaseUrl);
+        throw ErpWritesOffException.ServerNotAllowed(
+            Uri.TryCreate(connection.BaseUrl, UriKind.Absolute, out var server) ? server.Authority : connection.BaseUrl);
     }
 
     private async Task<JsonNode?> ReadAsync(ErpConnection connection, string url, string what, CancellationToken ct)

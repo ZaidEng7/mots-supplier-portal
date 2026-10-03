@@ -145,6 +145,7 @@ public sealed class RowScopeGuardTests
         ["GetErpSyncMonitorHandler"] = "system_admin: the ERP queue is one queue for the deployment",
         ["ListIntegrationsHandler"] = "admin.integrations.manage, system_admin only: it counts the approved suppliers the push would still create in the ERP, which is one queue for the deployment",
         ["RetryStuckScansHandler"] = "admin.users.manage: the virus-scan queue is one queue for the deployment; it re-queues stalled scans of every supplier's documents",
+        ["ErpSectionHandler"] = "admin.integrations.manage, system_admin only: the dashboard's ERP block counts the push's waiting, failed and stalled suppliers, one queue for the deployment",
     };
 
     private sealed record HandlerScan(string File, string Name, bool Scoped, string[] Tables);
