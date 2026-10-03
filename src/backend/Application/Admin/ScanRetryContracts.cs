@@ -14,6 +14,9 @@
 // past the first BatchSize. QuarantineFileMissing names, by reference code, the documents in this batch whose file
 // is no longer in quarantine. A new scan of one of those would fail on reading the file, so they are reported for a
 // person to look at rather than re-queued.
+//
+// The handler is given the caller's identifier rather than reading it from the scope, because it names the person on
+// the audit rows and nothing else; the endpoint refuses a caller without one.
 
 namespace MotsSupplierPortal.Application.Admin;
 
@@ -31,5 +34,5 @@ public sealed record RetryStuckScansResultDto(
 
 public interface IRetryStuckScansHandler
 {
-    Task<RetryStuckScansResultDto> HandleAsync(CancellationToken ct);
+    Task<RetryStuckScansResultDto> HandleAsync(Guid actorUserId, CancellationToken ct);
 }

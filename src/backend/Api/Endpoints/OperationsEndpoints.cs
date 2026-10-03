@@ -38,6 +38,7 @@ namespace MotsSupplierPortal.Api.Endpoints;
 
 using MotsSupplierPortal.Api.Authorization;
 using MotsSupplierPortal.Application.Admin;
+using MotsSupplierPortal.Application.Common;
 using MotsSupplierPortal.Domain.Common;
 using MotsSupplierPortal.Domain.Identity;
 
@@ -104,8 +105,8 @@ public static class OperationsEndpoints
             .RequirePermission(Permissions.AdminUsersManage)
             .WithName("ReplayOutboxMessage");
 
-        group.MapPost("/scans/retry", async (IRetryStuckScansHandler handler, CancellationToken ct) =>
-            Results.Ok(await handler.HandleAsync(ct)))
+        group.MapPost("/scans/retry", async (IRetryStuckScansHandler handler, IScopeContext scope, CancellationToken ct) =>
+            scope.UserId is { } userId ? Results.Ok(await handler.HandleAsync(userId, ct)) : Results.Unauthorized())
             .RequirePermission(Permissions.AdminUsersManage)
             .WithName("RetryStuckScans");
     }

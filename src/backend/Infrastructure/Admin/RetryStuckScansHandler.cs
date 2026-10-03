@@ -53,16 +53,19 @@
 //
 // THE JOB SERVER IS READ THROUGH THIS HOST'S OWN STORAGE
 //
-// Through the storage this host was given rather than the process-wide static facade, for the reason the admin
-// overview handler gives. Its monitoring lists are paged, and only the four states that matter are read.
+// Through the storage this host was given rather than the process-wide static facade, which in a process running
+// more than one host answers for whichever host started first. Its monitoring lists are paged, and only the four
+// states that matter are read. The queued list is read for every queue the storage holds rather than only the
+// default one, so a scan queued anywhere counts as on its way.
 //
 //
 // IT READS EVERY SUPPLIER'S DOCUMENTS, BY DESIGN
 //
 // This is platform administration, gated on the user-management permission, and the scanning queue is one queue for
-// the deployment. It reads the caller's scope only to name the person on the audit row. The row-scope guard counts
-// that read as a scope, so this handler needs no exemption there, and the guard's stale-exemption check would refuse
-// one.
+// the deployment. Scoping it to the caller would find nothing, because an administrator belongs to no supplier and
+// no organisation. So it is listed in the row-scope guard's exemptions with that reason. The caller is named on the
+// audit rows through the identifier the endpoint passes in, rather than by reading the scope here, so the guard sees
+// this handler for what it is: an unscoped read, on purpose.
 
 namespace MotsSupplierPortal.Infrastructure.Admin;
 
@@ -79,7 +82,6 @@ using MotsSupplierPortal.Infrastructure.Suppliers;
 
 public sealed class RetryStuckScansHandler(
     AppDbContext db,
-    IScopeContext scope,
     JobStorage jobStorage,
     IBackgroundJobClient backgroundJobs,
     IFileStorage fileStorage,
@@ -91,7 +93,7 @@ public sealed class RetryStuckScansHandler(
 
     private sealed record ScanJob(Guid DocumentId, string JobId, string State, bool InFlight);
 
-    public async Task<RetryStuckScansResultDto> HandleAsync(CancellationToken ct)
+    public async Task<RetryStuckScansResultDto> HandleAsync(Guid actorUserId, CancellationToken ct)
     {
         var cutoff = DateTimeOffset.UtcNow - StuckScans.PendingLongerThan;
         var stuck = db.SupplierDocuments.AsNoTracking()
@@ -129,7 +131,7 @@ public sealed class RetryStuckScansHandler(
 
             backgroundJobs.Enqueue<DocumentScanJob>(job => job.ScanAsync(document.Id, CancellationToken.None));
             await auditLogger.LogAsync(
-                "SupplierDocument", document.Id, "document_scan_requeued", scope.UserId,
+                "SupplierDocument", document.Id, "document_scan_requeued", actorUserId,
                 referenceCode: document.ReferenceCode, ct: CancellationToken.None);
             requeued++;
         }
